@@ -112,8 +112,9 @@ class DatabaseServiceTest {
 
         service.submitRow(r);
 
-        verify(postgresJdbc).update(
-            contains("CALL carga_datos_empleados"),
+        verify(postgresJdbc).queryForObject(
+            contains("SELECT public.carga_datos_empleados"),
+            eq(Integer.class),
             eq("10"), eq(2), eq(3), eq(1), eq(1), eq(12), eq(2024)
         );
     }
@@ -134,7 +135,7 @@ class DatabaseServiceTest {
     void submitRow_writesToBothDatabases() {
         service.submitRow(row("5", 2, 11, 2024));
 
-        verify(postgresJdbc, times(1)).update(anyString(), any(), any(), any(), any(), any(), any(), any());
+        verify(postgresJdbc, times(1)).queryForObject(anyString(), eq(Integer.class), any(), any(), any(), any(), any(), any(), any());
         verify(h2Jdbc, times(1)).update(anyString(), any(), any(), any(), any());
     }
 }

@@ -17,6 +17,7 @@ interface AppStore {
   dbReachable: boolean | null;
   jobId: string | null;
   jobResponse: JobResponse | null;
+  searchText: string;
 
   setLoaded: (
     rows: EmployeeRow[],
@@ -34,6 +35,7 @@ interface AppStore {
   updateJobResponse: (r: JobResponse) => void;
   setResult: (r: SubmitResponse) => void;
   setDbReachable: (v: boolean) => void;
+  setSearchText: (s: string) => void;
   reset: () => void;
 
   // Derived: rows with quincena + selected month injected
@@ -53,6 +55,7 @@ export const useStore = create<AppStore>((set, get) => ({
   dbReachable: null,
   jobId: null,
   jobResponse: null,
+  searchText: '',
 
   setLoaded: (rows, monthOptions, multiMonth, warnings) => set({
     appState: 'loaded',
@@ -67,6 +70,7 @@ export const useStore = create<AppStore>((set, get) => ({
     dbReachable: null,
     jobId: null,
     jobResponse: null,
+    searchText: '',
   }),
 
   setQuincena: (q) => set({ selectedQuincena: q, validation: null, dbReachable: null }),
@@ -85,12 +89,13 @@ export const useStore = create<AppStore>((set, get) => ({
   updateJobResponse: (r) => set({ jobResponse: r }),
   setResult: (r) => set({ appState: 'result', submitResult: r }),
   setDbReachable: (v) => set({ dbReachable: v }),
+  setSearchText: (s) => set({ searchText: s }),
   reset: () => set({
     appState: 'empty',
     rows: [], monthOptions: [], multiMonth: false,
     parseWarnings: [], selectedQuincena: null,
     selectedMonth: null, validation: null, submitResult: null,
-    dbReachable: null, jobId: null, jobResponse: null,
+    dbReachable: null, jobId: null, jobResponse: null, searchText: '',
   }),
 
   getRowsForSubmit: () => {

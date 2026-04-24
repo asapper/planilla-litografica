@@ -34,11 +34,19 @@ export default function DataGrid() {
   const updateRow     = useStore(s => s.updateRow);
   const selectedMonth = useStore(s => s.selectedMonth);
   const multiMonth    = useStore(s => s.multiMonth);
+  const searchText    = useStore(s => s.searchText);
 
-  // When multiple months are present, show only rows for the selected month
-  const displayRows = multiMonth && selectedMonth
+  const monthFiltered = multiMonth && selectedMonth
     ? rows.filter(r => r.mes === selectedMonth.mes && r.anio === selectedMonth.anio)
     : rows;
+
+  const q = searchText.trim().toLowerCase();
+  const displayRows = q
+    ? monthFiltered.filter(r =>
+        r.codigoEmpleado.toLowerCase().includes(q) ||
+        r.nombreEmpleado.toLowerCase().includes(q)
+      )
+    : monthFiltered;
 
   const getRowValidation = (codigo: string): RowValidationResult | undefined =>
     validation?.rows.find(r => r.codigoEmpleado === codigo);

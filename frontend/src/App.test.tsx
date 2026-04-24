@@ -119,7 +119,7 @@ describe('App state routing', () => {
   it('shows EmptyState when appState is "empty"', async () => {
     render(<App />);
     await waitFor(() => expect(screen.getByTestId('empty-state')).toBeInTheDocument());
-    expect(screen.queryByTestId('top-app-bar')).not.toBeInTheDocument();
+    expect(screen.getByTestId('top-app-bar')).toBeInTheDocument();
     expect(screen.queryByTestId('result-screen')).not.toBeInTheDocument();
   });
 
@@ -155,7 +155,7 @@ describe('App state routing', () => {
     render(<App />);
     await waitFor(() => expect(screen.getByTestId('result-screen')).toBeInTheDocument());
     expect(screen.queryByTestId('empty-state')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('top-app-bar')).not.toBeInTheDocument();
+    expect(screen.getByTestId('top-app-bar')).toBeInTheDocument();
   });
 
   it('does not show spinner overlay when appState is "loaded"', async () => {

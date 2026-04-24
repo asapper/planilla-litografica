@@ -130,6 +130,33 @@ describe('DataGrid', () => {
     expect(useStore.getState().rows[0].diasNoLaborados).toBe('5' as any);
   });
 
+  it('filters rows by searchText matching codigoEmpleado', () => {
+    useStore.getState().setLoaded([makeRow('101'), makeRow('202')], [DEC_2024], false, []);
+    useStore.getState().setSearchText('101');
+    render(<DataGrid />);
+    expect(screen.getByTestId('row-count').textContent).toBe('1');
+  });
+
+  it('filters rows by searchText matching nombreEmpleado (case-insensitive)', () => {
+    useStore.getState().setLoaded([makeRow('1'), makeRow('2')], [DEC_2024], false, []);
+    useStore.getState().setSearchText('emp 1');
+    render(<DataGrid />);
+    expect(screen.getByTestId('row-count').textContent).toBe('1');
+  });
+
+  it('shows all rows when searchText is empty', () => {
+    useStore.getState().setLoaded([makeRow('1'), makeRow('2'), makeRow('3')], [DEC_2024], false, []);
+    render(<DataGrid />);
+    expect(screen.getByTestId('row-count').textContent).toBe('3');
+  });
+
+  it('shows no rows when searchText matches nothing', () => {
+    useStore.getState().setLoaded([makeRow('1'), makeRow('2')], [DEC_2024], false, []);
+    useStore.getState().setSearchText('zzz');
+    render(<DataGrid />);
+    expect(screen.getByTestId('row-count').textContent).toBe('0');
+  });
+
   it('renders without error when validation is present', () => {
     useStore.getState().setLoaded([makeRow('1')], [DEC_2024], false, []);
     useStore.getState().setValidation({

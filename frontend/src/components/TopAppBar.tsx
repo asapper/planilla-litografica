@@ -1,8 +1,14 @@
 import { useStore } from '../store';
 
 export default function TopAppBar() {
-  const rows  = useStore(s => s.rows);
-  const reset = useStore(s => s.reset);
+  const appState      = useStore(s => s.appState);
+  const rows          = useStore(s => s.rows);
+  const reset         = useStore(s => s.reset);
+  const searchText    = useStore(s => s.searchText);
+  const setSearchText = useStore(s => s.setSearchText);
+
+  const hasData    = rows.length > 0;
+  const showLoaded = appState === 'loaded';
 
   return (
     <header
@@ -10,7 +16,7 @@ export default function TopAppBar() {
       style={{ top: 0, height: 64, zIndex: 30, boxShadow: '0 2px 8px rgba(24,85,163,0.25)' }}
     >
       {/* Leading: app identity */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 shrink-0">
         <div className="w-9 h-9 rounded-shape-md bg-white/20 flex items-center justify-center shrink-0">
           <svg className="w-5 h-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path strokeLinecap="round" strokeLinejoin="round"
@@ -19,26 +25,57 @@ export default function TopAppBar() {
         </div>
         <div>
           <p className="text-title-md text-white font-medium leading-tight">Cargador de Planilla</p>
-          <p className="text-body-sm leading-tight" style={{ color: 'rgba(255,255,255,0.75)' }}>
-            {rows.length} empleado{rows.length !== 1 ? 's' : ''} cargados
-          </p>
+          {showLoaded && (
+            <p className="text-body-sm leading-tight" style={{ color: 'rgba(255,255,255,0.75)' }}>
+              {rows.length} empleado{rows.length !== 1 ? 's' : ''} cargado{rows.length !== 1 ? 's' : ''}
+            </p>
+          )}
         </div>
       </div>
 
+      {/* Center: search */}
+      {showLoaded && (
+        <div className="flex-1 mx-6 max-w-sm relative">
+          <input
+            type="search"
+            value={searchText}
+            onChange={e => setSearchText(e.target.value)}
+            placeholder="Buscar por código o nombre..."
+            aria-label="Buscar empleado"
+            className="w-full h-9 px-3 rounded-shape-full text-body-md border border-white/30
+                       focus:outline-none focus:bg-white/25 transition-colors duration-150"
+            style={{ background: 'rgba(255,255,255,0.15)', color: 'white', paddingRight: searchText ? '2rem' : undefined }}
+          />
+          {searchText && (
+            <button
+              onClick={() => setSearchText('')}
+              aria-label="Limpiar búsqueda"
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-white/60 hover:text-white transition-colors duration-150 cursor-pointer"
+            >
+              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Trailing: new upload action */}
-      <button
-        onClick={reset}
-        className="inline-flex items-center gap-1.5 px-4 h-9 rounded-shape-full text-label-lg font-medium
-                   bg-white/15 text-white border border-white/30
-                   hover:bg-white/25 transition-colors duration-150 cursor-pointer"
-        title="Cargar nuevo archivo"
-      >
-        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <path strokeLinecap="round" strokeLinejoin="round"
-            d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-        </svg>
-        Nueva carga
-      </button>
+      {hasData && (
+        <button
+          onClick={reset}
+          className="inline-flex items-center gap-1.5 px-4 h-9 rounded-shape-full text-label-lg font-medium
+                     bg-white/15 text-white border border-white/30
+                     hover:bg-white/25 transition-colors duration-150 cursor-pointer shrink-0"
+          title="Cargar nuevo archivo"
+        >
+          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path strokeLinecap="round" strokeLinejoin="round"
+              d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+          Nueva carga
+        </button>
+      )}
     </header>
   );
 }

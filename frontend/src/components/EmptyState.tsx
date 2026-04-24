@@ -52,7 +52,7 @@ export default function EmptyState() {
   };
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-6">
+    <div className="min-h-screen bg-background flex items-center justify-center px-6 pb-6 pt-16">
       <div className="m3-card-elevated w-full max-w-md text-center">
 
         {/* Icon */}

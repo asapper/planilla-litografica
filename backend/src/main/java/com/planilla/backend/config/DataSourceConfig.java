@@ -5,6 +5,7 @@ import com.zaxxer.hikari.HikariDataSource;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.DependsOn;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.init.DataSourceInitializer;
 import org.springframework.jdbc.datasource.init.ResourceDatabasePopulator;
@@ -64,6 +65,7 @@ public class DataSourceConfig {
     }
 
     @Bean("h2JdbcTemplate")
+    @DependsOn("h2Initializer")
     public JdbcTemplate h2JdbcTemplate() {
         return new JdbcTemplate(h2DataSource());
     }

@@ -81,12 +81,13 @@ export default function App() {
 
   // ── Normal app ───────────────────────────────────────────────────────
   return (
-    <>
+    <ErrorBoundary>
+      <TopAppBar />
+
       {appState === 'empty' && <EmptyState />}
 
       {(appState === 'loaded' || appState === 'submitting') && (
-        <ErrorBoundary>
-          <TopAppBar />
+        <>
           <main
             className="px-6"
             style={{
@@ -108,12 +109,12 @@ export default function App() {
               <p className="text-title-md text-primary">Enviando...</p>
             </div>
           )}
-        </ErrorBoundary>
+        </>
       )}
 
       {appState === 'polling' && <PollingScreen />}
 
       {appState === 'result' && <ResultScreen />}
-    </>
+    </ErrorBoundary>
   );
 }

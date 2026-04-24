@@ -49,6 +49,10 @@ describe('initial state', () => {
   it('starts with dbReachable null', () => {
     expect(useStore.getState().dbReachable).toBeNull();
   });
+
+  it('starts with empty searchText', () => {
+    expect(useStore.getState().searchText).toBe('');
+  });
 });
 
 // -----------------------------------------------------------------
@@ -182,6 +186,7 @@ describe('setResult', () => {
 describe('reset', () => {
   it('returns to empty state', () => {
     useStore.getState().setLoaded([makeRow('1')], [DEC_2024], false, []);
+    useStore.getState().setSearchText('test');
     useStore.getState().reset();
     const s = useStore.getState();
     expect(s.appState).toBe('empty');
@@ -191,6 +196,7 @@ describe('reset', () => {
     expect(s.selectedQuincena).toBeNull();
     expect(s.selectedMonth).toBeNull();
     expect(s.dbReachable).toBeNull();
+    expect(s.searchText).toBe('');
   });
 });
 
@@ -280,6 +286,27 @@ describe('getRowsForSubmit', () => {
     // selectedMonth is null → multiMonth && selectedMonth = false → return all
     const rows = useStore.getState().getRowsForSubmit();
     expect(rows).toHaveLength(2);
+  });
+});
+
+// -----------------------------------------------------------------
+// setLoaded edge cases
+// -----------------------------------------------------------------
+
+// -----------------------------------------------------------------
+// setSearchText
+// -----------------------------------------------------------------
+
+describe('setSearchText', () => {
+  it('stores the search text', () => {
+    useStore.getState().setSearchText('garcia');
+    expect(useStore.getState().searchText).toBe('garcia');
+  });
+
+  it('is cleared by setLoaded', () => {
+    useStore.getState().setSearchText('garcia');
+    useStore.getState().setLoaded([makeRow('1')], [DEC_2024], false, []);
+    expect(useStore.getState().searchText).toBe('');
   });
 });
 
