@@ -1,0 +1,182 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─── M3 Design Tokens — Light Theme ──────────────────────────────────────── */
+:root {
+  /* Primary — Rich blue */
+  --md-sys-color-primary:                #1855A3;
+  --md-sys-color-on-primary:             #FFFFFF;
+  --md-sys-color-primary-container:      #D6E4FF;
+  --md-sys-color-on-primary-container:   #001C3E;
+
+  /* Secondary — Indigo-blue */
+  --md-sys-color-secondary:              #4A5568;
+  --md-sys-color-on-secondary:           #FFFFFF;
+  --md-sys-color-secondary-container:    #C7D7F5;
+  --md-sys-color-on-secondary-container: #0F1D33;
+
+  /* Tertiary — Violet */
+  --md-sys-color-tertiary:               #6B5778;
+  --md-sys-color-on-tertiary:            #FFFFFF;
+  --md-sys-color-tertiary-container:     #F2DAFF;
+  --md-sys-color-on-tertiary-container:  #251431;
+
+  /* Error — Red */
+  --md-sys-color-error:                  #BA1A1A;
+  --md-sys-color-on-error:               #FFFFFF;
+  --md-sys-color-error-container:        #FFDAD6;
+  --md-sys-color-on-error-container:     #410002;
+
+  /* Warning — Amber (custom, for duplicates) */
+  --md-sys-color-warning:                #7C5800;
+  --md-sys-color-on-warning:             #FFFFFF;
+  --md-sys-color-warning-container:      #FFDEA8;
+  --md-sys-color-on-warning-container:   #271900;
+
+  /* Surface */
+  --md-sys-color-background:             #F8F9FF;
+  --md-sys-color-on-background:          #191C20;
+  --md-sys-color-surface:                #F8F9FF;
+  --md-sys-color-on-surface:             #191C20;
+  --md-sys-color-surface-variant:        #DFE2EB;
+  --md-sys-color-on-surface-variant:     #43474E;
+  --md-sys-color-surface-container-lowest:  #FFFFFF;
+  --md-sys-color-surface-container-low:     #F2F3FA;
+  --md-sys-color-surface-container:         #ECEEF5;
+  --md-sys-color-surface-container-high:    #E6E8EF;
+  --md-sys-color-surface-container-highest: #E1E2E9;
+
+  /* Outline */
+  --md-sys-color-outline:                #73777F;
+  --md-sys-color-outline-variant:        #C3C7CF;
+
+  /* Inverse */
+  --md-sys-color-inverse-surface:        #2E3036;
+  --md-sys-color-inverse-on-surface:     #EFF0F7;
+  --md-sys-color-inverse-primary:        #AAC7FF;
+
+  /* ─── Shape ─────────────────────────────────────────────────────────────── */
+  --md-sys-shape-corner-extra-small: 4px;
+  --md-sys-shape-corner-small:       8px;
+  --md-sys-shape-corner-medium:      12px;
+  --md-sys-shape-corner-large:       16px;
+  --md-sys-shape-corner-extra-large: 28px;
+  --md-sys-shape-corner-full:        9999px;
+
+  /* ─── Elevation (tonal surface overlays) ────────────────────────────────── */
+  --md-sys-elevation-1: 0 1px 2px rgba(0,0,0,.12), 0 1px 3px 1px rgba(0,0,0,.08);
+  --md-sys-elevation-2: 0 1px 2px rgba(0,0,0,.12), 0 2px 6px 2px rgba(0,0,0,.08);
+  --md-sys-elevation-3: 0 4px 8px 3px rgba(0,0,0,.10), 0 1px 3px rgba(0,0,0,.12);
+}
+
+/* ─── Base ──────────────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Roboto', system-ui, sans-serif;
+  background-color: var(--md-sys-color-background);
+  background-image:
+    radial-gradient(ellipse at 20% 0%, rgba(24, 85, 163, 0.06) 0%, transparent 60%),
+    radial-gradient(ellipse at 80% 100%, rgba(107, 87, 120, 0.04) 0%, transparent 60%);
+  color: var(--md-sys-color-on-background);
+  font-size: 14px;
+  line-height: 20px;
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+}
+
+/* ─── M3 State Layer (ripple/hover/focus) ───────────────────────────────────── */
+@layer components {
+  .state-layer {
+    @apply relative overflow-hidden;
+  }
+  .state-layer::after {
+    content: '';
+    @apply absolute inset-0 rounded-[inherit] opacity-0 transition-opacity duration-200;
+    background-color: currentColor;
+  }
+  .state-layer:hover::after  { opacity: 0.08; }
+  .state-layer:focus::after  { opacity: 0.12; }
+  .state-layer:active::after { opacity: 0.12; }
+
+  /* ─── M3 Button base ─────────────────────────────────────────────────────── */
+  .m3-btn {
+    @apply inline-flex items-center justify-center gap-2
+           h-10 px-6 rounded-shape-full
+           text-label-lg font-medium tracking-[0.1px]
+           select-none cursor-pointer transition-shadow duration-200
+           state-layer;
+  }
+  .m3-btn:disabled {
+    @apply opacity-[0.38] cursor-not-allowed pointer-events-none;
+  }
+
+  /* Filled */
+  .m3-btn-filled {
+    @apply m3-btn bg-primary text-on-primary;
+    box-shadow: var(--md-sys-elevation-1);
+  }
+  .m3-btn-filled:hover { box-shadow: var(--md-sys-elevation-2); }
+
+  /* Tonal */
+  .m3-btn-tonal {
+    @apply m3-btn bg-secondary-container text-on-secondary-container;
+    box-shadow: var(--md-sys-elevation-1);
+  }
+  .m3-btn-tonal:hover { box-shadow: var(--md-sys-elevation-2); }
+
+  /* Outlined */
+  .m3-btn-outlined {
+    @apply m3-btn bg-transparent text-primary border border-outline;
+  }
+
+  /* Text */
+  .m3-btn-text {
+    @apply m3-btn bg-transparent text-primary px-3;
+  }
+
+  /* ─── M3 Card ────────────────────────────────────────────────────────────── */
+  .m3-card-elevated {
+    @apply bg-surface-container-low rounded-shape-md p-6;
+    box-shadow: var(--md-sys-elevation-1);
+  }
+  .m3-card-filled {
+    @apply bg-surface-container-highest rounded-shape-md p-6;
+  }
+  .m3-card-outlined {
+    @apply bg-surface rounded-shape-md p-6 border border-outline-variant;
+  }
+
+  /* ─── M3 Filter Chip ─────────────────────────────────────────────────────── */
+  .m3-chip {
+    @apply inline-flex items-center justify-center h-8 px-4
+           rounded-shape-sm text-label-lg border border-outline
+           bg-surface text-on-surface-variant cursor-pointer
+           transition-colors duration-150 select-none state-layer;
+  }
+  .m3-chip-selected {
+    @apply bg-secondary-container text-on-secondary-container border-transparent;
+  }
+}
+
+/* ─── AG Grid editable column headers ──────────────────────────────────────── */
+.ag-theme-quartz .editable-header .ag-header-cell-label {
+  color: var(--md-sys-color-primary);
+  font-weight: 600;
+}
+
+/* Editable cells: subtle tint + pointer cursor to signal interactivity */
+.ag-theme-quartz .ag-cell[col-id="diasNoLaborados"],
+.ag-theme-quartz .ag-cell[col-id="horasExtrasSimples"],
+.ag-theme-quartz .ag-cell[col-id="horasExtrasDobles"] {
+  cursor: text;
+}
+.ag-theme-quartz .ag-row:not(.ag-row-editing) .ag-cell[col-id="diasNoLaborados"]:hover,
+.ag-theme-quartz .ag-row:not(.ag-row-editing) .ag-cell[col-id="horasExtrasSimples"]:hover,
+.ag-theme-quartz .ag-row:not(.ag-row-editing) .ag-cell[col-id="horasExtrasDobles"]:hover {
+  background-color: var(--md-sys-color-primary-container) !important;
+  outline: 2px solid var(--md-sys-color-primary);
+  outline-offset: -2px;
+  border-radius: 4px;
+}

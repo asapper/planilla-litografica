@@ -1,0 +1,52 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Cargador de Planilla",
+  "version": "1.0.0",
+  "identifier": "com.planilla.lito",
+  "build": {
+    "frontendDist": "../dist",
+    "devUrl": "http://localhost:5173",
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Cargador de Planilla",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 900,
+        "minHeight": 600,
+        "resizable": true,
+        "fullscreen": false
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["app"],
+    "resources": {
+      "binaries/backend.jar": "backend.jar",
+      "binaries/jre/bin/**/*": "jre/bin",
+      "binaries/jre/conf/**/*": "jre/conf",
+      "binaries/jre/conf/security/**/*": "jre/conf/security",
+      "binaries/jre/conf/security/policy/**/*": "jre/conf/security/policy",
+      "binaries/jre/conf/security/policy/limited/**/*": "jre/conf/security/policy/limited",
+      "binaries/jre/conf/security/policy/unlimited/**/*": "jre/conf/security/policy/unlimited",
+      "binaries/jre/lib/**/*": "jre/lib",
+      "binaries/jre/lib/server/**/*": "jre/lib/server",
+      "binaries/jre/lib/security/**/*": "jre/lib/security",
+      "binaries/jre/release": "jre/release"
+    },
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ]
+  }
+}

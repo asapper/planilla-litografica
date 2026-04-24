@@ -1,0 +1,273 @@
+openapi: 3.0.3
+info:
+  title: Planilla Lito API
+  description: Backend API for the CSV Data Loader desktop application
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:8080/api
+    description: Local development server
+
+paths:
+
+  /upload:
+    post:
+      summary: Upload and parse a CSV file
+      description: >
+        Accepts a CSV file, parses all employee blocks, extracts one summary row
+        per employee, applies field validation rules, and returns the structured
+        rows. Does NOT interact with the database.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: The attendance report CSV file (ISO-8859-1 encoded)
+      responses:
+        '200':
+          description: File parsed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UploadResponse'
+        '400':
+          description: File could not be parsed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /validate:
+    post:
+      summary: Validate rows and check for duplicates
+      description: >
+        Validates all employee rows against the configured rules and checks each
+        row against the database for duplicates. Returns per-row validation status
+        and duplicate flags. Does NOT submit to the stored procedure.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ValidateRequest'
+      responses:
+        '200':
+          description: Validation complete (rows may contain errors or duplicate flags)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidateResponse'
+        '400':
+          description: Malformed request body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /submit:
+    post:
+      summary: Submit validated rows to the database
+      description: >
+        Calls the stored procedure carga_datos_empleados for each valid,
+        non-duplicate row. Duplicate rows are silently skipped. Returns
+        per-row submission results.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubmitRequest'
+      responses:
+        '200':
+          description: Submission complete (check per-row results for individual failures)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubmitResponse'
+        '400':
+          description: Malformed request or validation not yet run
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Database connection failure
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+
+    EmployeeRow:
+      type: object
+      required:
+        - codigo_empleado
+        - dias_no_laborados
+        - horas_extras_simples
+        - horas_extras_dobles
+        - mes
+        - anio
+      properties:
+        codigo_empleado:
+          type: string
+          example: "3"
+        nombre_empleado:
+          type: string
+          description: Display only — not sent to stored procedure
+          example: "DIEGUEZ EQUITE, JOSE ARMANDO"
+        dias_no_laborados:
+          type: integer
+          minimum: 0
+          example: 0
+        horas_extras_simples:
+          type: integer
+          minimum: 0
+          example: 46
+        horas_extras_dobles:
+          type: integer
+          minimum: 0
+          example: 0
+        mes:
+          type: integer
+          minimum: 1
+          maximum: 12
+          example: 12
+        anio:
+          type: integer
+          example: 2025
+
+    EmployeeRowWithQuincena:
+      allOf:
+        - $ref: '#/components/schemas/EmployeeRow'
+        - type: object
+          required:
+            - numero_de_quincena
+          properties:
+            numero_de_quincena:
+              type: integer
+              minimum: 1
+              maximum: 2
+              example: 2
+
+    RowValidationResult:
+      type: object
+      properties:
+        codigo_empleado:
+          type: string
+        valid:
+          type: boolean
+        duplicate:
+          type: boolean
+          description: True if this row already exists in the DB for the same period
+        errors:
+          type: array
+          items:
+            type: object
+            properties:
+              field:
+                type: string
+              message:
+                type: string
+
+    RowSubmitResult:
+      type: object
+      properties:
+        codigo_empleado:
+          type: string
+        submitted:
+          type: boolean
+        skipped_duplicate:
+          type: boolean
+        error:
+          type: string
+          description: Present only if submitted is false and not a duplicate
+
+    UploadResponse:
+      type: object
+      properties:
+        rows:
+          type: array
+          items:
+            $ref: '#/components/schemas/EmployeeRow'
+        derived_mes:
+          type: integer
+          description: Month derived from CSV dates — for display in quincena selector
+          example: 12
+        derived_anio:
+          type: integer
+          description: Year derived from CSV dates — for display in quincena selector
+          example: 2025
+        parse_warnings:
+          type: array
+          description: Non-fatal parsing issues (e.g. employee block missing summary row)
+          items:
+            type: string
+
+    ValidateRequest:
+      type: object
+      required:
+        - rows
+      properties:
+        rows:
+          type: array
+          items:
+            $ref: '#/components/schemas/EmployeeRowWithQuincena'
+
+    ValidateResponse:
+      type: object
+      properties:
+        all_valid:
+          type: boolean
+        has_duplicates:
+          type: boolean
+        rows:
+          type: array
+          items:
+            $ref: '#/components/schemas/RowValidationResult'
+
+    SubmitRequest:
+      type: object
+      required:
+        - rows
+      properties:
+        rows:
+          type: array
+          items:
+            $ref: '#/components/schemas/EmployeeRowWithQuincena'
+
+    SubmitResponse:
+      type: object
+      properties:
+        total_submitted:
+          type: integer
+        total_skipped_duplicates:
+          type: integer
+        total_failed:
+          type: integer
+        rows:
+          type: array
+          items:
+            $ref: '#/components/schemas/RowSubmitResult'
+
+    ErrorResponse:
+      type: object
+      properties:
+        status:
+          type: integer
+        code:
+          type: string
+        message:
+          type: string
+        details:
+          type: array
+          items:
+            type: string

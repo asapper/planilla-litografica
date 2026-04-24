@@ -1,0 +1,39 @@
+# ── Build artifacts ──────────────────────────────────────────────────────────
+# Maven
+backend/target/
+
+# Frontend build + test output
+frontend/dist/
+frontend/coverage/
+
+# Rust / Tauri build
+frontend/src-tauri/target/
+
+# ── Dependencies (always reproducible from lock files) ───────────────────────
+frontend/node_modules/
+
+# ── Bundled binaries (compiled JARs, embedded JRE — not source) ──────────────
+binaries/
+frontend/src-tauri/binaries/
+
+# ── Auto-generated files ─────────────────────────────────────────────────────
+# Tauri generates these from capabilities/ at build time
+frontend/src-tauri/gen/
+
+# ── IDE ──────────────────────────────────────────────────────────────────────
+.idea/
+*.iml
+.vscode/
+
+# ── OS ───────────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ── Runtime / logs ───────────────────────────────────────────────────────────
+logs/
+*.log
+
+# ── Runtime data (H2 embedded database files) ────────────────────────────────
+backend/data/
+*.mv.db
+*.trace.db

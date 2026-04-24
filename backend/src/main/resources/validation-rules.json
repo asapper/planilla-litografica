@@ -1,0 +1,48 @@
+{
+  "fields": {
+    "codigo_empleado": {
+      "required": true,
+      "type": "string",
+      "description": "Employee code extracted from the CSV header block"
+    },
+    "dias_no_laborados": {
+      "required": true,
+      "type": "integer",
+      "min": 0,
+      "description": "Non-worked days (Ausencias value from summary row)"
+    },
+    "horas_extras_simples": {
+      "required": true,
+      "type": "integer",
+      "min": 0,
+      "description": "Simple overtime hours, converted from HH:MM:SS and rounded to nearest integer"
+    },
+    "horas_extras_dobles": {
+      "required": true,
+      "type": "integer",
+      "min": 0,
+      "description": "Double overtime hours, converted from HH:MM:SS and rounded to nearest integer"
+    },
+    "numero_de_quincena": {
+      "required": true,
+      "type": "integer",
+      "min": 1,
+      "max": 2,
+      "description": "Pay period within the month — 1 (first half) or 2 (second half), supplied by user"
+    },
+    "mes": {
+      "required": true,
+      "type": "integer",
+      "min": 1,
+      "max": 12,
+      "description": "Month number derived from summary row date"
+    },
+    "anio": {
+      "required": true,
+      "type": "integer",
+      "min": 2000,
+      "max": 2100,
+      "description": "Year derived from summary row date"
+    }
+  }
+}
