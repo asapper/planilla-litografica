@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import type {
   AppState, EmployeeRow, MonthOption,
-  ValidateResponse, SubmitResponse,
+  ValidateResponse, SubmitResponse, JobResponse,
 } from './types';
 
 interface AppStore {
@@ -15,6 +15,8 @@ interface AppStore {
   validation: ValidateResponse | null;
   submitResult: SubmitResponse | null;
   dbReachable: boolean | null;
+  jobId: string | null;
+  jobResponse: JobResponse | null;
 
   setLoaded: (
     rows: EmployeeRow[],
@@ -27,6 +29,9 @@ interface AppStore {
   setValidation: (v: ValidateResponse) => void;
   updateRow: (index: number, updated: Partial<EmployeeRow>) => void;
   setSubmitting: () => void;
+  cancelSubmit: () => void;
+  setPolling: (jobId: string) => void;
+  updateJobResponse: (r: JobResponse) => void;
   setResult: (r: SubmitResponse) => void;
   setDbReachable: (v: boolean) => void;
   reset: () => void;
@@ -46,6 +51,8 @@ export const useStore = create<AppStore>((set, get) => ({
   validation: null,
   submitResult: null,
   dbReachable: null,
+  jobId: null,
+  jobResponse: null,
 
   setLoaded: (rows, monthOptions, multiMonth, warnings) => set({
     appState: 'loaded',
@@ -58,6 +65,8 @@ export const useStore = create<AppStore>((set, get) => ({
     validation: null,
     submitResult: null,
     dbReachable: null,
+    jobId: null,
+    jobResponse: null,
   }),
 
   setQuincena: (q) => set({ selectedQuincena: q, validation: null, dbReachable: null }),
@@ -71,6 +80,9 @@ export const useStore = create<AppStore>((set, get) => ({
   }),
 
   setSubmitting: () => set({ appState: 'submitting' }),
+  cancelSubmit: () => set({ appState: 'loaded' }),
+  setPolling: (jobId) => set({ appState: 'polling', jobId, jobResponse: null }),
+  updateJobResponse: (r) => set({ jobResponse: r }),
   setResult: (r) => set({ appState: 'result', submitResult: r }),
   setDbReachable: (v) => set({ dbReachable: v }),
   reset: () => set({
@@ -78,7 +90,7 @@ export const useStore = create<AppStore>((set, get) => ({
     rows: [], monthOptions: [], multiMonth: false,
     parseWarnings: [], selectedQuincena: null,
     selectedMonth: null, validation: null, submitResult: null,
-    dbReachable: null,
+    dbReachable: null, jobId: null, jobResponse: null,
   }),
 
   getRowsForSubmit: () => {

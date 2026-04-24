@@ -20,6 +20,9 @@ frontend/src-tauri/binaries/
 # Tauri generates these from capabilities/ at build time
 frontend/src-tauri/gen/
 
+# ── Claude Code ──────────────────────────────────────────────────────────────
+.claude/
+
 # ── IDE ──────────────────────────────────────────────────────────────────────
 .idea/
 *.iml

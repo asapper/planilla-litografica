@@ -1,8 +1,7 @@
 import { vi, describe, it, expect, beforeEach } from 'vitest';
-import type { EmployeeRow, UploadResponse, ValidateResponse, SubmitResponse } from './types';
+import type { EmployeeRow, UploadResponse, ValidateResponse, StartJobResponse, JobResponse } from './types';
 
 // vi.hoisted ensures these are available inside the vi.mock factory
-// (vi.mock is hoisted to top of file, before normal variable declarations)
 const mockPost = vi.hoisted(() => vi.fn());
 const mockGet  = vi.hoisted(() => vi.fn());
 
@@ -13,7 +12,7 @@ vi.mock('axios', () => ({
 }));
 
 // Import api AFTER mock is in place
-const { uploadCsv, validateRows, submitRows, checkHealth, checkDbHealth } = await import('./api');
+const { uploadCsv, validateRows, startJob, getJob, retryJob, checkHealth, checkDbHealth } = await import('./api');
 
 const row: EmployeeRow = {
   codigoEmpleado: '1',
@@ -83,20 +82,15 @@ describe('validateRows', () => {
 });
 
 // -----------------------------------------------------------------
-// submitRows
+// startJob
 // -----------------------------------------------------------------
 
-describe('submitRows', () => {
-  it('posts to /submit with rows array and returns response data', async () => {
-    const response: SubmitResponse = {
-      totalSubmitted: 1,
-      totalSkippedDuplicates: 0,
-      totalFailed: 0,
-      rows: [],
-    };
+describe('startJob', () => {
+  it('posts to /submit with rows array and returns jobId + status', async () => {
+    const response: StartJobResponse = { jobId: 'job-abc', status: 'PENDING' };
     mockPost.mockResolvedValue({ data: response });
 
-    const result = await submitRows([row]);
+    const result = await startJob([row]);
 
     expect(mockPost).toHaveBeenCalledWith('/submit', [row]);
     expect(result).toEqual(response);
@@ -104,7 +98,54 @@ describe('submitRows', () => {
 
   it('propagates errors', async () => {
     mockPost.mockRejectedValue(new Error('timeout'));
-    await expect(submitRows([row])).rejects.toThrow('timeout');
+    await expect(startJob([row])).rejects.toThrow('timeout');
+  });
+});
+
+// -----------------------------------------------------------------
+// getJob
+// -----------------------------------------------------------------
+
+describe('getJob', () => {
+  it('gets /jobs/{jobId} and returns job response', async () => {
+    const response: Partial<JobResponse> = {
+      jobId: 'job-abc',
+      status: 'IN_PROGRESS',
+      totalRows: 5,
+      processed: 2,
+    };
+    mockGet.mockResolvedValue({ data: response });
+
+    const result = await getJob('job-abc');
+
+    expect(mockGet).toHaveBeenCalledWith('/jobs/job-abc');
+    expect(result).toEqual(response);
+  });
+
+  it('propagates errors', async () => {
+    mockGet.mockRejectedValue(new Error('not found'));
+    await expect(getJob('no-such')).rejects.toThrow('not found');
+  });
+});
+
+// -----------------------------------------------------------------
+// retryJob
+// -----------------------------------------------------------------
+
+describe('retryJob', () => {
+  it('posts to /jobs/{jobId}/retry and returns new jobId', async () => {
+    const response: StartJobResponse = { jobId: 'job-retry-1', status: 'PENDING' };
+    mockPost.mockResolvedValue({ data: response });
+
+    const result = await retryJob('job-abc');
+
+    expect(mockPost).toHaveBeenCalledWith('/jobs/job-abc/retry');
+    expect(result).toEqual(response);
+  });
+
+  it('propagates errors', async () => {
+    mockPost.mockRejectedValue(new Error('max retries'));
+    await expect(retryJob('job-abc')).rejects.toThrow('max retries');
   });
 });
 

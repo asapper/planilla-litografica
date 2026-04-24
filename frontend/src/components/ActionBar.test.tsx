@@ -3,21 +3,17 @@ import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import ActionBar from './ActionBar';
 import { useStore } from '../store';
 import * as api from '../api';
-import type { ValidateResponse, SubmitResponse } from '../types';
+import type { ValidateResponse } from '../types';
 
 // Mock the API module so no HTTP calls are made
 vi.mock('../api');
 
 const mockValidateRows  = vi.mocked(api.validateRows);
-const mockSubmitRows    = vi.mocked(api.submitRows);
+const mockStartJob      = vi.mocked(api.startJob);
 const mockCheckDbHealth = vi.mocked(api.checkDbHealth);
 
 function makeValidateResponse(allValid: boolean, hasDuplicates = false): ValidateResponse {
   return { allValid, hasDuplicates, rows: [] };
-}
-
-function makeSubmitResponse(): SubmitResponse {
-  return { totalSubmitted: 1, totalSkippedDuplicates: 0, totalFailed: 0, rows: [] };
 }
 
 function setupLoadedStore(quincena: number | null = null) {
@@ -102,13 +98,13 @@ describe('ActionBar validate and submit flow', () => {
     await waitFor(() => expect(mockValidateRows).toHaveBeenCalledOnce());
   });
 
-  it('does not call submitRows when validation fails', async () => {
+  it('does not call startJob when validation fails', async () => {
     setupLoadedStore(1);
     mockValidateRows.mockResolvedValue(makeValidateResponse(false));
     render(<ActionBar />);
     fireEvent.click(screen.getByRole('button', { name: /validar/i }));
     await waitFor(() => expect(mockValidateRows).toHaveBeenCalledOnce());
-    expect(mockSubmitRows).not.toHaveBeenCalled();
+    expect(mockStartJob).not.toHaveBeenCalled();
   });
 
   it('starts DB health polling after validation passes', async () => {
@@ -131,11 +127,11 @@ describe('ActionBar validate and submit flow', () => {
     );
   });
 
-  it('calls submitRows when "Enviar" is clicked after DB is confirmed', async () => {
+  it('calls startJob when "Enviar" is clicked after DB is confirmed', async () => {
     setupLoadedStore(1);
     mockValidateRows.mockResolvedValue(makeValidateResponse(true));
     mockCheckDbHealth.mockResolvedValue(undefined);
-    mockSubmitRows.mockResolvedValue(makeSubmitResponse());
+    mockStartJob.mockResolvedValue({ jobId: 'job-1', status: 'PENDING' });
     render(<ActionBar />);
 
     fireEvent.click(screen.getByRole('button', { name: /validar/i }));
@@ -143,14 +139,14 @@ describe('ActionBar validate and submit flow', () => {
       expect(screen.getByRole('button', { name: /^enviar$/i })).not.toBeDisabled()
     );
     fireEvent.click(screen.getByRole('button', { name: /^enviar$/i }));
-    await waitFor(() => expect(mockSubmitRows).toHaveBeenCalledOnce());
+    await waitFor(() => expect(mockStartJob).toHaveBeenCalledOnce());
   });
 
-  it('transitions to result state after successful submit', async () => {
+  it('transitions to polling state after startJob succeeds', async () => {
     setupLoadedStore(1);
     mockValidateRows.mockResolvedValue(makeValidateResponse(true));
     mockCheckDbHealth.mockResolvedValue(undefined);
-    mockSubmitRows.mockResolvedValue(makeSubmitResponse());
+    mockStartJob.mockResolvedValue({ jobId: 'job-1', status: 'PENDING' });
     render(<ActionBar />);
 
     fireEvent.click(screen.getByRole('button', { name: /validar/i }));
@@ -158,19 +154,36 @@ describe('ActionBar validate and submit flow', () => {
       expect(screen.getByRole('button', { name: /^enviar$/i })).not.toBeDisabled()
     );
     fireEvent.click(screen.getByRole('button', { name: /^enviar$/i }));
-    await waitFor(() => expect(useStore.getState().appState).toBe('result'));
+    await waitFor(() => expect(useStore.getState().appState).toBe('polling'));
+    expect(useStore.getState().jobId).toBe('job-1');
   });
 
-  it('calls submitRows directly (no re-validate) when already valid and DB reachable', async () => {
+  it('calls startJob directly (no re-validate) when already valid and DB reachable', async () => {
     setupLoadedStore(1);
     useStore.getState().setValidation({ allValid: true, hasDuplicates: false, rows: [] });
     useStore.getState().setDbReachable(true);
-    mockSubmitRows.mockResolvedValue(makeSubmitResponse());
+    mockStartJob.mockResolvedValue({ jobId: 'job-1', status: 'PENDING' });
     render(<ActionBar />);
 
     fireEvent.click(screen.getByRole('button', { name: /^enviar$/i }));
-    await waitFor(() => expect(mockSubmitRows).toHaveBeenCalledOnce());
+    await waitFor(() => expect(mockStartJob).toHaveBeenCalledOnce());
     expect(mockValidateRows).not.toHaveBeenCalled();
+  });
+
+  it('reverts to loaded state and shows alert when startJob throws', async () => {
+    const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {});
+    setupLoadedStore(1);
+    useStore.getState().setValidation({ allValid: true, hasDuplicates: false, rows: [] });
+    useStore.getState().setDbReachable(true);
+    mockStartJob.mockRejectedValue(new Error('network error'));
+    render(<ActionBar />);
+
+    fireEvent.click(screen.getByRole('button', { name: /^enviar$/i }));
+    await waitFor(() => expect(alertSpy).toHaveBeenCalledWith(
+      expect.stringMatching(/error al conectar/i)
+    ));
+    expect(useStore.getState().appState).toBe('loaded');
+    alertSpy.mockRestore();
   });
 
   it('shows alert and does not crash when API call throws', async () => {

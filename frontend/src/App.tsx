@@ -7,6 +7,7 @@ import QuincenaBanner from './components/QuincenaBanner';
 import DataGrid from './components/DataGrid';
 import ActionBar from './components/ActionBar';
 import ResultScreen from './components/ResultScreen';
+import PollingScreen from './components/PollingScreen';
 import ErrorBoundary from './components/ErrorBoundary';
 
 const APP_BAR    = 64;
@@ -109,6 +110,8 @@ export default function App() {
           )}
         </ErrorBoundary>
       )}
+
+      {appState === 'polling' && <PollingScreen />}
 
       {appState === 'result' && <ResultScreen />}
     </>

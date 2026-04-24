@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useStore } from '../store';
-import { validateRows, submitRows, checkDbHealth } from '../api';
+import { validateRows, startJob, checkDbHealth } from '../api';
 
 export default function ActionBar() {
   const validation       = useStore(s => s.validation);
@@ -11,7 +11,8 @@ export default function ActionBar() {
   const setValidation    = useStore(s => s.setValidation);
   const setDbReachable   = useStore(s => s.setDbReachable);
   const setSubmitting    = useStore(s => s.setSubmitting);
-  const setResult        = useStore(s => s.setResult);
+  const cancelSubmit     = useStore(s => s.cancelSubmit);
+  const setPolling       = useStore(s => s.setPolling);
   const getRowsForSubmit = useStore(s => s.getRowsForSubmit);
 
   const [isValidating, setIsValidating] = useState(false);
@@ -60,13 +61,14 @@ export default function ActionBar() {
   const handleValidateAndSubmit = async () => {
     const rows = getRowsForSubmit();
 
-    // Validation passed and DB confirmed — submit
+    // Validation passed and DB confirmed — start async job
     if (validationPassed && dbReachable === true) {
       try {
         setSubmitting();
-        const submitResult = await submitRows(rows);
-        setResult(submitResult);
+        const { jobId } = await startJob(rows);
+        setPolling(jobId);
       } catch {
+        cancelSubmit();
         alert('Error al conectar con el servidor. Verifica que el servicio esté activo.');
       }
       return;

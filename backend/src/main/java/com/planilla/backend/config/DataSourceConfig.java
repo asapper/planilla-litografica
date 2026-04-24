@@ -58,7 +58,9 @@ public class DataSourceConfig {
 
     @Bean("postgresJdbcTemplate")
     public JdbcTemplate postgresJdbcTemplate() {
-        return new JdbcTemplate(postgresDataSource());
+        JdbcTemplate tpl = new JdbcTemplate(postgresDataSource());
+        tpl.setQueryTimeout(10); // per-statement timeout (seconds); complements socketTimeout
+        return tpl;
     }
 
     @Bean("h2JdbcTemplate")

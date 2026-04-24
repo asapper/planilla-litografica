@@ -1,9 +1,9 @@
 import axios from 'axios';
-import type { EmployeeRow, UploadResponse, ValidateResponse, SubmitResponse } from './types';
+import type { EmployeeRow, UploadResponse, ValidateResponse, StartJobResponse, JobResponse } from './types';
 
 const client = axios.create({
   baseURL: 'http://localhost:49301/api',
-  timeout: 30_000,  // 30 s — backend should respond within this; prevents browser hanging
+  timeout: 30_000,
 });
 
 export const uploadCsv = (file: File): Promise<UploadResponse> => {
@@ -15,8 +15,14 @@ export const uploadCsv = (file: File): Promise<UploadResponse> => {
 export const validateRows = (rows: EmployeeRow[]): Promise<ValidateResponse> =>
   client.post<ValidateResponse>('/validate', rows).then(r => r.data);
 
-export const submitRows = (rows: EmployeeRow[]): Promise<SubmitResponse> =>
-  client.post<SubmitResponse>('/submit', rows).then(r => r.data);
+export const startJob = (rows: EmployeeRow[]): Promise<StartJobResponse> =>
+  client.post<StartJobResponse>('/submit', rows).then(r => r.data);
+
+export const getJob = (jobId: string): Promise<JobResponse> =>
+  client.get<JobResponse>(`/jobs/${jobId}`).then(r => r.data);
+
+export const retryJob = (jobId: string): Promise<StartJobResponse> =>
+  client.post<StartJobResponse>(`/jobs/${jobId}/retry`).then(r => r.data);
 
 export const checkHealth = (): Promise<void> =>
   client.get('/health', { timeout: 2_000 }).then(() => undefined);
