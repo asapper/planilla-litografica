@@ -1,9 +1,10 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../store';
 import { getJob, retryJob } from '../api';
 import type { JobResponse, SubmitResponse } from '../types';
 
 const POLL_INTERVAL_MS = 2_500;
+const MAX_CONSECUTIVE_FAILURES = 5;
 
 function toSubmitResponse(job: JobResponse): SubmitResponse {
   return {
@@ -20,22 +21,30 @@ function toSubmitResponse(job: JobResponse): SubmitResponse {
 }
 
 export default function PollingScreen() {
-  const jobId          = useStore(s => s.jobId);
-  const jobResponse    = useStore(s => s.jobResponse);
+  const jobId             = useStore(s => s.jobId);
+  const jobResponse       = useStore(s => s.jobResponse);
   const updateJobResponse = useStore(s => s.updateJobResponse);
-  const setPolling     = useStore(s => s.setPolling);
-  const setResult      = useStore(s => s.setResult);
+  const setPolling        = useStore(s => s.setPolling);
+  const setResult         = useStore(s => s.setResult);
+  const cancelSubmit      = useStore(s => s.cancelSubmit);
 
-  const doneRef = useRef(false);
+  const [retryError, setRetryError] = useState<string | null>(null);
+  const [pollError, setPollError]   = useState(false);
+
+  const doneRef              = useRef(false);
+  const consecutiveFailures  = useRef(0);
 
   useEffect(() => {
     if (!jobId) return;
     doneRef.current = false;
+    consecutiveFailures.current = 0;
+    setPollError(false);
 
     const poll = async () => {
       if (doneRef.current) return;
       try {
         const resp = await getJob(jobId);
+        consecutiveFailures.current = 0;
         updateJobResponse(resp);
 
         if (resp.status === 'DONE') {
@@ -46,7 +55,11 @@ export default function PollingScreen() {
           setResult(toSubmitResponse(resp));
         }
       } catch {
-        // transient poll failure — will retry on next interval
+        consecutiveFailures.current += 1;
+        if (consecutiveFailures.current >= MAX_CONSECUTIVE_FAILURES) {
+          doneRef.current = true;
+          setPollError(true);
+        }
       }
     };
 
@@ -56,15 +69,16 @@ export default function PollingScreen() {
       clearInterval(interval);
       doneRef.current = true;
     };
-  }, [jobId, updateJobResponse, setPolling, setResult]);
+  }, [jobId, updateJobResponse, setResult]);
 
   const handleRetry = async () => {
     if (!jobId) return;
+    setRetryError(null);
     try {
       const { jobId: newJobId } = await retryJob(jobId);
       setPolling(newJobId);
     } catch {
-      alert('Error al reintentar. Verifica que el servicio esté activo.');
+      setRetryError('Error al reintentar. Verifica que el servicio esté activo.');
     }
   };
 
@@ -77,6 +91,29 @@ export default function PollingScreen() {
   const progress = job && job.totalRows > 0
     ? Math.round((job.processed / job.totalRows) * 100)
     : 0;
+
+  if (pollError) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center px-6 pb-6 pt-16">
+        <div className="m3-card-elevated w-full max-w-2xl text-center">
+          <div className="w-16 h-16 rounded-shape-xl bg-error-container flex items-center justify-center mx-auto mb-6">
+            <svg className="w-8 h-8 text-on-error-container" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+            </svg>
+          </div>
+          <h2 className="text-headline-sm font-medium text-on-surface mb-3">
+            Se perdió la conexión con el servidor
+          </h2>
+          <p className="text-body-md text-on-surface-variant mb-6">
+            No se pudo contactar el servicio. Verifica que el backend esté activo e intenta de nuevo.
+          </p>
+          <button className="m3-btn-filled w-full" onClick={cancelSubmit}>
+            Volver a la planilla
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center px-6 pb-6 pt-16">
@@ -164,6 +201,11 @@ export default function PollingScreen() {
         )}
 
         {/* Actions */}
+        {retryError && (
+          <div className="rounded-shape-sm bg-error-container px-4 py-3 mb-3 text-left">
+            <p className="text-body-sm text-on-error-container">{retryError}</p>
+          </div>
+        )}
         {canRetry && (
           <button className="m3-btn-filled w-full" onClick={handleRetry}>
             Reintentar filas fallidas

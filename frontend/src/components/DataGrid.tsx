@@ -53,23 +53,23 @@ export default function DataGrid() {
 
   const statusStyle = (params: CellClassParams<EmployeeRow>): CellStyle => {
     const v = getRowValidation(params.data?.codigoEmpleado ?? '');
-    if (v?.duplicate) return { backgroundColor: '#FFDEA8', borderLeft: '3px solid #7C5800' };
-    if (v && !v.valid)  return { backgroundColor: '#FFDAD6', borderLeft: '3px solid #BA1A1A' };
+    if (v?.duplicate) return { backgroundColor: '#FFFBEB', borderLeft: '3px solid #D97706' };
+    if (v && !v.valid)  return { backgroundColor: '#FEF2F2', borderLeft: '3px solid #DC2626' };
     return { backgroundColor: '' };
   };
 
   const rowStyle = (params: CellClassParams<EmployeeRow>): CellStyle => {
     const v = getRowValidation(params.data?.codigoEmpleado ?? '');
-    if (v?.duplicate) return { backgroundColor: '#FFDEA8' };
-    if (v && !v.valid)  return { backgroundColor: '#FFDAD6' };
+    if (v?.duplicate) return { backgroundColor: '#FFFBEB' };
+    if (v && !v.valid)  return { backgroundColor: '#FEF2F2' };
     return { backgroundColor: '' };
   };
 
   const editableCellStyle = (fieldName: string) => (params: CellClassParams<EmployeeRow>): CellStyle => {
     const v = getRowValidation(params.data?.codigoEmpleado ?? '');
-    if (v?.duplicate) return { backgroundColor: '#FFDEA8' };
+    if (v?.duplicate) return { backgroundColor: '#FFFBEB' };
     if (v && !v.valid && v.errors.some(e => e.field === fieldName))
-      return { backgroundColor: '#FFDAD6' };
+      return { backgroundColor: '#FEF2F2' };
     return { backgroundColor: '#FAFCFF', cursor: 'text' };
   };
 

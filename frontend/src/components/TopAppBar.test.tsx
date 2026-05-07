@@ -26,13 +26,13 @@ describe('TopAppBar', () => {
   it('shows singular "empleado" when 1 row is loaded', () => {
     useStore.getState().setLoaded([makeRow('1')], [DEC_2024], false, []);
     render(<TopAppBar />);
-    expect(screen.getByText('1 empleado cargado')).toBeInTheDocument();
+    expect(screen.getByText('1 empleado')).toBeInTheDocument();
   });
 
   it('shows plural "empleados" when multiple rows are loaded', () => {
     useStore.getState().setLoaded([makeRow('1'), makeRow('2'), makeRow('3')], [DEC_2024], false, []);
     render(<TopAppBar />);
-    expect(screen.getByText('3 empleados cargados')).toBeInTheDocument();
+    expect(screen.getByText('3 empleados')).toBeInTheDocument();
   });
 
   it('does not show empleados count in empty state', () => {

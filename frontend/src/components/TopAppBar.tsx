@@ -3,6 +3,7 @@ import { useStore } from '../store';
 export default function TopAppBar() {
   const appState      = useStore(s => s.appState);
   const rows          = useStore(s => s.rows);
+  const fileName      = useStore(s => s.fileName);
   const reset         = useStore(s => s.reset);
   const searchText    = useStore(s => s.searchText);
   const setSearchText = useStore(s => s.setSearchText);
@@ -27,7 +28,7 @@ export default function TopAppBar() {
           <p className="text-title-md text-white font-medium leading-tight">Cargador de Planilla</p>
           {showLoaded && (
             <p className="text-body-sm leading-tight" style={{ color: 'rgba(255,255,255,0.75)' }}>
-              {rows.length} empleado{rows.length !== 1 ? 's' : ''} cargado{rows.length !== 1 ? 's' : ''}
+              {fileName ? `${fileName} — ` : ''}{rows.length} empleado{rows.length !== 1 ? 's' : ''}
             </p>
           )}
         </div>

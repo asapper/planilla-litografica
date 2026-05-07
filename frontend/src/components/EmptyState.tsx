@@ -15,7 +15,7 @@ export default function EmptyState() {
     setLoading(true);
     try {
       const result = await uploadCsv(file);
-      setLoaded(result.rows, result.monthOptions, result.multiMonth, result.parseWarnings);
+      setLoaded(result.rows, result.monthOptions, result.multiMonth, result.parseWarnings, file.name);
     } catch (err: any) {
       setError(err?.response?.data?.message ?? 'No se pudo leer el archivo. Verifica que el formato sea correcto e intenta de nuevo.');
     } finally {
