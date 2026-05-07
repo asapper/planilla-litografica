@@ -214,7 +214,7 @@ describe('DataGrid cell style functions', () => {
     setDupValidation();
     render(<DataGrid />);
     const style = getColStyle('codigoEmpleado', params('1'));
-    expect(style?.backgroundColor).toBe('#FFDEA8');
+    expect(style?.backgroundColor).toBe('#FFFBEB');
     expect(style?.borderLeft).toBeDefined();
   });
 
@@ -223,7 +223,7 @@ describe('DataGrid cell style functions', () => {
     setErrorValidation();
     render(<DataGrid />);
     const style = getColStyle('codigoEmpleado', params('1'));
-    expect(style?.backgroundColor).toBe('#FFDAD6');
+    expect(style?.backgroundColor).toBe('#FEF2F2');
   });
 
   it('statusStyle: valid → empty background', () => {
@@ -238,14 +238,14 @@ describe('DataGrid cell style functions', () => {
     useStore.getState().setLoaded([makeRow('1')], [DEC_2024], false, []);
     setDupValidation();
     render(<DataGrid />);
-    expect(getColStyle('nombreEmpleado', params('1'))?.backgroundColor).toBe('#FFDEA8');
+    expect(getColStyle('nombreEmpleado', params('1'))?.backgroundColor).toBe('#FFFBEB');
   });
 
   it('rowStyle: invalid → red background', () => {
     useStore.getState().setLoaded([makeRow('1')], [DEC_2024], false, []);
     setErrorValidation();
     render(<DataGrid />);
-    expect(getColStyle('nombreEmpleado', params('1'))?.backgroundColor).toBe('#FFDAD6');
+    expect(getColStyle('nombreEmpleado', params('1'))?.backgroundColor).toBe('#FEF2F2');
   });
 
   it('rowStyle: valid → empty background', () => {
@@ -259,14 +259,14 @@ describe('DataGrid cell style functions', () => {
     useStore.getState().setLoaded([makeRow('1')], [DEC_2024], false, []);
     setDupValidation();
     render(<DataGrid />);
-    expect(getColStyle('diasNoLaborados', params('1'))?.backgroundColor).toBe('#FFDEA8');
+    expect(getColStyle('diasNoLaborados', params('1'))?.backgroundColor).toBe('#FFFBEB');
   });
 
   it('editableCellStyle: invalid with matching field → red background', () => {
     useStore.getState().setLoaded([makeRow('1')], [DEC_2024], false, []);
     setErrorValidation('dias_no_laborados');
     render(<DataGrid />);
-    expect(getColStyle('diasNoLaborados', params('1'))?.backgroundColor).toBe('#FFDAD6');
+    expect(getColStyle('diasNoLaborados', params('1'))?.backgroundColor).toBe('#FEF2F2');
   });
 
   it('editableCellStyle: invalid but field does not match → editable default', () => {

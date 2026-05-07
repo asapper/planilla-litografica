@@ -334,4 +334,123 @@ describe('PollingScreen poll error handling', () => {
 
     expect(screen.getByText(/enviando registros/i)).toBeInTheDocument();
   });
+
+  it('shows connection lost screen after 5 consecutive poll failures', async () => {
+    mockGetJob.mockRejectedValue(new Error('network down'));
+
+    setupPolling();
+    render(<PollingScreen />);
+
+    // Advance through 5 poll failures (initial + 4 intervals)
+    await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+    for (let i = 0; i < 4; i++) {
+      await act(async () => { await vi.advanceTimersByTimeAsync(2_500); });
+    }
+
+    expect(screen.getByText(/se perdió la conexión/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /volver a la planilla/i })).toBeInTheDocument();
+  });
+
+  it('clicking "Volver a la planilla" after poll failure calls cancelSubmit', async () => {
+    mockGetJob.mockRejectedValue(new Error('network down'));
+
+    setupPolling();
+    render(<PollingScreen />);
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+    for (let i = 0; i < 4; i++) {
+      await act(async () => { await vi.advanceTimersByTimeAsync(2_500); });
+    }
+
+    fireEvent.click(screen.getByRole('button', { name: /volver a la planilla/i }));
+    expect(useStore.getState().appState).toBe('loaded');
+  });
+
+  it('does not show connection lost screen after fewer than 5 failures', async () => {
+    mockGetJob
+      .mockRejectedValueOnce(new Error('blip'))
+      .mockRejectedValueOnce(new Error('blip'))
+      .mockRejectedValueOnce(new Error('blip'))
+      .mockResolvedValue(jobResponse({ processed: 1 }));
+
+    setupPolling();
+    render(<PollingScreen />);
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(2_500); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(2_500); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(2_500); });
+
+    expect(screen.queryByText(/se perdió la conexión/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/enviando registros/i)).toBeInTheDocument();
+  });
+});
+
+// ── Retry error ───────────────────────────────────────────────────────────────
+
+describe('PollingScreen retry error handling', () => {
+  it('shows inline error when retryJob fails', async () => {
+    mockGetJob.mockResolvedValue(jobResponse({
+      status: 'DONE_WITH_ERRORS',
+      attemptNumber: 1,
+      maxRetries: 3,
+      failed: 1,
+      processed: 4,
+      totalRows: 4,
+      rows: [{ codigoEmpleado: '1', nombreEmpleado: 'A', status: 'FAILED', error: 'err' }],
+    }));
+    mockRetryJob.mockRejectedValue(new Error('server down'));
+
+    setupPolling();
+
+    await act(async () => {
+      render(<PollingScreen />);
+      await vi.advanceTimersByTimeAsync(0);
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /reintentar/i }));
+      await vi.advanceTimersByTimeAsync(0);
+    });
+
+    expect(screen.getByText(/error al reintentar/i)).toBeInTheDocument();
+  });
+
+  it('clears retry error when retry is clicked again', async () => {
+    mockGetJob.mockResolvedValue(jobResponse({
+      status: 'DONE_WITH_ERRORS',
+      attemptNumber: 1,
+      maxRetries: 3,
+      failed: 1,
+      processed: 4,
+      totalRows: 4,
+      rows: [{ codigoEmpleado: '1', nombreEmpleado: 'A', status: 'FAILED', error: 'err' }],
+    }));
+    mockRetryJob
+      .mockRejectedValueOnce(new Error('server down'))
+      .mockResolvedValue({ jobId: 'job-retry-1', status: 'PENDING' });
+
+    setupPolling();
+
+    await act(async () => {
+      render(<PollingScreen />);
+      await vi.advanceTimersByTimeAsync(0);
+    });
+
+    // First click — fails
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /reintentar/i }));
+      await vi.advanceTimersByTimeAsync(0);
+    });
+
+    expect(screen.getByText(/error al reintentar/i)).toBeInTheDocument();
+
+    // Second click — succeeds, error clears
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /reintentar/i }));
+      await vi.advanceTimersByTimeAsync(0);
+    });
+
+    expect(screen.queryByText(/error al reintentar/i)).not.toBeInTheDocument();
+  });
 });

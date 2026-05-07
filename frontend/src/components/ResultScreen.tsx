@@ -1,8 +1,9 @@
 import { useStore } from '../store';
 
 export default function ResultScreen() {
-  const submitResult = useStore(s => s.submitResult);
-  const reset        = useStore(s => s.reset);
+  const submitResult  = useStore(s => s.submitResult);
+  const reset         = useStore(s => s.reset);
+  const cancelSubmit  = useStore(s => s.cancelSubmit);
 
   if (!submitResult) return null;
 
@@ -95,7 +96,7 @@ export default function ResultScreen() {
           </div>
         )}
 
-        <button className="m3-btn-filled w-full" onClick={reset}>
+        <button className="m3-btn-filled w-full" onClick={variant === 'error' ? cancelSubmit : reset}>
           {config.btnLabel}
         </button>
       </div>

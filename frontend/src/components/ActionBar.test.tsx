@@ -170,8 +170,7 @@ describe('ActionBar validate and submit flow', () => {
     expect(mockValidateRows).not.toHaveBeenCalled();
   });
 
-  it('reverts to loaded state and shows alert when startJob throws', async () => {
-    const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {});
+  it('reverts to loaded state and shows inline error when startJob throws', async () => {
     setupLoadedStore(1);
     useStore.getState().setValidation({ allValid: true, hasDuplicates: false, rows: [] });
     useStore.getState().setDbReachable(true);
@@ -179,23 +178,16 @@ describe('ActionBar validate and submit flow', () => {
     render(<ActionBar />);
 
     fireEvent.click(screen.getByRole('button', { name: /^enviar$/i }));
-    await waitFor(() => expect(alertSpy).toHaveBeenCalledWith(
-      expect.stringMatching(/error al conectar/i)
-    ));
+    await waitFor(() => expect(screen.getByText(/error al conectar/i)).toBeInTheDocument());
     expect(useStore.getState().appState).toBe('loaded');
-    alertSpy.mockRestore();
   });
 
-  it('shows alert and does not crash when API call throws', async () => {
-    const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {});
+  it('shows inline error and does not crash when API call throws', async () => {
     setupLoadedStore(1);
     mockValidateRows.mockRejectedValue(new Error('network error'));
     render(<ActionBar />);
     fireEvent.click(screen.getByRole('button', { name: /validar/i }));
-    await waitFor(() => expect(alertSpy).toHaveBeenCalledWith(
-      expect.stringMatching(/error al conectar/i)
-    ));
-    alertSpy.mockRestore();
+    await waitFor(() => expect(screen.getByText(/error al conectar/i)).toBeInTheDocument());
   });
 });
 
@@ -399,9 +391,8 @@ describe('ActionBar in-flight validation', () => {
     expect(screen.getByRole('button', { name: /^validar$/i })).toBeInTheDocument();
   });
 
-  it('shows alert and re-enables button after 15s timeout', async () => {
+  it('shows inline error and re-enables button after 15s timeout', async () => {
     vi.useFakeTimers();
-    const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {});
     setupLoadedStore(1);
     mockValidateRows.mockReturnValue(new Promise(() => {})); // never resolves
     render(<ActionBar />);
@@ -414,10 +405,9 @@ describe('ActionBar in-flight validation', () => {
       await vi.advanceTimersByTimeAsync(15_000);
     });
 
-    expect(alertSpy).toHaveBeenCalledWith(expect.stringMatching(/error al conectar/i));
+    expect(screen.getByText(/error al conectar/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^validar$/i })).not.toBeDisabled();
 
-    alertSpy.mockRestore();
     vi.useRealTimers();
   });
 

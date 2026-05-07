@@ -7,6 +7,7 @@ import type {
 interface AppStore {
   appState: AppState;
   rows: EmployeeRow[];
+  fileName: string | null;
   monthOptions: MonthOption[];
   multiMonth: boolean;
   parseWarnings: string[];
@@ -23,7 +24,8 @@ interface AppStore {
     rows: EmployeeRow[],
     monthOptions: MonthOption[],
     multiMonth: boolean,
-    warnings: string[]
+    warnings: string[],
+    fileName?: string | null
   ) => void;
   setQuincena: (q: number) => void;
   setMonth: (m: MonthOption) => void;
@@ -45,6 +47,7 @@ interface AppStore {
 export const useStore = create<AppStore>((set, get) => ({
   appState: 'empty',
   rows: [],
+  fileName: null,
   monthOptions: [],
   multiMonth: false,
   parseWarnings: [],
@@ -57,9 +60,10 @@ export const useStore = create<AppStore>((set, get) => ({
   jobResponse: null,
   searchText: '',
 
-  setLoaded: (rows, monthOptions, multiMonth, warnings) => set({
+  setLoaded: (rows, monthOptions, multiMonth, warnings, fileName = null) => set({
     appState: 'loaded',
     rows,
+    fileName,
     monthOptions,
     multiMonth,
     parseWarnings: warnings,
@@ -92,7 +96,7 @@ export const useStore = create<AppStore>((set, get) => ({
   setSearchText: (s) => set({ searchText: s }),
   reset: () => set({
     appState: 'empty',
-    rows: [], monthOptions: [], multiMonth: false,
+    rows: [], fileName: null, monthOptions: [], multiMonth: false,
     parseWarnings: [], selectedQuincena: null,
     selectedMonth: null, validation: null, submitResult: null,
     dbReachable: null, jobId: null, jobResponse: null, searchText: '',
