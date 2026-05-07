@@ -69,7 +69,7 @@ export default function PollingScreen() {
       clearInterval(interval);
       doneRef.current = true;
     };
-  }, [jobId, updateJobResponse, setPolling, setResult]);
+  }, [jobId, updateJobResponse, setResult]);
 
   const handleRetry = async () => {
     if (!jobId) return;
