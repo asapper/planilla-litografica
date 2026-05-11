@@ -2,6 +2,12 @@ import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../store';
 import { getJob, retryJob } from '../api';
 import type { JobResponse, SubmitResponse } from '../types';
+import ScreenLayout from './ui/ScreenLayout';
+import IconBadge from './ui/IconBadge';
+import Spinner from './ui/Spinner';
+import StatCounter from './ui/StatCounter';
+import AlertMessage from './ui/AlertMessage';
+import FailedRowsList from './ui/FailedRowsList';
 
 const POLL_INTERVAL_MS = 2_500;
 const MAX_CONSECUTIVE_FAILURES = 5;
@@ -94,124 +100,86 @@ export default function PollingScreen() {
 
   if (pollError) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center px-6 pb-6 pt-16">
-        <div className="m3-card-elevated w-full max-w-2xl text-center">
-          <div className="w-16 h-16 rounded-shape-xl bg-error-container flex items-center justify-center mx-auto mb-6">
-            <svg className="w-8 h-8 text-on-error-container" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
-            </svg>
-          </div>
-          <h2 className="text-headline-sm font-medium text-on-surface mb-3">
-            Se perdió la conexión con el servidor
-          </h2>
-          <p className="text-body-md text-on-surface-variant mb-6">
-            No se pudo contactar el servicio. Verifica que el backend esté activo e intenta de nuevo.
-          </p>
-          <button className="m3-btn-filled w-full" onClick={cancelSubmit}>
-            Volver a la planilla
-          </button>
-        </div>
-      </div>
+      <ScreenLayout maxWidth="max-w-2xl" centerText>
+        <IconBadge bg="bg-error-container" color="text-on-error-container">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+        </IconBadge>
+        <h2 className="text-headline-sm font-medium text-on-surface mb-3">
+          Se perdió la conexión con el servidor
+        </h2>
+        <p className="text-body-md text-on-surface-variant mb-6">
+          No se pudo contactar el servicio. Verifica que el backend esté activo e intenta de nuevo.
+        </p>
+        <button className="m3-btn-filled w-full" onClick={cancelSubmit}>
+          Volver a la planilla
+        </button>
+      </ScreenLayout>
     );
   }
 
-  return (
-    <div className="min-h-screen bg-background flex items-center justify-center px-6 pb-6 pt-16">
-      <div className="m3-card-elevated w-full max-w-2xl">
+  const failedRows = job
+    ? job.rows
+        .filter(r => r.status === 'FAILED')
+        .map(r => ({
+          id: r.codigoEmpleado,
+          name: r.nombreEmpleado || `Empleado ${r.codigoEmpleado}`,
+          error: r.error,
+        }))
+    : [];
 
-        {/* Header */}
-        <div className="flex items-center gap-4 mb-6">
-          {!isDone && (
-            <svg className="animate-spin w-6 h-6 text-primary flex-shrink-0" viewBox="0 0 24 24" fill="none">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-            </svg>
+  return (
+    <ScreenLayout maxWidth="max-w-2xl">
+      <div className="flex items-center gap-4 mb-6">
+        {!isDone && <Spinner className="flex-shrink-0" />}
+        <div>
+          <h2 className="text-headline-sm font-medium text-on-surface">
+            {!job ? 'Iniciando envío...' : !isDone ? 'Enviando registros...' : 'Envío completado'}
+          </h2>
+          {job && job.attemptNumber > 1 && (
+            <p className="text-body-sm text-on-surface-variant mt-0.5">
+              Intento {job.attemptNumber} de {job.maxRetries}
+            </p>
           )}
-          <div>
-            <h2 className="text-headline-sm font-medium text-on-surface">
-              {!job ? 'Iniciando envío...' : !isDone ? 'Enviando registros...' : 'Envío completado'}
-            </h2>
-            {job && job.attemptNumber > 1 && (
-              <p className="text-body-sm text-on-surface-variant mt-0.5">
-                Intento {job.attemptNumber} de {job.maxRetries}
-              </p>
-            )}
+        </div>
+      </div>
+
+      {job && (
+        <div className="mb-4">
+          <div className="flex justify-between text-body-sm text-on-surface-variant mb-1">
+            <span>{job.processed} de {job.totalRows} registros</span>
+            <span>{progress}%</span>
+          </div>
+          <div className="w-full bg-surface-container-highest rounded-shape-full h-2">
+            <div
+              className="bg-primary h-2 rounded-shape-full transition-all duration-500"
+              style={{ width: `${progress}%` }}
+            />
           </div>
         </div>
+      )}
 
-        {/* Progress bar */}
-        {job && (
-          <div className="mb-4">
-            <div className="flex justify-between text-body-sm text-on-surface-variant mb-1">
-              <span>{job.processed} de {job.totalRows} registros</span>
-              <span>{progress}%</span>
-            </div>
-            <div className="w-full bg-surface-container-highest rounded-shape-full h-2">
-              <div
-                className="bg-primary h-2 rounded-shape-full transition-all duration-500"
-                style={{ width: `${progress}%` }}
-              />
-            </div>
-          </div>
-        )}
+      {job && (
+        <div className="flex gap-6 mb-6">
+          {job.submitted > 0 && (
+            <StatCounter value={job.submitted} label={`enviado${job.submitted !== 1 ? 's' : ''}`} />
+          )}
+          {job.skipped > 0 && (
+            <StatCounter value={job.skipped} label={`duplicado${job.skipped !== 1 ? 's' : ''}`} color="text-on-surface-variant" />
+          )}
+          {job.failed > 0 && (
+            <StatCounter value={job.failed} label={`fallido${job.failed !== 1 ? 's' : ''}`} color="text-error" />
+          )}
+        </div>
+      )}
 
-        {/* Counters */}
-        {job && (
-          <div className="flex gap-6 mb-6">
-            {job.submitted > 0 && (
-              <div className="text-center">
-                <p className="text-display-sm font-medium text-primary">{job.submitted}</p>
-                <p className="text-body-sm text-on-surface-variant">enviado{job.submitted !== 1 ? 's' : ''}</p>
-              </div>
-            )}
-            {job.skipped > 0 && (
-              <div className="text-center">
-                <p className="text-display-sm font-medium text-on-surface-variant">{job.skipped}</p>
-                <p className="text-body-sm text-on-surface-variant">duplicado{job.skipped !== 1 ? 's' : ''}</p>
-              </div>
-            )}
-            {job.failed > 0 && (
-              <div className="text-center">
-                <p className="text-display-sm font-medium text-error">{job.failed}</p>
-                <p className="text-body-sm text-on-surface-variant">fallido{job.failed !== 1 ? 's' : ''}</p>
-              </div>
-            )}
-          </div>
-        )}
+      <FailedRowsList rows={failedRows} scrollable />
 
-        {/* Failed rows detail */}
-        {job && job.failed > 0 && (
-          <div className="m3-card-filled text-left mb-6 max-h-64 overflow-y-auto">
-            <p className="text-label-lg text-on-surface-variant mb-3">Registros con error</p>
-            <div className="divide-y divide-outline-variant">
-              {job.rows
-                .filter(r => r.status === 'FAILED')
-                .map(r => (
-                  <div key={r.codigoEmpleado} className="flex justify-between items-center py-2">
-                    <span className="text-body-md text-on-surface">
-                      {r.nombreEmpleado || `Empleado ${r.codigoEmpleado}`}
-                    </span>
-                    <span className="text-body-sm text-error ml-4 text-right">
-                      {r.error ?? 'Error desconocido'}
-                    </span>
-                  </div>
-                ))}
-            </div>
-          </div>
-        )}
-
-        {/* Actions */}
-        {retryError && (
-          <div className="rounded-shape-sm bg-error-container px-4 py-3 mb-3 text-left">
-            <p className="text-body-sm text-on-error-container">{retryError}</p>
-          </div>
-        )}
-        {canRetry && (
-          <button className="m3-btn-filled w-full" onClick={handleRetry}>
-            Reintentar filas fallidas
-          </button>
-        )}
-      </div>
-    </div>
+      {retryError && <AlertMessage message={retryError} className="mb-3" />}
+      {canRetry && (
+        <button className="m3-btn-filled w-full" onClick={handleRetry}>
+          Reintentar filas fallidas
+        </button>
+      )}
+    </ScreenLayout>
   );
 }

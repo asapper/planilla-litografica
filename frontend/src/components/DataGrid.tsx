@@ -3,27 +3,26 @@ import type { ColDef, CellValueChangedEvent, CellStyle, CellClassParams } from '
 import { AllCommunityModule, ModuleRegistry, themeQuartz } from 'ag-grid-community';
 import { useStore } from '../store';
 import type { EmployeeRow, RowValidationResult } from '../types';
+import { GRID, ROW_STATUS } from '../constants/colors';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
-// Hardcoded M3 hex values — CSS variables cannot be used here because this
-// runs at module load time, before the CSS variables are applied to the DOM.
 const m3Theme = themeQuartz.withParams({
   fontFamily:                   'Roboto, system-ui, sans-serif',
   fontSize:                     14,
   rowHeight:                    44,
   headerHeight:                 48,
-  backgroundColor:              '#FFFFFF',
-  foregroundColor:              '#191C20',
-  headerBackgroundColor:        '#E8EEFB',
-  headerTextColor:              '#2D3748',
-  borderColor:                  '#C3C7CF',
+  backgroundColor:              GRID.background,
+  foregroundColor:              GRID.foreground,
+  headerBackgroundColor:        GRID.headerBackground,
+  headerTextColor:              GRID.headerText,
+  borderColor:                  GRID.border,
   rowBorder:                    true,
   columnBorder:                 true,
   headerColumnBorder:           true,
-  rowHoverColor:                '#EEF2FB',
-  selectedRowBackgroundColor:   '#D9E3F8',
-  cellTextColor:                '#191C20',
+  rowHoverColor:                GRID.rowHover,
+  selectedRowBackgroundColor:   GRID.selectedRow,
+  cellTextColor:                GRID.foreground,
   wrapperBorderRadius:          '12px',
   wrapperBorder:                false,
 });
@@ -53,24 +52,24 @@ export default function DataGrid() {
 
   const statusStyle = (params: CellClassParams<EmployeeRow>): CellStyle => {
     const v = getRowValidation(params.data?.codigoEmpleado ?? '');
-    if (v?.duplicate) return { backgroundColor: '#FFFBEB', borderLeft: '3px solid #D97706' };
-    if (v && !v.valid)  return { backgroundColor: '#FEF2F2', borderLeft: '3px solid #DC2626' };
+    if (v?.duplicate) return { backgroundColor: ROW_STATUS.duplicateBg, borderLeft: `3px solid ${ROW_STATUS.duplicateBorder}` };
+    if (v && !v.valid)  return { backgroundColor: ROW_STATUS.errorBg,     borderLeft: `3px solid ${ROW_STATUS.errorBorder}` };
     return { backgroundColor: '' };
   };
 
   const rowStyle = (params: CellClassParams<EmployeeRow>): CellStyle => {
     const v = getRowValidation(params.data?.codigoEmpleado ?? '');
-    if (v?.duplicate) return { backgroundColor: '#FFFBEB' };
-    if (v && !v.valid)  return { backgroundColor: '#FEF2F2' };
+    if (v?.duplicate) return { backgroundColor: ROW_STATUS.duplicateBg };
+    if (v && !v.valid)  return { backgroundColor: ROW_STATUS.errorBg };
     return { backgroundColor: '' };
   };
 
   const editableCellStyle = (fieldName: string) => (params: CellClassParams<EmployeeRow>): CellStyle => {
     const v = getRowValidation(params.data?.codigoEmpleado ?? '');
-    if (v?.duplicate) return { backgroundColor: '#FFFBEB' };
+    if (v?.duplicate) return { backgroundColor: ROW_STATUS.duplicateBg };
     if (v && !v.valid && v.errors.some(e => e.field === fieldName))
-      return { backgroundColor: '#FEF2F2' };
-    return { backgroundColor: '#FAFCFF', cursor: 'text' };
+      return { backgroundColor: ROW_STATUS.errorBg };
+    return { backgroundColor: ROW_STATUS.editableBg, cursor: 'text' };
   };
 
   const columns: ColDef<EmployeeRow>[] = [

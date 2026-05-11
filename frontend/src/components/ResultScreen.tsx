@@ -1,4 +1,8 @@
 import { useStore } from '../store';
+import ScreenLayout from './ui/ScreenLayout';
+import IconBadge from './ui/IconBadge';
+import StatCounter from './ui/StatCounter';
+import FailedRowsList from './ui/FailedRowsList';
 
 export default function ResultScreen() {
   const submitResult  = useStore(s => s.submitResult);
@@ -39,67 +43,40 @@ export default function ResultScreen() {
     },
   }[variant];
 
-  const failedRows = submitResult.rows.filter(r => !r.submitted && !r.skippedDuplicate);
+  const failedRows = submitResult.rows
+    .filter(r => !r.submitted && !r.skippedDuplicate)
+    .map(r => ({ id: r.codigoEmpleado, name: `Empleado ${r.codigoEmpleado}`, error: r.error }));
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center px-6 pb-6 pt-16">
-      <div className="m3-card-elevated w-full max-w-lg text-center">
+    <ScreenLayout maxWidth="max-w-lg" centerText>
+      <IconBadge bg={config.iconBg} color={config.iconColor}>
+        {config.icon}
+      </IconBadge>
 
-        {/* Icon */}
-        <div className={`w-16 h-16 rounded-shape-xl ${config.iconBg} flex items-center justify-center mx-auto mb-6`}>
-          <svg className={`w-8 h-8 ${config.iconColor}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            {config.icon}
-          </svg>
-        </div>
+      <h2 className="text-headline-sm font-medium text-on-surface mb-3">{config.title}</h2>
 
-        <h2 className="text-headline-sm font-medium text-on-surface mb-3">{config.title}</h2>
-
-        {/* Stats */}
-        <div className="flex justify-center gap-6 mb-6">
-          {totalSubmitted > 0 && (
-            <div className="text-center">
-              <p className="text-display-sm font-medium text-primary">{totalSubmitted}</p>
-              <p className="text-body-sm text-on-surface-variant">enviado{totalSubmitted !== 1 ? 's' : ''}</p>
-            </div>
-          )}
-          {totalSkippedDuplicates > 0 && (
-            <div className="text-center">
-              <p className="text-display-sm font-medium text-on-surface-variant">{totalSkippedDuplicates}</p>
-              <p className="text-body-sm text-on-surface-variant">duplicado{totalSkippedDuplicates !== 1 ? 's' : ''}</p>
-            </div>
-          )}
-          {totalFailed > 0 && (
-            <div className="text-center">
-              <p className="text-display-sm font-medium text-error">{totalFailed}</p>
-              <p className="text-body-sm text-on-surface-variant">fallido{totalFailed !== 1 ? 's' : ''}</p>
-            </div>
-          )}
-          {isFullFailure && (
-            <p className="text-body-md text-on-surface-variant">
-              No se pudo completar la carga. Verifica la conexión e intenta de nuevo.
-            </p>
-          )}
-        </div>
-
-        {/* Failed rows detail */}
-        {failedRows.length > 0 && (
-          <div className="m3-card-filled text-left mb-6">
-            <p className="text-label-lg text-on-surface-variant mb-3">Registros con error</p>
-            <div className="divide-y divide-outline-variant">
-              {failedRows.map(r => (
-                <div key={r.codigoEmpleado} className="flex justify-between items-center py-2">
-                  <span className="text-body-md text-on-surface">Empleado {r.codigoEmpleado}</span>
-                  <span className="text-body-sm text-error">{r.error ?? 'Error desconocido'}</span>
-                </div>
-              ))}
-            </div>
-          </div>
+      <div className="flex justify-center gap-6 mb-6">
+        {totalSubmitted > 0 && (
+          <StatCounter value={totalSubmitted} label={`enviado${totalSubmitted !== 1 ? 's' : ''}`} />
         )}
-
-        <button className="m3-btn-filled w-full" onClick={variant === 'error' ? cancelSubmit : reset}>
-          {config.btnLabel}
-        </button>
+        {totalSkippedDuplicates > 0 && (
+          <StatCounter value={totalSkippedDuplicates} label={`duplicado${totalSkippedDuplicates !== 1 ? 's' : ''}`} color="text-on-surface-variant" />
+        )}
+        {totalFailed > 0 && (
+          <StatCounter value={totalFailed} label={`fallido${totalFailed !== 1 ? 's' : ''}`} color="text-error" />
+        )}
+        {isFullFailure && (
+          <p className="text-body-md text-on-surface-variant">
+            No se pudo completar la carga. Verifica la conexión e intenta de nuevo.
+          </p>
+        )}
       </div>
-    </div>
+
+      <FailedRowsList rows={failedRows} />
+
+      <button className="m3-btn-filled w-full" onClick={variant === 'error' ? cancelSubmit : reset}>
+        {config.btnLabel}
+      </button>
+    </ScreenLayout>
   );
 }
