@@ -192,6 +192,51 @@ describe('ActionBar validate and submit flow', () => {
 });
 
 // -----------------------------------------------------------------
+// Temporary success message
+// -----------------------------------------------------------------
+
+describe('ActionBar success message', () => {
+  it('shows success badge immediately after validation passes', async () => {
+    setupLoadedStore(1);
+    mockValidateRows.mockResolvedValue(makeValidateResponse(true));
+    render(<ActionBar />);
+
+    fireEvent.click(screen.getByRole('button', { name: /^validar$/i }));
+    await waitFor(() => expect(screen.getByText(/validación exitosa/i)).toBeInTheDocument());
+  });
+
+  it('hides success badge after 3 seconds', async () => {
+    vi.useFakeTimers();
+    try {
+      setupLoadedStore(1);
+      mockValidateRows.mockResolvedValue(makeValidateResponse(true));
+      render(<ActionBar />);
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /^validar$/i }));
+      });
+      expect(screen.getByText(/validación exitosa/i)).toBeInTheDocument();
+
+      await act(async () => { await vi.advanceTimersByTimeAsync(3_000); });
+      expect(screen.queryByText(/validación exitosa/i)).not.toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('does not show success badge when validation has errors', () => {
+    setupLoadedStore(1);
+    useStore.getState().setValidation({
+      allValid: false, hasDuplicates: false,
+      rows: [{ codigoEmpleado: '1', valid: false, duplicate: false,
+               errors: [{ field: 'mes', message: 'bad' }] }],
+    });
+    render(<ActionBar />);
+    expect(screen.queryByText(/validación exitosa/i)).not.toBeInTheDocument();
+  });
+});
+
+// -----------------------------------------------------------------
 // DB connectivity state
 // -----------------------------------------------------------------
 

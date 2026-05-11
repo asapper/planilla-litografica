@@ -34,6 +34,12 @@
   --md-sys-color-warning-container:      #FFDEA8;
   --md-sys-color-on-warning-container:   #271900;
 
+  /* Success — Green (custom, for validation pass) */
+  --md-sys-color-success:                #1B6B2E;
+  --md-sys-color-on-success:             #FFFFFF;
+  --md-sys-color-success-container:      #B7F2C4;
+  --md-sys-color-on-success-container:   #002108;
+
   /* Surface */
   --md-sys-color-background:             #F8F9FF;
   --md-sys-color-on-background:          #191C20;
