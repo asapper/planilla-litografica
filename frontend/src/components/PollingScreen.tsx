@@ -130,7 +130,7 @@ export default function PollingScreen() {
   return (
     <ScreenLayout maxWidth="max-w-2xl">
       <div className="flex items-center gap-4 mb-6">
-        {!isDone && <Spinner />}
+        {!isDone && <Spinner className="flex-shrink-0" />}
         <div>
           <h2 className="text-headline-sm font-medium text-on-surface">
             {!job ? 'Iniciando envío...' : !isDone ? 'Enviando registros...' : 'Envío completado'}

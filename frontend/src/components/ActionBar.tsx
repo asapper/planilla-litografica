@@ -6,9 +6,6 @@ import StatusBadge from './ui/StatusBadge';
 
 const ERR_SERVER = 'Error al conectar con el servidor. Verifica que el servicio esté activo.';
 
-const ICON_WARNING = <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />;
-const ICON_SORT    = <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 15L12 18.75 15.75 15m-7.5-6L12 5.25 15.75 9" />;
-
 export default function ActionBar() {
   const validation       = useStore(s => s.validation);
   const selectedQuincena = useStore(s => s.selectedQuincena);
@@ -123,12 +120,12 @@ export default function ActionBar() {
 
       <div className="flex gap-2">
         {errorCount > 0 && (
-          <StatusBadge variant="error" icon={ICON_WARNING}>
+          <StatusBadge variant="error" icon={<path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />}>
             {errorCount} error{errorCount > 1 ? 'es' : ''}
           </StatusBadge>
         )}
         {dupCount > 0 && (
-          <StatusBadge variant="warning" icon={ICON_SORT}>
+          <StatusBadge variant="warning" icon={<path strokeLinecap="round" strokeLinejoin="round" d="M8.25 15L12 18.75 15.75 15m-7.5-6L12 5.25 15.75 9" />}>
             {dupCount} duplicado{dupCount > 1 ? 's' : ''}
           </StatusBadge>
         )}
@@ -144,12 +141,12 @@ export default function ActionBar() {
           </span>
         )}
         {validationPassed && dbReachable === false && (
-          <StatusBadge variant="error" icon={ICON_WARNING}>
+          <StatusBadge variant="error" icon={<path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />}>
             Base de datos no disponible
           </StatusBadge>
         )}
         {actionError && (
-          <StatusBadge variant="error" icon={ICON_WARNING}>
+          <StatusBadge variant="error" icon={<path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />}>
             {actionError}
           </StatusBadge>
         )}

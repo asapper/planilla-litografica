@@ -22,6 +22,5 @@ export const ROW_STATUS = {
 export const APP_BAR = {
   shadow:             'rgba(24,85,163,0.25)',
   inputBg:            'rgba(255,255,255,0.15)',
-  inputFocusBg:       'rgba(255,255,255,0.25)',
   subtitleText:       'rgba(255,255,255,0.75)',
 } as const;

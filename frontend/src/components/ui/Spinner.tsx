@@ -6,7 +6,7 @@ interface Props {
 export default function Spinner({ size = 'w-6 h-6', className = '' }: Props) {
   return (
     <svg
-      className={`animate-spin ${size} text-primary flex-shrink-0 ${className}`.trim()}
+      className={`animate-spin ${size} text-primary ${className}`.trim()}
       viewBox="0 0 24 24"
       fill="none"
     >
