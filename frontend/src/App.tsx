@@ -9,6 +9,7 @@ import ActionBar from './components/ActionBar';
 import ResultScreen from './components/ResultScreen';
 import PollingScreen from './components/PollingScreen';
 import ErrorBoundary from './components/ErrorBoundary';
+import Spinner from './components/ui/Spinner';
 
 const APP_BAR    = 64;
 const ACTION_BAR = 64;
@@ -55,10 +56,7 @@ export default function App() {
   if (backendState === 'starting') {
     return (
       <div className="fixed inset-0 flex flex-col items-center justify-center gap-4 bg-white">
-        <svg className="animate-spin w-10 h-10 text-primary" viewBox="0 0 24 24" fill="none">
-          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-        </svg>
+        <Spinner size="w-10 h-10" />
         <p className="text-title-md text-primary">Iniciando aplicación...</p>
       </div>
     );
@@ -102,10 +100,7 @@ export default function App() {
 
           {appState === 'submitting' && (
             <div className="fixed inset-0 z-40 flex flex-col items-center justify-center gap-4 bg-white/80">
-              <svg className="animate-spin w-10 h-10 text-primary" viewBox="0 0 24 24" fill="none">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-              </svg>
+              <Spinner size="w-10 h-10" />
               <p className="text-title-md text-primary">Enviando...</p>
             </div>
           )}

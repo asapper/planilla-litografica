@@ -1,4 +1,5 @@
 import { useStore } from '../store';
+import { APP_BAR } from '../constants/colors';
 
 export default function TopAppBar() {
   const appState      = useStore(s => s.appState);
@@ -14,7 +15,7 @@ export default function TopAppBar() {
   return (
     <header
       className="fixed left-0 right-0 flex items-center justify-between px-5 bg-primary"
-      style={{ top: 0, height: 64, zIndex: 30, boxShadow: '0 2px 8px rgba(24,85,163,0.25)' }}
+      style={{ top: 0, height: 64, zIndex: 30, boxShadow: `0 2px 8px ${APP_BAR.shadow}` }}
     >
       {/* Leading: app identity */}
       <div className="flex items-center gap-3 shrink-0">
@@ -27,7 +28,7 @@ export default function TopAppBar() {
         <div>
           <p className="text-title-md text-white font-medium leading-tight">Cargador de Planilla</p>
           {showLoaded && (
-            <p className="text-body-sm leading-tight" style={{ color: 'rgba(255,255,255,0.75)' }}>
+            <p className="text-body-sm leading-tight" style={{ color: APP_BAR.subtitleText }}>
               {fileName ? `${fileName} — ` : ''}{rows.length} empleado{rows.length !== 1 ? 's' : ''}
             </p>
           )}
@@ -45,7 +46,7 @@ export default function TopAppBar() {
             aria-label="Buscar empleado"
             className="w-full h-9 px-3 rounded-shape-full text-body-md border border-white/30
                        focus:outline-none focus:bg-white/25 transition-colors duration-150"
-            style={{ background: 'rgba(255,255,255,0.15)', color: 'white', paddingRight: searchText ? '2rem' : undefined }}
+            style={{ background: APP_BAR.inputBg, color: 'white', paddingRight: searchText ? '2rem' : undefined }}
           />
           {searchText && (
             <button
