@@ -28,11 +28,11 @@ export default function ActionBar() {
   const validationPassed  = validation?.allValid === true;
 
   useEffect(() => {
-    if (!validationPassed) { setShowSuccess(false); return; }
+    if (!validationPassed || dbReachable === false) { setShowSuccess(false); return; }
     setShowSuccess(true);
     const timer = setTimeout(() => setShowSuccess(false), 3_000);
     return () => clearTimeout(timer);
-  }, [validationPassed]);
+  }, [validationPassed, dbReachable]);
 
   useEffect(() => {
     if (!validationPassed) return;

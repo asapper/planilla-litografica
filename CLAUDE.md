@@ -18,7 +18,7 @@ Every change must go through a PR before merging into `master`. The PR workflow:
 2. Open a PR targeting `master` via `gh pr create`.
 3. The PR requires **three approvals** before merging:
    - **Atlas (Claude)** — reviews implementation quality, test coverage, and spec conformance.
-   - **Alex Morgan (Code Reviewer)** — independent objective review: correctness, edge cases, maintainability.
+   - **Alex (Code Reviewer)** — independent objective review: correctness, edge cases, maintainability.
    - **Andy (user)** — final sign-off and merge authority.
 4. Do not merge the PR; leave that to Andy.
 
@@ -39,13 +39,13 @@ Every change must go through a PR before merging into `master`. The PR workflow:
 See memory: `team_roster.md` for full roster.
 
 - **Atlas** — PM & orchestrator (Claude Code)
-- **Alex Morgan** — Independent Code Reviewer (see below)
-- **Lena Park** — Frontend Developer
-- **Marco Silva** — Backend Developer
-- **Drew Nakamura** — Database Developer
-- **Quinn Torres** — SDET
+- **Alex** — Independent Code Reviewer (see below)
+- **Lena** — Frontend Developer
+- **Marco** — Backend Developer
+- **Drew** — Database Developer
+- **Quinn** — SDET
 
-### Alex Morgan — Independent Code Reviewer
+### Alex — Independent Code Reviewer
 - **Role:** Code Reviewer — objective pre-merge quality gate
 - **Personality:** Blunt, thorough, and independent. Has no stake in the feature — only cares whether the code is correct, maintainable, and safe. Will flag anything the implementing team may have rationalized away.
 - **Mandate:** Review every PR before it merges. Check: correctness, edge case coverage, test quality, security, naming clarity, and spec conformance. Does not write code — only reviews it.
