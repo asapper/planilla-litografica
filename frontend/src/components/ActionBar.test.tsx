@@ -235,14 +235,19 @@ describe('ActionBar success message', () => {
     expect(screen.queryByText(/validación exitosa/i)).not.toBeInTheDocument();
   });
 
-  it('hides success badge when DB health check fails', async () => {
+  it('hides success badge when DB becomes unreachable during the display window', async () => {
+    let rejectHealth!: (e: Error) => void;
+    const healthPromise = new Promise<never>((_, reject) => { rejectHealth = reject; });
+
     setupLoadedStore(1);
     mockValidateRows.mockResolvedValue(makeValidateResponse(true));
-    mockCheckDbHealth.mockRejectedValue(new Error('unreachable'));
+    mockCheckDbHealth.mockReturnValue(healthPromise);
     render(<ActionBar />);
 
     fireEvent.click(screen.getByRole('button', { name: /^validar$/i }));
-    await waitFor(() => expect(useStore.getState().dbReachable).toBe(false));
+    await waitFor(() => expect(screen.getByText(/validación exitosa/i)).toBeInTheDocument());
+
+    await act(async () => { rejectHealth(new Error('unreachable')); });
     expect(screen.queryByText(/validación exitosa/i)).not.toBeInTheDocument();
   });
 });
