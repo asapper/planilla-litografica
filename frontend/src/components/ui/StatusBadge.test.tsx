@@ -24,6 +24,13 @@ describe('StatusBadge', () => {
     expect(badge.className).toContain('text-on-warning-container');
   });
 
+  it('applies success styles', () => {
+    const { container } = render(<StatusBadge variant="success" icon={ICON}>x</StatusBadge>);
+    const badge = container.firstChild as HTMLElement;
+    expect(badge.className).toContain('bg-success-container');
+    expect(badge.className).toContain('text-on-success-container');
+  });
+
   it('renders icon inside svg', () => {
     const { container } = render(
       <StatusBadge variant="error" icon={<path data-testid="icon" d="M1 1" />}>x</StatusBadge>

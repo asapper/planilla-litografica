@@ -21,10 +21,18 @@ export default function ActionBar() {
 
   const [isValidating, setIsValidating] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [showSuccess, setShowSuccess] = useState(false);
 
   const selectionComplete = selectedQuincena !== null && (!multiMonth || selectedMonth !== null);
   const hasErrors         = validation?.rows.some(r => !r.valid) ?? false;
   const validationPassed  = validation?.allValid === true;
+
+  useEffect(() => {
+    if (!validationPassed || dbReachable === false) { setShowSuccess(false); return; }
+    setShowSuccess(true);
+    const timer = setTimeout(() => setShowSuccess(false), 3_000);
+    return () => clearTimeout(timer);
+  }, [validationPassed, dbReachable]);
 
   useEffect(() => {
     if (!validationPassed) return;
@@ -133,6 +141,11 @@ export default function ActionBar() {
           <span className="text-body-sm text-on-surface-variant self-center">
             Selecciona la quincena para continuar
           </span>
+        )}
+        {showSuccess && (
+          <StatusBadge variant="success" icon={<path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />}>
+            Validación exitosa
+          </StatusBadge>
         )}
         {validationPassed && dbReachable === null && (
           <span className="inline-flex items-center gap-1.5 text-body-sm text-on-surface-variant">
