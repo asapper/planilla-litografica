@@ -39,7 +39,7 @@ export default function TopAppBar() {
       {showLoaded && (
         <div className="flex-1 mx-6 max-w-sm relative">
           <input
-            type="search"
+            type="text"
             value={searchText}
             onChange={e => setSearchText(e.target.value)}
             placeholder="Buscar por código o nombre..."
