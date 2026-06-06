@@ -171,7 +171,7 @@ Examples (45-min allowance, 07:00 entry):
 - Scans: 07:00, 12:00, 13:30, 15:00 → break = 90 min → deductible = 45 min → workedMinutes = 435 → **7.5h**
 - Scans: 07:00, 10:00, 10:20, 12:00, 12:40, 15:30 → break = 20+40 = 60 min → deductible = 15 min → workedMinutes = 495 → **8.0h** (compensated by staying later)
 
-Sessions with `needsResolution = true` get `workedMinutes = 0` until resolved.
+Sessions with `needsResolution = true` get `workedMinutes = 0` and `workedHours = 0.0` until resolved.
 
 ---
 

@@ -44,15 +44,17 @@ The old `CsvParserService` is deleted. All other existing flows (validate, submi
 - **New — config:** `Shift.java`, `ShiftRepository.java`, `ShiftService.java`, `HolidayService.java`
 - **Updated:** `UploadController.java`, `UploadResponse` model
 - **New endpoint:** `POST /resolve`
-- **Frontend new:** `MissingTimesScreen.tsx`, `MissingTimesScreen.test.tsx`, `ConfigPage.tsx`, `NotPresentReview.tsx`
+- **Frontend new:** `MissingTimesScreen.tsx`, `MissingTimesScreen.test.tsx`, `ReappearanceScreen.tsx`, `NotPresentReview.tsx`, `ConfigPage.tsx`
 - **Frontend updated:** `types.ts`, `store.ts`, `store.test.ts`, `api.ts`, `api.test.ts`, `App.tsx`, `App.test.tsx`
 
 ### App state flow
 ```
 empty
-  → upload (reappearing inactive employees) → reappearance → [decisions made] →
-  → upload (no missing times)               → loaded → notPresentReview → result
-  → upload (missing times)                  → verifying → resolve → loaded → notPresentReview → result
+  → upload (reappearing employees)  → reappearance → [decisions made] → upload continues below
+  → upload (no missing times)       → loaded
+  → upload (missing times)          → verifying → resolve → loaded
+loaded → notPresentReview → result  (if notPresentEmployees non-empty)
+loaded → result                     (if notPresentEmployees empty)
 loaded → submitting → polling → result
 ```
 
@@ -65,10 +67,12 @@ loaded → submitting → polling → result
 String employeeId
 String employeeName
 LocalDate date              // shift date (start date of session)
-LocalDateTime firstScan
-LocalDateTime lastScan
+List<LocalDateTime> allScans // full sorted scan list; required for break deduction on re-run
+LocalDateTime firstScan     // allScans.get(0)
+LocalDateTime lastScan      // allScans.get(allScans.size() - 1)
 LocalTime shiftAnchor       // startTime of matched shift, or null if ambiguous
 LocalDateTime effectiveStart // null until resolved
+int workedMinutes           // 0 until resolved
 double workedHours          // 0.0 until resolved; always X.0 or X.5
 boolean needsResolution
 boolean missingStart
@@ -99,6 +103,8 @@ String employeeName
 String date                 // "YYYY-MM-DD"
 String knownTime            // "HH:mm" — the one scan we have, null if both missing
 boolean confirmedStart      // true if knownTime falls within a detection window
+boolean missingStart        // true if entry scan is absent or ambiguous
+boolean missingEnd          // true if exit scan is absent
 String detectedAnchor       // "HH:mm" or null
 ```
 
@@ -119,13 +125,16 @@ class Resolution {
 ```
 
 ### Backend — UploadResponse (updated)
-Three new optional fields added to existing model:
+Four new optional fields added to existing model:
 ```java
-String draftId                          // null if no resolution needed
-List<MissingTimeItem> missingTimes      // empty if no resolution needed
-List<EmployeeSummary> reappearingEmployees  // empty if no inactive employees found in file
+String draftId                              // null if no resolution needed
+List<MissingTimeItem> missingTimes          // empty if no resolution needed
+List<EmployeeSummary> reappearingEmployees  // empty if no inactive employees in file
+List<EmployeeSummary> notPresentEmployees   // active employees absent from this file; computed at parse time, shown post-submit
 ```
 All existing fields (`rows`, `monthOptions`, `multiMonth`, `parseWarnings`) unchanged.
+
+`notPresentEmployees` is computed at parse time (active registry employees not found in the file) and returned in the upload response. The frontend stores it in state and surfaces it only after the SP submission completes — no changes to `/submit` or polling are needed.
 
 ### Backend — EmployeeSummary (new DTO, sent to client)
 ```java
@@ -164,10 +173,16 @@ export interface ResolveRequest {
   resolutions: Resolution[];
 }
 
+export interface ReappearanceDecision {
+  employeeId: string;
+  action: 'reactivate' | 'ignore';
+}
+
 // UploadResponse gains:
 draftId?: string;
 missingTimes?: MissingTimeItem[];
 reappearingEmployees?: Employee[];
+notPresentEmployees?: Employee[];  // stored in state, shown after SP submit completes
 
 // AppState gains 'verifying', 'reappearance', and 'notPresentReview'
 export type AppState = 'empty' | 'reappearance' | 'verifying' | 'loaded' | 'submitting' | 'polling' | 'notPresentReview' | 'result';
@@ -295,7 +310,30 @@ class TasDraft {
 
 ---
 
-## 7. POST /resolve Endpoint
+## 7. POST /upload — Reappearance Decision Flow
+
+When the initial upload detects `active = false` employees in the file, the response is returned immediately with `reappearingEmployees` populated and no rows computed yet. The frontend shows `ReappearanceScreen`; the user resolves each employee. The frontend then re-calls `POST /upload` with the same file plus a `decisions` field:
+
+```java
+// Added to the multipart upload request as an optional JSON part:
+List<ReappearanceDecision> decisions  // one entry per reappearing employee
+
+class ReappearanceDecision {
+    String employeeId
+    String action  // "reactivate" | "ignore"
+}
+```
+
+On re-upload with decisions:
+1. Set `active = true` for all `employeeId` where `action = "reactivate"`
+2. Exclude scans for all `employeeId` where `action = "ignore"` before processing
+3. Proceed with normal parse pipeline
+
+`api.ts` adds: `uploadFile(file: File, decisions?: ReappearanceDecision[]): Promise<UploadResponse>`
+
+---
+
+## 8. POST /resolve Endpoint
 
 **Request:** `ResolveRequest`
 **Response:** `UploadResponse` (same shape as upload)
@@ -311,7 +349,7 @@ Steps:
 
 ---
 
-## 8. Frontend — ReappearanceScreen
+## 9. Frontend — ReappearanceScreen
 
 Shown when `appState === 'reappearance'`. Appears before processing begins, immediately after upload, when one or more `active = false` employees have scans in the file.
 
@@ -325,7 +363,7 @@ All rows must be resolved before processing continues. Once all decisions are ma
 
 ---
 
-## 9. Frontend — MissingTimesScreen
+## 10. Frontend — MissingTimesScreen
 
 Shown when `appState === 'verifying'`.
 
@@ -344,7 +382,7 @@ Both Inicio and Fin are always editable `HH:mm` inputs. Submit button disabled u
 
 ---
 
-## 10. Frontend — NotPresentReview
+## 11. Frontend — NotPresentReview
 
 Shown when `appState === 'notPresentReview'`. Appears after the SP submission completes.
 
@@ -354,14 +392,15 @@ Per `docs/tas_shift_rules.md` → Employee Registry → Not-Present Review.
 
 ---
 
-## 11. Store Changes
+## 12. Store Changes
 
 New state slices:
 ```ts
-draftId: string | null              // set during 'verifying', cleared after resolve
-missingTimes: MissingTimeItem[]     // set during 'verifying', cleared after resolve
-reappearingEmployees: Employee[]    // set during 'reappearance', cleared after decisions made
-notPresentEmployees: Employee[]     // set after SP submit, cleared after review
+draftId: string | null                      // set during 'verifying', cleared after resolve
+missingTimes: MissingTimeItem[]             // set during 'verifying', cleared after resolve
+reappearingEmployees: Employee[]            // set during 'reappearance', cleared after decisions
+notPresentEmployees: Employee[]             // set at upload time, shown after SP submit completes
+pendingDecisions: ReappearanceDecision[]    // accumulates user decisions in ReappearanceScreen
 ```
 
 New actions:
@@ -376,19 +415,21 @@ setNotPresentReview(employees: Employee[]): void
 // sets appState = 'notPresentReview', stores notPresentEmployees
 ```
 
-Updated `uploadFile` action:
-- If response has reappearing employees → call `setReappearance` first; proceed to upload after decisions
-- If response has non-empty `missingTimes` → call `setVerifying`
-- Else → call existing `setLoaded`
+Updated `uploadFile(file, decisions?)` action:
+1. Call `POST /upload` with file (and `decisions` if provided)
+2. If response has non-empty `reappearingEmployees` → call `setReappearance`; user resolves decisions → re-call `uploadFile(file, decisions)`
+3. Store `notPresentEmployees` from response regardless of path (shown post-submit)
+4. If response has non-empty `missingTimes` → call `setVerifying`
+5. Else → call existing `setLoaded`
 
 Updated `submitData` action:
-- On success → if not-present list non-empty → call `setNotPresentReview`; else → transition to `result`
+- On success → if `notPresentEmployees` non-empty → call `setNotPresentReview`; else → transition to `result`
 
 Zustand selector pattern (per project convention): all new fields use individual `useStore(s => s.field)` selectors — no inline object selectors.
 
 ---
 
-## 12. Test Coverage
+## 13. Test Coverage
 
 ### Backend
 - `TasParserServiceTest`: unit tests covering all seven phases — deduplication, window-based session grouping, cross-midnight stitching, tardiness (exact firstScan, not chunks), break deduction, 0.5h rounding, per-day simples/dobles split, Sunday dobles, public holiday dobles, missing scan detection, Q1/Q2 boundary
@@ -407,9 +448,8 @@ Zustand selector pattern (per project convention): all new fields use individual
 
 ---
 
-## 13. Out of Scope
+## 14. Out of Scope
 
-- Config page UI (spec pending in `docs/tas_shift_rules.md` → Config Page)
 - No changes to `/validate`, `/submit`, job polling, or `ResultScreen`
 - No changes to `DataGrid`, `QuincenaBanner`, or `ActionBar`
 - The old multi-block CSV format is fully removed with no backwards compatibility
