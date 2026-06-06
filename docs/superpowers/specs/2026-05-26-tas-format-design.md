@@ -132,6 +132,7 @@ export interface MissingTimeItem {
   employeeName: string;
   date: string;
   knownTime: string | null;
+  confirmedStart: boolean;
   missingStart: boolean;
   missingEnd: boolean;
   detectedAnchor: string | null;
@@ -153,8 +154,8 @@ export interface ResolveRequest {
 draftId?: string;
 missingTimes?: MissingTimeItem[];
 
-// AppState gains 'verifying' and 'notPresentReview'
-export type AppState = 'empty' | 'verifying' | 'loaded' | 'submitting' | 'polling' | 'notPresentReview' | 'result';
+// AppState gains 'verifying', 'reappearance', and 'notPresentReview'
+export type AppState = 'empty' | 'reappearance' | 'verifying' | 'loaded' | 'submitting' | 'polling' | 'notPresentReview' | 'result';
 ```
 
 ---
@@ -192,7 +193,10 @@ Per `docs/tas_shift_rules.md` → Grace Period and Tardiness.
 Per `docs/tas_shift_rules.md` → Worked Hours per Session and Break Deduction.
 
 ```
-totalBreakGap   = sum of gaps between consecutive scans within the session (each gap > 0 after dedup represents time outside)
+// Scans alternate entry/exit: scan[0]=entry, scan[1]=exit, scan[2]=entry, ...
+// Even-indexed intervals (scan[1]→scan[2], scan[3]→scan[4], ...) are time outside (breaks)
+totalBreakGap   = sum of gaps at odd indices: gap[1] + gap[3] + gap[5] + ...
+                  where gap[i] = scan[i+1] − scan[i]
 deductibleBreak = max(0, totalBreakGap − legalBreakAllowance)
 workedMinutes   = (lastScan − effectiveStart).totalMinutes − deductibleBreak
 workedHours     = floor(workedMinutes / 30) / 2.0   // always X.0 or X.5
@@ -211,6 +215,7 @@ Group resolved sessions by `(employeeId, month, quincena)`:
 Per session, classify hours as simples or dobles:
 ```
 shiftDurationHours = duration between shift.startTime and shift.endTime, rounded to 0.5h
+                     // cross-midnight: duration = (24h − startTime) + endTime
 
 if session.date is Sunday or public holiday:
     dobles += workedHours
@@ -228,7 +233,7 @@ Per `docs/tas_shift_rules.md` → Missing Scan Detection.
 
 Flag sessions where:
 - Last scan is more than **60 minutes** before `shift.endTime` → likely missing exit scan
-- First scan is more than `GRACE_PERIOD_MINUTES` after `shift.startTime` AND session has only one scan → likely missing entry scan
+- First scan is more than **60 minutes** after `shift.startTime + GRACE_PERIOD_MINUTES` → likely missing entry scan
 - Session on first day of report period + cross-midnight shift → likely start cutoff
 - Session on last day of report period → likely end cutoff
 
@@ -292,7 +297,21 @@ Steps:
 
 ---
 
-## 8. Frontend — MissingTimesScreen
+## 8. Frontend — ReappearanceScreen
+
+Shown when `appState === 'reappearance'`. Appears before processing begins, immediately after upload, when one or more `active = false` employees have scans in the file.
+
+Per `docs/tas_shift_rules.md` → Employee Registry → Re-appearance.
+
+Layout: one row per reappearing employee showing name and ID, with two actions per row:
+- **Reactivar y enviar** — sets `active = true` for that employee; their scans are included in the upload
+- **Ignorar** — their scans are excluded from this upload; employee remains `active = false`
+
+All rows must be resolved before processing continues. Once all decisions are made, the user confirms and the upload proceeds (with the reactivated employees' scans included, ignored employees' scans excluded).
+
+---
+
+## 9. Frontend — MissingTimesScreen
 
 Shown when `appState === 'verifying'`.
 
@@ -311,7 +330,7 @@ Both Inicio and Fin are always editable `HH:mm` inputs. Submit button disabled u
 
 ---
 
-## 9. Frontend — NotPresentReview
+## 10. Frontend — NotPresentReview
 
 Shown when `appState === 'notPresentReview'`. Appears after the SP submission completes.
 
@@ -321,17 +340,21 @@ Per `docs/tas_shift_rules.md` → Employee Registry → Not-Present Review.
 
 ---
 
-## 10. Store Changes
+## 11. Store Changes
 
 New state slices:
 ```ts
 draftId: string | null              // set during 'verifying', cleared after resolve
 missingTimes: MissingTimeItem[]     // set during 'verifying', cleared after resolve
+reappearingEmployees: Employee[]    // set during 'reappearance', cleared after decisions made
 notPresentEmployees: Employee[]     // set after SP submit, cleared after review
 ```
 
 New actions:
 ```ts
+setReappearance(employees: Employee[]): void
+// sets appState = 'reappearance', stores reappearingEmployees
+
 setVerifying(draftId: string, missingTimes: MissingTimeItem[]): void
 // sets appState = 'verifying', stores draftId + missingTimes
 
@@ -340,6 +363,7 @@ setNotPresentReview(employees: Employee[]): void
 ```
 
 Updated `uploadFile` action:
+- If response has reappearing employees → call `setReappearance` first; proceed to upload after decisions
 - If response has non-empty `missingTimes` → call `setVerifying`
 - Else → call existing `setLoaded`
 
@@ -350,7 +374,7 @@ Zustand selector pattern (per project convention): all new fields use individual
 
 ---
 
-## 11. Test Coverage
+## 12. Test Coverage
 
 ### Backend
 - `TasParserServiceTest`: unit tests covering all seven phases — deduplication, window-based session grouping, cross-midnight stitching, tardiness (exact firstScan, not chunks), break deduction, 0.5h rounding, per-day simples/dobles split, Sunday dobles, public holiday dobles, missing scan detection, Q1/Q2 boundary
@@ -360,15 +384,16 @@ Zustand selector pattern (per project convention): all new fields use individual
 - `ResolveControllerTest`: valid resolve, 404 on bad draftId, 400 on incomplete resolutions, TTL expiry during resolve
 
 ### Frontend
+- `ReappearanceScreen.test.tsx`: renders reappearing employees, Reactivar sets active, Ignorar excludes scans, all rows must be resolved before proceeding
 - `MissingTimesScreen.test.tsx`: renders all items, disables submit until complete, calls resolve on submit, shows error on 400
 - `NotPresentReview.test.tsx`: renders not-present list, handles mark-inactive action, navigates to result on dismiss
-- `store.test.ts`: new state transitions including `verifying` and `notPresentReview`
+- `store.test.ts`: new state transitions including `reappearance`, `verifying`, and `notPresentReview`
 - `api.test.ts`: `resolveMissingTimes` call shape
 - `App.test.tsx`: renders correct screen for each `appState`
 
 ---
 
-## 12. Out of Scope
+## 13. Out of Scope
 
 - Config page UI (spec pending in `docs/tas_shift_rules.md` → Config Page)
 - No changes to `/validate`, `/submit`, job polling, or `ResultScreen`

@@ -156,8 +156,9 @@ Both cutoff cases are flagged for manual verification.
 ## Worked Hours per Session **[CONFIRMED]**
 
 ```
-totalBreakGap    = sum of gaps between each adjacent pair of scans within the session
-                   (after deduplication; every remaining gap represents time outside the building)
+// Scans alternate entry/exit starting with entry: scan[0]=entry, scan[1]=exit, scan[2]=entry, ...
+// Odd-indexed gaps (gap[1], gap[3], ...) are time outside (breaks); even-indexed gaps are time inside
+totalBreakGap    = gap[1] + gap[3] + gap[5] + ...  where gap[i] = scan[i+1] − scan[i]
 deductibleBreak  = max(0, totalBreakGap − legalBreakAllowance)
 workedMinutes    = (lastScan − effectiveStart) − deductibleBreak  (exact, in minutes)
 workedHours      = floor(workedMinutes / 30) / 2.0  (double, always X.0 or X.5)
@@ -271,6 +272,7 @@ Employees are expected to scan on every exit and entry, including breaks. Break 
 - Guatemalan law mandates a **15-minute snack break** and a **30-minute lunch break** — these are not deducted.
 - `legalBreakAllowance` (Config page, default **45 min**) is the total daily break time that is never deducted.
 - Any total break time **beyond** the allowance is deducted from `workedMinutes`.
+- Scans alternate entry/exit starting with the first scan as entry. Break time is the sum of odd-indexed inter-scan gaps (exit→entry intervals).
 - If an employee forgets to scan during a break, the gap is invisible and no deduction occurs — accepted limitation.
 
 See **Worked Hours per Session** for the full formula.
