@@ -53,11 +53,12 @@ empty
   → upload (reappearing employees)  → reappearance → [re-upload with decisions] →
   → upload (no missing times)       → loaded
   → upload (missing times)          → verifying → resolve → loaded
-loaded → notPresentReview → result  (if notPresentEmployees non-empty)
-loaded → result                     (if notPresentEmployees empty)
-loaded → submitting → polling → result
+loaded → submitting → polling → notPresentReview → result  (if notPresentEmployees non-empty)
+                              → polling → result            (if notPresentEmployees empty)
 ```
-Note: the `reappearance` re-upload transitions directly to `loaded` or `verifying` without passing through `empty`. `appState` stays in `reappearance` until the re-upload response arrives, then transitions normally.
+Notes:
+- `reappearance` re-upload transitions directly to `loaded` or `verifying` without passing through `empty`. `appState` stays in `reappearance` until the re-upload response arrives, then transitions normally.
+- `notPresentReview` is a post-submit state triggered by `submitData` success, not a direct transition from `loaded`.
 
 ---
 
@@ -110,7 +111,7 @@ boolean missingEnd          // true if exit scan is absent
 String detectedAnchor       // "HH:mm" or null
 ```
 
-- `confirmedStart = true`: knownTime pre-filled into start input (editable). Only end required.
+- `confirmedStart = true`: knownTime pre-filled into start input (editable). Only end required. Implies `missingStart = false`.
 - `confirmedStart = false`: knownTime shown as reference text only. Both inputs empty and required.
 
 ### Backend — ResolveRequest (received from client)
@@ -241,7 +242,9 @@ workedHours     = floor(workedMinutes / 30) / 2.0   // always X.0 or X.5
 
 **Phase 4 processes all sessions**, including those already flagged `needsResolution = true` by Phase 3 (ambiguous/no-window-match). For those sessions, `effectiveStart` is null and the formula cannot run — set `workedMinutes = 0`, `workedHours = 0.0` and skip. For single-scan sessions where `lastScan == firstScan`, the formula yields `workedMinutes = 0` naturally (break gap loop produces no gaps); Phase 5 will then flag them. Sessions with `needsResolution = true` from any phase are held in the draft.
 
-**Post-resolution re-run:** when Phase 4 re-runs after `/resolve` applies `providedEnd`, use `session.lastScan` (overwritten by the resolution) as the span endpoint — not `allScans.last()`. Break gap calculation still uses `allScans` for odd-indexed gaps. `lastScan` is the authoritative field for span; `allScans` is authoritative for break gaps only.
+**Post-resolution re-run:** when Phase 4 re-runs after `/resolve` applies `providedEnd`, use `session.lastScan` (overwritten by the resolution) as the span endpoint — not `allScans.last()`. Break gap calculation still uses `allScans` for odd-indexed gaps. `lastScan` is the authoritative field for span; `allScans` is authoritative for break gaps only. **`allScans` is immutable after parse** — `/resolve` never modifies it. `effectiveStart` and `lastScan` are the only fields updated by resolution.
+
+Note: `workedHours` is stored on `TasSession` for convenience but is not used in Phase 6 accumulation. Phase 6 accumulates `workedMinutes` directly. `workedHours` is display-only (e.g., for draft inspection).
 
 ### Phase 5 — Missing Scan Detection
 Per `docs/tas_shift_rules.md` → Missing Scan Detection.
@@ -254,7 +257,7 @@ If `session.matchedShiftId` is null (session already `needsResolution = true` fr
 - Last scan is more than **60 minutes** before `shift.endTime` → likely missing exit scan
 - First scan is more than **60 minutes** after `shift.startTime + GRACE_PERIOD_MINUTES` → likely missing entry scan
 - Session on first day of report period + cross-midnight shift → likely start cutoff
-- Session on last day of report period → likely end cutoff
+- Session on last day of report period → likely end cutoff (applies to all shifts)
 
 All flagged sessions get `needsResolution = true`. Flagged sessions are excluded from Phase 6 accumulation.
 
@@ -371,7 +374,7 @@ Steps:
 3. For each resolution, find matching session by `(employeeId, date)`, apply `providedStart`/`providedEnd` as `effectiveStart`/`lastScan`, clear `needsResolution`. If `session.matchedShiftId` is null, attempt to match `providedStart` against detection windows to assign `matchedShiftId`; if still no match, leave `matchedShiftId` null (Phase 6 will default to simples).
 4. Re-run Phases 4–7 for affected employees only
 5. Merge newly computed rows into `partialResponse`
-6. Remove draft from store
+6. Remove draft from store **(success path only — 400 returns before this step, leaving draft intact)**
 7. Return merged `UploadResponse` with empty `draftId` and `missingTimes`; **carry `notPresentEmployees` from `partialResponse`** so the frontend not-present review is not lost on the verifying path
 
 ---
