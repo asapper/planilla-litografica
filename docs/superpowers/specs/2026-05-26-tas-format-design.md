@@ -71,7 +71,8 @@ LocalDate date              // shift date (start date of session)
 List<LocalDateTime> allScans // full sorted scan list; required for break deduction on re-run
 LocalDateTime firstScan     // allScans.get(0)
 LocalDateTime lastScan      // allScans.get(allScans.size() - 1)
-LocalTime shiftAnchor       // startTime of matched shift, or null if ambiguous
+Long matchedShiftId         // FK to Shift; null if ambiguous — used by Phase 6 to get startTime + endTime
+LocalTime shiftAnchor       // startTime of matched shift (derived from matchedShiftId); null if ambiguous
 LocalDateTime effectiveStart // null until resolved
 int workedMinutes           // 0 until resolved
 double workedHours          // 0.0 until resolved; always X.0 or X.5
@@ -216,8 +217,8 @@ Per `docs/tas_shift_rules.md` → Session Grouping.
 ### Phase 3 — Shift Assignment, Mismatch Detection & Tardiness
 Per `docs/tas_shift_rules.md` → Grace Period, Tardiness, and Shift Mismatch Detection.
 
-- Match session's first scan to a shift's detection window → record `shiftAnchor = shift.startTime`.
-- No window match → `needsResolution = true`.
+- Match session's first scan to a shift's detection window → record `matchedShiftId = shift.id` and `shiftAnchor = shift.startTime`.
+- No window match → `needsResolution = true`; leave `matchedShiftId` and `shiftAnchor` null.
 - **Shift mismatch:** if the matched window belongs to a *different* shift than the employee's assigned shift, apply the mismatch rules from `docs/tas_shift_rules.md` → Shift Mismatch Detection:
   - Consistent across the entire quincena → surface suggestion to update saved config
   - Only on specific days → surface per-day exception in verification screen; saved config unchanged
@@ -238,7 +239,7 @@ workedHours     = floor(workedMinutes / 30) / 2.0   // always X.0 or X.5
 
 `legalBreakAllowance` is loaded from the Config table at parse time (default 45 min).
 
-Sessions with `needsResolution = true` get `workedMinutes = 0` and `workedHours = 0.0`; held in the draft.
+**Phase 4 processes all sessions**, including those already flagged `needsResolution = true` by Phase 3 (ambiguous/no-window-match). For those sessions, `effectiveStart` is null and the formula cannot run — set `workedMinutes = 0`, `workedHours = 0.0` and skip. For single-scan sessions where `lastScan == firstScan`, the formula yields `workedMinutes = 0` naturally (break gap loop produces no gaps); Phase 5 will then flag them. Sessions with `needsResolution = true` from any phase are held in the draft.
 
 **Post-resolution re-run:** when Phase 4 re-runs after `/resolve` applies `providedEnd`, use `session.lastScan` (overwritten by the resolution) as the span endpoint — not `allScans.last()`. Break gap calculation still uses `allScans` for odd-indexed gaps. `lastScan` is the authoritative field for span; `allScans` is authoritative for break gaps only.
 
@@ -247,7 +248,8 @@ Per `docs/tas_shift_rules.md` → Missing Scan Detection.
 
 Must run **before** simples/dobles accumulation so flagged sessions are excluded before any hours are counted.
 
-Flag sessions where:
+If `session.matchedShiftId` is null (session already `needsResolution = true` from Phase 3), skip timing-based checks — the session is already flagged. For all other sessions:
+
 - Session has exactly one scan and it falls within a detection window → `needsResolution = true`, `missingEnd = true`
 - Last scan is more than **60 minutes** before `shift.endTime` → likely missing exit scan
 - First scan is more than **60 minutes** after `shift.startTime + GRACE_PERIOD_MINUTES` → likely missing entry scan
@@ -266,6 +268,10 @@ Group resolved sessions by `(employeeId, month, quincena)`:
 
 Per session, accumulate minutes (not hours — rounding is applied once at the quincena level):
 ```
+// Look up matched shift by session.matchedShiftId to get startTime and endTime
+// If matchedShiftId is null (session was resolved without a shift match):
+//   attempt to match session.effectiveStart to a detection window on re-run via /resolve;
+//   if still no match, treat all workedMinutes as simples (conservative default)
 shiftDurationMinutes = duration between shift.startTime and shift.endTime in minutes
                        // cross-midnight: duration = (24h − startTime) + endTime
 
@@ -346,7 +352,7 @@ class ReappearanceDecision {
 ```
 
 On re-upload with decisions:
-1. Set `active = true` for all `employeeId` where `action = "reactivate"`
+1. Set `active = true` for all `employeeId` where `action = "reactivate"` — **must happen before `notPresentEmployees` is computed** so reactivated employees are treated as active+present and excluded from the not-present list
 2. Exclude scans for all `employeeId` where `action = "ignore"` before processing
 3. Proceed with normal parse pipeline
 
@@ -362,7 +368,7 @@ On re-upload with decisions:
 Steps:
 1. Fetch draft — return 404 if missing or expired
 2. Validate all resolutions are present — return 400 with remaining unresolved items if any are missing
-3. For each resolution, find matching session by `(employeeId, date)`, apply `providedStart`/`providedEnd` as `effectiveStart`/`lastScan`, clear `needsResolution`
+3. For each resolution, find matching session by `(employeeId, date)`, apply `providedStart`/`providedEnd` as `effectiveStart`/`lastScan`, clear `needsResolution`. If `session.matchedShiftId` is null, attempt to match `providedStart` against detection windows to assign `matchedShiftId`; if still no match, leave `matchedShiftId` null (Phase 6 will default to simples).
 4. Re-run Phases 4–7 for affected employees only
 5. Merge newly computed rows into `partialResponse`
 6. Remove draft from store
