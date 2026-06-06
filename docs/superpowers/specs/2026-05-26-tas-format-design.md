@@ -50,8 +50,9 @@ The old `CsvParserService` is deleted. All other existing flows (validate, submi
 ### App state flow
 ```
 empty
-  → upload (no missing times) → loaded → notPresentReview → result
-  → upload (missing times)    → verifying → resolve → loaded → notPresentReview → result
+  → upload (reappearing inactive employees) → reappearance → [decisions made] →
+  → upload (no missing times)               → loaded → notPresentReview → result
+  → upload (missing times)                  → verifying → resolve → loaded → notPresentReview → result
 loaded → submitting → polling → result
 ```
 
@@ -118,15 +119,28 @@ class Resolution {
 ```
 
 ### Backend — UploadResponse (updated)
-Two new optional fields added to existing model:
+Three new optional fields added to existing model:
 ```java
-String draftId              // null if no resolution needed
-List<MissingTimeItem> missingTimes  // empty if no resolution needed
+String draftId                          // null if no resolution needed
+List<MissingTimeItem> missingTimes      // empty if no resolution needed
+List<EmployeeSummary> reappearingEmployees  // empty if no inactive employees found in file
 ```
 All existing fields (`rows`, `monthOptions`, `multiMonth`, `parseWarnings`) unchanged.
 
+### Backend — EmployeeSummary (new DTO, sent to client)
+```java
+String employeeId
+String name
+```
+Used for both `reappearingEmployees` and the not-present review list. Intentionally minimal — the frontend only needs to identify and display the employee.
+
 ### Frontend — types.ts additions
 ```ts
+export interface Employee {
+  employeeId: string;
+  name: string;
+}
+
 export interface MissingTimeItem {
   employeeId: string;
   employeeName: string;
@@ -153,6 +167,7 @@ export interface ResolveRequest {
 // UploadResponse gains:
 draftId?: string;
 missingTimes?: MissingTimeItem[];
+reappearingEmployees?: Employee[];
 
 // AppState gains 'verifying', 'reappearance', and 'notPresentReview'
 export type AppState = 'empty' | 'reappearance' | 'verifying' | 'loaded' | 'submitting' | 'polling' | 'notPresentReview' | 'result';
@@ -194,9 +209,8 @@ Per `docs/tas_shift_rules.md` → Worked Hours per Session and Break Deduction.
 
 ```
 // Scans alternate entry/exit: scan[0]=entry, scan[1]=exit, scan[2]=entry, ...
-// Even-indexed intervals (scan[1]→scan[2], scan[3]→scan[4], ...) are time outside (breaks)
-totalBreakGap   = sum of gaps at odd indices: gap[1] + gap[3] + gap[5] + ...
-                  where gap[i] = scan[i+1] − scan[i]
+// Odd-indexed gaps (gap[1], gap[3], ...) are time outside (breaks); even-indexed gaps are time inside
+totalBreakGap   = gap[1] + gap[3] + gap[5] + ...  where gap[i] = scan[i+1] − scan[i]
 deductibleBreak = max(0, totalBreakGap − legalBreakAllowance)
 workedMinutes   = (lastScan − effectiveStart).totalMinutes − deductibleBreak
 workedHours     = floor(workedMinutes / 30) / 2.0   // always X.0 or X.5
@@ -204,7 +218,7 @@ workedHours     = floor(workedMinutes / 30) / 2.0   // always X.0 or X.5
 
 `legalBreakAllowance` is loaded from the Config table at parse time (default 45 min).
 
-Sessions with `needsResolution = true` get `workedHours = 0.0` and are held in the draft.
+Sessions with `needsResolution = true` get `workedMinutes = 0` and `workedHours = 0.0`; held in the draft.
 
 ### Phase 5 — Quincena Split & Simples/Dobles
 Per `docs/tas_shift_rules.md` → Weekly Hours: Simples vs. Dobles and Quincena Derivation.
