@@ -138,8 +138,8 @@ Missing scans are detected by **timing anomalies**, not scan count. Session grou
 
 | Condition | Inference |
 |---|---|
-| Last scan is well before `endTime` | Likely missing **exit scan** ("Falta marcación de salida") |
-| First scan is well after `startTime + grace` | Likely missing **entry scan** ("Falta marcación de entrada") |
+| Last scan is more than **60 minutes** before `endTime` | Likely missing **exit scan** ("Falta marcación de salida") |
+| First scan is more than **60 minutes** after `startTime + grace` | Likely missing **entry scan** ("Falta marcación de entrada") |
 | Session on the **first day** of the report period and employee is on a cross-midnight shift | Likely **start cutoff** (session began before the report period) |
 | Session on the **last day** of the report period | Likely **end cutoff** (session continues beyond the report) |
 
@@ -156,13 +156,14 @@ Both cutoff cases are flagged for manual verification.
 ## Worked Hours per Session **[CONFIRMED]**
 
 ```
-totalBreakGap    = sum of all inter-scan gaps within the session (after deduplication)
+totalBreakGap    = sum of gaps between each adjacent pair of scans within the session
+                   (after deduplication; every remaining gap represents time outside the building)
 deductibleBreak  = max(0, totalBreakGap − legalBreakAllowance)
 workedMinutes    = (lastScan − effectiveStart) − deductibleBreak  (exact, in minutes)
 workedHours      = floor(workedMinutes / 30) / 2.0  (double, always X.0 or X.5)
 ```
 
-`legalBreakAllowance` is a configurable value on the Config page (default **45 minutes** = 15-min snack + 30-min lunch, as mandated by law). Only break time beyond this allowance is deducted.
+`legalBreakAllowance` is a configurable value on the Config page (default **45 minutes** = 15-min snack + 30-min lunch, as mandated by law). Only break time beyond this allowance is deducted. Changes to `legalBreakAllowance` apply to future uploads only.
 
 Examples (45-min allowance, 07:00 entry):
 - Scans: 07:00, 12:00, 12:40, 15:00 → break = 40 min → deductible = max(0, 40−45) = 0 → workedMinutes = 480 → **8.0h**
@@ -210,7 +211,7 @@ The 44h/week cumulative threshold does **not** apply — overtime is determined 
 
 ---
 
-## Dias No Laborados **[CONFIRMED]**
+## Non-Worked Days **[CONFIRMED]**
 
 Count of **Monday–Saturday** calendar days within the reporting period where the employee has **zero sessions**.
 
@@ -243,7 +244,7 @@ The app maintains a cumulative registry of all employees ever seen across upload
 **Re-appearance of inactive employees:**
 - If an `active = false` employee's scans appear in a future TAS file, the app flags them before the main submission with two options:
   - **Reactivar y enviar** — sets `active = true`, includes their hours in the submission.
-  - **Ignorar** — skips for this upload; employee remains `active = false` and will be flagged again if they appear in a subsequent file.
+  - **Ignorar** — the employee's scans are excluded from this upload's report and SP submission; employee remains `active = false` and will be flagged again if they appear in a subsequent file.
 - There is no "ignore forever" option — re-appearances are always surfaced to avoid silently masking rehires or data issues.
 
 ---
@@ -257,9 +258,9 @@ Derived from the date range in the file — not entered manually.
 
 The system generates **one output row per employee per quincena**. TAS files are ideally pre-split by quincena, but multi-quincena and multi-month files are fully supported — all quincenas present in the file are processed in a single upload.
 
-**44h weekly limit within a quincena:** each quincena is fully self-contained.
-- Q1: last partial week hard-capped at the 15th.
-- Q2: first week always starts on the 16th; subsequent weeks reset on Monday.
+**Quincena boundaries for simples/dobles classification:**
+- Q1: sessions capped at the 15th — any session that starts on or before the 15th belongs to Q1.
+- Q2: starts on the 16th. Since overtime is per-day (not weekly), no weekly reset counter is needed within a quincena.
 
 ---
 
