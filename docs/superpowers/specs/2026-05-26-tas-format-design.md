@@ -1,8 +1,12 @@
 # TAS Biometric Format — Design Spec
 
 **Date:** 2026-05-26
+**Last updated:** 2026-06-06
 **Status:** Approved for implementation
 **Author:** Atlas (Claude Code)
+
+> **Source of truth for all business rules:** `docs/tas_shift_rules.md`.
+> This spec describes *how* to implement — not *what* the rules are. When a formula or threshold is needed, look it up in the rules doc. Do not duplicate rule definitions here.
 
 ---
 
@@ -11,8 +15,6 @@
 Replace the old multi-block CSV parser with a new TAS biometric event log parser. The TAS format is a flat CSV of door-access scan events. The system must derive shift start/end times, calculate worked hours, apply simples/dobles rules, and surface a mandatory verification screen when scan data is incomplete or ambiguous.
 
 The old `CsvParserService` is deleted. All other existing flows (validate, submit, job polling) are unchanged.
-
-Business rules are maintained separately in `docs/tas_shift_rules.md`.
 
 ---
 
@@ -37,17 +39,19 @@ Business rules are maintained separately in `docs/tas_shift_rules.md`.
 
 ### What changes
 - **Deleted:** `CsvParserService.java`, `CsvParserServiceTest.java`
-- **New:** `TasParserService.java`, `TasDraftStore.java`, `TasSession.java`, `MissingTimeItem.java`, `ResolveRequest.java`
-- **Updated:** `UploadController.java`, `UploadResponse` model, `CsvParserServiceTest` → `TasParserServiceTest`
+- **New — parsing:** `TasParserService.java`, `TasDraftStore.java`, `TasSession.java`, `MissingTimeItem.java`, `ResolveRequest.java`
+- **New — employee registry:** `Employee.java`, `EmployeeRepository.java`, `EmployeeService.java`
+- **New — config:** `Shift.java`, `ShiftRepository.java`, `ShiftService.java`, `HolidayService.java`
+- **Updated:** `UploadController.java`, `UploadResponse` model
 - **New endpoint:** `POST /resolve`
-- **Frontend new:** `MissingTimesScreen.tsx`, `MissingTimesScreen.test.tsx`
+- **Frontend new:** `MissingTimesScreen.tsx`, `MissingTimesScreen.test.tsx`, `ConfigPage.tsx`, `NotPresentReview.tsx`
 - **Frontend updated:** `types.ts`, `store.ts`, `store.test.ts`, `api.ts`, `api.test.ts`, `App.tsx`, `App.test.tsx`
 
 ### App state flow
 ```
 empty
-  → upload (no missing times) → loaded
-  → upload (missing times)    → verifying → resolve → loaded
+  → upload (no missing times) → loaded → notPresentReview → result
+  → upload (missing times)    → verifying → resolve → loaded → notPresentReview → result
 loaded → submitting → polling → result
 ```
 
@@ -62,12 +66,29 @@ String employeeName
 LocalDate date              // shift date (start date of session)
 LocalDateTime firstScan
 LocalDateTime lastScan
-LocalTime shiftAnchor       // 07:00, 15:00, 19:00, or null if ambiguous
+LocalTime shiftAnchor       // startTime of matched shift, or null if ambiguous
 LocalDateTime effectiveStart // null until resolved
-int workedHours             // 0 until resolved
+double workedHours          // 0.0 until resolved; always X.0 or X.5
 boolean needsResolution
 boolean missingStart
 boolean missingEnd
+```
+
+### Backend — Employee (DB entity)
+```java
+String employeeId           // PK, from TAS file
+String name                 // latest name seen in any upload
+Long shiftId                // FK to Shift; null if assigned shift was deleted
+boolean active              // true by default; false = inactive
+```
+
+### Backend — Shift (DB entity)
+```java
+Long id
+String name                 // display name, e.g. "Mañana"
+LocalTime startTime
+LocalTime endTime
+// crossMidnight derived: endTime < startTime
 ```
 
 ### Backend — MissingTimeItem (sent to client)
@@ -76,12 +97,12 @@ String employeeId
 String employeeName
 String date                 // "YYYY-MM-DD"
 String knownTime            // "HH:mm" — the one scan we have, null if both missing
-boolean confirmedStart      // true if knownTime falls within a detection window (pre-fill start)
-String detectedAnchor       // "07:00" / "15:00" / "19:00" / null
+boolean confirmedStart      // true if knownTime falls within a detection window
+String detectedAnchor       // "HH:mm" or null
 ```
 
-- `confirmedStart = true`: knownTime is pre-filled into the start input (editable). Only end is required from the client.
-- `confirmedStart = false`: knownTime shown as reference text only. Both start and end inputs are empty and required.
+- `confirmedStart = true`: knownTime pre-filled into start input (editable). Only end required.
+- `confirmedStart = false`: knownTime shown as reference text only. Both inputs empty and required.
 
 ### Backend — ResolveRequest (received from client)
 ```java
@@ -132,96 +153,111 @@ export interface ResolveRequest {
 draftId?: string;
 missingTimes?: MissingTimeItem[];
 
-// AppState gains 'verifying'
-export type AppState = 'empty' | 'verifying' | 'loaded' | 'submitting' | 'polling' | 'result';
+// AppState gains 'verifying' and 'notPresentReview'
+export type AppState = 'empty' | 'verifying' | 'loaded' | 'submitting' | 'polling' | 'notPresentReview' | 'result';
 ```
 
 ---
 
 ## 4. TasParserService Algorithm
 
-Six sequential phases:
+Seven sequential phases:
 
 ### Phase 1 — Parse & Deduplicate
 - Read file as UTF-8, strip BOM if present
 - Skip header row
 - Group events by `employeeId`
 - Sort each employee's events chronologically
-- Collapse consecutive events within **5 minutes** into one (keep earliest)
+- Collapse consecutive events within **5 minutes** into one (keep earliest timestamp); applies to adjacent pairs after sorting
 
 ### Phase 2 — Session Grouping
-- Walk sorted events per employee
-- Start a new session when gap from previous event is **≥ 12 hours**
-- Each session: all events, first timestamp, last timestamp
+Per `docs/tas_shift_rules.md` → Session Grouping.
+
+- Walk sorted events per employee.
+- A session opens when a scan falls within any configured shift's detection window (`startTime − 60 min` to `startTime + 10 min`).
+- All subsequent scans belong to the open session until the next detection-window hit opens a new one.
+- **Cross-midnight employees:** scans on day D+1 that fall within another shift's detection window are treated as exits for the D session, not new session openers. A new session for these employees only opens on a hit in their own shift's detection window.
+- **Same-day double session:** two detection-window hits from different shifts on the same calendar day → flag for manual confirmation (`needsResolution = true`).
+- Scan outside all detection windows with no open session → `needsResolution = true`, `confirmedStart = false`.
 
 ### Phase 3 — Shift Assignment & Tardiness
-Detection windows:
+Per `docs/tas_shift_rules.md` → Grace Period and Tardiness.
 
-| Anchor | Window |
-|---|---|
-| 07:00 (morning) | 06:00–07:10 |
-| 15:00 (afternoon) | 14:00–15:10 |
-| 19:00 (night) | 18:00–19:10 |
-
-- First scan in a window → assign anchor
-- First scan outside all windows → `needsResolution = true`
-
-Single-scan sessions:
-- Scan falls **within** a detection window → `confirmedStart = true`, `knownTime = scan time`, `needsResolution = true` (missing end). Start is pre-filled but editable in the UI.
-- Scan falls **outside** all detection windows → `confirmedStart = false`, `knownTime = scan time` (shown as reference only), `needsResolution = true` (both start and end required from client).
-
-Tardiness (only when anchor is assigned and first scan > anchor + 10 min):
-```
-effectiveStart = anchor + ceil((firstScan − anchor) / 30min) × 30min
-```
-
-On time (first scan ≤ anchor + 10 min):
-```
-effectiveStart = anchor
-```
+- Match session's first scan to a shift's detection window → record `shiftAnchor = shift.startTime`.
+- No window match → `needsResolution = true`.
+- First scan ≤ `shiftAnchor + GRACE_PERIOD_MINUTES` → on time → `effectiveStart = shiftAnchor`.
+- First scan > `shiftAnchor + GRACE_PERIOD_MINUTES` → late → `effectiveStart = firstScan`.
 
 ### Phase 4 — Hour Calculation
-```
-workedHours = floor((lastScan − effectiveStart).totalMinutes / 60)
-```
-Sessions with `needsResolution = true` get `workedHours = 0` and are held in the draft.
+Per `docs/tas_shift_rules.md` → Worked Hours per Session and Break Deduction.
 
-### Phase 5 — Quincena Split & Simples/Dobles Accumulation
+```
+totalBreakGap   = sum of gaps between consecutive scans within the session (each gap > 0 after dedup represents time outside)
+deductibleBreak = max(0, totalBreakGap − legalBreakAllowance)
+workedMinutes   = (lastScan − effectiveStart).totalMinutes − deductibleBreak
+workedHours     = floor(workedMinutes / 30) / 2.0   // always X.0 or X.5
+```
+
+`legalBreakAllowance` is loaded from the Config table at parse time (default 45 min).
+
+Sessions with `needsResolution = true` get `workedHours = 0.0` and are held in the draft.
+
+### Phase 5 — Quincena Split & Simples/Dobles
+Per `docs/tas_shift_rules.md` → Weekly Hours: Simples vs. Dobles and Quincena Derivation.
+
 Group resolved sessions by `(employeeId, month, quincena)`:
-- Q1 = days 1–15; Q2 = days 16–end
+- Q1 = days 1–15; Q2 = days 16–end of month
 
-Within each quincena group, process sessions chronologically with a `weeklyTotal` counter:
-
-Reset `weeklyTotal = 0` on:
-- Each Monday within the quincena
-- The 16th of the month (Q2 start), regardless of day of week
-
-Per session:
+Per session, classify hours as simples or dobles:
 ```
-if session.date is Sunday:
+shiftDurationHours = duration between shift.startTime and shift.endTime, rounded to 0.5h
+
+if session.date is Sunday or public holiday:
     dobles += workedHours
-else if weeklyTotal + workedHours ≤ 44:
-    simples += workedHours
-    weeklyTotal += workedHours
 else:
-    simplesPart = max(0, 44 − weeklyTotal)
-    dobles += (workedHours − simplesPart)
-    simples += simplesPart
-    weeklyTotal = 44  // capped
+    withinShift = min(workedHours, shiftDurationHours)
+    beyondShift = max(0.0, workedHours − shiftDurationHours)
+    simples += withinShift
+    dobles  += beyondShift
 ```
 
-### Phase 6 — Build Output Rows
-For each `(employeeId, month, quincena)` group:
-- `horasExtrasSimples` = total simples
-- `horasExtrasDobles` = total dobles
-- `diasNoLaborados` = count of Mon–Sat calendar days in the quincena with zero sessions
-- `mes`, `anio`, `numeroDequincena` derived from group key
+Public holidays are fetched/loaded per `docs/tas_shift_rules.md` → Public Holidays.
 
-Employees with any unresolved sessions are excluded from the returned rows (their sessions go into the draft).
+### Phase 6 — Missing Scan Detection
+Per `docs/tas_shift_rules.md` → Missing Scan Detection.
+
+Flag sessions where:
+- Last scan is more than **60 minutes** before `shift.endTime` → likely missing exit scan
+- First scan is more than `GRACE_PERIOD_MINUTES` after `shift.startTime` AND session has only one scan → likely missing entry scan
+- Session on first day of report period + cross-midnight shift → likely start cutoff
+- Session on last day of report period → likely end cutoff
+
+All flagged sessions get `needsResolution = true`.
+
+### Phase 7 — Build Output Rows
+For each `(employeeId, month, quincena)` group:
+- `simplesHours` = total simples
+- `doblesHours` = total dobles
+- `nonWorkedDays` = count of Mon–Sat calendar days in the quincena with zero sessions (excluding Sundays and public holidays)
+- `mes`, `anio`, `quincenaNumber` derived from group key
+
+Employees with any unresolved sessions are excluded from returned rows (their sessions go into the draft).
 
 ---
 
-## 5. TasDraftStore
+## 5. Employee Registry
+
+Per `docs/tas_shift_rules.md` → Employee Registry.
+
+`EmployeeService` is responsible for:
+
+1. **Auto-populate on upload:** for each employee in the parsed file, upsert into the `employees` table — insert if new (default `active = true`, default shift = Mañana), update `name` if changed.
+2. **Not-present review:** after the main SP submission completes, return the list of `active = true` employees not present in the processed file. Excludes employees whose first-ever appearance is in this upload.
+3. **Re-appearance flag:** before processing, check if any `active = false` employee appears in the file. Surface these to the user for Reactivar / Ignorar decision before proceeding.
+
+---
+
+## 6. TasDraftStore
 
 `@Component` — `ConcurrentHashMap<String, TasDraft>`
 
@@ -240,7 +276,7 @@ class TasDraft {
 
 ---
 
-## 6. POST /resolve Endpoint
+## 7. POST /resolve Endpoint
 
 **Request:** `ResolveRequest`
 **Response:** `UploadResponse` (same shape as upload)
@@ -249,14 +285,14 @@ Steps:
 1. Fetch draft — return 404 if missing or expired
 2. Validate all resolutions are present — return 400 with remaining unresolved items if any are missing
 3. For each resolution, find matching session by `(employeeId, date)`, apply `providedStart`/`providedEnd` as `effectiveStart`/`lastScan`, clear `needsResolution`
-4. Re-run Phases 4–6 for affected employees only
+4. Re-run Phases 4–7 for affected employees only
 5. Merge newly computed rows into `partialResponse`
 6. Remove draft from store
 7. Return merged `UploadResponse` with empty `draftId` and `missingTimes`
 
 ---
 
-## 7. Frontend — MissingTimesScreen
+## 8. Frontend — MissingTimesScreen
 
 Shown when `appState === 'verifying'`.
 
@@ -267,56 +303,74 @@ Layout: one row per `MissingTimeItem` in a table/form:
 - If `confirmedStart = false`: `knownTime` shown as small reference text below the row ("Escaneo registrado: HH:mm")
 - If `detectedAnchor` not null: shown as hint ("Turno detectado: HH:mm")
 
-Both Inicio and Fin are always editable `HH:mm` inputs. Submit button disabled until all Inicio and Fin fields across all rows have a value. On submit:
+Both Inicio and Fin are always editable `HH:mm` inputs. Submit button disabled until all rows have values. On submit:
 1. Call `resolveMissingTimes(draftId, resolutions)`
-2. On success → `setLoaded(response)` → transitions to `loaded`
+2. On success → `setLoaded(response)` → transitions to `loaded` → then triggers not-present review
 3. On 400 → show inline error listing still-unresolved items
 4. On other error → show generic error message
 
 ---
 
-## 8. Store Changes
+## 9. Frontend — NotPresentReview
+
+Shown when `appState === 'notPresentReview'`. Appears after the SP submission completes.
+
+Displays the list of active employees with zero scans in the processed file. Each row shows employee name, ID, and an action to mark `active = false`. No action required — user may dismiss any row. Confirming navigates to `result`.
+
+Per `docs/tas_shift_rules.md` → Employee Registry → Not-Present Review.
+
+---
+
+## 10. Store Changes
 
 New state slices:
 ```ts
-draftId: string | null        // set during 'verifying', cleared after resolve
-missingTimes: MissingTimeItem[] // set during 'verifying', cleared after resolve
+draftId: string | null              // set during 'verifying', cleared after resolve
+missingTimes: MissingTimeItem[]     // set during 'verifying', cleared after resolve
+notPresentEmployees: Employee[]     // set after SP submit, cleared after review
 ```
 
 New actions:
 ```ts
 setVerifying(draftId: string, missingTimes: MissingTimeItem[]): void
 // sets appState = 'verifying', stores draftId + missingTimes
+
+setNotPresentReview(employees: Employee[]): void
+// sets appState = 'notPresentReview', stores notPresentEmployees
 ```
 
 Updated `uploadFile` action:
 - If response has non-empty `missingTimes` → call `setVerifying`
 - Else → call existing `setLoaded`
 
+Updated `submitData` action:
+- On success → if not-present list non-empty → call `setNotPresentReview`; else → transition to `result`
+
 Zustand selector pattern (per project convention): all new fields use individual `useStore(s => s.field)` selectors — no inline object selectors.
 
 ---
 
-## 9. Test Coverage
+## 11. Test Coverage
 
 ### Backend
-- `TasParserServiceTest`: unit tests covering all six phases — deduplication, session splits, each detection window, tardiness chunk calculation, floor rounding, simples/dobles weekly accumulation, Q1/Q2 boundary, partial weeks, Sunday dobles, missing/ambiguous detection
+- `TasParserServiceTest`: unit tests covering all seven phases — deduplication, window-based session grouping, cross-midnight stitching, tardiness (exact firstScan, not chunks), break deduction, 0.5h rounding, per-day simples/dobles split, Sunday dobles, public holiday dobles, missing scan detection, Q1/Q2 boundary
 - `TasDraftStoreTest`: TTL expiry, concurrent access, remove-on-resolve
-- `UploadControllerTest`: updated for TAS file input; test with and without missing times
-- New `ResolveControllerTest`: valid resolve, 404 on bad draftId, 400 on incomplete resolutions, TTL expiry during resolve
+- `EmployeeServiceTest`: upsert on upload, not-present list logic, re-appearance detection
+- `UploadControllerTest`: updated for TAS file input; with and without missing times
+- `ResolveControllerTest`: valid resolve, 404 on bad draftId, 400 on incomplete resolutions, TTL expiry during resolve
 
 ### Frontend
 - `MissingTimesScreen.test.tsx`: renders all items, disables submit until complete, calls resolve on submit, shows error on 400
-- `store.test.ts`: new `verifying` state transitions
+- `NotPresentReview.test.tsx`: renders not-present list, handles mark-inactive action, navigates to result on dismiss
+- `store.test.ts`: new state transitions including `verifying` and `notPresentReview`
 - `api.test.ts`: `resolveMissingTimes` call shape
-- `App.test.tsx`: renders `MissingTimesScreen` when `appState === 'verifying'`
+- `App.test.tsx`: renders correct screen for each `appState`
 
 ---
 
-## 10. Out of Scope
+## 12. Out of Scope
 
+- Config page UI (spec pending in `docs/tas_shift_rules.md` → Config Page)
 - No changes to `/validate`, `/submit`, job polling, or `ResultScreen`
 - No changes to `DataGrid`, `QuincenaBanner`, or `ActionBar`
-- No database schema changes
-- No authentication changes
 - The old multi-block CSV format is fully removed with no backwards compatibility
