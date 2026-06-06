@@ -211,11 +211,14 @@ Per `docs/tas_shift_rules.md` → Session Grouping.
 - **Same-day double session:** two detection-window hits from different shifts on the same calendar day → flag for manual confirmation (`needsResolution = true`).
 - Scan outside all detection windows with no open session → `needsResolution = true`, `confirmedStart = false`.
 
-### Phase 3 — Shift Assignment & Tardiness
-Per `docs/tas_shift_rules.md` → Grace Period and Tardiness.
+### Phase 3 — Shift Assignment, Mismatch Detection & Tardiness
+Per `docs/tas_shift_rules.md` → Grace Period, Tardiness, and Shift Mismatch Detection.
 
 - Match session's first scan to a shift's detection window → record `shiftAnchor = shift.startTime`.
 - No window match → `needsResolution = true`.
+- **Shift mismatch:** if the matched window belongs to a *different* shift than the employee's assigned shift, apply the mismatch rules from `docs/tas_shift_rules.md` → Shift Mismatch Detection:
+  - Consistent across the entire quincena → surface suggestion to update saved config
+  - Only on specific days → surface per-day exception in verification screen; saved config unchanged
 - First scan ≤ `shiftAnchor + GRACE_PERIOD_MINUTES` → on time → `effectiveStart = shiftAnchor`.
 - First scan > `shiftAnchor + GRACE_PERIOD_MINUTES` → late → `effectiveStart = firstScan`.
 
@@ -234,6 +237,8 @@ workedHours     = floor(workedMinutes / 30) / 2.0   // always X.0 or X.5
 `legalBreakAllowance` is loaded from the Config table at parse time (default 45 min).
 
 Sessions with `needsResolution = true` get `workedMinutes = 0` and `workedHours = 0.0`; held in the draft.
+
+**Post-resolution re-run:** when Phase 4 re-runs after `/resolve` applies `providedEnd`, use `session.lastScan` (overwritten by the resolution) as the span endpoint — not `allScans.last()`. Break gap calculation still uses `allScans` for odd-indexed gaps. `lastScan` is the authoritative field for span; `allScans` is authoritative for break gaps only.
 
 ### Phase 5 — Quincena Split & Simples/Dobles
 Per `docs/tas_shift_rules.md` → Weekly Hours: Simples vs. Dobles and Quincena Derivation.
@@ -298,7 +303,8 @@ Per `docs/tas_shift_rules.md` → Employee Registry.
 ```java
 class TasDraft {
     Map<String, List<TasSession>> sessionsByEmployee
-    UploadResponse partialResponse   // rows for fully-resolved employees
+    UploadResponse partialResponse          // rows for fully-resolved employees
+    List<EmployeeSummary> notPresentEmployees // preserved from original upload; returned with /resolve response
     Instant createdAt
 }
 ```
@@ -345,11 +351,48 @@ Steps:
 4. Re-run Phases 4–7 for affected employees only
 5. Merge newly computed rows into `partialResponse`
 6. Remove draft from store
-7. Return merged `UploadResponse` with empty `draftId` and `missingTimes`
+7. Return merged `UploadResponse` with empty `draftId` and `missingTimes`; **carry `notPresentEmployees` from `partialResponse`** so the frontend not-present review is not lost on the verifying path
 
 ---
 
-## 9. Frontend — ReappearanceScreen
+## 9. Config Page API Endpoints
+
+All endpoints return JSON. All mutating endpoints return the updated resource or 204 No Content.
+
+### Shifts
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/shifts` | List all shifts |
+| `POST` | `/shifts` | Create shift (`name`, `startTime`, `endTime`) |
+| `PUT` | `/shifts/{id}` | Update shift |
+| `DELETE` | `/shifts/{id}` | Delete shift — returns 409 if any active employee is assigned |
+
+### Employees
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/employees` | List all employees (supports `?active=true\|false&shiftId=` filters) |
+| `PUT` | `/employees/{id}` | Update employee (`shiftId`, `active`) — used by Config page and NotPresentReview |
+| `PUT` | `/employees/bulk-shift` | Bulk shift assignment (`{employeeIds: [], shiftId}`) |
+
+### Holidays
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/holidays/{year}` | List holidays for year |
+| `POST` | `/holidays` | Add manual holiday (`date`, `name`) |
+| `DELETE` | `/holidays/{date}` | Remove holiday |
+| `POST` | `/holidays/reload/{year}` | Fetch holidays from Nager.Date API for year; replaces non-manual entries |
+
+### Config
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/config` | Get global config (`legalBreakAllowance`) |
+| `PUT` | `/config` | Update global config |
+
+The `NotPresentReview` mark-inactive action calls `PUT /employees/{id}` with `{active: false}`. The store action `deactivateEmployee(employeeId)` calls this endpoint, updates `notPresentEmployees` in state, and removes the deactivated employee from the list.
+
+---
+
+## 10. Frontend — ReappearanceScreen
 
 Shown when `appState === 'reappearance'`. Appears before processing begins, immediately after upload, when one or more `active = false` employees have scans in the file.
 
@@ -363,7 +406,7 @@ All rows must be resolved before processing continues. Once all decisions are ma
 
 ---
 
-## 10. Frontend — MissingTimesScreen
+## 11. Frontend — MissingTimesScreen
 
 Shown when `appState === 'verifying'`.
 
@@ -382,7 +425,7 @@ Both Inicio and Fin are always editable `HH:mm` inputs. Submit button disabled u
 
 ---
 
-## 11. Frontend — NotPresentReview
+## 12. Frontend — NotPresentReview
 
 Shown when `appState === 'notPresentReview'`. Appears after the SP submission completes.
 
@@ -392,7 +435,7 @@ Per `docs/tas_shift_rules.md` → Employee Registry → Not-Present Review.
 
 ---
 
-## 12. Store Changes
+## 13. Store Changes
 
 New state slices:
 ```ts
@@ -429,26 +472,30 @@ Zustand selector pattern (per project convention): all new fields use individual
 
 ---
 
-## 13. Test Coverage
+## 14. Test Coverage
 
 ### Backend
-- `TasParserServiceTest`: unit tests covering all seven phases — deduplication, window-based session grouping, cross-midnight stitching, tardiness (exact firstScan, not chunks), break deduction, 0.5h rounding, per-day simples/dobles split, Sunday dobles, public holiday dobles, missing scan detection, Q1/Q2 boundary
-- `TasDraftStoreTest`: TTL expiry, concurrent access, remove-on-resolve
-- `EmployeeServiceTest`: upsert on upload, not-present list logic, re-appearance detection
-- `UploadControllerTest`: updated for TAS file input; with and without missing times
-- `ResolveControllerTest`: valid resolve, 404 on bad draftId, 400 on incomplete resolutions, TTL expiry during resolve
+- `TasParserServiceTest`: unit tests covering all seven phases — deduplication, window-based session grouping, cross-midnight stitching, tardiness (exact firstScan, not chunks), break deduction, 0.5h rounding, per-day simples/dobles split, Sunday dobles, public holiday dobles, missing scan detection, Q1/Q2 boundary, shift mismatch detection
+- `TasDraftStoreTest`: TTL expiry, concurrent access, remove-on-resolve, notPresentEmployees preserved in draft
+- `EmployeeServiceTest`: upsert on upload, not-present list logic, re-appearance detection, deactivate
+- `ShiftServiceTest`: CRUD, 409 on delete with active employees, delete allowed with only inactive employees
+- `HolidayServiceTest`: reload from API, fallback to bundled list, manual entries not overwritten on reload
+- `UploadControllerTest`: updated for TAS file input; with and without missing times; with reappearing employees
+- `ResolveControllerTest`: valid resolve, 404 on bad draftId, 400 on incomplete resolutions, TTL expiry, notPresentEmployees carried in response
+- `ConfigControllerTest`: get and update legalBreakAllowance
 
 ### Frontend
 - `ReappearanceScreen.test.tsx`: renders reappearing employees, Reactivar sets active, Ignorar excludes scans, all rows must be resolved before proceeding
 - `MissingTimesScreen.test.tsx`: renders all items, disables submit until complete, calls resolve on submit, shows error on 400
 - `NotPresentReview.test.tsx`: renders not-present list, handles mark-inactive action, navigates to result on dismiss
-- `store.test.ts`: new state transitions including `reappearance`, `verifying`, and `notPresentReview`
-- `api.test.ts`: `resolveMissingTimes` call shape
+- `ConfigPage.test.tsx`: renders all four tabs, shift delete blocked when active employees assigned, bulk shift assignment, holiday reload button, legalBreakAllowance save
+- `store.test.ts`: new state transitions including `reappearance`, `verifying`, and `notPresentReview`; deactivateEmployee removes from notPresentEmployees
+- `api.test.ts`: `resolveMissingTimes`, Config page CRUD call shapes
 - `App.test.tsx`: renders correct screen for each `appState`
 
 ---
 
-## 14. Out of Scope
+## 15. Out of Scope
 
 - No changes to `/validate`, `/submit`, job polling, or `ResultScreen`
 - No changes to `DataGrid`, `QuincenaBanner`, or `ActionBar`

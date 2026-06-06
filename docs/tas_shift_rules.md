@@ -25,7 +25,7 @@ The TAS file is a flat CSV with 5 columns:
 | 4 | ID de usuario | `"134"` |
 
 - Every event type is identical (`1:N Autenticación exitosa (Rostro)`). There is no in/out distinction.
-- A person may scan multiple times in rapid succession (within seconds or 1–2 minutes) — these are noise and should be deduplicated into a single event.
+- A person may scan multiple times in rapid succession — consecutive scans within **5 minutes** are noise and are deduplicated into a single event (see Duplicate Scan Deduplication).
 - Data is stored in reverse chronological order in the file; must be sorted ascending per employee before processing.
 
 ---
