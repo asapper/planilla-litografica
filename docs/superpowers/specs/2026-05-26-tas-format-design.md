@@ -122,6 +122,7 @@ List<Resolution> resolutions
 class Resolution {
     String employeeId
     String date             // "YYYY-MM-DD"
+    String sessionAnchor    // "HH:mm" or null — the knownTime from the corresponding MissingTimeItem; used as disambiguator when the same employee has multiple flagged sessions on the same date (same-day double session)
     String providedStart    // "HH:mm"
     String providedEnd      // "HH:mm"
 }
@@ -167,6 +168,7 @@ export interface MissingTimeItem {
 export interface Resolution {
   employeeId: string;
   date: string;
+  sessionAnchor: string | null;  // knownTime from MissingTimeItem; null if only one session on that date
   providedStart: string;
   providedEnd: string;
 }
@@ -220,7 +222,7 @@ Per `docs/tas_shift_rules.md` → Grace Period, Tardiness, and Shift Mismatch De
 
 - Match session's first scan to a shift's detection window → record `matchedShiftId = shift.id` and `shiftAnchor = shift.startTime`.
 - No window match → `needsResolution = true`; leave `matchedShiftId` and `shiftAnchor` null.
-- **Shift mismatch:** if the matched window belongs to a *different* shift than the employee's assigned shift, apply the mismatch rules from `docs/tas_shift_rules.md` → Shift Mismatch Detection:
+- **Shift mismatch:** if the matched window belongs to a *different* shift than the employee's assigned shift, apply the mismatch rules from `docs/tas_shift_rules.md` → Shift Mismatch Detection. This check requires a **two-pass approach**: first pass walks all sessions and records each session's `matchedShiftId`; second pass groups sessions by employee+quincena to determine if the mismatch is consistent (all sessions hit the same alternate shift) or per-day (mixed). The per-session logic in this phase applies after both passes complete.
   - Consistent across the entire quincena → surface suggestion to update saved config
   - Only on specific days → surface per-day exception in verification screen; saved config unchanged
 - First scan ≤ `shiftAnchor + GRACE_PERIOD_MINUTES` → on time → `effectiveStart = shiftAnchor`.
@@ -251,9 +253,9 @@ Per `docs/tas_shift_rules.md` → Missing Scan Detection.
 
 Must run **before** simples/dobles accumulation so flagged sessions are excluded before any hours are counted.
 
-If `session.matchedShiftId` is null (session already `needsResolution = true` from Phase 3), skip timing-based checks — the session is already flagged. For all other sessions:
+If `session.matchedShiftId` is null (session already `needsResolution = true` from Phase 3, or single-scan with no window match from Phase 2), skip all checks — the session is already flagged. For all sessions where `matchedShiftId` is non-null:
 
-- Session has exactly one scan and it falls within a detection window → `needsResolution = true`, `missingEnd = true`
+- Session has exactly one scan (matched to a detection window) → `needsResolution = true`, `missingEnd = true`
 - Last scan is more than **60 minutes** before `shift.endTime` → likely missing exit scan
 - First scan is more than **60 minutes** after `shift.startTime + GRACE_PERIOD_MINUTES` → likely missing entry scan
 - Session on first day of report period + cross-midnight shift → likely start cutoff
@@ -328,7 +330,7 @@ Per `docs/tas_shift_rules.md` → Employee Registry.
 class TasDraft {
     Map<String, List<TasSession>> sessionsByEmployee
     UploadResponse partialResponse          // rows for fully-resolved employees
-    List<EmployeeSummary> notPresentEmployees // preserved from original upload; returned with /resolve response
+    List<EmployeeSummary> notPresentEmployees // canonical source; preserved from original upload and returned by /resolve (step 7 reads from this field, not from partialResponse)
     Instant createdAt
 }
 ```
@@ -371,11 +373,11 @@ On re-upload with decisions:
 Steps:
 1. Fetch draft — return 404 if missing or expired
 2. Validate all resolutions are present — return 400 with remaining unresolved items if any are missing
-3. For each resolution, find matching session by `(employeeId, date)`, apply `providedStart`/`providedEnd` as `effectiveStart`/`lastScan`, clear `needsResolution`. If `session.matchedShiftId` is null, attempt to match `providedStart` against detection windows to assign `matchedShiftId`; if still no match, leave `matchedShiftId` null (Phase 6 will default to simples).
+3. For each resolution, find matching session by `(employeeId, date)` — if `sessionAnchor` is non-null, use `(employeeId, date, knownTime == sessionAnchor)` to disambiguate same-day double sessions. Apply `providedStart`/`providedEnd` as `effectiveStart`/`lastScan`, clear `needsResolution`. If `session.matchedShiftId` is null, attempt to match `providedStart` against detection windows to assign `matchedShiftId`; if still no match, leave `matchedShiftId` null (Phase 6 will default to simples).
 4. Re-run Phases 4–7 for affected employees only
 5. Merge newly computed rows into `partialResponse`
 6. Remove draft from store **(success path only — 400 returns before this step, leaving draft intact)**
-7. Return merged `UploadResponse` with empty `draftId` and `missingTimes`; **carry `notPresentEmployees` from `partialResponse`** so the frontend not-present review is not lost on the verifying path
+7. Return merged `UploadResponse` with empty `draftId` and `missingTimes`; **carry `notPresentEmployees` from `draft.notPresentEmployees`** (the canonical field) so the frontend not-present review is not lost on the verifying path
 
 ---
 
@@ -443,7 +445,7 @@ Layout: one row per `MissingTimeItem` in a table/form:
 
 Both Inicio and Fin are always editable `HH:mm` inputs. Submit button disabled until all rows have values. On submit:
 1. Call `resolveMissingTimes(draftId, resolutions)`
-2. On success → `setLoaded(response)` → transitions to `loaded` → then triggers not-present review
+2. On success → `setLoaded(response)` → transitions to `loaded`; not-present review is surfaced later after the user submits the report (`submitData` success triggers `setNotPresentReview`)
 3. On 400 → show inline error listing still-unresolved items
 4. On other error → show generic error message
 
