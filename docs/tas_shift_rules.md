@@ -12,7 +12,7 @@ TAS files are **UTF-8 with BOM** (`EF BB BF` prefix). The old format was ISO-885
 
 ---
 
-## Input Format
+## Input Format **[CONFIRMED]**
 
 The TAS file is a flat CSV with 5 columns:
 
@@ -108,8 +108,8 @@ If the first scan of a session falls outside the employee's assigned shift's det
 
 1. Check all other configured shifts' detection windows for a match.
 2. If a match is found:
-   - **Consistent across the entire quincena** → surface suggestion: "Las marcaciones de [nombre] corresponden al turno [X] en toda la quincena. ¿Desea actualizar su turno asignado?" Accepting updates the saved config.
-   - **Only on specific days** → surface per-day exception in the verification screen; saved config unchanged.
+   - **Consistent across the entire quincena** — defined as: every session in the quincena that hits any detection window hits the same alternate shift's window → surface suggestion: "Las marcaciones de [nombre] corresponden al turno [X] en toda la quincena. ¿Desea actualizar su turno asignado?" Accepting updates the saved config.
+   - **Only on specific days** — one or more sessions fall in a different window than the rest → surface per-day exception in the verification screen; saved config unchanged.
 3. If no shift matches → flag as ambiguous; client provides start and end manually.
 
 ---

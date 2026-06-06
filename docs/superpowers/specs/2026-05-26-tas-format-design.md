@@ -50,13 +50,14 @@ The old `CsvParserService` is deleted. All other existing flows (validate, submi
 ### App state flow
 ```
 empty
-  → upload (reappearing employees)  → reappearance → [decisions made] → upload continues below
+  → upload (reappearing employees)  → reappearance → [re-upload with decisions] →
   → upload (no missing times)       → loaded
   → upload (missing times)          → verifying → resolve → loaded
 loaded → notPresentReview → result  (if notPresentEmployees non-empty)
 loaded → result                     (if notPresentEmployees empty)
 loaded → submitting → polling → result
 ```
+Note: the `reappearance` re-upload transitions directly to `loaded` or `verifying` without passing through `empty`. `appState` stays in `reappearance` until the re-upload response arrives, then transitions normally.
 
 ---
 
@@ -204,6 +205,7 @@ Seven sequential phases:
 ### Phase 2 — Session Grouping
 Per `docs/tas_shift_rules.md` → Session Grouping.
 
+- **Before walking events:** load each employee's assigned shift from `EmployeeService`. This is required for cross-midnight stitching logic below.
 - Walk sorted events per employee.
 - A session opens when a scan falls within any configured shift's detection window (`startTime − 60 min` to `startTime + 10 min`).
 - All subsequent scans belong to the open session until the next detection-window hit opens a new one.
@@ -240,43 +242,56 @@ Sessions with `needsResolution = true` get `workedMinutes = 0` and `workedHours 
 
 **Post-resolution re-run:** when Phase 4 re-runs after `/resolve` applies `providedEnd`, use `session.lastScan` (overwritten by the resolution) as the span endpoint — not `allScans.last()`. Break gap calculation still uses `allScans` for odd-indexed gaps. `lastScan` is the authoritative field for span; `allScans` is authoritative for break gaps only.
 
-### Phase 5 — Quincena Split & Simples/Dobles
-Per `docs/tas_shift_rules.md` → Weekly Hours: Simples vs. Dobles and Quincena Derivation.
-
-Group resolved sessions by `(employeeId, month, quincena)`:
-- Q1 = days 1–15; Q2 = days 16–end of month
-
-Per session, classify hours as simples or dobles:
-```
-shiftDurationHours = duration between shift.startTime and shift.endTime, rounded to 0.5h
-                     // cross-midnight: duration = (24h − startTime) + endTime
-
-if session.date is Sunday or public holiday:
-    dobles += workedHours
-else:
-    withinShift = min(workedHours, shiftDurationHours)
-    beyondShift = max(0.0, workedHours − shiftDurationHours)
-    simples += withinShift
-    dobles  += beyondShift
-```
-
-Public holidays are fetched/loaded per `docs/tas_shift_rules.md` → Public Holidays.
-
-### Phase 6 — Missing Scan Detection
+### Phase 5 — Missing Scan Detection
 Per `docs/tas_shift_rules.md` → Missing Scan Detection.
 
+Must run **before** simples/dobles accumulation so flagged sessions are excluded before any hours are counted.
+
 Flag sessions where:
+- Session has exactly one scan and it falls within a detection window → `needsResolution = true`, `missingEnd = true`
 - Last scan is more than **60 minutes** before `shift.endTime` → likely missing exit scan
 - First scan is more than **60 minutes** after `shift.startTime + GRACE_PERIOD_MINUTES` → likely missing entry scan
 - Session on first day of report period + cross-midnight shift → likely start cutoff
 - Session on last day of report period → likely end cutoff
 
-All flagged sessions get `needsResolution = true`.
+All flagged sessions get `needsResolution = true`. Flagged sessions are excluded from Phase 6 accumulation.
+
+### Phase 6 — Quincena Split & Simples/Dobles
+Per `docs/tas_shift_rules.md` → Weekly Hours: Simples vs. Dobles and Quincena Derivation.
+
+Only processes sessions where `needsResolution = false`.
+
+Group resolved sessions by `(employeeId, month, quincena)`:
+- Q1 = days 1–15; Q2 = days 16–end of month
+
+Per session, accumulate minutes (not hours — rounding is applied once at the quincena level):
+```
+shiftDurationMinutes = duration between shift.startTime and shift.endTime in minutes
+                       // cross-midnight: duration = (24h − startTime) + endTime
+
+if session.date is Sunday or public holiday:
+    doblesMinutes += session.workedMinutes
+else:
+    withinShift = min(session.workedMinutes, shiftDurationMinutes)
+    beyondShift = max(0, session.workedMinutes − shiftDurationMinutes)
+    simplesMinutes += withinShift
+    doblesMinutes  += beyondShift
+```
+
+After all sessions in the quincena group are processed:
+```
+simplesHours = floor(simplesMinutes / 30) / 2.0
+doblesHours  = floor(doblesMinutes  / 30) / 2.0
+```
+
+Rounding at the quincena level (not per-session) ensures no overtime minutes are silently lost to truncation.
+
+Public holidays are fetched/loaded per `docs/tas_shift_rules.md` → Public Holidays.
 
 ### Phase 7 — Build Output Rows
 For each `(employeeId, month, quincena)` group:
-- `simplesHours` = total simples
-- `doblesHours` = total dobles
+- `simplesHours` = quincena-level rounded simples (from Phase 6)
+- `doblesHours` = quincena-level rounded dobles (from Phase 6)
 - `nonWorkedDays` = count of Mon–Sat calendar days in the quincena with zero sessions (excluding Sundays and public holidays)
 - `mes`, `anio`, `quincenaNumber` derived from group key
 
@@ -365,7 +380,7 @@ All endpoints return JSON. All mutating endpoints return the updated resource or
 | `GET` | `/shifts` | List all shifts |
 | `POST` | `/shifts` | Create shift (`name`, `startTime`, `endTime`) |
 | `PUT` | `/shifts/{id}` | Update shift |
-| `DELETE` | `/shifts/{id}` | Delete shift — returns 409 if any active employee is assigned |
+| `DELETE` | `/shifts/{id}` | Delete shift — returns 409 with `{message, employees: [{employeeId, name}]}` if any active employee is assigned |
 
 ### Employees
 | Method | Path | Description |
@@ -475,7 +490,7 @@ Zustand selector pattern (per project convention): all new fields use individual
 ## 14. Test Coverage
 
 ### Backend
-- `TasParserServiceTest`: unit tests covering all seven phases — deduplication, window-based session grouping, cross-midnight stitching, tardiness (exact firstScan, not chunks), break deduction, 0.5h rounding, per-day simples/dobles split, Sunday dobles, public holiday dobles, missing scan detection, Q1/Q2 boundary, shift mismatch detection
+- `TasParserServiceTest`: unit tests covering all seven phases — deduplication, window-based session grouping, cross-midnight stitching, tardiness (exact firstScan, not chunks), break deduction, quincena-level rounding, per-day simples/dobles split using workedMinutes, Sunday dobles, public holiday dobles, missing scan detection (including single-scan session), Q1/Q2 boundary, shift mismatch detection, cross-midnight employee with scans in a third (mismatched) shift's window
 - `TasDraftStoreTest`: TTL expiry, concurrent access, remove-on-resolve, notPresentEmployees preserved in draft
 - `EmployeeServiceTest`: upsert on upload, not-present list logic, re-appearance detection, deactivate
 - `ShiftServiceTest`: CRUD, 409 on delete with active employees, delete allowed with only inactive employees
