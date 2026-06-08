@@ -169,7 +169,7 @@ This section extends the base design spec for the TAS biometric file format. All
 
 ## 7. App Navigation
 
-The app gains a persistent **top navigation bar** in all states except State 1 (Empty/Initial). Two tabs:
+The app gains a persistent **top navigation bar** visible in all states. Two tabs:
 
 | Tab | Label | Icon |
 |---|---|---|
@@ -327,7 +327,7 @@ After the success card:
 
 If user clicks `Revisar empleados sin marcaciones`:
 
-**Not-Present Review panel** (full-screen overlay, not a new state) — *pending implementation:*
+**Not-Present Review panel** (full-screen overlay, not a new state):
 
 - Heading: `Empleados sin marcaciones`
 - Subheading: `Estos empleados activos no aparecieron en el archivo de este período. Puede marcarlos como inactivos si ya no trabajan en la empresa.`
@@ -374,7 +374,7 @@ Accessible via the `Configuración` tab. Four tabs within the page.
 | Nombre | Text input | e.g., `Mañana` |
 | Inicio | Time input (HH:MM) | e.g., `07:00` |
 | Fin | Time input (HH:MM) | e.g., `15:00` |
-| Turno nocturno | Checkbox | Auto-detected when endTime < startTime; shown read-only as indicator |
+| Turno de madrugada | Checkbox | Auto-detected when endTime < startTime; shown read-only as indicator |
 | — | Delete button | See rules below |
 
 - `+ Agregar turno` row at the bottom (inline form, not a modal)
