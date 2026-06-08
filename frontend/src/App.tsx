@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useStore } from './store';
 import { checkHealth } from './api';
+import { uploadTasFile } from './tasApi';
+import { useTasStore } from './tasStore';
 import EmptyState from './components/EmptyState';
 import TopAppBar from './components/TopAppBar';
 import QuincenaBanner from './components/QuincenaBanner';
@@ -11,6 +13,7 @@ import PollingScreen from './components/PollingScreen';
 import ConfigPage from './components/ConfigPage';
 import ErrorBoundary from './components/ErrorBoundary';
 import Spinner from './components/ui/Spinner';
+import TasUploadFlow from './components/tas/TasUploadFlow';
 
 const APP_BAR    = 64;
 const ACTION_BAR = 64;
@@ -22,11 +25,57 @@ import type { AppView } from './types';
 
 type BackendState = 'starting' | 'ready' | 'error';
 
+function isTasFile(file: File): Promise<boolean> {
+  return new Promise(resolve => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const text = (e.target?.result as string) ?? '';
+      const firstLines = text.split('\n').slice(0, 3).join('\n');
+      resolve(firstLines.includes('Autenticación'));
+    };
+    reader.onerror = () => resolve(false);
+    reader.readAsText(file.slice(0, 2048));
+  });
+}
+
 export default function App() {
   const appState = useStore(s => s.appState);
   const [backendState, setBackendState] = useState<BackendState>('starting');
   const [retryKey, setRetryKey] = useState(0);
   const [currentView, setCurrentView] = useState<AppView>('planilla');
+  const [tasFileName, setTasFileName] = useState('');
+
+  const setTasView         = useTasStore(s => s.setTasView);
+  const setUploadToken     = useTasStore(s => s.setUploadToken);
+  const setFlaggedSessions = useTasStore(s => s.setFlaggedSessions);
+  const setInactiveEmployees = useTasStore(s => s.setInactiveEmployees);
+  const setAbsentEmployees = useTasStore(s => s.setAbsentEmployees);
+  const setUsedFallbackHolidays = useTasStore(s => s.setUsedFallbackHolidays);
+  const setProcessingMessage = useTasStore(s => s.setProcessingMessage);
+  const resetTas           = useTasStore(s => s.resetTas);
+
+  const handleTasFile = async (file: File) => {
+    const isTas = await isTasFile(file);
+    if (!isTas) return false;
+    setTasFileName(file.name);
+    resetTas();
+    setCurrentView('tas');
+    setTasView('processing');
+    setProcessingMessage('Analizando marcaciones...');
+    const result = await uploadTasFile(file);
+    setUploadToken(result.uploadToken);
+    setFlaggedSessions(result.flaggedSessions);
+    setInactiveEmployees(result.inactiveEmployeesFound);
+    setAbsentEmployees(result.absentActiveEmployees);
+    setUsedFallbackHolidays(result.usedFallbackHolidays);
+    if (result.inactiveEmployeesFound.length > 0) {
+      setTasView('inactiveReview');
+    } else {
+      const hasNeedsResolution = result.flaggedSessions.some(s => s.needsResolution);
+      setTasView(hasNeedsResolution ? 'verification' : 'submitting');
+    }
+    return true;
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -116,6 +165,8 @@ export default function App() {
       {currentView === 'planilla' && appState === 'polling' && <PollingScreen />}
 
       {currentView === 'planilla' && appState === 'result' && <ResultScreen />}
+
+      {currentView === 'tas' && <TasUploadFlow fileName={tasFileName} />}
     </ErrorBoundary>
   );
 }
