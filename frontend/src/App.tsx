@@ -8,6 +8,7 @@ import DataGrid from './components/DataGrid';
 import ActionBar from './components/ActionBar';
 import ResultScreen from './components/ResultScreen';
 import PollingScreen from './components/PollingScreen';
+import ConfigPage from './components/ConfigPage';
 import ErrorBoundary from './components/ErrorBoundary';
 import Spinner from './components/ui/Spinner';
 
@@ -17,12 +18,15 @@ const ACTION_BAR = 64;
 const MAX_ATTEMPTS    = 40;
 const RETRY_INTERVAL  = 500;
 
+import type { AppView } from './types';
+
 type BackendState = 'starting' | 'ready' | 'error';
 
 export default function App() {
   const appState = useStore(s => s.appState);
   const [backendState, setBackendState] = useState<BackendState>('starting');
   const [retryKey, setRetryKey] = useState(0);
+  const [currentView, setCurrentView] = useState<AppView>('planilla');
 
   useEffect(() => {
     let cancelled = false;
@@ -80,11 +84,13 @@ export default function App() {
   // ── Normal app ───────────────────────────────────────────────────────
   return (
     <ErrorBoundary>
-      <TopAppBar />
+      <TopAppBar currentView={currentView} onViewChange={setCurrentView} />
 
-      {appState === 'empty' && <EmptyState />}
+      {currentView === 'config' && <ConfigPage />}
 
-      {(appState === 'loaded' || appState === 'submitting') && (
+      {currentView === 'planilla' && appState === 'empty' && <EmptyState />}
+
+      {currentView === 'planilla' && (appState === 'loaded' || appState === 'submitting') && (
         <>
           <main
             className="px-6"
@@ -107,9 +113,9 @@ export default function App() {
         </>
       )}
 
-      {appState === 'polling' && <PollingScreen />}
+      {currentView === 'planilla' && appState === 'polling' && <PollingScreen />}
 
-      {appState === 'result' && <ResultScreen />}
+      {currentView === 'planilla' && appState === 'result' && <ResultScreen />}
     </ErrorBoundary>
   );
 }

@@ -36,6 +36,9 @@ vi.mock('./components/ActionBar', () => ({
 vi.mock('./components/ResultScreen', () => ({
   default: () => <div data-testid="result-screen" />,
 }));
+vi.mock('./components/ConfigPage', () => ({
+  default: () => <div data-testid="config-page" />,
+}));
 vi.mock('./components/ErrorBoundary', () => ({
   default: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
