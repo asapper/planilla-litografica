@@ -178,13 +178,13 @@ The app gains a persistent **top navigation bar** in all states except State 1 (
 
 - Active tab is underlined/highlighted.
 - The `Configuración` tab is always accessible — users can navigate to it at any time (with unsaved-changes guard if applicable).
-- On State 1 (empty), the nav bar is hidden; the app is a centered card only.
+- The nav bar is always visible — it renders unconditionally regardless of upload state. On State 1 (empty), the upload card appears below the nav bar as the only content.
 
 ---
 
 ## 8. TAS Upload Flow
 
-The TAS upload follows the same five core states (Empty → Loaded → Processing → Verification → Result), extended with TAS-specific steps.
+The TAS upload replaces the base Loaded/Editing state (base State 2, the AG Grid) with a fully automated processing pipeline. The six TAS states below are specific to TAS files and do not map 1-to-1 to the base spec state numbers.
 
 ---
 
@@ -235,6 +235,7 @@ Shown **before** the verification screen if any `inactive` employees have scans 
 | Acción | Pill toggle: `Reactivar y enviar` (green) / `Ignorar` (gray) |
 
 - All rows default to `Ignorar`.
+- Employees set to `Ignorar` are excluded from the submission — their scan data is not sent to the backend. They will appear in this screen again on the next upload if they still have scans in the file.
 - **Action bar (sticky bottom):**
   - Right: `Continuar →` button (always enabled — user may ignore all)
 
@@ -249,7 +250,7 @@ Shown before final submission when any sessions are flagged. Mandatory — no se
 **Layout:**
 - Heading: `Verificación de marcaciones`
 - Subheading: `Revisa y completa la información de las marcaciones con problemas antes de enviar.`
-- **Filter chips** (top): `Todos` · `Falta entrada` · `Falta salida` · `Cambio de turno` · `Corte de período`
+- **Filter chips** (top): `Todos` · `Falta entrada` · `Falta salida` · `Cambio de turno` · `Excepción de turno` · `Corte de período` · `Doble sesión`
 - Count badge per chip showing how many items match
 
 **Per-item card layout:**
@@ -326,7 +327,7 @@ After the success card:
 
 If user clicks `Revisar empleados sin marcaciones`:
 
-**Not-Present Review panel** (full-screen overlay, not a new state):
+**Not-Present Review panel** (full-screen overlay, not a new state) — *pending implementation:*
 
 - Heading: `Empleados sin marcaciones`
 - Subheading: `Estos empleados activos no aparecieron en el archivo de este período. Puede marcarlos como inactivos si ya no trabajan en la empresa.`
@@ -340,7 +341,8 @@ If user clicks `Revisar empleados sin marcaciones`:
 | Estado | `Activo` toggle → click to set `Inactivo` |
 
 - Brand-new employees (first-ever appearance) are never shown here.
-- **Footer:** `Cerrar` button → dismisses overlay, returns to success card
+- Per-row `Estado` toggles save immediately (optimistic, per-row API call — no explicit save button).
+- **Footer:** `Cerrar` dismisses the overlay and returns to the success card.
 
 ---
 
@@ -378,7 +380,7 @@ Accessible via the `Configuración` tab. Four tabs within the page.
 - `+ Agregar turno` row at the bottom (inline form, not a modal)
 - Cross-midnight indicator: if `endTime < startTime`, a moon icon appears in the Turno nocturno column (non-editable)
 - **Delete rules:**
-  - Shift has active employees → blocked. Alert: *"Este turno está asignado a [N] empleado(s) activo(s). Reasígnalos antes de eliminarlo."* Clicking the alert links to Tab 2 filtered to that shift.
+  - Shift has active employees → blocked. Alert: *"Este turno está asignado a [N] empleado(s) activo(s). Reasígnalos antes de eliminarlo."*
   - Shift has only inactive employees → allowed. Their shift assignment is cleared silently.
 - Pre-loaded defaults (Mañana, Tarde, Noche) are deletable.
 
@@ -422,7 +424,7 @@ Accessible via the `Configuración` tab. Four tabs within the page.
 | Column | Type | Notes |
 |---|---|---|
 | Fecha | Date (read-only) | Formatted: `Lunes 1 de enero` |
-| Nombre | String | Editable inline for manually-added entries; read-only for API entries |
+| Nombre | String | Read-only for all entries |
 | Fuente | Badge | `API` (blue) or `Manual` (gray) |
 | — | Delete button | Confirmation required: *"¿Eliminar [nombre] del [fecha]?"* · `[Eliminar]` · `[Cancelar]` |
 
