@@ -212,4 +212,32 @@ class EmployeeRegistryServiceTest {
         assertThat(result).isEmpty();
         verify(jdbc, never()).queryForList(anyString());
     }
+
+    @Test
+    void getAbsentActiveEmployees_handlesLowercaseColumnKeys() {
+        Map<String, Object> row = new java.util.HashMap<>();
+        row.put("employee_id", "emp3");
+        row.put("name", "Beatriz");
+        when(jdbc.queryForList(anyString())).thenReturn(List.of(row));
+
+        List<TasAbsentEmployee> result = service.getAbsentActiveEmployees(Set.of());
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).getEmployeeId()).isEqualTo("emp3");
+        assertThat(result.get(0).getName()).isEqualTo("Beatriz");
+    }
+
+    @Test
+    void getInactiveEmployeesPresent_handlesLowercaseColumnKeys() {
+        Map<String, Object> row = new java.util.HashMap<>();
+        row.put("employee_id", "emp4");
+        row.put("name", "Diego");
+        when(jdbc.queryForList(anyString())).thenReturn(List.of(row));
+
+        List<TasInactiveEmployee> result = service.getInactiveEmployeesPresent(Set.of("emp4"));
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).getEmployeeId()).isEqualTo("emp4");
+        assertThat(result.get(0).getName()).isEqualTo("Diego");
+    }
 }

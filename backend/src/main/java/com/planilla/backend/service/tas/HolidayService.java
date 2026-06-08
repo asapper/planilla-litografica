@@ -25,15 +25,22 @@ public class HolidayService {
     private final String apiUrl;
     private final int timeoutSeconds;
     private final ObjectMapper objectMapper;
+    private final HttpClient httpClient;
 
     public HolidayService(
             @Qualifier("h2JdbcTemplate") JdbcTemplate jdbc,
             @Value("${holiday.api.url}") String apiUrl,
             @Value("${holiday.api.timeout-seconds:5}") int timeoutSeconds) {
+        this(jdbc, apiUrl, timeoutSeconds,
+                HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(timeoutSeconds)).build());
+    }
+
+    HolidayService(JdbcTemplate jdbc, String apiUrl, int timeoutSeconds, HttpClient httpClient) {
         this.jdbc = jdbc;
         this.apiUrl = apiUrl;
         this.timeoutSeconds = timeoutSeconds;
         this.objectMapper = new ObjectMapper();
+        this.httpClient = httpClient;
     }
 
     public List<Map<String, Object>> getHolidaysForYear(int year) {
@@ -64,15 +71,12 @@ public class HolidayService {
                 if (attempt > 0) {
                     Thread.sleep(backoffSeconds[attempt - 1] * 1000L);
                 }
-                HttpClient client = HttpClient.newBuilder()
-                    .connectTimeout(Duration.ofSeconds(timeoutSeconds))
-                    .build();
                 HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(url))
                     .timeout(Duration.ofSeconds(timeoutSeconds))
                     .GET()
                     .build();
-                HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+                HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
                 if (response.statusCode() == 200) {
                     List<Map<String, Object>> holidays = objectMapper.readValue(
                         response.body(),
