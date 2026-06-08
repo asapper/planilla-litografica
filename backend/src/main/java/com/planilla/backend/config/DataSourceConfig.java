@@ -65,7 +65,7 @@ public class DataSourceConfig {
     }
 
     @Bean("h2JdbcTemplate")
-    @DependsOn("h2Initializer")
+    @DependsOn("tasH2Initializer")
     public JdbcTemplate h2JdbcTemplate() {
         return new JdbcTemplate(h2DataSource());
     }
@@ -76,6 +76,17 @@ public class DataSourceConfig {
         initializer.setDataSource(h2DataSource());
         initializer.setDatabasePopulator(new ResourceDatabasePopulator(
             new ClassPathResource("schema-h2.sql")
+        ));
+        return initializer;
+    }
+
+    @Bean
+    @DependsOn("h2Initializer")
+    public DataSourceInitializer tasH2Initializer() {
+        DataSourceInitializer initializer = new DataSourceInitializer();
+        initializer.setDataSource(h2DataSource());
+        initializer.setDatabasePopulator(new ResourceDatabasePopulator(
+            new ClassPathResource("seed-shifts.sql")
         ));
         return initializer;
     }
