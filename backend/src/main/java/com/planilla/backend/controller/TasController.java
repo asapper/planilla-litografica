@@ -146,6 +146,8 @@ public class TasController {
 
         DateTimeFormatter dtf = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
 
+        List<Map<String, Object>> shifts = shiftConfigService.getAllShifts();
+
         for (Map<String, Object> res : resolutions) {
             Object sessionIdObj = res.get("sessionId");
             if (sessionIdObj == null) continue;
@@ -169,13 +171,10 @@ public class TasController {
                 long workedMinutes = java.time.temporal.ChronoUnit.MINUTES.between(start, end);
                 if (workedMinutes < 0) workedMinutes = 0;
                 session.setWorkedMinutes((int) workedMinutes);
-                double workedHours = Math.floor(workedMinutes / 30.0) / 2.0;
-                session.setWorkedHours(workedHours);
-                hoursCalculator.classifyHours(session);
+                session.setWorkedHours(TasHoursCalculator.roundToHalfHour((int) workedMinutes));
+                hoursCalculator.classifyHours(session, shifts);
             }
         }
-
-        List<Map<String, Object>> shifts = shiftConfigService.getAllShifts();
         TasReportBuilder.BuildResult buildResult = reportBuilder.build(
                 sessions, state.getReportStart(), state.getReportEnd(), shifts);
         state.setResolvedRows(buildResult.rows);

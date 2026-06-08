@@ -70,18 +70,18 @@ public class TasUploadService {
             return earlyResult;
         }
 
-        List<TasScanRecord> scans = allScans.stream()
-                .filter(s -> !ignoredEmployeeIds.contains(s.getEmployeeId()))
-                .collect(Collectors.toList());
-
-        LocalDate reportStart = scans.stream()
+        LocalDate reportStart = allScans.stream()
                 .map(s -> s.getTimestamp().toLocalDate())
                 .min(Comparator.naturalOrder())
                 .orElse(LocalDate.now());
-        LocalDate reportEnd = scans.stream()
+        LocalDate reportEnd = allScans.stream()
                 .map(s -> s.getTimestamp().toLocalDate())
                 .max(Comparator.naturalOrder())
                 .orElse(LocalDate.now());
+
+        List<TasScanRecord> scans = allScans.stream()
+                .filter(s -> !ignoredEmployeeIds.contains(s.getEmployeeId()))
+                .collect(Collectors.toList());
 
         boolean apiSuccess = holidayService.fetchForDateRange(reportStart, reportEnd);
 

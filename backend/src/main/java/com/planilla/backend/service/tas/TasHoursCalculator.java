@@ -145,17 +145,15 @@ public class TasHoursCalculator {
         if (workedMinutes < 0) workedMinutes = 0;
 
         session.setWorkedMinutes((int) workedMinutes);
-        double workedHours = Math.floor(workedMinutes / 30.0) / 2.0;
-        session.setWorkedHours(workedHours);
+        session.setWorkedHours(roundToHalfHour((int) workedMinutes));
         session.setLastScan(lastScanDt);
     }
 
-    public void classifyHours(TasSession session) {
-        List<Map<String, Object>> shifts = shiftConfigService.getAllShifts();
-        classifyHours(session, shifts);
+    public static double roundToHalfHour(int minutes) {
+        return Math.floor(minutes / 30.0) / 2.0;
     }
 
-    private void classifyHours(TasSession session, List<Map<String, Object>> shifts) {
+    public void classifyHours(TasSession session, List<Map<String, Object>> shifts) {
         LocalDate sessionDate = session.getDate();
         boolean isSunday  = sessionDate.getDayOfWeek() == DayOfWeek.SUNDAY;
         boolean isHoliday = holidayService.isHoliday(sessionDate);

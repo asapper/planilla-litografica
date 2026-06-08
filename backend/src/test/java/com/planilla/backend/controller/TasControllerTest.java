@@ -111,6 +111,50 @@ class TasControllerTest {
            .andExpect(jsonPath("$.code").value("INVALID_TOKEN"));
     }
 
+    @Test
+    void resolve_validResolution_returns200WithUpdatedRows() throws Exception {
+        TasSession flagged = new TasSession();
+        flagged.setSessionId(42);
+        flagged.setEmployeeId("100");
+        flagged.setNeedsResolution(true);
+        flagged.setFlags(new ArrayList<>(List.of(com.planilla.backend.model.tas.TasFlag.MISSING_EXIT)));
+
+        TasUploadResult result = emptyResult();
+        result.setFlaggedSessions(List.of(flagged));
+        result.setAllSessions(List.of(flagged));
+        when(parserService.parse(any())).thenReturn(emptyParseResult());
+        when(uploadService.processScans(any(), any(), any())).thenReturn(result);
+
+        MockMultipartFile file = new MockMultipartFile("file", "test.csv", "text/csv", "data".getBytes());
+        String uploadResponse = mvc.perform(multipart("/api/tas/upload").file(file))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        String token = (String) mapper.readValue(uploadResponse, Map.class).get("uploadToken");
+
+        when(shiftConfigService.getAllShifts()).thenReturn(new ArrayList<>());
+        TasReportBuilder.BuildResult buildResult = new TasReportBuilder.BuildResult(new ArrayList<>(), new LinkedHashMap<>());
+        when(reportBuilder.build(any(), any(), any(), any())).thenReturn(buildResult);
+
+        Map<String, Object> resolution = new LinkedHashMap<>();
+        resolution.put("sessionId", 42);
+        resolution.put("resolvedStart", "2026-03-10 07:00");
+        resolution.put("resolvedEnd", "2026-03-10 15:00");
+
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("uploadToken", token);
+        body.put("resolutions", List.of(resolution));
+
+        mvc.perform(post("/api/tas/resolve")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(body)))
+           .andExpect(status().isOk())
+           .andExpect(jsonPath("$.flaggedSessions").isArray())
+           .andExpect(jsonPath("$.flaggedSessions.length()").value(0));
+
+        verify(hoursCalculator).classifyHours(any(), any());
+    }
+
     // ── POST /api/tas/submit ──────────────────────────────────────────────────
 
     @Test
