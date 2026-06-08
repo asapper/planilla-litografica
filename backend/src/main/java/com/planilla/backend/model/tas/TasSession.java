@@ -6,7 +6,9 @@ import java.util.List;
 
 public class TasSession {
 
+    private int sessionId;
     private String employeeId;
+    private String employeeName;
     private LocalDate date;
     private String matchedShiftId;
     private List<LocalDateTime> scans;
@@ -15,14 +17,22 @@ public class TasSession {
     private LocalDateTime lastScan;
     private int workedMinutes;
     private double workedHours;
+    private int simplesMinutes;
+    private int doblesMinutes;
     private boolean needsResolution;
     private String sessionAnchor;
     private List<TasFlag> flags;
 
     public TasSession() {}
 
+    public int getSessionId() { return sessionId; }
+    public void setSessionId(int sessionId) { this.sessionId = sessionId; }
+
     public String getEmployeeId() { return employeeId; }
     public void setEmployeeId(String employeeId) { this.employeeId = employeeId; }
+
+    public String getEmployeeName() { return employeeName; }
+    public void setEmployeeName(String employeeName) { this.employeeName = employeeName; }
 
     public LocalDate getDate() { return date; }
     public void setDate(LocalDate date) { this.date = date; }
@@ -47,6 +57,12 @@ public class TasSession {
 
     public double getWorkedHours() { return workedHours; }
     public void setWorkedHours(double workedHours) { this.workedHours = workedHours; }
+
+    public int getSimplesMinutes() { return simplesMinutes; }
+    public void setSimplesMinutes(int simplesMinutes) { this.simplesMinutes = simplesMinutes; }
+
+    public int getDoblesMinutes() { return doblesMinutes; }
+    public void setDoblesMinutes(int doblesMinutes) { this.doblesMinutes = doblesMinutes; }
 
     public boolean isNeedsResolution() { return needsResolution; }
     public void setNeedsResolution(boolean needsResolution) { this.needsResolution = needsResolution; }

@@ -2,16 +2,20 @@ package com.planilla.backend.model.tas;
 
 import com.planilla.backend.model.EmployeeRow;
 
+import java.time.LocalDate;
 import java.util.List;
 
 public class TasUploadResult {
 
     private List<EmployeeRow> resolvedRows;
     private List<TasSession> flaggedSessions;
+    private List<TasSession> allSessions;
     private List<String> warnings;
     private boolean usedFallbackHolidays;
     private List<TasInactiveEmployee> inactiveEmployeesFound;
     private List<TasAbsentEmployee> absentActiveEmployees;
+    private LocalDate reportStart;
+    private LocalDate reportEnd;
 
     public TasUploadResult() {}
 
@@ -20,6 +24,9 @@ public class TasUploadResult {
 
     public List<TasSession> getFlaggedSessions() { return flaggedSessions; }
     public void setFlaggedSessions(List<TasSession> flaggedSessions) { this.flaggedSessions = flaggedSessions; }
+
+    public List<TasSession> getAllSessions() { return allSessions; }
+    public void setAllSessions(List<TasSession> allSessions) { this.allSessions = allSessions; }
 
     public List<String> getWarnings() { return warnings; }
     public void setWarnings(List<String> warnings) { this.warnings = warnings; }
@@ -32,4 +39,10 @@ public class TasUploadResult {
 
     public List<TasAbsentEmployee> getAbsentActiveEmployees() { return absentActiveEmployees; }
     public void setAbsentActiveEmployees(List<TasAbsentEmployee> absentActiveEmployees) { this.absentActiveEmployees = absentActiveEmployees; }
+
+    public LocalDate getReportStart() { return reportStart; }
+    public void setReportStart(LocalDate reportStart) { this.reportStart = reportStart; }
+
+    public LocalDate getReportEnd() { return reportEnd; }
+    public void setReportEnd(LocalDate reportEnd) { this.reportEnd = reportEnd; }
 }
