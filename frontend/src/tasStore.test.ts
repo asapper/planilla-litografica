@@ -165,6 +165,29 @@ describe('setResolvedSession', () => {
     useTasStore.getState().setResolvedSession(1, { resolvedStart: '09:00', resolvedEnd: '18:00' });
     expect(useTasStore.getState().resolvedSessions[1].resolvedStart).toBe('09:00');
   });
+
+  it('stores updateShift flag when provided', () => {
+    useTasStore.getState().setResolvedSession(3, { resolvedStart: '08:00', resolvedEnd: '17:00', updateShift: true });
+    expect(useTasStore.getState().resolvedSessions[3].updateShift).toBe(true);
+  });
+});
+
+// -----------------------------------------------------------------
+// clearResolvedSessions
+// -----------------------------------------------------------------
+
+describe('clearResolvedSessions', () => {
+  it('empties the resolvedSessions map', () => {
+    useTasStore.getState().setResolvedSession(1, { resolvedStart: '08:00', resolvedEnd: '17:00' });
+    useTasStore.getState().setResolvedSession(2, { resolvedStart: '09:00', resolvedEnd: '18:00' });
+    useTasStore.getState().clearResolvedSessions();
+    expect(useTasStore.getState().resolvedSessions).toEqual({});
+  });
+
+  it('is idempotent when already empty', () => {
+    useTasStore.getState().clearResolvedSessions();
+    expect(useTasStore.getState().resolvedSessions).toEqual({});
+  });
 });
 
 // -----------------------------------------------------------------

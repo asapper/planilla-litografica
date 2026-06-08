@@ -1,5 +1,5 @@
 import { useTasStore } from '../../tasStore';
-import { submitInactiveReview } from '../../tasApi';
+import { submitInactiveReview, submitTas } from '../../tasApi';
 import type { InactiveDecision } from '../../tasTypes';
 
 export default function ReactivationReviewScreen() {
@@ -13,28 +13,42 @@ export default function ReactivationReviewScreen() {
   const setInactiveEmployees = useTasStore(s => s.setInactiveEmployees);
   const setAbsentEmployees = useTasStore(s => s.setAbsentEmployees);
   const setUsedFallbackHolidays = useTasStore(s => s.setUsedFallbackHolidays);
+  const setJobId           = useTasStore(s => s.setJobId);
+  const setError           = useTasStore(s => s.setError);
 
   const getDecision = (employeeId: string): InactiveDecision =>
     inactiveDecisions[employeeId] ?? 'ignore';
 
   const handleContinue = async () => {
     if (!uploadToken) return;
-    const reactivate = inactiveEmployees
-      .filter(e => getDecision(e.employeeId) === 'reactivate')
-      .map(e => e.employeeId);
-    const ignore = inactiveEmployees
-      .filter(e => getDecision(e.employeeId) === 'ignore')
-      .map(e => e.employeeId);
+    try {
+      const reactivate = inactiveEmployees
+        .filter(e => getDecision(e.employeeId) === 'reactivate')
+        .map(e => e.employeeId);
+      const ignore = inactiveEmployees
+        .filter(e => getDecision(e.employeeId) === 'ignore')
+        .map(e => e.employeeId);
 
-    const result = await submitInactiveReview(uploadToken, reactivate, ignore);
-    setUploadToken(result.uploadToken);
-    setFlaggedSessions(result.flaggedSessions);
-    setInactiveEmployees(result.inactiveEmployeesFound);
-    setAbsentEmployees(result.absentActiveEmployees);
-    setUsedFallbackHolidays(result.usedFallbackHolidays);
+      const result = await submitInactiveReview(uploadToken, reactivate, ignore);
+      setUploadToken(result.uploadToken);
+      setFlaggedSessions(result.flaggedSessions);
+      setInactiveEmployees(result.inactiveEmployeesFound);
+      setAbsentEmployees(result.absentActiveEmployees);
+      setUsedFallbackHolidays(result.usedFallbackHolidays);
 
-    const hasNeedsResolution = result.flaggedSessions.some(s => s.needsResolution);
-    setTasView(hasNeedsResolution ? 'verification' : 'submitting');
+      const hasNeedsResolution = result.flaggedSessions.some(s => s.needsResolution);
+      if (hasNeedsResolution) {
+        setTasView('verification');
+      } else {
+        setTasView('submitting');
+        const { jobId } = await submitTas(result.uploadToken);
+        setJobId(jobId);
+        setTasView('result');
+      }
+    } catch {
+      setTasView('inactiveReview');
+      setError('Ocurrió un error al continuar. Intente nuevamente.');
+    }
   };
 
   return (

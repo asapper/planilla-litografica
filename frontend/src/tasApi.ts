@@ -21,7 +21,7 @@ export const submitInactiveReview = (
 
 export const resolveVerification = (
   token: string,
-  resolutions: { sessionId: number; resolvedStart: string; resolvedEnd: string }[],
+  resolutions: { sessionId: number; resolvedStart: string; resolvedEnd: string; updateShift?: boolean }[],
 ): Promise<TasUploadResult> =>
   client.post<TasUploadResult>('/tas/resolve', { uploadToken: token, resolutions }).then(r => r.data);
 

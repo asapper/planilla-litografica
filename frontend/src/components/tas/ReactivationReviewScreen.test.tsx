@@ -8,6 +8,7 @@ import type { TasUploadResult } from '../../tasTypes';
 vi.mock('../../tasApi');
 
 const mockSubmitInactiveReview = vi.mocked(tasApi.submitInactiveReview);
+const mockSubmitTas = vi.mocked(tasApi.submitTas);
 
 const mockResult: TasUploadResult = {
   uploadToken: 'tok-2',
@@ -120,19 +121,41 @@ describe('ReactivationReviewScreen continue', () => {
     await waitFor(() => expect(useTasStore.getState().tasView).toBe('verification'));
   });
 
-  it('advances to submitting when no sessions need resolution', async () => {
+  it('advances to result when no sessions need resolution', async () => {
     setup();
     mockSubmitInactiveReview.mockResolvedValue(mockResult);
+    mockSubmitTas.mockResolvedValue({ jobId: 'job-clean' });
     render(<ReactivationReviewScreen />);
     fireEvent.click(screen.getByRole('button', { name: /continuar/i }));
-    await waitFor(() => expect(useTasStore.getState().tasView).toBe('submitting'));
+    await waitFor(() => expect(useTasStore.getState().tasView).toBe('result'));
+    expect(useTasStore.getState().jobId).toBe('job-clean');
   });
 
   it('updates the store with new token from result', async () => {
     setup();
     mockSubmitInactiveReview.mockResolvedValue({ ...mockResult, uploadToken: 'tok-new' });
+    mockSubmitTas.mockResolvedValue({ jobId: 'job-1' });
     render(<ReactivationReviewScreen />);
     fireEvent.click(screen.getByRole('button', { name: /continuar/i }));
     await waitFor(() => expect(useTasStore.getState().uploadToken).toBe('tok-new'));
+  });
+
+  it('reverts to inactiveReview and sets error when submitInactiveReview throws', async () => {
+    setup();
+    mockSubmitInactiveReview.mockRejectedValue(new Error('server error'));
+    render(<ReactivationReviewScreen />);
+    fireEvent.click(screen.getByRole('button', { name: /continuar/i }));
+    await waitFor(() => expect(useTasStore.getState().tasView).toBe('inactiveReview'));
+    expect(useTasStore.getState().error).not.toBeNull();
+  });
+
+  it('reverts to inactiveReview and sets error when submitTas throws on clean path', async () => {
+    setup();
+    mockSubmitInactiveReview.mockResolvedValue(mockResult);
+    mockSubmitTas.mockRejectedValue(new Error('submit failed'));
+    render(<ReactivationReviewScreen />);
+    fireEvent.click(screen.getByRole('button', { name: /continuar/i }));
+    await waitFor(() => expect(useTasStore.getState().tasView).toBe('inactiveReview'));
+    expect(useTasStore.getState().error).not.toBeNull();
   });
 });

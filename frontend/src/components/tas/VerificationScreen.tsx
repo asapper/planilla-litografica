@@ -57,7 +57,7 @@ function sessionMatchesFilter(session: TasSession, filter: FilterChip): boolean 
 interface SessionCardProps {
   session: TasSession;
   confirmed: boolean;
-  onConfirm: (resolvedStart: string, resolvedEnd: string) => void;
+  onConfirm: (resolvedStart: string, resolvedEnd: string, mismatchChoice: 'update' | 'keep' | null) => void;
 }
 
 function SessionCard({ session, confirmed, onConfirm }: SessionCardProps) {
@@ -189,7 +189,7 @@ function SessionCard({ session, confirmed, onConfirm }: SessionCardProps) {
 
       <button
         disabled={!canConfirm}
-        onClick={() => onConfirm(entry, exit)}
+        onClick={() => onConfirm(entry, exit, mismatchChoice)}
         className="m3-btn-filled disabled:opacity-40 disabled:cursor-not-allowed"
       >
         Confirmar
@@ -199,14 +199,16 @@ function SessionCard({ session, confirmed, onConfirm }: SessionCardProps) {
 }
 
 export default function VerificationScreen() {
-  const uploadToken        = useTasStore(s => s.uploadToken);
-  const flaggedSessions    = useTasStore(s => s.flaggedSessions);
-  const resolvedSessions   = useTasStore(s => s.resolvedSessions);
-  const setResolvedSession = useTasStore(s => s.setResolvedSession);
-  const setTasView         = useTasStore(s => s.setTasView);
-  const setJobId           = useTasStore(s => s.setJobId);
-  const setFlaggedSessions = useTasStore(s => s.setFlaggedSessions);
-  const setUploadToken     = useTasStore(s => s.setUploadToken);
+  const uploadToken           = useTasStore(s => s.uploadToken);
+  const flaggedSessions       = useTasStore(s => s.flaggedSessions);
+  const resolvedSessions      = useTasStore(s => s.resolvedSessions);
+  const setResolvedSession    = useTasStore(s => s.setResolvedSession);
+  const clearResolvedSessions = useTasStore(s => s.clearResolvedSessions);
+  const setTasView            = useTasStore(s => s.setTasView);
+  const setJobId              = useTasStore(s => s.setJobId);
+  const setFlaggedSessions    = useTasStore(s => s.setFlaggedSessions);
+  const setUploadToken        = useTasStore(s => s.setUploadToken);
+  const setError              = useTasStore(s => s.setError);
 
   const [activeFilter, setActiveFilter] = useState<FilterChip>('all');
 
@@ -229,18 +231,30 @@ export default function VerificationScreen() {
 
   const handleSubmit = async () => {
     if (!uploadToken) return;
-    const resolutions = Object.entries(resolvedSessions).map(([id, times]) => ({
-      sessionId: Number(id),
-      resolvedStart: times.resolvedStart,
-      resolvedEnd:   times.resolvedEnd,
-    }));
-    const result = await resolveVerification(uploadToken, resolutions);
-    setFlaggedSessions(result.flaggedSessions);
-    setUploadToken(result.uploadToken);
-    setTasView('submitting');
-    const { jobId } = await submitTas(result.uploadToken);
-    setJobId(jobId);
-    setTasView('result');
+    try {
+      const resolutions = Object.entries(resolvedSessions).map(([id, entry]) => ({
+        sessionId: Number(id),
+        resolvedStart: entry.resolvedStart,
+        resolvedEnd:   entry.resolvedEnd,
+        updateShift:   entry.updateShift,
+      }));
+      const result = await resolveVerification(uploadToken, resolutions);
+      if (result.flaggedSessions.some(s => s.needsResolution)) {
+        clearResolvedSessions();
+        setFlaggedSessions(result.flaggedSessions);
+        setUploadToken(result.uploadToken);
+        return;
+      }
+      setFlaggedSessions(result.flaggedSessions);
+      setUploadToken(result.uploadToken);
+      setTasView('submitting');
+      const { jobId } = await submitTas(result.uploadToken);
+      setJobId(jobId);
+      setTasView('result');
+    } catch {
+      setTasView('verification');
+      setError('Ocurrió un error al enviar. Intente nuevamente.');
+    }
   };
 
   const chips: { key: FilterChip; label: string }[] = [
@@ -281,8 +295,12 @@ export default function VerificationScreen() {
             key={session.sessionId}
             session={session}
             confirmed={!!resolvedSessions[session.sessionId]}
-            onConfirm={(resolvedStart, resolvedEnd) =>
-              setResolvedSession(session.sessionId, { resolvedStart, resolvedEnd })
+            onConfirm={(resolvedStart, resolvedEnd, mismatchChoice) =>
+              setResolvedSession(session.sessionId, {
+                resolvedStart,
+                resolvedEnd,
+                updateShift: mismatchChoice === 'update' ? true : mismatchChoice === 'keep' ? false : undefined,
+              })
             }
           />
         ))}

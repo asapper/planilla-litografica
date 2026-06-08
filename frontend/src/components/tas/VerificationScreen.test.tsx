@@ -224,4 +224,79 @@ describe('VerificationScreen submit', () => {
     expect(mockSubmitTas).toHaveBeenCalledOnce();
     expect(useTasStore.getState().jobId).toBe('job-abc');
   });
+
+  it('reverts to verification and sets error when submitTas throws', async () => {
+    useTasStore.getState().setUploadToken('tok-1');
+    useTasStore.getState().setFlaggedSessions([makeSession({ effectiveStart: '08:00:00', lastScan: '17:00:00' })]);
+    mockResolveVerification.mockResolvedValue(mockResult);
+    mockSubmitTas.mockRejectedValue(new Error('network error'));
+
+    render(<VerificationScreen />);
+    fireEvent.click(screen.getByRole('button', { name: /confirmar/i }));
+    fireEvent.click(screen.getByRole('button', { name: /enviar/i }));
+
+    await waitFor(() => {
+      expect(useTasStore.getState().tasView).toBe('verification');
+    });
+    expect(useTasStore.getState().error).not.toBeNull();
+  });
+
+  it('clears resolvedSessions and stays in verification when resolve returns more flagged sessions', async () => {
+    useTasStore.getState().setUploadToken('tok-1');
+    useTasStore.getState().setFlaggedSessions([makeSession({ effectiveStart: '08:00:00', lastScan: '17:00:00' })]);
+    const secondRoundResult = {
+      ...mockResult,
+      uploadToken: 'tok-3',
+      flaggedSessions: [makeSession({ sessionId: 2, employeeId: 'E2', employeeName: 'Luis', needsResolution: true })],
+    };
+    mockResolveVerification.mockResolvedValue(secondRoundResult);
+
+    render(<VerificationScreen />);
+    fireEvent.click(screen.getByRole('button', { name: /confirmar/i }));
+    fireEvent.click(screen.getByRole('button', { name: /enviar/i }));
+
+    await waitFor(() => {
+      expect(useTasStore.getState().flaggedSessions[0].sessionId).toBe(2);
+    });
+    expect(useTasStore.getState().resolvedSessions).toEqual({});
+    expect(mockSubmitTas).not.toHaveBeenCalled();
+  });
+
+  it('includes updateShift in resolveVerification payload when mismatchChoice is update', async () => {
+    useTasStore.getState().setUploadToken('tok-1');
+    useTasStore.getState().setFlaggedSessions([
+      makeSession({ sessionId: 1, consistentMismatch: true, effectiveStart: '08:00:00', lastScan: '17:00:00' }),
+    ]);
+    mockResolveVerification.mockResolvedValue(mockResult);
+    mockSubmitTas.mockResolvedValue({ jobId: 'job-xyz' });
+
+    render(<VerificationScreen />);
+    fireEvent.click(screen.getByRole('button', { name: /sí, actualizar turno/i }));
+    fireEvent.click(screen.getByRole('button', { name: /confirmar/i }));
+    fireEvent.click(screen.getByRole('button', { name: /enviar/i }));
+
+    await waitFor(() => expect(useTasStore.getState().tasView).toBe('result'));
+
+    const [, payload] = mockResolveVerification.mock.calls[0];
+    expect(payload[0].updateShift).toBe(true);
+  });
+
+  it('includes updateShift false in resolveVerification payload when mismatchChoice is keep', async () => {
+    useTasStore.getState().setUploadToken('tok-1');
+    useTasStore.getState().setFlaggedSessions([
+      makeSession({ sessionId: 1, consistentMismatch: true, effectiveStart: '08:00:00', lastScan: '17:00:00' }),
+    ]);
+    mockResolveVerification.mockResolvedValue(mockResult);
+    mockSubmitTas.mockResolvedValue({ jobId: 'job-xyz' });
+
+    render(<VerificationScreen />);
+    fireEvent.click(screen.getByRole('button', { name: /no, mantener/i }));
+    fireEvent.click(screen.getByRole('button', { name: /confirmar/i }));
+    fireEvent.click(screen.getByRole('button', { name: /enviar/i }));
+
+    await waitFor(() => expect(useTasStore.getState().tasView).toBe('result'));
+
+    const [, payload] = mockResolveVerification.mock.calls[0];
+    expect(payload[0].updateShift).toBe(false);
+  });
 });

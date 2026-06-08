@@ -1,12 +1,18 @@
 import { create } from 'zustand';
 import type { TasView, TasSession, InactiveEmployee, InactiveDecision, AbsentEmployee } from './tasTypes';
 
+export interface ResolvedSessionEntry {
+  resolvedStart: string;
+  resolvedEnd: string;
+  updateShift?: boolean;
+}
+
 interface TasStore {
   tasView: TasView;
   uploadToken: string | null;
   processingMessage: string;
   flaggedSessions: TasSession[];
-  resolvedSessions: Record<number, { resolvedStart: string; resolvedEnd: string }>;
+  resolvedSessions: Record<number, ResolvedSessionEntry>;
   inactiveEmployees: InactiveEmployee[];
   inactiveDecisions: Record<string, InactiveDecision>;
   absentEmployees: AbsentEmployee[];
@@ -19,7 +25,8 @@ interface TasStore {
   setUploadToken: (token: string | null) => void;
   setProcessingMessage: (msg: string) => void;
   setFlaggedSessions: (sessions: TasSession[]) => void;
-  setResolvedSession: (id: number, times: { resolvedStart: string; resolvedEnd: string }) => void;
+  setResolvedSession: (id: number, entry: ResolvedSessionEntry) => void;
+  clearResolvedSessions: () => void;
   setInactiveEmployees: (employees: InactiveEmployee[]) => void;
   setInactiveDecision: (employeeId: string, decision: InactiveDecision) => void;
   setAbsentEmployees: (employees: AbsentEmployee[]) => void;
@@ -52,9 +59,10 @@ export const useTasStore = create<TasStore>(set => ({
   setUploadToken: (token) => set({ uploadToken: token }),
   setProcessingMessage: (msg) => set({ processingMessage: msg }),
   setFlaggedSessions: (sessions) => set({ flaggedSessions: sessions }),
-  setResolvedSession: (id, times) => set(s => ({
-    resolvedSessions: { ...s.resolvedSessions, [id]: times },
+  setResolvedSession: (id, entry) => set(s => ({
+    resolvedSessions: { ...s.resolvedSessions, [id]: entry },
   })),
+  clearResolvedSessions: () => set({ resolvedSessions: {} }),
   setInactiveEmployees: (employees) => set({ inactiveEmployees: employees }),
   setInactiveDecision: (employeeId, decision) => set(s => ({
     inactiveDecisions: { ...s.inactiveDecisions, [employeeId]: decision },

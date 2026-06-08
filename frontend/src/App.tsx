@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useStore } from './store';
 import { checkHealth } from './api';
-import { uploadTasFile } from './tasApi';
+import { uploadTasFile, submitTas } from './tasApi';
 import { useTasStore } from './tasStore';
 import EmptyState from './components/EmptyState';
 import TopAppBar from './components/TopAppBar';
@@ -52,6 +52,8 @@ export default function App() {
   const setAbsentEmployees = useTasStore(s => s.setAbsentEmployees);
   const setUsedFallbackHolidays = useTasStore(s => s.setUsedFallbackHolidays);
   const setProcessingMessage = useTasStore(s => s.setProcessingMessage);
+  const setJobId           = useTasStore(s => s.setJobId);
+  const setError           = useTasStore(s => s.setError);
   const resetTas           = useTasStore(s => s.resetTas);
 
   const handleTasFile = async (file: File) => {
@@ -62,17 +64,29 @@ export default function App() {
     setCurrentView('tas');
     setTasView('processing');
     setProcessingMessage('Analizando marcaciones...');
-    const result = await uploadTasFile(file);
-    setUploadToken(result.uploadToken);
-    setFlaggedSessions(result.flaggedSessions);
-    setInactiveEmployees(result.inactiveEmployeesFound);
-    setAbsentEmployees(result.absentActiveEmployees);
-    setUsedFallbackHolidays(result.usedFallbackHolidays);
-    if (result.inactiveEmployeesFound.length > 0) {
-      setTasView('inactiveReview');
-    } else {
-      const hasNeedsResolution = result.flaggedSessions.some(s => s.needsResolution);
-      setTasView(hasNeedsResolution ? 'verification' : 'submitting');
+    try {
+      const result = await uploadTasFile(file);
+      setUploadToken(result.uploadToken);
+      setFlaggedSessions(result.flaggedSessions);
+      setInactiveEmployees(result.inactiveEmployeesFound);
+      setAbsentEmployees(result.absentActiveEmployees);
+      setUsedFallbackHolidays(result.usedFallbackHolidays);
+      if (result.inactiveEmployeesFound.length > 0) {
+        setTasView('inactiveReview');
+      } else {
+        const hasNeedsResolution = result.flaggedSessions.some(s => s.needsResolution);
+        if (hasNeedsResolution) {
+          setTasView('verification');
+        } else {
+          setTasView('submitting');
+          const { jobId } = await submitTas(result.uploadToken);
+          setJobId(jobId);
+          setTasView('result');
+        }
+      }
+    } catch {
+      setTasView('processing');
+      setError('Ocurrió un error al procesar el archivo. Intente nuevamente.');
     }
     return true;
   };
