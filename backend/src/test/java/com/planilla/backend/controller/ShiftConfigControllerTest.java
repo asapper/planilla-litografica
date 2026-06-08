@@ -2,6 +2,7 @@ package com.planilla.backend.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.planilla.backend.service.tas.ShiftConfigService;
+import com.planilla.backend.service.tas.ShiftConfigService.ShiftHasActiveEmployeesException;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -117,12 +118,22 @@ class ShiftConfigControllerTest {
 
     @Test
     void delete_returns409WhenShiftHasActiveEmployees() throws Exception {
-        doThrow(new IllegalStateException("SHIFT_HAS_ACTIVE_EMPLOYEES")).when(shiftConfigService)
+        List<Map<String, Object>> activeEmployees = List.of(
+            Map.of("EMPLOYEE_ID", "emp1", "NAME", "Ana"),
+            Map.of("EMPLOYEE_ID", "emp2", "NAME", "Carlos")
+        );
+        doThrow(new ShiftHasActiveEmployeesException(activeEmployees)).when(shiftConfigService)
             .deleteShift(any());
 
         mvc.perform(delete("/api/config/shifts/manana"))
            .andExpect(status().isConflict())
-           .andExpect(jsonPath("$.error").value("SHIFT_HAS_ACTIVE_EMPLOYEES"));
+           .andExpect(jsonPath("$.error").value("SHIFT_HAS_ACTIVE_EMPLOYEES"))
+           .andExpect(jsonPath("$.employees").isArray())
+           .andExpect(jsonPath("$.employees.length()").value(2))
+           .andExpect(jsonPath("$.employees[0].employeeId").value("emp1"))
+           .andExpect(jsonPath("$.employees[0].name").value("Ana"))
+           .andExpect(jsonPath("$.employees[1].employeeId").value("emp2"))
+           .andExpect(jsonPath("$.employees[1].name").value("Carlos"));
     }
 
     @Test

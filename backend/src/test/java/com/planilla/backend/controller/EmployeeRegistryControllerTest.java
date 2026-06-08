@@ -108,6 +108,19 @@ class EmployeeRegistryControllerTest {
     }
 
     @Test
+    void bulkAssign_returns400WhenEmployeeIdsNull() throws Exception {
+        Map<String, Object> body = Map.of("shiftId", "noche");
+
+        mvc.perform(post("/api/config/employees/bulk-assign")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(body)))
+           .andExpect(status().isBadRequest())
+           .andExpect(jsonPath("$.code").value("MISSING_EMPLOYEE_IDS"));
+
+        verify(employeeRegistryService, never()).bulkAssignShift(any(), any());
+    }
+
+    @Test
     void deactivate_returns200OnSuccess() throws Exception {
         mvc.perform(post("/api/config/employees/emp1/deactivate"))
            .andExpect(status().isOk());

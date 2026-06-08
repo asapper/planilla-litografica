@@ -10,6 +10,19 @@ import java.util.Map;
 @Service
 public class ShiftConfigService {
 
+    public static class ShiftHasActiveEmployeesException extends RuntimeException {
+        private final List<Map<String, Object>> employees;
+
+        public ShiftHasActiveEmployeesException(List<Map<String, Object>> employees) {
+            super("SHIFT_HAS_ACTIVE_EMPLOYEES");
+            this.employees = employees;
+        }
+
+        public List<Map<String, Object>> getEmployees() {
+            return employees;
+        }
+    }
+
     private final JdbcTemplate jdbc;
 
     public ShiftConfigService(@Qualifier("h2JdbcTemplate") JdbcTemplate jdbc) {
@@ -38,25 +51,17 @@ public class ShiftConfigService {
     }
 
     public void deleteShift(String id) {
-        Integer activeCount = jdbc.queryForObject(
-            "SELECT COUNT(*) FROM employee_registry WHERE shift_id = ? AND active = TRUE",
-            Integer.class, id
+        List<Map<String, Object>> activeEmployees = jdbc.queryForList(
+            "SELECT employee_id, name FROM employee_registry WHERE shift_id = ? AND active = TRUE",
+            id
         );
-        if (activeCount != null && activeCount > 0) {
-            throw new IllegalStateException("SHIFT_HAS_ACTIVE_EMPLOYEES");
+        if (!activeEmployees.isEmpty()) {
+            throw new ShiftHasActiveEmployeesException(activeEmployees);
         }
         jdbc.update(
             "UPDATE employee_registry SET shift_id = NULL WHERE shift_id = ? AND active = FALSE",
             id
         );
         jdbc.update("DELETE FROM shift_config WHERE id = ?", id);
-    }
-
-    public boolean shiftExists(String id) {
-        Integer count = jdbc.queryForObject(
-            "SELECT COUNT(*) FROM shift_config WHERE id = ?",
-            Integer.class, id
-        );
-        return count != null && count > 0;
     }
 }

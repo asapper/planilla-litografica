@@ -46,21 +46,15 @@ public class EmployeeRegistryService {
     }
 
     public void upsertEmployee(String employeeId, String name) {
-        Integer count = jdbc.queryForObject(
-            "SELECT COUNT(*) FROM employee_registry WHERE employee_id = ?",
-            Integer.class, employeeId
+        jdbc.update(
+            "MERGE INTO employee_registry AS target " +
+            "USING (VALUES (?, ?)) AS src(employee_id, name) " +
+            "ON target.employee_id = src.employee_id " +
+            "WHEN MATCHED THEN UPDATE SET target.name = src.name, target.last_seen = CURRENT_TIMESTAMP " +
+            "WHEN NOT MATCHED THEN INSERT (employee_id, name, shift_id, active, first_seen, last_seen) " +
+            "VALUES (src.employee_id, src.name, 'manana', TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
+            employeeId, name
         );
-        if (count != null && count > 0) {
-            jdbc.update(
-                "UPDATE employee_registry SET name = ?, last_seen = CURRENT_TIMESTAMP WHERE employee_id = ?",
-                name, employeeId
-            );
-        } else {
-            jdbc.update(
-                "INSERT INTO employee_registry (employee_id, name, shift_id, active, first_seen, last_seen) VALUES (?, ?, 'manana', TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
-                employeeId, name
-            );
-        }
     }
 
     public void updateEmployee(String employeeId, String shiftId, Boolean active) {

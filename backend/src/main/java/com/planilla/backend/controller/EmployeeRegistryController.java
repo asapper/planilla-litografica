@@ -47,6 +47,10 @@ public class EmployeeRegistryController {
         List<String> employeeIds = (List<String>) body.get("employeeIds");
         String shiftId = (String) body.get("shiftId");
 
+        if (employeeIds == null || employeeIds.isEmpty()) {
+            return ResponseEntity.badRequest().body(error(400, "MISSING_EMPLOYEE_IDS", "employeeIds is required"));
+        }
+
         try {
             employeeRegistryService.bulkAssignShift(employeeIds, shiftId);
             return ResponseEntity.ok().build();

@@ -1,9 +1,11 @@
 package com.planilla.backend.controller;
 
 import com.planilla.backend.service.tas.ShiftConfigService;
+import com.planilla.backend.service.tas.ShiftConfigService.ShiftHasActiveEmployeesException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -63,9 +65,21 @@ public class ShiftConfigController {
         try {
             shiftConfigService.deleteShift(id);
             return ResponseEntity.ok().build();
-        } catch (IllegalStateException e) {
+        } catch (ShiftHasActiveEmployeesException e) {
+            List<Map<String, Object>> employeeList = new ArrayList<>();
+            for (Map<String, Object> row : e.getEmployees()) {
+                Map<String, Object> emp = new HashMap<>();
+                Object empId = row.get("EMPLOYEE_ID");
+                if (empId == null) empId = row.get("employee_id");
+                Object name = row.get("NAME");
+                if (name == null) name = row.get("name");
+                emp.put("employeeId", empId);
+                emp.put("name", name);
+                employeeList.add(emp);
+            }
             Map<String, Object> body = new HashMap<>();
-            body.put("error", e.getMessage());
+            body.put("error", "SHIFT_HAS_ACTIVE_EMPLOYEES");
+            body.put("employees", employeeList);
             return ResponseEntity.status(409).body(body);
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(error(400, "DELETE_FAILED", e.getMessage()));

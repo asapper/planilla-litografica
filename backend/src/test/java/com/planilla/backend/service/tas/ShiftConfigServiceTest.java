@@ -14,17 +14,6 @@ import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
-/**
- * Unit tests for ShiftConfigService.
- *
- * Requirements:
- * - getAllShifts: queries H2 and returns list of shift maps
- * - createShift: inserts a row into shift_config
- * - updateShift: updates shift row; throws IllegalArgumentException("SHIFT_NOT_FOUND") when 0 rows affected
- * - deleteShift: throws IllegalStateException("SHIFT_HAS_ACTIVE_EMPLOYEES") when active employees exist;
- *   clears inactive employee shift_id before deleting
- * - shiftExists: returns true/false based on count query
- */
 @ExtendWith(MockitoExtension.class)
 class ShiftConfigServiceTest {
 
@@ -72,45 +61,55 @@ class ShiftConfigServiceTest {
             .hasMessage("SHIFT_NOT_FOUND");
     }
 
+    @SuppressWarnings("unchecked")
     @Test
-    void deleteShift_throwsWhenActiveEmployeesExist() {
-        when(jdbc.queryForObject(anyString(), eq(Integer.class), any())).thenReturn(2);
+    void deleteShift_throwsWithEmployeeListWhenActiveEmployeesExist() {
+        List<Map<String, Object>> activeEmployees = List.of(
+            Map.of("EMPLOYEE_ID", "emp1", "NAME", "Ana"),
+            Map.of("EMPLOYEE_ID", "emp2", "NAME", "Carlos")
+        );
+        doReturn(activeEmployees).when(jdbc).queryForList(anyString(), (Object[]) any());
 
         assertThatThrownBy(() -> service.deleteShift("manana"))
-            .isInstanceOf(IllegalStateException.class)
-            .hasMessage("SHIFT_HAS_ACTIVE_EMPLOYEES");
+            .isInstanceOf(ShiftConfigService.ShiftHasActiveEmployeesException.class)
+            .hasMessage("SHIFT_HAS_ACTIVE_EMPLOYEES")
+            .satisfies(ex -> {
+                ShiftConfigService.ShiftHasActiveEmployeesException e =
+                    (ShiftConfigService.ShiftHasActiveEmployeesException) ex;
+                assertThat(e.getEmployees()).hasSize(2);
+                assertThat(e.getEmployees().get(0)).containsEntry("EMPLOYEE_ID", "emp1");
+                assertThat(e.getEmployees().get(1)).containsEntry("EMPLOYEE_ID", "emp2");
+            });
 
         verify(jdbc, never()).update(contains("DELETE FROM shift_config"), (Object[]) any());
     }
 
+    @SuppressWarnings("unchecked")
+    @Test
+    void deleteShift_employeeListIsPopulatedCorrectly() {
+        List<Map<String, Object>> activeEmployees = List.of(
+            Map.of("EMPLOYEE_ID", "emp3", "NAME", "Beatriz")
+        );
+        doReturn(activeEmployees).when(jdbc).queryForList(anyString(), (Object[]) any());
+
+        ShiftConfigService.ShiftHasActiveEmployeesException ex =
+            catchThrowableOfType(() -> service.deleteShift("tarde"),
+                ShiftConfigService.ShiftHasActiveEmployeesException.class);
+
+        assertThat(ex).isNotNull();
+        assertThat(ex.getEmployees()).hasSize(1);
+        assertThat(ex.getEmployees().get(0).get("EMPLOYEE_ID")).isEqualTo("emp3");
+        assertThat(ex.getEmployees().get(0).get("NAME")).isEqualTo("Beatriz");
+    }
+
+    @SuppressWarnings("unchecked")
     @Test
     void deleteShift_clearsInactiveEmployeesAndDeletes() {
-        when(jdbc.queryForObject(anyString(), eq(Integer.class), any())).thenReturn(0);
+        doReturn(List.of()).when(jdbc).queryForList(anyString(), (Object[]) any());
 
         service.deleteShift("manana");
 
         verify(jdbc).update(contains("UPDATE employee_registry SET shift_id = NULL"), eq("manana"));
         verify(jdbc).update(contains("DELETE FROM shift_config"), eq("manana"));
-    }
-
-    @Test
-    void shiftExists_returnsTrueWhenFound() {
-        when(jdbc.queryForObject(anyString(), eq(Integer.class), any())).thenReturn(1);
-
-        assertThat(service.shiftExists("manana")).isTrue();
-    }
-
-    @Test
-    void shiftExists_returnsFalseWhenNotFound() {
-        when(jdbc.queryForObject(anyString(), eq(Integer.class), any())).thenReturn(0);
-
-        assertThat(service.shiftExists("ghost")).isFalse();
-    }
-
-    @Test
-    void shiftExists_returnsFalseWhenNull() {
-        when(jdbc.queryForObject(anyString(), eq(Integer.class), any())).thenReturn(null);
-
-        assertThat(service.shiftExists("ghost")).isFalse();
     }
 }

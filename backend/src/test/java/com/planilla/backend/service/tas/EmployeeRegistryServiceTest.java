@@ -80,21 +80,17 @@ class EmployeeRegistryServiceTest {
     }
 
     @Test
-    void upsertEmployee_insertsWhenNew() {
-        when(jdbc.queryForObject(anyString(), eq(Integer.class), any())).thenReturn(0);
-
+    void upsertEmployee_insertsNewEmployee() {
         service.upsertEmployee("emp1", "Maria");
 
-        verify(jdbc).update(contains("INSERT INTO employee_registry"), eq("emp1"), eq("Maria"));
+        verify(jdbc).update(contains("MERGE INTO employee_registry"), eq("emp1"), eq("Maria"));
     }
 
     @Test
-    void upsertEmployee_updatesWhenExisting() {
-        when(jdbc.queryForObject(anyString(), eq(Integer.class), any())).thenReturn(1);
-
+    void upsertEmployee_updatesExistingEmployee() {
         service.upsertEmployee("emp1", "Maria Updated");
 
-        verify(jdbc).update(contains("UPDATE employee_registry SET name"), eq("Maria Updated"), eq("emp1"));
+        verify(jdbc).update(contains("MERGE INTO employee_registry"), eq("emp1"), eq("Maria Updated"));
     }
 
     @Test
