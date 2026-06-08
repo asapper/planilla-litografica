@@ -80,7 +80,7 @@ export default function TopAppBar({ currentView, onViewChange }: Props) {
         {showLoaded && currentView === 'planilla' && (
           <div className="flex-1 max-w-sm relative">
             <input
-              type="search"
+              type="text"
               value={searchText}
               onChange={e => setSearchText(e.target.value)}
               placeholder="Buscar por código o nombre..."

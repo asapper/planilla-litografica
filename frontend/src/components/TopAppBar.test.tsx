@@ -104,39 +104,39 @@ describe('TopAppBar', () => {
 describe('TopAppBar search', () => {
   it('does not show search input in empty state', () => {
     render(<TopAppBar currentView="planilla" onViewChange={noop} />);
-    expect(screen.queryByRole('searchbox')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Buscar empleado')).not.toBeInTheDocument();
   });
 
   it('does not show search input in result state', () => {
     useStore.getState().setLoaded([makeRow('1')], [DEC_2024], false, []);
     useStore.setState({ appState: 'result' });
     render(<TopAppBar currentView="planilla" onViewChange={noop} />);
-    expect(screen.queryByRole('searchbox')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Buscar empleado')).not.toBeInTheDocument();
   });
 
   it('shows search input when rows are loaded', () => {
     useStore.getState().setLoaded([makeRow('1')], [DEC_2024], false, []);
     render(<TopAppBar currentView="planilla" onViewChange={noop} />);
-    expect(screen.getByRole('searchbox')).toBeInTheDocument();
+    expect(screen.getByLabelText('Buscar empleado')).toBeInTheDocument();
   });
 
   it('does not show search input when in config view even if rows are loaded', () => {
     useStore.getState().setLoaded([makeRow('1')], [DEC_2024], false, []);
     render(<TopAppBar currentView="config" onViewChange={noop} />);
-    expect(screen.queryByRole('searchbox')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Buscar empleado')).not.toBeInTheDocument();
   });
 
   it('reflects searchText from store', () => {
     useStore.getState().setLoaded([makeRow('1')], [DEC_2024], false, []);
     useStore.getState().setSearchText('garcia');
     render(<TopAppBar currentView="planilla" onViewChange={noop} />);
-    expect((screen.getByRole('searchbox') as HTMLInputElement).value).toBe('garcia');
+    expect((screen.getByLabelText('Buscar empleado') as HTMLInputElement).value).toBe('garcia');
   });
 
   it('typing updates searchText in store', () => {
     useStore.getState().setLoaded([makeRow('1')], [DEC_2024], false, []);
     render(<TopAppBar currentView="planilla" onViewChange={noop} />);
-    fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'lopez' } });
+    fireEvent.change(screen.getByLabelText('Buscar empleado'), { target: { value: 'lopez' } });
     expect(useStore.getState().searchText).toBe('lopez');
   });
 

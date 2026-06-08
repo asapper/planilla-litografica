@@ -58,7 +58,7 @@ function Toast({ message, visible, onHide }: ToastProps) {
     if (!visible) return;
     const timer = setTimeout(onHide, 3_000);
     return () => clearTimeout(timer);
-  }, [visible, onHide]);
+  }, [visible]);
 
   if (!visible) return null;
 
