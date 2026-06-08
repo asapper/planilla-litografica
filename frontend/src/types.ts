@@ -83,6 +83,7 @@ export interface StartJobResponse {
 }
 
 export type AppState = 'empty' | 'loaded' | 'submitting' | 'polling' | 'result';
+export type AppView = 'planilla' | 'config';
 
 export const MONTH_NAMES: Record<number, string> = {
   1: 'Enero', 2: 'Febrero', 3: 'Marzo', 4: 'Abril',
