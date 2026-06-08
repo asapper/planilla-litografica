@@ -192,6 +192,7 @@ public class TasSessionGrouper {
 
         TasSession session = new TasSession();
         session.setEmployeeId(employeeId);
+        session.setEmployeeName(firstScan.getEmployeeName());
         session.setDate(firstScan.getTimestamp().toLocalDate());
         session.setCrossMidnight(isCrossMidnight);
         session.setSessionAnchor("D");

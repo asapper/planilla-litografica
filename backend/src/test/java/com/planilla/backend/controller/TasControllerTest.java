@@ -208,6 +208,7 @@ class TasControllerTest {
 
         TasUploadResult result = emptyResult();
         result.setFlaggedSessions(List.of(flagged));
+        result.setAllSessions(List.of(flagged));
         when(parserService.parse(any())).thenReturn(emptyParseResult());
         when(uploadService.processScans(any(), any(), any())).thenReturn(result);
 

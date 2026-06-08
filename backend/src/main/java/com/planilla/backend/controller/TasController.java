@@ -27,6 +27,7 @@ public class TasController {
     private final EmployeeRegistryService registryService;
     private final JobService              jobService;
     private final ShiftConfigService      shiftConfigService;
+    private final TasHoursCalculator      hoursCalculator;
 
     private final ConcurrentHashMap<String, TasUploadState> stateStore = new ConcurrentHashMap<>();
 
@@ -36,13 +37,15 @@ public class TasController {
             TasReportBuilder reportBuilder,
             EmployeeRegistryService registryService,
             JobService jobService,
-            ShiftConfigService shiftConfigService) {
+            ShiftConfigService shiftConfigService,
+            TasHoursCalculator hoursCalculator) {
         this.parserService      = parserService;
         this.uploadService      = uploadService;
         this.reportBuilder      = reportBuilder;
         this.registryService    = registryService;
         this.jobService         = jobService;
         this.shiftConfigService = shiftConfigService;
+        this.hoursCalculator    = hoursCalculator;
     }
 
     @PostMapping(value = "/upload", consumes = "multipart/form-data")
@@ -137,17 +140,19 @@ public class TasController {
         List<TasSession> sessions = state.getSessions();
         if (sessions == null) sessions = Collections.emptyList();
 
-        List<TasSession> flaggedSessions = sessions.stream()
+        Map<Integer, TasSession> flaggedBySessionId = sessions.stream()
                 .filter(TasSession::isNeedsResolution)
-                .collect(Collectors.toList());
+                .collect(Collectors.toMap(TasSession::getSessionId, s -> s));
 
         DateTimeFormatter dtf = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
 
         for (Map<String, Object> res : resolutions) {
-            int sessionId = ((Number) res.get("sessionId")).intValue();
-            if (sessionId < 0 || sessionId >= flaggedSessions.size()) continue;
+            Object sessionIdObj = res.get("sessionId");
+            if (sessionIdObj == null) continue;
+            int sessionId = ((Number) sessionIdObj).intValue();
+            TasSession session = flaggedBySessionId.get(sessionId);
+            if (session == null) continue;
 
-            TasSession session = flaggedSessions.get(sessionId);
             String resolvedStart = (String) res.get("resolvedStart");
             String resolvedEnd   = (String) res.get("resolvedEnd");
 
@@ -166,8 +171,7 @@ public class TasController {
                 session.setWorkedMinutes((int) workedMinutes);
                 double workedHours = Math.floor(workedMinutes / 30.0) / 2.0;
                 session.setWorkedHours(workedHours);
-                session.setSimplesMinutes((int) workedMinutes);
-                session.setDoblesMinutes(0);
+                hoursCalculator.classifyHours(session);
             }
         }
 
@@ -264,13 +268,15 @@ public class TasController {
         TasUploadState state = new TasUploadState();
         state.setUploadToken(token);
         state.setAllScans(allScans);
-        state.setSessions(result.getFlaggedSessions() != null
-                ? result.getFlaggedSessions()
+        state.setSessions(result.getAllSessions() != null
+                ? result.getAllSessions()
                 : Collections.emptyList());
         state.setResolvedRows(result.getResolvedRows());
         state.setUsedFallbackHolidays(result.isUsedFallbackHolidays());
         state.setAbsentEmployees(result.getAbsentActiveEmployees());
         state.setIgnoredEmployeeIds(new HashSet<>(ignoredEmployeeIds));
+        state.setReportStart(result.getReportStart());
+        state.setReportEnd(result.getReportEnd());
         return state;
     }
 

@@ -144,6 +144,34 @@ class TasUploadServiceTest {
     }
 
     @Test
+    void processScans_allSessionsAndReportDatesPopulated() {
+        List<TasScanRecord> scans = List.of(
+            scan("100", "2026-03-05T07:00"),
+            scan("100", "2026-03-15T15:00")
+        );
+        when(registryService.getInactiveEmployeesPresent(any())).thenReturn(Collections.emptyList());
+        when(registryService.getAll(any(), any(), any())).thenReturn(Collections.emptyList());
+        when(shiftConfigService.getAllShifts()).thenReturn(shifts);
+        when(holidayService.fetchForDateRange(any(), any())).thenReturn(true);
+
+        TasSession session = new TasSession();
+        session.setEmployeeId("100");
+        session.setDate(LocalDate.of(2026, 3, 5));
+        session.setNeedsResolution(false);
+        session.setFlags(Collections.emptyList());
+        when(sessionGrouper.group(any(), any(), any())).thenReturn(List.of(session));
+        when(reportBuilder.build(any(), any(), any(), any()))
+                .thenReturn(new TasReportBuilder.BuildResult(Collections.emptyList(), Collections.emptyMap()));
+        when(registryService.getAbsentActiveEmployees(any())).thenReturn(Collections.emptyList());
+
+        TasUploadResult result = service.processScans(scans, Collections.emptyList(), Collections.emptySet());
+
+        assertThat(result.getAllSessions()).containsExactly(session);
+        assertThat(result.getReportStart()).isEqualTo(LocalDate.of(2026, 3, 5));
+        assertThat(result.getReportEnd()).isEqualTo(LocalDate.of(2026, 3, 15));
+    }
+
+    @Test
     void process_upsertCalledForEachEmployee() throws Exception {
         List<TasScanRecord> scans = List.of(
             scan("100", "2026-03-10T07:00"),

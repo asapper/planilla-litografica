@@ -201,7 +201,31 @@ class TasHoursCalculatorTest {
     }
 
     @Test
-    void calculate_endCutoffFlag_onLastDayOfReport() {
+    void calculate_endCutoffFlag_onlyForCrossMidnightSessionOnLastDay() {
+        LocalDate date = REPORT_END;
+        TasSession s = session(date,
+            LocalDateTime.of(2026, 3, 15, 7, 0),
+            LocalDateTime.of(2026, 3, 15, 15, 0)
+        );
+        s.setCrossMidnight(true);
+        s.setMatchedShiftId("noche");
+
+        Map<String, Object> nocheShift = new LinkedHashMap<>();
+        nocheShift.put("id", "noche");
+        nocheShift.put("name", "Noche");
+        nocheShift.put("start_time", "19:00");
+        nocheShift.put("end_time", "07:00");
+        nocheShift.put("cross_midnight", true);
+        when(shiftConfigService.getAllShifts()).thenReturn(List.of(nocheShift));
+
+        calculator.calculate(List.of(s), REPORT_START, REPORT_END);
+
+        assertThat(s.getFlags()).contains(TasFlag.END_CUTOFF);
+        assertThat(s.isNeedsResolution()).isTrue();
+    }
+
+    @Test
+    void calculate_nonCrossMidnightSession_onLastDay_noEndCutoff() {
         LocalDate date = REPORT_END;
         TasSession s = session(date,
             LocalDateTime.of(2026, 3, 15, 7, 0),
@@ -210,8 +234,8 @@ class TasHoursCalculatorTest {
 
         calculator.calculate(List.of(s), REPORT_START, REPORT_END);
 
-        assertThat(s.getFlags()).contains(TasFlag.END_CUTOFF);
-        assertThat(s.isNeedsResolution()).isTrue();
+        assertThat(s.getFlags()).doesNotContain(TasFlag.END_CUTOFF);
+        assertThat(s.isNeedsResolution()).isFalse();
     }
 
     @Test

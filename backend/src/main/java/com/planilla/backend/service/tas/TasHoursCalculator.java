@@ -61,7 +61,7 @@ public class TasHoursCalculator {
             addFlag(session, TasFlag.START_CUTOFF);
         }
 
-        if (sessionDate.equals(reportEnd)) {
+        if (session.isCrossMidnight() && sessionDate.equals(reportEnd)) {
             addFlag(session, TasFlag.END_CUTOFF);
         }
     }
@@ -148,6 +148,11 @@ public class TasHoursCalculator {
         double workedHours = Math.floor(workedMinutes / 30.0) / 2.0;
         session.setWorkedHours(workedHours);
         session.setLastScan(lastScanDt);
+    }
+
+    public void classifyHours(TasSession session) {
+        List<Map<String, Object>> shifts = shiftConfigService.getAllShifts();
+        classifyHours(session, shifts);
     }
 
     private void classifyHours(TasSession session, List<Map<String, Object>> shifts) {

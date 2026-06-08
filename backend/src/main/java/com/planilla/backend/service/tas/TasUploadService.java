@@ -107,10 +107,13 @@ public class TasUploadService {
         TasUploadResult result = new TasUploadResult();
         result.setResolvedRows(resolvedRows);
         result.setFlaggedSessions(flaggedSessions);
+        result.setAllSessions(sessions);
         result.setWarnings(warnings);
         result.setUsedFallbackHolidays(!apiSuccess);
         result.setInactiveEmployeesFound(Collections.emptyList());
         result.setAbsentActiveEmployees(absentEmployees);
+        result.setReportStart(reportStart);
+        result.setReportEnd(reportEnd);
         return result;
     }
 

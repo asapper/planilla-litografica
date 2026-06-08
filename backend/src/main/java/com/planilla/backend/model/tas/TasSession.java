@@ -8,6 +8,7 @@ public class TasSession {
 
     private int sessionId;
     private String employeeId;
+    private String employeeName;
     private LocalDate date;
     private String matchedShiftId;
     private List<LocalDateTime> scans;
@@ -29,6 +30,9 @@ public class TasSession {
 
     public String getEmployeeId() { return employeeId; }
     public void setEmployeeId(String employeeId) { this.employeeId = employeeId; }
+
+    public String getEmployeeName() { return employeeName; }
+    public void setEmployeeName(String employeeName) { this.employeeName = employeeName; }
 
     public LocalDate getDate() { return date; }
     public void setDate(LocalDate date) { this.date = date; }

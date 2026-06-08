@@ -111,6 +111,10 @@ public class TasReportBuilder {
 
     private Map<String, String> buildEmployeeNamesMap(List<TasSession> sessions) {
         Map<String, String> names = new LinkedHashMap<>();
+        for (TasSession session : sessions) {
+            names.putIfAbsent(session.getEmployeeId(),
+                    session.getEmployeeName() != null ? session.getEmployeeName() : "");
+        }
         return names;
     }
 

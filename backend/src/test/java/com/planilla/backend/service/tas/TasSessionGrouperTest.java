@@ -214,6 +214,19 @@ class TasSessionGrouperTest {
     }
 
     @Test
+    void group_employeeNameCopiedFromFirstScan() {
+        List<TasScanRecord> scans = List.of(
+            scan("100", LocalDateTime.of(2026, 3, 10, 7, 0)),
+            scan("100", LocalDateTime.of(2026, 3, 10, 15, 0))
+        );
+
+        List<TasSession> sessions = grouper.group(scans, shifts, assignManana("100"));
+
+        assertThat(sessions).hasSize(1);
+        assertThat(sessions.get(0).getEmployeeName()).isEqualTo("Test 100");
+    }
+
+    @Test
     void group_detectionWindow_scanAtWindowEndAccepted() {
         List<TasScanRecord> scans = List.of(
             scan("100", LocalDateTime.of(2026, 3, 10, 7, 10))

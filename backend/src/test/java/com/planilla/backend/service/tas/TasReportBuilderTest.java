@@ -198,6 +198,20 @@ class TasReportBuilderTest {
     }
 
     @Test
+    void build_employeeNamePopulatedFromSession() {
+        LocalDate start = LocalDate.of(2026, 3, 1);
+        LocalDate end   = LocalDate.of(2026, 3, 15);
+
+        TasSession s = resolvedSession("100", LocalDate.of(2026, 3, 5), 480, 0);
+        s.setEmployeeName("Juan Perez");
+
+        TasReportBuilder.BuildResult result = builder.build(List.of(s), start, end, shifts);
+
+        assertThat(result.rows).hasSize(1);
+        assertThat(result.rows.get(0).getNombreEmpleado()).isEqualTo("Juan Perez");
+    }
+
+    @Test
     void build_mesAndAnioSetFromQuincenaStart() {
         LocalDate start = LocalDate.of(2026, 3, 1);
         LocalDate end   = LocalDate.of(2026, 3, 15);
