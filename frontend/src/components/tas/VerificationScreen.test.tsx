@@ -3,7 +3,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import VerificationScreen from './VerificationScreen';
 import { useTasStore } from '../../tasStore';
 import * as tasApi from '../../tasApi';
-import type { TasSession, TasUploadResult } from '../../tasTypes';
+import type { TasSession, TasResolveResult } from '../../tasTypes';
 
 vi.mock('../../tasApi');
 
@@ -30,13 +30,11 @@ function makeSession(overrides: Partial<TasSession> = {}): TasSession {
   };
 }
 
-const mockResult: TasUploadResult = {
+const mockResult: TasResolveResult = {
   uploadToken: 'tok-2',
+  resolvedRows: [{}, {}],
   flaggedSessions: [],
-  inactiveEmployeesFound: [],
-  absentActiveEmployees: [],
   usedFallbackHolidays: false,
-  warnings: [],
 };
 
 beforeEach(() => {
@@ -223,6 +221,7 @@ describe('VerificationScreen submit', () => {
     expect(mockResolveVerification).toHaveBeenCalledOnce();
     expect(mockSubmitTas).toHaveBeenCalledOnce();
     expect(useTasStore.getState().jobId).toBe('job-abc');
+    expect(useTasStore.getState().resolvedRowCount).toBe(2);
   });
 
   it('reverts to verification and sets error when submitTas throws', async () => {

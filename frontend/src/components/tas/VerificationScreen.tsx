@@ -205,8 +205,9 @@ export default function VerificationScreen() {
   const setResolvedSession    = useTasStore(s => s.setResolvedSession);
   const clearResolvedSessions = useTasStore(s => s.clearResolvedSessions);
   const setTasView            = useTasStore(s => s.setTasView);
-  const setResolvedRowCount   = useTasStore(s => s.setResolvedRowCount);
-  const setJobId              = useTasStore(s => s.setJobId);
+  const setResolvedRowCount      = useTasStore(s => s.setResolvedRowCount);
+  const setUsedFallbackHolidays  = useTasStore(s => s.setUsedFallbackHolidays);
+  const setJobId                 = useTasStore(s => s.setJobId);
   const setFlaggedSessions    = useTasStore(s => s.setFlaggedSessions);
   const setUploadToken        = useTasStore(s => s.setUploadToken);
   const setError              = useTasStore(s => s.setError);
@@ -249,6 +250,7 @@ export default function VerificationScreen() {
       setFlaggedSessions(result.flaggedSessions);
       setUploadToken(result.uploadToken);
       setResolvedRowCount(result.resolvedRows?.length ?? 0);
+      setUsedFallbackHolidays(result.usedFallbackHolidays);
       setTasView('submitting');
       const { jobId } = await submitTas(result.uploadToken);
       setJobId(jobId);

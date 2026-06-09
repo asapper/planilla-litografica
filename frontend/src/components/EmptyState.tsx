@@ -20,8 +20,8 @@ export default function EmptyState({ onTasFile }: Props) {
 
   const handleFile = async (file: File) => {
     setError(null);
+    setLoading(true);
     if (onTasFile && await isTasFile(file)) {
-      setLoading(true);
       try {
         await onTasFile(file);
       } catch {
@@ -31,7 +31,6 @@ export default function EmptyState({ onTasFile }: Props) {
       }
       return;
     }
-    setLoading(true);
     try {
       const result = await uploadCsv(file);
       setLoaded(result.rows, result.monthOptions, result.multiMonth, result.parseWarnings, file.name);

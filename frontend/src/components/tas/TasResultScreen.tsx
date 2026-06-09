@@ -8,8 +8,6 @@ export default function TasResultScreen() {
   const resetTas         = useTasStore(s => s.resetTas);
   const setTasView       = useTasStore(s => s.setTasView);
 
-  const recordCount = resolvedRowCount;
-
   const handleReviewAbsent = () => {
     setTasView('absentReview');
   };
@@ -22,9 +20,9 @@ export default function TasResultScreen() {
 
       <h2 className="text-headline-sm font-medium text-on-surface mb-3">Carga completada</h2>
       <p className="text-body-md text-on-surface-variant mb-6">
-        {recordCount === 1
+        {resolvedRowCount === 1
           ? 'Se envió 1 registro.'
-          : `Se enviaron ${recordCount} registros.`}
+          : `Se enviaron ${resolvedRowCount} registros.`}
       </p>
 
       {absentEmployees.length > 0 && (
