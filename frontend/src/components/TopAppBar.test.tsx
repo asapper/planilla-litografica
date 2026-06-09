@@ -76,28 +76,25 @@ describe('TopAppBar', () => {
     expect(screen.queryByRole('button', { name: /nueva carga/i })).not.toBeInTheDocument();
   });
 
-  it('highlights Planilla nav tab when currentView is planilla', () => {
+  it('does not render a Planilla nav button', () => {
     render(<TopAppBar currentView="planilla" onViewChange={noop} />);
-    const planillaBtn = screen.getByRole('button', { name: /planilla/i });
-    expect(planillaBtn).toHaveClass('bg-white');
+    expect(screen.queryByRole('button', { name: /^planilla$/i })).not.toBeInTheDocument();
   });
 
-  it('highlights Configuración nav tab when currentView is config', () => {
+  it('renders the Configuración button', () => {
+    render(<TopAppBar currentView="planilla" onViewChange={noop} />);
+    expect(screen.getByRole('button', { name: /configuración/i })).toBeInTheDocument();
+  });
+
+  it('highlights Configuración button when currentView is config', () => {
     render(<TopAppBar currentView="config" onViewChange={noop} />);
-    const configBtn = screen.getByRole('button', { name: /configuración/i });
-    expect(configBtn).toHaveClass('bg-white');
+    expect(screen.getByRole('button', { name: /configuración/i })).toHaveClass('bg-white');
   });
 
-  it('calls onViewChange with "config" when Configuración tab is clicked', () => {
+  it('calls onViewChange with "config" when Configuración is clicked', () => {
     render(<TopAppBar currentView="planilla" onViewChange={noop} />);
     fireEvent.click(screen.getByRole('button', { name: /configuración/i }));
     expect(noop).toHaveBeenCalledWith('config');
-  });
-
-  it('calls onViewChange with "planilla" when Planilla tab is clicked', () => {
-    render(<TopAppBar currentView="config" onViewChange={noop} />);
-    fireEvent.click(screen.getByRole('button', { name: /planilla/i }));
-    expect(noop).toHaveBeenCalledWith('planilla');
   });
 });
 
