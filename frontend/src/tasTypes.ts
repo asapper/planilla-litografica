@@ -22,6 +22,7 @@ export interface AbsentEmployee { employeeId: string; name: string }
 
 export interface TasUploadResult {
   uploadToken: string
+  resolvedRows: unknown[]
   flaggedSessions: TasSession[]
   inactiveEmployeesFound: InactiveEmployee[]
   absentActiveEmployees: AbsentEmployee[]

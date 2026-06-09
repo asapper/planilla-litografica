@@ -3,13 +3,13 @@ import ScreenLayout from '../ui/ScreenLayout';
 import IconBadge from '../ui/IconBadge';
 
 export default function TasResultScreen() {
-  const jobId          = useTasStore(s => s.jobId);
-  const flaggedSessions = useTasStore(s => s.flaggedSessions);
-  const absentEmployees = useTasStore(s => s.absentEmployees);
-  const resetTas       = useTasStore(s => s.resetTas);
-  const setTasView     = useTasStore(s => s.setTasView);
+  const jobId           = useTasStore(s => s.jobId);
+  const resolvedRowCount = useTasStore(s => s.resolvedRowCount);
+  const absentEmployees  = useTasStore(s => s.absentEmployees);
+  const resetTas         = useTasStore(s => s.resetTas);
+  const setTasView       = useTasStore(s => s.setTasView);
 
-  const recordCount = flaggedSessions.length;
+  const recordCount = resolvedRowCount;
 
   const handleReviewAbsent = () => {
     setTasView('absentReview');
@@ -23,7 +23,9 @@ export default function TasResultScreen() {
 
       <h2 className="text-headline-sm font-medium text-on-surface mb-3">Carga completada</h2>
       <p className="text-body-md text-on-surface-variant mb-6">
-        Se enviaron {recordCount} registros.
+        {recordCount === 1
+          ? 'Se envió 1 registro.'
+          : `Se enviaron ${recordCount} registros.`}
       </p>
 
       {absentEmployees.length > 0 && (

@@ -64,7 +64,9 @@ class TasControllerTest {
 
         mvc.perform(multipart("/api/tas/upload").file(file))
            .andExpect(status().isOk())
-           .andExpect(jsonPath("$.uploadToken").isNotEmpty());
+           .andExpect(jsonPath("$.uploadToken").isNotEmpty())
+           .andExpect(jsonPath("$.inactiveEmployeesFound").isArray())
+           .andExpect(jsonPath("$.inactiveEmployeesFound").isEmpty());
     }
 
     @Test

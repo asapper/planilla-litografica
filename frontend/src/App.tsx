@@ -3,6 +3,7 @@ import { useStore } from './store';
 import { checkHealth } from './api';
 import { uploadTasFile, submitTas } from './tasApi';
 import { useTasStore } from './tasStore';
+import { isTasFile } from './isTasFile';
 import EmptyState from './components/EmptyState';
 import TopAppBar from './components/TopAppBar';
 import QuincenaBanner from './components/QuincenaBanner';
@@ -25,19 +26,6 @@ import type { AppView } from './types';
 
 type BackendState = 'starting' | 'ready' | 'error';
 
-function isTasFile(file: File): Promise<boolean> {
-  return new Promise(resolve => {
-    const reader = new FileReader();
-    reader.onload = e => {
-      const text = (e.target?.result as string) ?? '';
-      const firstLines = text.split('\n').slice(0, 3).join('\n');
-      resolve(firstLines.includes('Autenticación'));
-    };
-    reader.onerror = () => resolve(false);
-    reader.readAsText(file.slice(0, 2048));
-  });
-}
-
 export default function App() {
   const appState = useStore(s => s.appState);
   const [backendState, setBackendState] = useState<BackendState>('starting');
@@ -47,8 +35,9 @@ export default function App() {
 
   const setTasView         = useTasStore(s => s.setTasView);
   const setUploadToken     = useTasStore(s => s.setUploadToken);
-  const setFlaggedSessions = useTasStore(s => s.setFlaggedSessions);
-  const setInactiveEmployees = useTasStore(s => s.setInactiveEmployees);
+  const setFlaggedSessions    = useTasStore(s => s.setFlaggedSessions);
+  const setResolvedRowCount   = useTasStore(s => s.setResolvedRowCount);
+  const setInactiveEmployees  = useTasStore(s => s.setInactiveEmployees);
   const setAbsentEmployees = useTasStore(s => s.setAbsentEmployees);
   const setUsedFallbackHolidays = useTasStore(s => s.setUsedFallbackHolidays);
   const setProcessingMessage = useTasStore(s => s.setProcessingMessage);
@@ -68,6 +57,7 @@ export default function App() {
       const result = await uploadTasFile(file);
       setUploadToken(result.uploadToken);
       setFlaggedSessions(result.flaggedSessions);
+      setResolvedRowCount(result.resolvedRows.length);
       setInactiveEmployees(result.inactiveEmployeesFound);
       setAbsentEmployees(result.absentActiveEmployees);
       setUsedFallbackHolidays(result.usedFallbackHolidays);
@@ -151,7 +141,7 @@ export default function App() {
 
       {currentView === 'config' && <ConfigPage />}
 
-      {currentView === 'planilla' && appState === 'empty' && <EmptyState />}
+      {currentView === 'planilla' && appState === 'empty' && <EmptyState onTasFile={handleTasFile} />}
 
       {currentView === 'planilla' && (appState === 'loaded' || appState === 'submitting') && (
         <>

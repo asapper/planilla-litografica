@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS holiday_cache (
     id              BIGINT AUTO_INCREMENT PRIMARY KEY,
     holiday_date    DATE          NOT NULL,
     name            VARCHAR(255)  NOT NULL,
-    year            INTEGER       NOT NULL,
+    holiday_year    INTEGER       NOT NULL,
     source          VARCHAR(10)   NOT NULL DEFAULT 'API',
     CONSTRAINT uq_holiday UNIQUE (holiday_date, source)
 );

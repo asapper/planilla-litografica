@@ -120,7 +120,7 @@ class HolidayServiceTest {
         boolean result = serviceWithMockClient.refreshFromApi(2026);
 
         assertThat(result).isTrue();
-        verify(jdbc).update(contains("DELETE FROM holiday_cache WHERE year"), eq(2026));
+        verify(jdbc).update(contains("DELETE FROM holiday_cache WHERE holiday_year"), eq(2026));
         verify(jdbc).update(contains("INSERT INTO holiday_cache"), any(), eq("Año Nuevo"), eq(2026));
     }
 
