@@ -133,4 +133,18 @@ class TasParserServiceTest {
 
         assertThat(result.scans.get(0).getEmployeeName()).isEqualTo("Morales Cifuentes Roberto");
     }
+
+    @Test
+    void parse_quotedCsvFormat_parsesCorrectly() throws Exception {
+        String content =
+            "\"No.\",\"Fecha y hora\",\"Evento\",\"Nombre de usuario\",\"ID de usuario\"\n"
+            + "\"1\",\"2026/04/30 19:11\",\"1:N Autenticación exitosa (Rostro)\",\"Morales Cifuentes Roberto Daniel\",\"134\"\n"
+            + "\"2\",\"2026/04/30 08:51\",\"1:N Autenticación exitosa (Rostro)\",\"Morales Cifuentes Roberto Daniel\",\"134\"\n";
+
+        TasParserService.ParseResult result = service.parse(csv(content));
+
+        assertThat(result.scans).hasSize(2);
+        assertThat(result.warnings).isEmpty();
+        assertThat(result.scans.get(0).getEmployeeId()).isEqualTo("134");
+    }
 }
