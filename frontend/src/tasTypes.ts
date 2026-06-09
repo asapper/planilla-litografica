@@ -30,5 +30,12 @@ export interface TasUploadResult {
   warnings: string[]
 }
 
+export interface TasResolveResult {
+  uploadToken: string
+  resolvedRows: unknown[]
+  flaggedSessions: TasSession[]
+  usedFallbackHolidays: boolean
+}
+
 export type InactiveDecision = 'reactivate' | 'ignore'
 export type TasView = 'idle' | 'processing' | 'inactiveReview' | 'verification' | 'submitting' | 'result' | 'absentReview'

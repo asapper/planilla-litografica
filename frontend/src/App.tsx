@@ -54,7 +54,7 @@ export default function App() {
       const result = await uploadTasFile(file);
       setUploadToken(result.uploadToken);
       setFlaggedSessions(result.flaggedSessions);
-      setResolvedRowCount(result.resolvedRows.length);
+      setResolvedRowCount(result.resolvedRows?.length ?? 0);
       setInactiveEmployees(result.inactiveEmployeesFound);
       setAbsentEmployees(result.absentActiveEmployees);
       setUsedFallbackHolidays(result.usedFallbackHolidays);

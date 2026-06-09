@@ -1,5 +1,5 @@
 import axios from 'axios';
-import type { TasUploadResult, AbsentEmployee } from './tasTypes';
+import type { TasUploadResult, TasResolveResult, AbsentEmployee } from './tasTypes';
 
 const client = axios.create({
   baseURL: 'http://localhost:49301/api',
@@ -22,8 +22,8 @@ export const submitInactiveReview = (
 export const resolveVerification = (
   token: string,
   resolutions: { sessionId: number; resolvedStart: string; resolvedEnd: string; updateShift?: boolean }[],
-): Promise<TasUploadResult> =>
-  client.post<TasUploadResult>('/tas/resolve', { uploadToken: token, resolutions }).then(r => r.data);
+): Promise<TasResolveResult> =>
+  client.post<TasResolveResult>('/tas/resolve', { uploadToken: token, resolutions }).then(r => r.data);
 
 export const submitTas = (token: string): Promise<{ jobId: string }> =>
   client.post<{ jobId: string }>('/tas/submit', { uploadToken: token }).then(r => r.data);

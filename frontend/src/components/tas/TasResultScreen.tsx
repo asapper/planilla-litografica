@@ -3,7 +3,6 @@ import ScreenLayout from '../ui/ScreenLayout';
 import IconBadge from '../ui/IconBadge';
 
 export default function TasResultScreen() {
-  const jobId           = useTasStore(s => s.jobId);
   const resolvedRowCount = useTasStore(s => s.resolvedRowCount);
   const absentEmployees  = useTasStore(s => s.absentEmployees);
   const resetTas         = useTasStore(s => s.resetTas);
