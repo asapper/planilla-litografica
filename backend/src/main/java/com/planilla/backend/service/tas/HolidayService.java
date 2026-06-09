@@ -2,6 +2,7 @@ package com.planilla.backend.service.tas;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ClassPathResource;
@@ -27,6 +28,7 @@ public class HolidayService {
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
 
+    @Autowired
     public HolidayService(
             @Qualifier("h2JdbcTemplate") JdbcTemplate jdbc,
             @Value("${holiday.api.url}") String apiUrl,
@@ -45,7 +47,7 @@ public class HolidayService {
 
     public List<Map<String, Object>> getHolidaysForYear(int year) {
         return jdbc.queryForList(
-            "SELECT id, holiday_date, name, year, source FROM holiday_cache WHERE year = ? ORDER BY holiday_date",
+            "SELECT id, holiday_date, name, holiday_year, source FROM holiday_cache WHERE holiday_year = ? ORDER BY holiday_date",
             year
         );
     }
@@ -53,7 +55,7 @@ public class HolidayService {
     public void addManualHoliday(String date, String name) {
         LocalDate localDate = LocalDate.parse(date);
         jdbc.update(
-            "INSERT INTO holiday_cache (holiday_date, name, year, source) VALUES (?, ?, ?, 'MANUAL')",
+            "INSERT INTO holiday_cache (holiday_date, name, holiday_year, source) VALUES (?, ?, ?, 'MANUAL')",
             java.sql.Date.valueOf(localDate), name, localDate.getYear()
         );
     }
@@ -82,7 +84,7 @@ public class HolidayService {
                         response.body(),
                         new TypeReference<List<Map<String, Object>>>() {}
                     );
-                    jdbc.update("DELETE FROM holiday_cache WHERE year = ? AND source = 'API'", year);
+                    jdbc.update("DELETE FROM holiday_cache WHERE holiday_year = ? AND source = 'API'", year);
                     for (Map<String, Object> h : holidays) {
                         String dateStr = (String) h.get("date");
                         String name = (String) h.get("localName");
@@ -90,7 +92,7 @@ public class HolidayService {
                             LocalDate d = LocalDate.parse(dateStr);
                             try {
                                 jdbc.update(
-                                    "INSERT INTO holiday_cache (holiday_date, name, year, source) VALUES (?, ?, ?, 'API')",
+                                    "INSERT INTO holiday_cache (holiday_date, name, holiday_year, source) VALUES (?, ?, ?, 'API')",
                                     java.sql.Date.valueOf(d), name, year
                                 );
                             } catch (Exception ignored) {
@@ -124,7 +126,7 @@ public class HolidayService {
                     if (d.getYear() == year) {
                         try {
                             jdbc.update(
-                                "MERGE INTO holiday_cache (holiday_date, name, year, source) KEY(holiday_date, source) VALUES (?, ?, ?, 'BUNDLED')",
+                                "MERGE INTO holiday_cache (holiday_date, name, holiday_year, source) KEY(holiday_date, source) VALUES (?, ?, ?, 'BUNDLED')",
                                 java.sql.Date.valueOf(d), name, year
                             );
                         } catch (Exception ignored) {

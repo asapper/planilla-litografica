@@ -22,11 +22,19 @@ export interface AbsentEmployee { employeeId: string; name: string }
 
 export interface TasUploadResult {
   uploadToken: string
+  resolvedRows: unknown[]
   flaggedSessions: TasSession[]
   inactiveEmployeesFound: InactiveEmployee[]
   absentActiveEmployees: AbsentEmployee[]
   usedFallbackHolidays: boolean
   warnings: string[]
+}
+
+export interface TasResolveResult {
+  uploadToken: string
+  resolvedRows: unknown[]
+  flaggedSessions: TasSession[]
+  usedFallbackHolidays: boolean
 }
 
 export type InactiveDecision = 'reactivate' | 'ignore'

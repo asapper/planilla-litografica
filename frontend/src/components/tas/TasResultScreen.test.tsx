@@ -23,10 +23,16 @@ describe('TasResultScreen', () => {
     expect(screen.getByText('Carga completada')).toBeInTheDocument();
   });
 
-  it('shows count of flagged sessions', () => {
-    useTasStore.getState().setFlaggedSessions([makeSession(1), makeSession(2), makeSession(3)]);
+  it('shows plural count of resolved rows', () => {
+    useTasStore.getState().setResolvedRowCount(3);
     render(<TasResultScreen />);
     expect(screen.getByText(/Se enviaron 3 registros\./)).toBeInTheDocument();
+  });
+
+  it('uses singular form for 1 resolved row', () => {
+    useTasStore.getState().setResolvedRowCount(1);
+    render(<TasResultScreen />);
+    expect(screen.getByText(/Se envió 1 registro\./)).toBeInTheDocument();
   });
 
   it('shows Nueva carga button', () => {

@@ -70,7 +70,20 @@ public class DataSourceConfig {
         return new JdbcTemplate(h2DataSource());
     }
 
+    @Bean("h2Migrator")
+    public DataSourceInitializer h2Migrator() {
+        ResourceDatabasePopulator pop = new ResourceDatabasePopulator(
+            new ClassPathResource("migrate-holiday-year.sql")
+        );
+        pop.setContinueOnError(true);
+        DataSourceInitializer initializer = new DataSourceInitializer();
+        initializer.setDataSource(h2DataSource());
+        initializer.setDatabasePopulator(pop);
+        return initializer;
+    }
+
     @Bean
+    @DependsOn("h2Migrator")
     public DataSourceInitializer h2Initializer() {
         DataSourceInitializer initializer = new DataSourceInitializer();
         initializer.setDataSource(h2DataSource());

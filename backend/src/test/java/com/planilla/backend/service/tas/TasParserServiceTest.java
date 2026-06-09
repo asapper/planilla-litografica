@@ -4,6 +4,9 @@ import com.planilla.backend.model.tas.TasScanRecord;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockMultipartFile;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -132,5 +135,45 @@ class TasParserServiceTest {
         TasParserService.ParseResult result = service.parse(csv(content));
 
         assertThat(result.scans.get(0).getEmployeeName()).isEqualTo("Morales Cifuentes Roberto");
+    }
+
+    private MockMultipartFile fileFromDocs(String filename) throws Exception {
+        Path path = Paths.get("../docs/" + filename);
+        byte[] bytes = Files.readAllBytes(path);
+        return new MockMultipartFile("file", filename, "text/csv", bytes);
+    }
+
+    @Test
+    void parse_realTasFile_danielMorales() throws Exception {
+        TasParserService.ParseResult result = service.parse(fileFromDocs("Reporte TAS Daniel Morales.csv"));
+        assertThat(result.scans).hasSize(28);
+        assertThat(result.warnings).isEmpty();
+        assertThat(result.scans.get(0).getEmployeeId()).isEqualTo("134");
+    }
+
+    @Test
+    void parse_realTasFile_marzo2026() throws Exception {
+        TasParserService.ParseResult result = service.parse(fileFromDocs("Reporte TAS Marzo 2026.csv"));
+        assertThat(result.scans).isNotEmpty();
+    }
+
+    @Test
+    void parse_realTasFile_marzoYAbril2026() throws Exception {
+        TasParserService.ParseResult result = service.parse(fileFromDocs("Reporte TAS Marzo y Abril 2026.csv"));
+        assertThat(result.scans).isNotEmpty();
+    }
+
+    @Test
+    void parse_quotedCsvFormat_parsesCorrectly() throws Exception {
+        String content =
+            "\"No.\",\"Fecha y hora\",\"Evento\",\"Nombre de usuario\",\"ID de usuario\"\n"
+            + "\"1\",\"2026/04/30 19:11\",\"1:N Autenticación exitosa (Rostro)\",\"Morales Cifuentes Roberto Daniel\",\"134\"\n"
+            + "\"2\",\"2026/04/30 08:51\",\"1:N Autenticación exitosa (Rostro)\",\"Morales Cifuentes Roberto Daniel\",\"134\"\n";
+
+        TasParserService.ParseResult result = service.parse(csv(content));
+
+        assertThat(result.scans).hasSize(2);
+        assertThat(result.warnings).isEmpty();
+        assertThat(result.scans.get(0).getEmployeeId()).isEqualTo("134");
     }
 }

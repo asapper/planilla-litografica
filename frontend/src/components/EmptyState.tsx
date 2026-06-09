@@ -1,11 +1,16 @@
 import { useRef, useState } from 'react';
 import { uploadCsv } from '../api';
 import { useStore } from '../store';
+import { isTasFile } from '../isTasFile';
 import ScreenLayout from './ui/ScreenLayout';
 import IconBadge from './ui/IconBadge';
 import AlertMessage from './ui/AlertMessage';
 
-export default function EmptyState() {
+interface Props {
+  onTasFile?: (file: File) => Promise<boolean>;
+}
+
+export default function EmptyState({ onTasFile }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
 
   const setLoaded = useStore(s => s.setLoaded);
@@ -16,6 +21,16 @@ export default function EmptyState() {
   const handleFile = async (file: File) => {
     setError(null);
     setLoading(true);
+    if (onTasFile && await isTasFile(file)) {
+      try {
+        await onTasFile(file);
+      } catch {
+        setError('No se pudo procesar el archivo TAS. Intente nuevamente.');
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
     try {
       const result = await uploadCsv(file);
       setLoaded(result.rows, result.monthOptions, result.multiMonth, result.parseWarnings, file.name);

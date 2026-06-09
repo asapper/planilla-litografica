@@ -37,7 +37,7 @@ public class TasParserService {
 
         Reader reader = new InputStreamReader(new ByteArrayInputStream(content), StandardCharsets.UTF_8);
 
-        CSVFormat format = CSVFormat.DEFAULT.builder()
+        CSVFormat format = CSVFormat.RFC4180.builder()
                 .setIgnoreEmptyLines(true)
                 .build();
 

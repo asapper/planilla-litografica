@@ -13,6 +13,7 @@ interface TasStore {
   processingMessage: string;
   flaggedSessions: TasSession[];
   resolvedSessions: Record<number, ResolvedSessionEntry>;
+  resolvedRowCount: number;
   inactiveEmployees: InactiveEmployee[];
   inactiveDecisions: Record<string, InactiveDecision>;
   absentEmployees: AbsentEmployee[];
@@ -27,6 +28,7 @@ interface TasStore {
   setFlaggedSessions: (sessions: TasSession[]) => void;
   setResolvedSession: (id: number, entry: ResolvedSessionEntry) => void;
   clearResolvedSessions: () => void;
+  setResolvedRowCount: (count: number) => void;
   setInactiveEmployees: (employees: InactiveEmployee[]) => void;
   setInactiveDecision: (employeeId: string, decision: InactiveDecision) => void;
   setAbsentEmployees: (employees: AbsentEmployee[]) => void;
@@ -43,6 +45,7 @@ const initialState = {
   processingMessage: '',
   flaggedSessions: [],
   resolvedSessions: {},
+  resolvedRowCount: 0,
   inactiveEmployees: [],
   inactiveDecisions: {},
   absentEmployees: [],
@@ -63,6 +66,7 @@ export const useTasStore = create<TasStore>(set => ({
     resolvedSessions: { ...s.resolvedSessions, [id]: entry },
   })),
   clearResolvedSessions: () => set({ resolvedSessions: {} }),
+  setResolvedRowCount: (count) => set({ resolvedRowCount: count }),
   setInactiveEmployees: (employees) => set({ inactiveEmployees: employees }),
   setInactiveDecision: (employeeId, decision) => set(s => ({
     inactiveDecisions: { ...s.inactiveDecisions, [employeeId]: decision },
