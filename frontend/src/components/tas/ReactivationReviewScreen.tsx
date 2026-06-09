@@ -13,6 +13,7 @@ export default function ReactivationReviewScreen() {
   const setInactiveEmployees = useTasStore(s => s.setInactiveEmployees);
   const setAbsentEmployees = useTasStore(s => s.setAbsentEmployees);
   const setUsedFallbackHolidays = useTasStore(s => s.setUsedFallbackHolidays);
+  const setResolvedRowCount = useTasStore(s => s.setResolvedRowCount);
   const setJobId           = useTasStore(s => s.setJobId);
   const setError           = useTasStore(s => s.setError);
 
@@ -32,6 +33,7 @@ export default function ReactivationReviewScreen() {
       const result = await submitInactiveReview(uploadToken, reactivate, ignore);
       setUploadToken(result.uploadToken);
       setFlaggedSessions(result.flaggedSessions);
+      setResolvedRowCount(result.resolvedRows?.length ?? 0);
       setInactiveEmployees(result.inactiveEmployeesFound);
       setAbsentEmployees(result.absentActiveEmployees);
       setUsedFallbackHolidays(result.usedFallbackHolidays);

@@ -3,7 +3,6 @@ import { useStore } from './store';
 import { checkHealth } from './api';
 import { uploadTasFile, submitTas } from './tasApi';
 import { useTasStore } from './tasStore';
-import { isTasFile } from './isTasFile';
 import EmptyState from './components/EmptyState';
 import TopAppBar from './components/TopAppBar';
 import QuincenaBanner from './components/QuincenaBanner';
@@ -46,8 +45,6 @@ export default function App() {
   const resetTas           = useTasStore(s => s.resetTas);
 
   const handleTasFile = async (file: File) => {
-    const isTas = await isTasFile(file);
-    if (!isTas) return false;
     setTasFileName(file.name);
     resetTas();
     setCurrentView('tas');

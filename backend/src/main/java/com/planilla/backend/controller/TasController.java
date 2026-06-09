@@ -284,7 +284,9 @@ public class TasController {
         body.put("uploadToken", token);
         body.put("resolvedRows", result.getResolvedRows());
         body.put("flaggedSessions", result.getFlaggedSessions());
-        body.put("inactiveEmployeesFound", Collections.emptyList());
+        body.put("inactiveEmployeesFound", result.getInactiveEmployeesFound() != null
+                ? result.getInactiveEmployeesFound()
+                : Collections.emptyList());
         body.put("warnings", result.getWarnings());
         body.put("usedFallbackHolidays", result.isUsedFallbackHolidays());
         body.put("absentActiveEmployees", result.getAbsentActiveEmployees());

@@ -21,7 +21,11 @@ export default function EmptyState({ onTasFile }: Props) {
   const handleFile = async (file: File) => {
     setError(null);
     if (onTasFile && await isTasFile(file)) {
-      await onTasFile(file);
+      try {
+        await onTasFile(file);
+      } catch {
+        setError('No se pudo procesar el archivo TAS. Intente nuevamente.');
+      }
       return;
     }
     setLoading(true);
