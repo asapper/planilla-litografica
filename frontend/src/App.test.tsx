@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, waitFor, act, fireEvent } from '@testing-library/react';
 import { useStore } from './store';
+import { useTasStore } from './tasStore';
 import type { SubmitResponse } from './types';
 
 // -----------------------------------------------------------------
@@ -15,11 +16,23 @@ vi.mock('./api', () => ({
   submitRows:   vi.fn(),
 }));
 
+const mockUploadTasFile = vi.hoisted(() => vi.fn());
+
+vi.mock('./tasApi', () => ({
+  uploadTasFile: mockUploadTasFile,
+}));
+
 // -----------------------------------------------------------------
 // Mock child components
 // -----------------------------------------------------------------
 vi.mock('./components/EmptyState', () => ({
-  default: () => <div data-testid="empty-state" />,
+  default: ({ onTasFile }: { onTasFile: (file: File) => void }) => (
+    <div data-testid="empty-state">
+      <button onClick={() => onTasFile(new File(['x'], 'scans.csv'))}>
+        Cargar TAS
+      </button>
+    </div>
+  ),
 }));
 vi.mock('./components/TopAppBar', () => ({
   default: () => <div data-testid="top-app-bar" />,
@@ -57,8 +70,17 @@ function makeRow() {
 
 beforeEach(() => {
   useStore.getState().reset();
+  useTasStore.getState().resetTas();
   // Default: health resolves immediately so routing tests don't stall
   mockCheckHealth.mockResolvedValue(undefined);
+  mockUploadTasFile.mockResolvedValue({
+    uploadToken: 'token-1',
+    flaggedSessions: [],
+    resolvedRows: [],
+    inactiveEmployeesFound: [],
+    absentActiveEmployees: [],
+    usedFallbackHolidays: false,
+  });
 });
 
 afterEach(() => {
@@ -166,5 +188,25 @@ describe('App state routing', () => {
     render(<App />);
     await waitFor(() => expect(screen.getByTestId('top-app-bar')).toBeInTheDocument());
     expect(screen.queryByText('Enviando...')).not.toBeInTheDocument();
+  });
+});
+
+// -----------------------------------------------------------------
+// TAS "Nueva carga" reset routing
+// -----------------------------------------------------------------
+
+describe('TAS Nueva carga redirect', () => {
+  it('returns to the upload screen after the TAS session is reset', async () => {
+    render(<App />);
+    await waitFor(() => expect(screen.getByTestId('empty-state')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('button', { name: /cargar tas/i }));
+
+    await waitFor(() => expect(useTasStore.getState().tasView).toBe('review'));
+    expect(screen.queryByTestId('empty-state')).not.toBeInTheDocument();
+
+    act(() => useTasStore.getState().resetTas());
+
+    await waitFor(() => expect(screen.getByTestId('empty-state')).toBeInTheDocument());
   });
 });
