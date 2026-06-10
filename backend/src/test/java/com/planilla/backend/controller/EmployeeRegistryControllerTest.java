@@ -88,6 +88,30 @@ class EmployeeRegistryControllerTest {
     }
 
     @Test
+    void update_returns400WhenNoFieldsProvided() throws Exception {
+        mvc.perform(put("/api/config/employees/emp1")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{}"))
+           .andExpect(status().isBadRequest())
+           .andExpect(jsonPath("$.code").value("NO_FIELDS_TO_UPDATE"));
+
+        verify(employeeRegistryService, never()).updateEmployee(any(), any(), any());
+    }
+
+    @Test
+    void update_returns404WhenEmployeeNotFound() throws Exception {
+        when(employeeRegistryService.updateEmployee("ghost", "tarde", null)).thenReturn(null);
+
+        Map<String, Object> body = Map.of("shiftId", "tarde");
+
+        mvc.perform(put("/api/config/employees/ghost")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(body)))
+           .andExpect(status().isNotFound())
+           .andExpect(jsonPath("$.code").value("EMPLOYEE_NOT_FOUND"));
+    }
+
+    @Test
     void bulkAssign_returns200OnSuccess() throws Exception {
         Map<String, Object> body = Map.of("employeeIds", List.of("e1", "e2"), "shiftId", "noche");
 
@@ -137,6 +161,15 @@ class EmployeeRegistryControllerTest {
            .andExpect(jsonPath("$.active").value(false));
 
         verify(employeeRegistryService).setActive(eq("emp1"), eq(false));
+    }
+
+    @Test
+    void deactivate_returns404WhenEmployeeNotFound() throws Exception {
+        when(employeeRegistryService.setActive("ghost", false)).thenReturn(null);
+
+        mvc.perform(post("/api/config/employees/ghost/deactivate"))
+           .andExpect(status().isNotFound())
+           .andExpect(jsonPath("$.code").value("EMPLOYEE_NOT_FOUND"));
     }
 
     @Test
