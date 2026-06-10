@@ -3,7 +3,7 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import TopAppBar from './TopAppBar';
 import type { AppView } from '../types';
 
-const noop = vi.fn<[AppView], void>();
+const noop = vi.fn<(view: AppView) => void>();
 
 describe('TopAppBar', () => {
   it('renders the app title', () => {
