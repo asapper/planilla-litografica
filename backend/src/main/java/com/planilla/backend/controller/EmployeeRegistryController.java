@@ -34,8 +34,8 @@ public class EmployeeRegistryController {
         Boolean active = body.containsKey("active") ? (Boolean) body.get("active") : null;
 
         try {
-            employeeRegistryService.updateEmployee(id, shiftId, active);
-            return ResponseEntity.ok().build();
+            Map<String, Object> updated = employeeRegistryService.updateEmployee(id, shiftId, active);
+            return ResponseEntity.ok(updated);
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(error(400, "UPDATE_FAILED", e.getMessage()));
         }
@@ -62,8 +62,8 @@ public class EmployeeRegistryController {
     @PostMapping("/{id}/deactivate")
     public ResponseEntity<?> deactivate(@PathVariable String id) {
         try {
-            employeeRegistryService.setActive(id, false);
-            return ResponseEntity.ok().build();
+            Map<String, Object> updated = employeeRegistryService.setActive(id, false);
+            return ResponseEntity.ok(updated);
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(error(400, "DEACTIVATE_FAILED", e.getMessage()));
         }
