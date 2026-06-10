@@ -10,9 +10,9 @@ const mockGetShifts      = vi.mocked(configApi.getShifts);
 const mockUpdateEmployee = vi.mocked(configApi.updateEmployee);
 const mockBulkAssign     = vi.mocked(configApi.bulkAssignShift);
 
-const shift1 = { id: 1, name: 'Diurno', startTime: '08:00', endTime: '17:00', crossMidnight: false };
-const emp1 = { id: 1, code: 'EMP001', name: 'Ana García', shiftId: 1, shiftName: 'Diurno', active: true };
-const emp2 = { id: 2, code: 'EMP002', name: 'Carlos López', shiftId: null, shiftName: null, active: false };
+const shift1 = { id: 'manana', name: 'Diurno', startTime: '08:00', endTime: '17:00', crossMidnight: false };
+const emp1 = { id: 'emp1', code: 'EMP001', name: 'Ana García', shiftId: 'manana', shiftName: 'Diurno', active: true };
+const emp2 = { id: 'emp2', code: 'EMP002', name: 'Carlos López', shiftId: null, shiftName: null, active: false };
 
 const { default: EmployeesTab } = await import('./EmployeesTab');
 
@@ -167,10 +167,10 @@ describe('EmployeesTab bulk assign', () => {
     fireEvent.click(screen.getByLabelText('Seleccionar Ana García'));
 
     const dropdown = screen.getByLabelText(/turno para asignación masiva/i);
-    fireEvent.change(dropdown, { target: { value: '1' } });
+    fireEvent.change(dropdown, { target: { value: 'manana' } });
 
     fireEvent.click(screen.getByRole('button', { name: /aplicar/i }));
-    await waitFor(() => expect(mockBulkAssign).toHaveBeenCalledWith([1], 1));
+    await waitFor(() => expect(mockBulkAssign).toHaveBeenCalledWith(['emp1'], 'manana'));
   });
 
   it('shows toast after successful bulk assign', async () => {
@@ -180,7 +180,7 @@ describe('EmployeesTab bulk assign', () => {
 
     fireEvent.click(screen.getByLabelText('Seleccionar Ana García'));
     const dropdown = screen.getByLabelText(/turno para asignación masiva/i);
-    fireEvent.change(dropdown, { target: { value: '1' } });
+    fireEvent.change(dropdown, { target: { value: 'manana' } });
     fireEvent.click(screen.getByRole('button', { name: /aplicar/i }));
 
     await waitFor(() => expect(useConfigStore.getState().toastVisible).toBe(true));
@@ -199,7 +199,7 @@ describe('EmployeesTab active toggle', () => {
 
     const toggles = screen.getAllByRole('switch');
     fireEvent.click(toggles[0]);
-    await waitFor(() => expect(mockUpdateEmployee).toHaveBeenCalledWith(1, { active: false }));
+    await waitFor(() => expect(mockUpdateEmployee).toHaveBeenCalledWith('emp1', { active: false }));
   });
 
   it('shows toast after successful active toggle', async () => {
@@ -211,7 +211,7 @@ describe('EmployeesTab active toggle', () => {
   });
 
   it('shows reactivation note when activating employee with no shift', async () => {
-    const empNoShift = { id: 3, code: 'EMP003', name: 'Pedro', shiftId: null, shiftName: null, active: false };
+    const empNoShift = { id: 'emp3', code: 'EMP003', name: 'Pedro', shiftId: null, shiftName: null, active: false };
     mockGetEmployees.mockResolvedValue([empNoShift]);
     mockUpdateEmployee.mockResolvedValue({ ...empNoShift, active: true });
     render(<EmployeesTab />);
@@ -221,7 +221,7 @@ describe('EmployeesTab active toggle', () => {
   });
 
   it('reactivation note can be dismissed', async () => {
-    const empNoShift = { id: 3, code: 'EMP003', name: 'Pedro', shiftId: null, shiftName: null, active: false };
+    const empNoShift = { id: 'emp3', code: 'EMP003', name: 'Pedro', shiftId: null, shiftName: null, active: false };
     mockGetEmployees.mockResolvedValue([empNoShift]);
     mockUpdateEmployee.mockResolvedValue({ ...empNoShift, active: true });
     render(<EmployeesTab />);

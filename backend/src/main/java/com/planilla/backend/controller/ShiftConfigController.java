@@ -29,15 +29,17 @@ public class ShiftConfigController {
 
     @PostMapping
     public ResponseEntity<?> create(@RequestBody Map<String, Object> body) {
-        String id = (String) body.get("id");
         String name = (String) body.get("name");
         String startTime = (String) body.get("startTime");
         String endTime = (String) body.get("endTime");
         Boolean crossMidnight = body.containsKey("crossMidnight") ? (Boolean) body.get("crossMidnight") : false;
 
         try {
-            shiftConfigService.createShift(id, name, startTime, endTime, crossMidnight != null && crossMidnight);
-            return ResponseEntity.ok().build();
+            Map<String, Object> created = shiftConfigService.createShift(name, startTime, endTime, crossMidnight != null && crossMidnight);
+            if (created == null) {
+                return ResponseEntity.internalServerError().body(error(500, "NOT_FOUND_AFTER_WRITE", "Shift created but could not be retrieved"));
+            }
+            return ResponseEntity.ok(created);
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(error(400, "CREATE_FAILED", e.getMessage()));
         }
@@ -51,8 +53,11 @@ public class ShiftConfigController {
         Boolean crossMidnight = body.containsKey("crossMidnight") ? (Boolean) body.get("crossMidnight") : false;
 
         try {
-            shiftConfigService.updateShift(id, name, startTime, endTime, crossMidnight != null && crossMidnight);
-            return ResponseEntity.ok().build();
+            Map<String, Object> updated = shiftConfigService.updateShift(id, name, startTime, endTime, crossMidnight != null && crossMidnight);
+            if (updated == null) {
+                return ResponseEntity.internalServerError().body(error(500, "NOT_FOUND_AFTER_WRITE", "Shift updated but could not be retrieved"));
+            }
+            return ResponseEntity.ok(updated);
         } catch (IllegalArgumentException e) {
             return ResponseEntity.status(404).body(error(404, e.getMessage(), "Shift not found"));
         } catch (Exception e) {

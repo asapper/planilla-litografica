@@ -1,5 +1,5 @@
 export interface Shift {
-  id: number;
+  id: string;
   name: string;
   startTime: string;
   endTime: string;
@@ -7,10 +7,10 @@ export interface Shift {
 }
 
 export interface Employee {
-  id: number;
+  id: string;
   code: string;
   name: string;
-  shiftId: number | null;
+  shiftId: string | null;
   shiftName: string | null;
   active: boolean;
 }

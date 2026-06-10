@@ -31,8 +31,8 @@ public class HolidayController {
         String name = (String) body.get("name");
 
         try {
-            holidayService.addManualHoliday(date, name);
-            return ResponseEntity.ok().build();
+            Map<String, Object> created = holidayService.addManualHoliday(date, name);
+            return ResponseEntity.ok(created);
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(error(400, "ADD_FAILED", e.getMessage()));
         }

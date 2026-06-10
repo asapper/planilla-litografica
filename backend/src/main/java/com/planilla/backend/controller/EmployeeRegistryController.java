@@ -33,9 +33,16 @@ public class EmployeeRegistryController {
         String shiftId = (String) body.get("shiftId");
         Boolean active = body.containsKey("active") ? (Boolean) body.get("active") : null;
 
+        if (shiftId == null && active == null) {
+            return ResponseEntity.badRequest().body(error(400, "NO_FIELDS_TO_UPDATE", "No fields provided to update"));
+        }
+
         try {
-            employeeRegistryService.updateEmployee(id, shiftId, active);
-            return ResponseEntity.ok().build();
+            Map<String, Object> updated = employeeRegistryService.updateEmployee(id, shiftId, active);
+            if (updated == null) {
+                return ResponseEntity.status(404).body(error(404, "EMPLOYEE_NOT_FOUND", "Employee not found"));
+            }
+            return ResponseEntity.ok(updated);
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(error(400, "UPDATE_FAILED", e.getMessage()));
         }
@@ -62,8 +69,11 @@ public class EmployeeRegistryController {
     @PostMapping("/{id}/deactivate")
     public ResponseEntity<?> deactivate(@PathVariable String id) {
         try {
-            employeeRegistryService.setActive(id, false);
-            return ResponseEntity.ok().build();
+            Map<String, Object> updated = employeeRegistryService.setActive(id, false);
+            if (updated == null) {
+                return ResponseEntity.status(404).body(error(404, "EMPLOYEE_NOT_FOUND", "Employee not found"));
+            }
+            return ResponseEntity.ok(updated);
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(error(400, "DEACTIVATE_FAILED", e.getMessage()));
         }

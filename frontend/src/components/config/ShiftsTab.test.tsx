@@ -10,8 +10,8 @@ const mockCreateShift = vi.mocked(configApi.createShift);
 const mockUpdateShift = vi.mocked(configApi.updateShift);
 const mockDeleteShift = vi.mocked(configApi.deleteShift);
 
-const shift1 = { id: 1, name: 'Diurno', startTime: '08:00', endTime: '17:00', crossMidnight: false };
-const shift2 = { id: 2, name: 'Nocturno', startTime: '22:00', endTime: '06:00', crossMidnight: true };
+const shift1 = { id: 'manana', name: 'Diurno', startTime: '08:00', endTime: '17:00', crossMidnight: false };
+const shift2 = { id: 'nocturno', name: 'Nocturno', startTime: '22:00', endTime: '06:00', crossMidnight: true };
 
 const { default: ShiftsTab } = await import('./ShiftsTab');
 
@@ -177,7 +177,7 @@ describe('ShiftsTab delete', () => {
     render(<ShiftsTab />);
     await waitFor(() => screen.getByDisplayValue('Diurno'));
     fireEvent.click(screen.getByRole('button', { name: /eliminar turno/i }));
-    await waitFor(() => expect(mockDeleteShift).toHaveBeenCalledWith(1));
+    await waitFor(() => expect(mockDeleteShift).toHaveBeenCalledWith('manana'));
   });
 
   it('removes shift from table after successful delete', async () => {
@@ -219,7 +219,7 @@ describe('ShiftsTab add shift', () => {
   });
 
   it('calls createShift when form is filled and add button clicked', async () => {
-    mockCreateShift.mockResolvedValue({ id: 3, name: 'Tarde', startTime: '14:00', endTime: '22:00', crossMidnight: false });
+    mockCreateShift.mockResolvedValue({ id: 'tarde', name: 'Tarde', startTime: '14:00', endTime: '22:00', crossMidnight: false });
     render(<ShiftsTab />);
     await waitFor(() => screen.getByDisplayValue('Diurno'));
 
@@ -234,7 +234,7 @@ describe('ShiftsTab add shift', () => {
   });
 
   it('shows new shift in table after successful add', async () => {
-    mockCreateShift.mockResolvedValue({ id: 3, name: 'Tarde', startTime: '14:00', endTime: '22:00', crossMidnight: false });
+    mockCreateShift.mockResolvedValue({ id: 'tarde', name: 'Tarde', startTime: '14:00', endTime: '22:00', crossMidnight: false });
     render(<ShiftsTab />);
     await waitFor(() => screen.getByDisplayValue('Diurno'));
 

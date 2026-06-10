@@ -18,11 +18,11 @@ export default function EmployeesTab() {
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState<FilterStatus>('all');
-  const [filterShiftId, setFilterShiftId] = useState<number | ''>('');
-  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
-  const [bulkShiftId, setBulkShiftId] = useState<number | ''>('');
-  const [reactivationNotes, setReactivationNotes] = useState<Set<number>>(new Set());
-  const [dismissedNotes, setDismissedNotes] = useState<Set<number>>(new Set());
+  const [filterShiftId, setFilterShiftId] = useState<string | ''>('');
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkShiftId, setBulkShiftId] = useState<string | ''>('');
+  const [reactivationNotes, setReactivationNotes] = useState<Set<string>>(new Set());
+  const [dismissedNotes, setDismissedNotes] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     setEmployeesLoading(true);
@@ -51,7 +51,7 @@ export default function EmployeesTab() {
     return true;
   });
 
-  const toggleSelect = (id: number) => {
+  const toggleSelect = (id: string) => {
     setSelectedIds(prev => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
@@ -68,7 +68,7 @@ export default function EmployeesTab() {
     }
   };
 
-  const handleShiftChange = async (id: number, shiftId: number | null) => {
+  const handleShiftChange = async (id: string, shiftId: string | null) => {
     try {
       const updated = await updateEmployee(id, { shiftId });
       setEmployeesData(employees.map(e => e.id === id ? updated : e));
@@ -94,10 +94,10 @@ export default function EmployeesTab() {
   const handleBulkAssign = async () => {
     if (bulkShiftId === '' || selectedIds.size === 0) return;
     try {
-      await bulkAssignShift([...selectedIds], bulkShiftId as number);
+      await bulkAssignShift([...selectedIds], bulkShiftId as string);
       const shiftName = shifts.find(s => s.id === bulkShiftId)?.name ?? null;
       setEmployeesData(employees.map(e =>
-        selectedIds.has(e.id) ? { ...e, shiftId: bulkShiftId as number, shiftName } : e
+        selectedIds.has(e.id) ? { ...e, shiftId: bulkShiftId as string, shiftName } : e
       ));
       setSelectedIds(new Set());
       setBulkShiftId('');
@@ -153,7 +153,7 @@ export default function EmployeesTab() {
           <label className="text-sm text-gray-600">Turno:</label>
           <select
             value={filterShiftId}
-            onChange={e => setFilterShiftId(e.target.value === '' ? '' : Number(e.target.value))}
+            onChange={e => setFilterShiftId(e.target.value === '' ? '' : e.target.value)}
             className="border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:border-blue-500"
           >
             <option value="">Todos</option>
@@ -169,7 +169,7 @@ export default function EmployeesTab() {
           <span className="text-sm text-blue-700">{selectedIds.size} seleccionado(s)</span>
           <select
             value={bulkShiftId}
-            onChange={e => setBulkShiftId(e.target.value === '' ? '' : Number(e.target.value))}
+            onChange={e => setBulkShiftId(e.target.value === '' ? '' : e.target.value)}
             className="border border-blue-300 rounded px-2 py-1 text-sm focus:outline-none focus:border-blue-500"
             aria-label="Turno para asignación masiva"
           >
@@ -228,7 +228,7 @@ export default function EmployeesTab() {
                     <td className="px-4 py-2">
                       <select
                         value={emp.shiftId ?? ''}
-                        onChange={e => handleShiftChange(emp.id, e.target.value === '' ? null : Number(e.target.value))}
+                        onChange={e => handleShiftChange(emp.id, e.target.value === '' ? null : e.target.value)}
                         className="border border-gray-200 rounded px-2 py-1 text-sm focus:outline-none focus:border-blue-500"
                         aria-label={`Turno de ${emp.name}`}
                       >

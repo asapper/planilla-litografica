@@ -51,21 +51,60 @@ class HolidayServiceTest {
     }
 
     @Test
-    void getHolidaysForYear_queriesForCorrectYear() {
-        List<Map<String, Object>> expected = List.of(Map.of("holiday_date", "2024-01-01", "name", "Año Nuevo"));
-        when(jdbc.queryForList(anyString(), eq(2024))).thenReturn(expected);
+    void getHolidaysForYear_mapsRowsToCamelCaseDto() {
+        Map<String, Object> row = new java.util.HashMap<>();
+        row.put("ID", 1L);
+        row.put("HOLIDAY_DATE", java.sql.Date.valueOf("2024-01-01"));
+        row.put("NAME", "Año Nuevo");
+        row.put("HOLIDAY_YEAR", 2024);
+        row.put("SOURCE", "API");
+        when(jdbc.queryForList(anyString(), eq(2024))).thenReturn(List.of(row));
 
         List<Map<String, Object>> result = service.getHolidaysForYear(2024);
 
-        assertThat(result).isEqualTo(expected);
-        verify(jdbc).queryForList(anyString(), eq(2024));
+        assertThat(result).hasSize(1);
+        Map<String, Object> dto = result.get(0);
+        assertThat(dto.get("id")).isEqualTo(1L);
+        assertThat(dto.get("date")).isEqualTo("2024-01-01");
+        assertThat(dto.get("name")).isEqualTo("Año Nuevo");
+        assertThat(dto.get("source")).isEqualTo("API");
     }
 
     @Test
-    void addManualHoliday_insertsWithManualSource() {
-        service.addManualHoliday("2024-12-25", "Navidad");
+    void getHolidaysForYear_mapsManualAndBundledSourceToManual() {
+        Map<String, Object> manualRow = new java.util.HashMap<>();
+        manualRow.put("ID", 2L);
+        manualRow.put("HOLIDAY_DATE", java.sql.Date.valueOf("2024-07-04"));
+        manualRow.put("NAME", "Feriado Manual");
+        manualRow.put("HOLIDAY_YEAR", 2024);
+        manualRow.put("SOURCE", "MANUAL");
+
+        Map<String, Object> bundledRow = new java.util.HashMap<>();
+        bundledRow.put("ID", 3L);
+        bundledRow.put("HOLIDAY_DATE", java.sql.Date.valueOf("2024-12-25"));
+        bundledRow.put("NAME", "Navidad");
+        bundledRow.put("HOLIDAY_YEAR", 2024);
+        bundledRow.put("SOURCE", "BUNDLED");
+
+        when(jdbc.queryForList(anyString(), eq(2024))).thenReturn(List.of(manualRow, bundledRow));
+
+        List<Map<String, Object>> result = service.getHolidaysForYear(2024);
+
+        assertThat(result.get(0).get("source")).isEqualTo("Manual");
+        assertThat(result.get(1).get("source")).isEqualTo("Manual");
+    }
+
+    @Test
+    void addManualHoliday_insertsAndReturnsCreatedDto() {
+        when(jdbc.queryForMap(anyString(), eq(java.sql.Date.valueOf("2024-12-25"))))
+            .thenReturn(Map.of("ID", 5L, "HOLIDAY_DATE", java.sql.Date.valueOf("2024-12-25"), "NAME", "Navidad", "HOLIDAY_YEAR", 2024, "SOURCE", "MANUAL"));
+
+        Map<String, Object> created = service.addManualHoliday("2024-12-25", "Navidad");
 
         verify(jdbc).update(contains("INSERT INTO holiday_cache"), any(), eq("Navidad"), eq(2024));
+        assertThat(created.get("id")).isEqualTo(5L);
+        assertThat(created.get("date")).isEqualTo("2024-12-25");
+        assertThat(created.get("source")).isEqualTo("Manual");
     }
 
     @Test

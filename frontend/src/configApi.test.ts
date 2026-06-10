@@ -24,8 +24,8 @@ const {
   getGeneralConfig, updateGeneralConfig,
 } = await import('./configApi');
 
-const shift: Shift = { id: 1, name: 'Diurno', startTime: '08:00', endTime: '17:00', crossMidnight: false };
-const employee: Employee = { id: 1, code: 'EMP001', name: 'Ana García', shiftId: 1, shiftName: 'Diurno', active: true };
+const shift: Shift = { id: 'manana', name: 'Diurno', startTime: '08:00', endTime: '17:00', crossMidnight: false };
+const employee: Employee = { id: 'emp1', code: 'EMP001', name: 'Ana García', shiftId: 'manana', shiftName: 'Diurno', active: true };
 const holiday: Holiday = { id: 1, date: '2026-01-01', name: 'Año Nuevo', source: 'API' };
 const generalConfig: GeneralConfig = { legalBreakAllowanceMinutes: 45 };
 
@@ -72,27 +72,27 @@ describe('createShift', () => {
 describe('updateShift', () => {
   it('puts to /config/shifts/{id} and returns updated shift', async () => {
     mockPut.mockResolvedValue({ data: shift });
-    const result = await updateShift(1, { name: 'Nuevo' });
-    expect(mockPut).toHaveBeenCalledWith('/config/shifts/1', { name: 'Nuevo' });
+    const result = await updateShift('manana', { name: 'Nuevo' });
+    expect(mockPut).toHaveBeenCalledWith('/config/shifts/manana', { name: 'Nuevo' });
     expect(result).toEqual(shift);
   });
 
   it('propagates errors', async () => {
     mockPut.mockRejectedValue(new Error('not found'));
-    await expect(updateShift(999, { name: 'X' })).rejects.toThrow('not found');
+    await expect(updateShift('nonexistent', { name: 'X' })).rejects.toThrow('not found');
   });
 });
 
 describe('deleteShift', () => {
   it('deletes /config/shifts/{id} and resolves to undefined', async () => {
     mockDelete.mockResolvedValue({});
-    await expect(deleteShift(1)).resolves.toBeUndefined();
-    expect(mockDelete).toHaveBeenCalledWith('/config/shifts/1');
+    await expect(deleteShift('manana')).resolves.toBeUndefined();
+    expect(mockDelete).toHaveBeenCalledWith('/config/shifts/manana');
   });
 
   it('propagates 409 error when shift has active employees', async () => {
     mockDelete.mockRejectedValue({ response: { status: 409, data: { error: 'SHIFT_HAS_ACTIVE_EMPLOYEES' } } });
-    await expect(deleteShift(1)).rejects.toBeDefined();
+    await expect(deleteShift('manana')).rejects.toBeDefined();
   });
 });
 
@@ -110,9 +110,9 @@ describe('getEmployees', () => {
 
   it('passes query params when provided', async () => {
     mockGet.mockResolvedValue({ data: [] });
-    await getEmployees({ active: true, shiftId: 1, search: 'ana' });
+    await getEmployees({ active: true, shiftId: 'manana', search: 'ana' });
     expect(mockGet).toHaveBeenCalledWith('/config/employees', {
-      params: { active: true, shiftId: 1, search: 'ana' },
+      params: { active: true, shiftId: 'manana', search: 'ana' },
     });
   });
 });
@@ -120,8 +120,8 @@ describe('getEmployees', () => {
 describe('updateEmployee', () => {
   it('puts to /config/employees/{id} and returns updated employee', async () => {
     mockPut.mockResolvedValue({ data: employee });
-    const result = await updateEmployee(1, { shiftId: 2 });
-    expect(mockPut).toHaveBeenCalledWith('/config/employees/1', { shiftId: 2 });
+    const result = await updateEmployee('emp1', { shiftId: 'nocturno' });
+    expect(mockPut).toHaveBeenCalledWith('/config/employees/emp1', { shiftId: 'nocturno' });
     expect(result).toEqual(employee);
   });
 });
@@ -129,16 +129,16 @@ describe('updateEmployee', () => {
 describe('bulkAssignShift', () => {
   it('posts to /config/employees/bulk-assign and resolves to undefined', async () => {
     mockPost.mockResolvedValue({});
-    await expect(bulkAssignShift([1, 2], 3)).resolves.toBeUndefined();
-    expect(mockPost).toHaveBeenCalledWith('/config/employees/bulk-assign', { employeeIds: [1, 2], shiftId: 3 });
+    await expect(bulkAssignShift(['emp1', 'emp2'], 'nocturno')).resolves.toBeUndefined();
+    expect(mockPost).toHaveBeenCalledWith('/config/employees/bulk-assign', { employeeIds: ['emp1', 'emp2'], shiftId: 'nocturno' });
   });
 });
 
 describe('deactivateEmployee', () => {
   it('posts to /config/employees/{id}/deactivate and resolves to undefined', async () => {
     mockPost.mockResolvedValue({});
-    await expect(deactivateEmployee(5)).resolves.toBeUndefined();
-    expect(mockPost).toHaveBeenCalledWith('/config/employees/5/deactivate');
+    await expect(deactivateEmployee('emp1')).resolves.toBeUndefined();
+    expect(mockPost).toHaveBeenCalledWith('/config/employees/emp1/deactivate');
   });
 });
 

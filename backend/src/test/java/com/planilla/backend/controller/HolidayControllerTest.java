@@ -37,24 +37,30 @@ class HolidayControllerTest {
     @Test
     void getForYear_returns200WithHolidays() throws Exception {
         when(holidayService.getHolidaysForYear(2024)).thenReturn(
-            List.of(Map.of("holiday_date", "2024-01-01", "name", "Año Nuevo"))
+            List.of(Map.of("id", 1L, "date", "2024-01-01", "name", "Año Nuevo", "source", "API"))
         );
 
         mvc.perform(get("/api/config/holidays?year=2024"))
            .andExpect(status().isOk())
+           .andExpect(jsonPath("$[0].date").value("2024-01-01"))
            .andExpect(jsonPath("$[0].name").value("Año Nuevo"));
 
         verify(holidayService).getHolidaysForYear(2024);
     }
 
     @Test
-    void addManual_returns200OnSuccess() throws Exception {
+    void addManual_returns200WithCreatedHoliday() throws Exception {
         Map<String, Object> body = Map.of("date", "2024-12-31", "name", "Fin de Año");
+        when(holidayService.addManualHoliday("2024-12-31", "Fin de Año")).thenReturn(
+            Map.of("id", 7L, "date", "2024-12-31", "name", "Fin de Año", "source", "Manual")
+        );
 
         mvc.perform(post("/api/config/holidays")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(mapper.writeValueAsString(body)))
-           .andExpect(status().isOk());
+           .andExpect(status().isOk())
+           .andExpect(jsonPath("$.id").value(7))
+           .andExpect(jsonPath("$.source").value("Manual"));
 
         verify(holidayService).addManualHoliday(eq("2024-12-31"), eq("Fin de Año"));
     }

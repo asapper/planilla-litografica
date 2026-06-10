@@ -37,12 +37,14 @@ class EmployeeRegistryControllerTest {
     @Test
     void getAll_returns200WithEmployees() throws Exception {
         when(employeeRegistryService.getAll(any(), any(), any())).thenReturn(
-            List.of(Map.of("employee_id", "emp1", "name", "Ana"))
+            List.of(Map.of("id", "emp1", "code", "emp1", "name", "Ana", "shiftId", "manana", "shiftName", "Mañana", "active", true))
         );
 
         mvc.perform(get("/api/config/employees"))
            .andExpect(status().isOk())
-           .andExpect(jsonPath("$[0].employee_id").value("emp1"));
+           .andExpect(jsonPath("$[0].id").value("emp1"))
+           .andExpect(jsonPath("$[0].code").value("emp1"))
+           .andExpect(jsonPath("$[0].shiftName").value("Mañana"));
     }
 
     @Test
@@ -56,13 +58,17 @@ class EmployeeRegistryControllerTest {
     }
 
     @Test
-    void update_returns200OnSuccess() throws Exception {
+    void update_returns200WithUpdatedEmployee() throws Exception {
         Map<String, Object> body = Map.of("shiftId", "tarde", "active", true);
+        when(employeeRegistryService.updateEmployee("emp1", "tarde", true)).thenReturn(
+            Map.of("id", "emp1", "code", "emp1", "name", "Ana", "shiftId", "tarde", "shiftName", "Tarde", "active", true)
+        );
 
         mvc.perform(put("/api/config/employees/emp1")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(mapper.writeValueAsString(body)))
-           .andExpect(status().isOk());
+           .andExpect(status().isOk())
+           .andExpect(jsonPath("$.shiftId").value("tarde"));
 
         verify(employeeRegistryService).updateEmployee(eq("emp1"), eq("tarde"), eq(true));
     }
@@ -79,6 +85,30 @@ class EmployeeRegistryControllerTest {
                 .content(mapper.writeValueAsString(body)))
            .andExpect(status().isBadRequest())
            .andExpect(jsonPath("$.code").value("UPDATE_FAILED"));
+    }
+
+    @Test
+    void update_returns400WhenNoFieldsProvided() throws Exception {
+        mvc.perform(put("/api/config/employees/emp1")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{}"))
+           .andExpect(status().isBadRequest())
+           .andExpect(jsonPath("$.code").value("NO_FIELDS_TO_UPDATE"));
+
+        verify(employeeRegistryService, never()).updateEmployee(any(), any(), any());
+    }
+
+    @Test
+    void update_returns404WhenEmployeeNotFound() throws Exception {
+        when(employeeRegistryService.updateEmployee("ghost", "tarde", null)).thenReturn(null);
+
+        Map<String, Object> body = Map.of("shiftId", "tarde");
+
+        mvc.perform(put("/api/config/employees/ghost")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(body)))
+           .andExpect(status().isNotFound())
+           .andExpect(jsonPath("$.code").value("EMPLOYEE_NOT_FOUND"));
     }
 
     @Test
@@ -121,11 +151,25 @@ class EmployeeRegistryControllerTest {
     }
 
     @Test
-    void deactivate_returns200OnSuccess() throws Exception {
+    void deactivate_returns200WithUpdatedEmployee() throws Exception {
+        when(employeeRegistryService.setActive("emp1", false)).thenReturn(
+            Map.of("id", "emp1", "code", "emp1", "name", "Ana", "shiftId", "manana", "shiftName", "Mañana", "active", false)
+        );
+
         mvc.perform(post("/api/config/employees/emp1/deactivate"))
-           .andExpect(status().isOk());
+           .andExpect(status().isOk())
+           .andExpect(jsonPath("$.active").value(false));
 
         verify(employeeRegistryService).setActive(eq("emp1"), eq(false));
+    }
+
+    @Test
+    void deactivate_returns404WhenEmployeeNotFound() throws Exception {
+        when(employeeRegistryService.setActive("ghost", false)).thenReturn(null);
+
+        mvc.perform(post("/api/config/employees/ghost/deactivate"))
+           .andExpect(status().isNotFound())
+           .andExpect(jsonPath("$.code").value("EMPLOYEE_NOT_FOUND"));
     }
 
     @Test
