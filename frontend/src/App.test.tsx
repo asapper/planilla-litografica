@@ -1,19 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, waitFor, act, fireEvent } from '@testing-library/react';
-import { useStore } from './store';
 import { useTasStore } from './tasStore';
-import type { SubmitResponse } from './types';
 
-// -----------------------------------------------------------------
-// Mock api — checkHealth controls startup flow
-// -----------------------------------------------------------------
 const mockCheckHealth = vi.hoisted(() => vi.fn());
 
 vi.mock('./api', () => ({
-  checkHealth:  mockCheckHealth,
-  uploadCsv:    vi.fn(),
-  validateRows: vi.fn(),
-  submitRows:   vi.fn(),
+  checkHealth: mockCheckHealth,
 }));
 
 const mockUploadTasFile = vi.hoisted(() => vi.fn());
@@ -22,9 +14,6 @@ vi.mock('./tasApi', () => ({
   uploadTasFile: mockUploadTasFile,
 }));
 
-// -----------------------------------------------------------------
-// Mock child components
-// -----------------------------------------------------------------
 vi.mock('./components/EmptyState', () => ({
   default: ({ onTasFile }: { onTasFile: (file: File) => void }) => (
     <div data-testid="empty-state">
@@ -37,20 +26,11 @@ vi.mock('./components/EmptyState', () => ({
 vi.mock('./components/TopAppBar', () => ({
   default: () => <div data-testid="top-app-bar" />,
 }));
-vi.mock('./components/QuincenaBanner', () => ({
-  default: () => <div data-testid="quincena-banner" />,
-}));
-vi.mock('./components/DataGrid', () => ({
-  default: () => <div data-testid="data-grid" />,
-}));
-vi.mock('./components/ActionBar', () => ({
-  default: () => <div data-testid="action-bar" />,
-}));
-vi.mock('./components/ResultScreen', () => ({
-  default: () => <div data-testid="result-screen" />,
-}));
 vi.mock('./components/ConfigPage', () => ({
   default: () => <div data-testid="config-page" />,
+}));
+vi.mock('./components/tas/TasUploadFlow', () => ({
+  default: () => <div data-testid="tas-upload-flow" />,
 }));
 vi.mock('./components/ErrorBoundary', () => ({
   default: ({ children }: { children: React.ReactNode }) => <>{children}</>,
@@ -58,20 +38,8 @@ vi.mock('./components/ErrorBoundary', () => ({
 
 const { default: App } = await import('./App');
 
-const DEC_2024 = { mes: 12, anio: 2024 };
-
-function makeRow() {
-  return {
-    codigoEmpleado: '1', nombreEmpleado: 'A',
-    diasNoLaborados: 0, horasExtrasSimples: 0, horasExtrasDobles: 0,
-    mes: 12, anio: 2024,
-  };
-}
-
 beforeEach(() => {
-  useStore.getState().reset();
   useTasStore.getState().resetTas();
-  // Default: health resolves immediately so routing tests don't stall
   mockCheckHealth.mockResolvedValue(undefined);
   mockUploadTasFile.mockResolvedValue({
     uploadToken: 'token-1',
@@ -87,13 +55,9 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-// -----------------------------------------------------------------
-// Startup states
-// -----------------------------------------------------------------
-
 describe('startup', () => {
   it('shows starting screen while health check is pending', () => {
-    mockCheckHealth.mockReturnValue(new Promise(() => {})); // never settles
+    mockCheckHealth.mockReturnValue(new Promise(() => {}));
     render(<App />);
     expect(screen.getByText('Iniciando aplicación...')).toBeInTheDocument();
     expect(screen.queryByTestId('empty-state')).not.toBeInTheDocument();
@@ -111,7 +75,6 @@ describe('startup', () => {
     vi.useFakeTimers();
     mockCheckHealth.mockRejectedValue(new Error('connection refused'));
     render(<App />);
-    // wrap in act so React flushes state updates triggered by the timers
     await act(async () => { await vi.runAllTimersAsync(); });
     expect(screen.getByText(/no se pudo conectar/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /reintentar/i })).toBeInTheDocument();
@@ -123,7 +86,6 @@ describe('startup', () => {
     render(<App />);
     await act(async () => { await vi.runAllTimersAsync(); });
 
-    // Make health pass on next attempt
     mockCheckHealth.mockResolvedValue(undefined);
 
     await act(async () => {
@@ -136,64 +98,24 @@ describe('startup', () => {
   });
 });
 
-// -----------------------------------------------------------------
-// App state routing (after backend is ready)
-// -----------------------------------------------------------------
-
-describe('App state routing', () => {
-  it('shows EmptyState when appState is "empty"', async () => {
+describe('App view routing', () => {
+  it('shows EmptyState and TopAppBar in the default tas/idle view', async () => {
     render(<App />);
     await waitFor(() => expect(screen.getByTestId('empty-state')).toBeInTheDocument());
     expect(screen.getByTestId('top-app-bar')).toBeInTheDocument();
-    expect(screen.queryByTestId('result-screen')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('config-page')).not.toBeInTheDocument();
   });
 
-  it('shows loaded UI (TopAppBar, DataGrid, ActionBar) when appState is "loaded"', async () => {
-    useStore.getState().setLoaded([makeRow()], [DEC_2024], false, []);
+  it('shows TasUploadFlow after a TAS file is processed', async () => {
     render(<App />);
-    await waitFor(() => expect(screen.getByTestId('top-app-bar')).toBeInTheDocument());
-    expect(screen.getByTestId('data-grid')).toBeInTheDocument();
-    expect(screen.getByTestId('action-bar')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByTestId('empty-state')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('button', { name: /cargar tas/i }));
+
+    await waitFor(() => expect(screen.getByTestId('tas-upload-flow')).toBeInTheDocument());
     expect(screen.queryByTestId('empty-state')).not.toBeInTheDocument();
-  });
-
-  it('shows loaded UI when appState is "submitting"', async () => {
-    useStore.getState().setLoaded([makeRow()], [DEC_2024], false, []);
-    useStore.getState().setSubmitting();
-    render(<App />);
-    await waitFor(() => expect(screen.getByTestId('top-app-bar')).toBeInTheDocument());
-    expect(screen.getByText(/enviando/i)).toBeInTheDocument();
-  });
-
-  it('shows spinner overlay during submitting state', async () => {
-    useStore.getState().setLoaded([makeRow()], [DEC_2024], false, []);
-    useStore.getState().setSubmitting();
-    render(<App />);
-    await waitFor(() => expect(screen.getByText('Enviando...')).toBeInTheDocument());
-  });
-
-  it('shows ResultScreen when appState is "result"', async () => {
-    const result: SubmitResponse = {
-      totalSubmitted: 1, totalSkippedDuplicates: 0, totalFailed: 0, rows: [],
-    };
-    useStore.getState().setResult(result);
-    render(<App />);
-    await waitFor(() => expect(screen.getByTestId('result-screen')).toBeInTheDocument());
-    expect(screen.queryByTestId('empty-state')).not.toBeInTheDocument();
-    expect(screen.getByTestId('top-app-bar')).toBeInTheDocument();
-  });
-
-  it('does not show spinner overlay when appState is "loaded"', async () => {
-    useStore.getState().setLoaded([makeRow()], [DEC_2024], false, []);
-    render(<App />);
-    await waitFor(() => expect(screen.getByTestId('top-app-bar')).toBeInTheDocument());
-    expect(screen.queryByText('Enviando...')).not.toBeInTheDocument();
   });
 });
-
-// -----------------------------------------------------------------
-// TAS "Nueva carga" reset routing
-// -----------------------------------------------------------------
 
 describe('TAS Nueva carga redirect', () => {
   it('returns to the upload screen after the TAS session is reset', async () => {

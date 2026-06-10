@@ -1,114 +1,98 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import EmptyState from './EmptyState';
-import { useStore } from '../store';
-import * as api from '../api';
-import type { UploadResponse } from '../types';
+import * as isTasFileModule from '../isTasFile';
 
-vi.mock('../api');
+vi.mock('../isTasFile');
 
-const mockUploadCsv = vi.mocked(api.uploadCsv);
-
-const mockResponse: UploadResponse = {
-  rows: [{
-    codigoEmpleado: '1', nombreEmpleado: 'Ana',
-    diasNoLaborados: 0, horasExtrasSimples: 0, horasExtrasDobles: 0,
-    mes: 12, anio: 2024,
-  }],
-  monthOptions: [{ mes: 12, anio: 2024 }],
-  multiMonth: false,
-  parseWarnings: [],
-};
+const mockIsTasFile = vi.mocked(isTasFileModule.isTasFile);
 
 beforeEach(() => {
-  useStore.getState().reset();
   vi.clearAllMocks();
 });
 
-function makeFile(name = 'planilla.csv') {
+function makeFile(name = 'marcaciones.csv') {
   return new File(['content'], name, { type: 'text/csv' });
 }
 
-// -----------------------------------------------------------------
-// Initial render
-// -----------------------------------------------------------------
-
 describe('EmptyState rendering', () => {
   it('renders the heading', () => {
-    render(<EmptyState />);
+    render(<EmptyState onTasFile={vi.fn()} />);
     expect(screen.getByText('Cargador de Planilla')).toBeInTheDocument();
   });
 
   it('renders the select file button', () => {
-    render(<EmptyState />);
+    render(<EmptyState onTasFile={vi.fn()} />);
     expect(screen.getByRole('button', { name: /seleccionar archivo/i })).toBeInTheDocument();
   });
 
   it('renders the drop zone', () => {
-    render(<EmptyState />);
+    render(<EmptyState onTasFile={vi.fn()} />);
     expect(screen.getByText(/arrastra tu archivo aquí/i)).toBeInTheDocument();
   });
 });
 
-// -----------------------------------------------------------------
-// File selection via input
-// -----------------------------------------------------------------
-
 describe('EmptyState file input', () => {
-  it('uploads file and transitions to loaded on success', async () => {
-    mockUploadCsv.mockResolvedValue(mockResponse);
-    render(<EmptyState />);
+  it('calls onTasFile when the file is a TAS file', async () => {
+    mockIsTasFile.mockResolvedValue(true);
+    const onTasFile = vi.fn().mockResolvedValue(true);
+    render(<EmptyState onTasFile={onTasFile} />);
 
     const input = document.querySelector('input[type="file"]') as HTMLInputElement;
     fireEvent.change(input, { target: { files: [makeFile()] } });
 
-    await waitFor(() => expect(useStore.getState().appState).toBe('loaded'));
-    expect(mockUploadCsv).toHaveBeenCalledOnce();
+    await waitFor(() => expect(onTasFile).toHaveBeenCalledOnce());
   });
 
-  it('shows loading state while uploading', async () => {
-    let resolve: (v: UploadResponse) => void;
-    mockUploadCsv.mockReturnValue(new Promise(r => { resolve = r; }));
-    render(<EmptyState />);
+  it('shows loading state while processing', async () => {
+    let resolve: (v: boolean) => void;
+    mockIsTasFile.mockReturnValue(new Promise(r => { resolve = r; }));
+    render(<EmptyState onTasFile={vi.fn().mockResolvedValue(true)} />);
 
     const input = document.querySelector('input[type="file"]') as HTMLInputElement;
     fireEvent.change(input, { target: { files: [makeFile()] } });
 
     expect(await screen.findByText(/procesando/i)).toBeInTheDocument();
-    resolve!(mockResponse);
+    resolve!(true);
   });
 
-  it('shows error message on upload failure with server message', async () => {
-    mockUploadCsv.mockRejectedValue({ response: { data: { message: 'Solo se aceptan archivos CSV.' } } });
-    render(<EmptyState />);
+  it('shows an error when the file is not a TAS file', async () => {
+    mockIsTasFile.mockResolvedValue(false);
+    const onTasFile = vi.fn();
+    render(<EmptyState onTasFile={onTasFile} />);
 
     const input = document.querySelector('input[type="file"]') as HTMLInputElement;
-    fireEvent.change(input, { target: { files: [makeFile('bad.txt')] } });
+    fireEvent.change(input, { target: { files: [makeFile('bad.csv')] } });
 
-    await waitFor(() => expect(screen.getByText('Solo se aceptan archivos CSV.')).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByText(/no tiene el formato esperado/i)).toBeInTheDocument()
+    );
+    expect(onTasFile).not.toHaveBeenCalled();
   });
 
-  it('shows generic error message when no server message', async () => {
-    mockUploadCsv.mockRejectedValue(new Error('network error'));
-    render(<EmptyState />);
+  it('shows error message when onTasFile throws', async () => {
+    mockIsTasFile.mockResolvedValue(true);
+    const onTasFile = vi.fn().mockRejectedValue(new Error('boom'));
+    render(<EmptyState onTasFile={onTasFile} />);
 
     const input = document.querySelector('input[type="file"]') as HTMLInputElement;
     fireEvent.change(input, { target: { files: [makeFile()] } });
 
     await waitFor(() =>
-      expect(screen.getByText(/no se pudo leer el archivo/i)).toBeInTheDocument()
+      expect(screen.getByText(/no se pudo procesar el archivo tas/i)).toBeInTheDocument()
     );
   });
 
   it('does nothing when no file is selected', async () => {
-    render(<EmptyState />);
+    const onTasFile = vi.fn();
+    render(<EmptyState onTasFile={onTasFile} />);
     const input = document.querySelector('input[type="file"]') as HTMLInputElement;
     fireEvent.change(input, { target: { files: [] } });
-    expect(mockUploadCsv).not.toHaveBeenCalled();
+    expect(onTasFile).not.toHaveBeenCalled();
   });
 
   it('clicking the Seleccionar archivo button triggers the file input', () => {
-    render(<EmptyState />);
+    render(<EmptyState onTasFile={vi.fn()} />);
     const input = document.querySelector('input[type="file"]') as HTMLInputElement;
     const clickSpy = vi.spyOn(input, 'click').mockImplementation(() => {});
     fireEvent.click(screen.getByRole('button', { name: /seleccionar archivo/i }));
@@ -116,30 +100,25 @@ describe('EmptyState file input', () => {
   });
 
   it('clicking the drop zone area also triggers the file input', () => {
-    render(<EmptyState />);
+    render(<EmptyState onTasFile={vi.fn()} />);
     const input = document.querySelector('input[type="file"]') as HTMLInputElement;
     const clickSpy = vi.spyOn(input, 'click').mockImplementation(() => {});
-    // The drop zone div has an onClick handler too
     const dropZone = screen.getByText(/arrastra tu archivo aquí/i).closest('div')!;
     fireEvent.click(dropZone);
     expect(clickSpy).toHaveBeenCalledOnce();
   });
 });
 
-// -----------------------------------------------------------------
-// Drag and drop
-// -----------------------------------------------------------------
-
 describe('EmptyState drag and drop', () => {
   it('shows drag active state on dragOver', () => {
-    render(<EmptyState />);
+    render(<EmptyState onTasFile={vi.fn()} />);
     const dropZone = screen.getByText(/arrastra tu archivo aquí/i).closest('div')!;
     fireEvent.dragOver(dropZone, { preventDefault: vi.fn() });
     expect(screen.getByText('Suelta aquí')).toBeInTheDocument();
   });
 
   it('restores normal state on dragLeave', () => {
-    render(<EmptyState />);
+    render(<EmptyState onTasFile={vi.fn()} />);
     const dropZone = screen.getByText(/arrastra tu archivo aquí/i).closest('div')!;
     fireEvent.dragOver(dropZone, { preventDefault: vi.fn() });
     fireEvent.dragLeave(dropZone);
@@ -147,8 +126,9 @@ describe('EmptyState drag and drop', () => {
   });
 
   it('uploads dropped file', async () => {
-    mockUploadCsv.mockResolvedValue(mockResponse);
-    render(<EmptyState />);
+    mockIsTasFile.mockResolvedValue(true);
+    const onTasFile = vi.fn().mockResolvedValue(true);
+    render(<EmptyState onTasFile={onTasFile} />);
 
     const dropZone = screen.getByText(/arrastra tu archivo aquí/i).closest('div')!;
     fireEvent.dragOver(dropZone, { preventDefault: vi.fn() });
@@ -157,16 +137,17 @@ describe('EmptyState drag and drop', () => {
       dataTransfer: { files: [makeFile()] },
     });
 
-    await waitFor(() => expect(useStore.getState().appState).toBe('loaded'));
+    await waitFor(() => expect(onTasFile).toHaveBeenCalledOnce());
   });
 
   it('does nothing when drop has no files', async () => {
-    render(<EmptyState />);
+    const onTasFile = vi.fn();
+    render(<EmptyState onTasFile={onTasFile} />);
     const dropZone = screen.getByText(/arrastra tu archivo aquí/i).closest('div')!;
     fireEvent.drop(dropZone, {
       preventDefault: vi.fn(),
       dataTransfer: { files: [] },
     });
-    expect(mockUploadCsv).not.toHaveBeenCalled();
+    expect(onTasFile).not.toHaveBeenCalled();
   });
 });
