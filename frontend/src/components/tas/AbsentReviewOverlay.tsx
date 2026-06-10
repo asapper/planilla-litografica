@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useTasStore } from '../../tasStore';
 import { setAbsentEmployeesActive } from '../../tasApi';
 
@@ -6,15 +7,23 @@ export default function AbsentReviewOverlay() {
   const absentEmployees = useTasStore(s => s.absentEmployees);
   const setAbsentEmployees = useTasStore(s => s.setAbsentEmployees);
   const setTasView      = useTasStore(s => s.setTasView);
+  const [toggleError, setToggleError] = useState<string | null>(null);
 
   const handleToggle = async (employeeId: string) => {
     if (!uploadToken) return;
-    const isActive = absentEmployees.find(e => e.employeeId === employeeId)?.active !== false;
+    const current = useTasStore.getState().absentEmployees;
+    const isActive = current.find(e => e.employeeId === employeeId)?.active !== false;
     const nextActive = !isActive;
-    await setAbsentEmployeesActive(uploadToken, [employeeId], nextActive);
-    setAbsentEmployees(absentEmployees.map(e =>
-      e.employeeId === employeeId ? { ...e, active: nextActive } : e
-    ));
+    try {
+      await setAbsentEmployeesActive(uploadToken, [employeeId], nextActive);
+      const latest = useTasStore.getState().absentEmployees;
+      setAbsentEmployees(latest.map(e =>
+        e.employeeId === employeeId ? { ...e, active: nextActive } : e
+      ));
+      setToggleError(null);
+    } catch {
+      setToggleError('No se pudo actualizar el estado del empleado. Intente nuevamente.');
+    }
   };
 
   const handleClose = () => {
@@ -32,6 +41,9 @@ export default function AbsentReviewOverlay() {
             Estos empleados activos no aparecieron en el archivo de este período.
             Puede marcarlos como inactivos si ya no trabajan en la empresa.
           </p>
+          {toggleError && (
+            <p className="text-body-md text-error mt-2">{toggleError}</p>
+          )}
         </div>
 
         <div className="flex-1 overflow-auto px-6 py-4">

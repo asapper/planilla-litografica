@@ -101,6 +101,33 @@ describe('AbsentReviewOverlay deactivate', () => {
     });
     expect(useTasStore.getState().absentEmployees.find(e => e.employeeId === 'E1')?.active).toBe(true);
   });
+
+  it('shows an error message and keeps the employee active when the request fails', async () => {
+    setup();
+    mockSetActive.mockRejectedValue(new Error('network error'));
+    render(<AbsentReviewOverlay />);
+
+    fireEvent.click(screen.getByRole('button', { name: /desactivar Ana/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/no se pudo actualizar el estado/i)).toBeInTheDocument();
+    });
+    expect(useTasStore.getState().absentEmployees.find(e => e.employeeId === 'E1')?.active).not.toBe(false);
+  });
+
+  it('toggling two employees in quick succession updates both', async () => {
+    setup();
+    mockSetActive.mockResolvedValue(undefined);
+    render(<AbsentReviewOverlay />);
+
+    fireEvent.click(screen.getByRole('button', { name: /desactivar Ana/i }));
+    fireEvent.click(screen.getByRole('button', { name: /desactivar Luis/i }));
+
+    await waitFor(() => {
+      expect(useTasStore.getState().absentEmployees.find(e => e.employeeId === 'E1')?.active).toBe(false);
+      expect(useTasStore.getState().absentEmployees.find(e => e.employeeId === 'E2')?.active).toBe(false);
+    });
+  });
 });
 
 describe('AbsentReviewOverlay close', () => {
