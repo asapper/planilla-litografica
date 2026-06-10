@@ -12,6 +12,9 @@ vi.mock('./ReactivationReviewScreen', () => ({
 vi.mock('./VerificationScreen', () => ({
   default: () => <div data-testid="verification-screen" />,
 }));
+vi.mock('./ReviewScreen', () => ({
+  default: () => <div data-testid="review-screen" />,
+}));
 vi.mock('./TasResultScreen', () => ({
   default: () => <div data-testid="tas-result-screen" />,
 }));
@@ -46,6 +49,12 @@ describe('TasUploadFlow routing', () => {
     useTasStore.getState().setTasView('verification');
     render(<TasUploadFlow fileName="test.csv" />);
     expect(screen.getByTestId('verification-screen')).toBeInTheDocument();
+  });
+
+  it('renders ReviewScreen when tasView is review', () => {
+    useTasStore.getState().setTasView('review');
+    render(<TasUploadFlow fileName="test.csv" />);
+    expect(screen.getByTestId('review-screen')).toBeInTheDocument();
   });
 
   it('renders spinner overlay when tasView is submitting', () => {

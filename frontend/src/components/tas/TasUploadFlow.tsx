@@ -2,6 +2,7 @@ import { useTasStore } from '../../tasStore';
 import ProcessingScreen from './ProcessingScreen';
 import ReactivationReviewScreen from './ReactivationReviewScreen';
 import VerificationScreen from './VerificationScreen';
+import ReviewScreen from './ReviewScreen';
 import TasResultScreen from './TasResultScreen';
 import AbsentReviewOverlay from './AbsentReviewOverlay';
 import Spinner from '../ui/Spinner';
@@ -25,6 +26,10 @@ export default function TasUploadFlow({ fileName }: Props) {
 
   if (tasView === 'verification') {
     return <VerificationScreen />;
+  }
+
+  if (tasView === 'review') {
+    return <ReviewScreen />;
   }
 
   if (tasView === 'submitting') {
