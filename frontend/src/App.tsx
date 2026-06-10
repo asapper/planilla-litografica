@@ -43,6 +43,7 @@ export default function App() {
   const setProcessingMessage = useTasStore(s => s.setProcessingMessage);
   const setError           = useTasStore(s => s.setError);
   const resetTas           = useTasStore(s => s.resetTas);
+  const tasView            = useTasStore(s => s.tasView);
 
   const handleTasFile = async (file: File) => {
     setTasFileName(file.name);
@@ -99,6 +100,12 @@ export default function App() {
     setBackendState('starting');
     setRetryKey(k => k + 1);
   };
+
+  useEffect(() => {
+    if (currentView === 'tas' && tasView === 'idle') {
+      setCurrentView('planilla');
+    }
+  }, [currentView, tasView]);
 
   // ── Startup splash ──────────────────────────────────────────────────
   if (backendState === 'starting') {
