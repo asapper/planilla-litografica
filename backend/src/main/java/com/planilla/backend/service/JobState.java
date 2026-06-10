@@ -6,22 +6,19 @@ import java.util.concurrent.atomic.AtomicReference;
 class JobState {
 
     final String jobId;
-    final String parentJobId;
     final int attemptNumber;
     final int maxRetries;
     final List<JobRowState> rows;
     final AtomicReference<String> status = new AtomicReference<>("PENDING");
 
-    JobState(String jobId, String parentJobId, int attemptNumber, int maxRetries, List<JobRowState> rows) {
+    JobState(String jobId, int attemptNumber, int maxRetries, List<JobRowState> rows) {
         this.jobId = jobId;
-        this.parentJobId = parentJobId;
         this.attemptNumber = attemptNumber;
         this.maxRetries = maxRetries;
         this.rows = rows;
     }
 
     int totalRows()  { return rows.size(); }
-    int processed()  { return (int) rows.stream().filter(r -> !r.getStatus().equals("PENDING")).count(); }
     int submitted()  { return (int) rows.stream().filter(r -> r.getStatus().equals("SUBMITTED")).count(); }
     int skipped()    { return (int) rows.stream().filter(r -> r.getStatus().equals("SKIPPED")).count(); }
     int failed()     { return (int) rows.stream().filter(r -> r.getStatus().equals("FAILED")).count(); }
