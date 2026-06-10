@@ -32,7 +32,10 @@ function makeSession(overrides: Partial<TasSession> = {}): TasSession {
 
 const mockResult: TasResolveResult = {
   uploadToken: 'tok-2',
-  resolvedRows: [{}, {}],
+  resolvedRows: [
+    { codigoEmpleado: 'E1', nombreEmpleado: 'Ana', diasNoLaborados: 0, horasExtrasSimples: 0, horasExtrasDobles: 0, mes: 3, anio: 2026, numeroDequincena: 1 },
+    { codigoEmpleado: 'E2', nombreEmpleado: 'Luis', diasNoLaborados: 0, horasExtrasSimples: 0, horasExtrasDobles: 0, mes: 3, anio: 2026, numeroDequincena: 1 },
+  ],
   flaggedSessions: [],
   usedFallbackHolidays: false,
 };
@@ -205,39 +208,22 @@ describe('VerificationScreen submit', () => {
     expect(screen.getByRole('button', { name: /enviar/i })).toBeDisabled();
   });
 
-  it('calls resolveVerification and submitTas then advances to result', async () => {
+  it('calls resolveVerification then advances to review without auto-submitting', async () => {
     useTasStore.getState().setUploadToken('tok-1');
     useTasStore.getState().setFlaggedSessions([makeSession({ effectiveStart: '08:00:00', lastScan: '17:00:00' })]);
     mockResolveVerification.mockResolvedValue(mockResult);
-    mockSubmitTas.mockResolvedValue({ jobId: 'job-abc' });
 
     render(<VerificationScreen />);
     fireEvent.click(screen.getByRole('button', { name: /confirmar/i }));
     fireEvent.click(screen.getByRole('button', { name: /enviar/i }));
 
     await waitFor(() => {
-      expect(useTasStore.getState().tasView).toBe('result');
+      expect(useTasStore.getState().tasView).toBe('review');
     });
     expect(mockResolveVerification).toHaveBeenCalledOnce();
-    expect(mockSubmitTas).toHaveBeenCalledOnce();
-    expect(useTasStore.getState().jobId).toBe('job-abc');
+    expect(mockSubmitTas).not.toHaveBeenCalled();
     expect(useTasStore.getState().resolvedRowCount).toBe(2);
-  });
-
-  it('reverts to verification and sets error when submitTas throws', async () => {
-    useTasStore.getState().setUploadToken('tok-1');
-    useTasStore.getState().setFlaggedSessions([makeSession({ effectiveStart: '08:00:00', lastScan: '17:00:00' })]);
-    mockResolveVerification.mockResolvedValue(mockResult);
-    mockSubmitTas.mockRejectedValue(new Error('network error'));
-
-    render(<VerificationScreen />);
-    fireEvent.click(screen.getByRole('button', { name: /confirmar/i }));
-    fireEvent.click(screen.getByRole('button', { name: /enviar/i }));
-
-    await waitFor(() => {
-      expect(useTasStore.getState().tasView).toBe('verification');
-    });
-    expect(useTasStore.getState().error).not.toBeNull();
+    expect(useTasStore.getState().resolvedRows).toHaveLength(2);
   });
 
   it('clears resolvedSessions and stays in verification when resolve returns more flagged sessions', async () => {
@@ -267,14 +253,13 @@ describe('VerificationScreen submit', () => {
       makeSession({ sessionId: 1, consistentMismatch: true, effectiveStart: '08:00:00', lastScan: '17:00:00' }),
     ]);
     mockResolveVerification.mockResolvedValue(mockResult);
-    mockSubmitTas.mockResolvedValue({ jobId: 'job-xyz' });
 
     render(<VerificationScreen />);
     fireEvent.click(screen.getByRole('button', { name: /sí, actualizar turno/i }));
     fireEvent.click(screen.getByRole('button', { name: /confirmar/i }));
     fireEvent.click(screen.getByRole('button', { name: /enviar/i }));
 
-    await waitFor(() => expect(useTasStore.getState().tasView).toBe('result'));
+    await waitFor(() => expect(useTasStore.getState().tasView).toBe('review'));
 
     const [, payload] = mockResolveVerification.mock.calls[0];
     expect(payload[0].updateShift).toBe(true);
@@ -286,14 +271,13 @@ describe('VerificationScreen submit', () => {
       makeSession({ sessionId: 1, consistentMismatch: true, effectiveStart: '08:00:00', lastScan: '17:00:00' }),
     ]);
     mockResolveVerification.mockResolvedValue(mockResult);
-    mockSubmitTas.mockResolvedValue({ jobId: 'job-xyz' });
 
     render(<VerificationScreen />);
     fireEvent.click(screen.getByRole('button', { name: /no, mantener/i }));
     fireEvent.click(screen.getByRole('button', { name: /confirmar/i }));
     fireEvent.click(screen.getByRole('button', { name: /enviar/i }));
 
-    await waitFor(() => expect(useTasStore.getState().tasView).toBe('result'));
+    await waitFor(() => expect(useTasStore.getState().tasView).toBe('review'));
 
     const [, payload] = mockResolveVerification.mock.calls[0];
     expect(payload[0].updateShift).toBe(false);
