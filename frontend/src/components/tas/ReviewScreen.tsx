@@ -45,7 +45,7 @@ export default function ReviewScreen() {
           </thead>
           <tbody>
             {resolvedRows.map(row => (
-              <tr key={row.codigoEmpleado} className="border-b border-outline-variant last:border-b-0">
+              <tr key={`${row.codigoEmpleado}-${row.anio}-${row.mes}-${row.numeroDequincena}`} className="border-b border-outline-variant last:border-b-0">
                 <td className="py-3 px-4 text-body-md text-on-surface">{row.nombreEmpleado}</td>
                 <td className="py-3 px-4 text-body-md text-on-surface-variant">{row.codigoEmpleado}</td>
                 <td className="py-3 px-4 text-body-md text-on-surface-variant text-right">{row.diasNoLaborados}</td>
