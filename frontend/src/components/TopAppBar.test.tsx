@@ -44,6 +44,17 @@ describe('Nueva carga button', () => {
     expect(screen.getByRole('button', { name: /nueva carga/i })).toBeInTheDocument();
   });
 
+  it('is disabled when tasView is submitting', () => {
+    render(<TopAppBar currentView="tas" onViewChange={noop} tasView="submitting" onNewUpload={vi.fn()} />);
+    expect(screen.getByRole('button', { name: /nueva carga/i })).toBeDisabled();
+  });
+
+  it('does not open the confirmation modal when clicked while submitting', () => {
+    render(<TopAppBar currentView="tas" onViewChange={noop} tasView="submitting" onNewUpload={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: /nueva carga/i }));
+    expect(screen.queryByText('Iniciar nueva carga')).not.toBeInTheDocument();
+  });
+
   it('opens a confirmation modal when clicked', () => {
     render(<TopAppBar currentView="tas" onViewChange={noop} tasView="review" onNewUpload={vi.fn()} />);
     fireEvent.click(screen.getByRole('button', { name: /nueva carga/i }));
