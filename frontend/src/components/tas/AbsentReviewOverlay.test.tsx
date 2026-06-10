@@ -6,7 +6,7 @@ import * as tasApi from '../../tasApi';
 
 vi.mock('../../tasApi');
 
-const mockDeactivate = vi.mocked(tasApi.deactivateAbsentEmployees);
+const mockSetActive = vi.mocked(tasApi.setAbsentEmployeesActive);
 
 beforeEach(() => {
   useTasStore.getState().resetTas();
@@ -57,30 +57,49 @@ describe('AbsentReviewOverlay rendering', () => {
 });
 
 describe('AbsentReviewOverlay deactivate', () => {
-  it('calls deactivateAbsentEmployees for the clicked employee', async () => {
+  it('calls setAbsentEmployeesActive with active=false for the clicked employee', async () => {
     setup();
-    mockDeactivate.mockResolvedValue(undefined);
+    mockSetActive.mockResolvedValue(undefined);
     render(<AbsentReviewOverlay />);
 
     const anaBtn = screen.getByRole('button', { name: /desactivar Ana/i });
     fireEvent.click(anaBtn);
 
     await waitFor(() => {
-      expect(mockDeactivate).toHaveBeenCalledWith('tok-1', ['E1']);
+      expect(mockSetActive).toHaveBeenCalledWith('tok-1', ['E1'], false);
     });
   });
 
-  it('removes deactivated employee from store', async () => {
+  it('keeps the deactivated employee in the list, marked as inactive', async () => {
     setup();
-    mockDeactivate.mockResolvedValue(undefined);
+    mockSetActive.mockResolvedValue(undefined);
     render(<AbsentReviewOverlay />);
 
     fireEvent.click(screen.getByRole('button', { name: /desactivar Ana/i }));
 
     await waitFor(() => {
-      expect(useTasStore.getState().absentEmployees.find(e => e.employeeId === 'E1')).toBeUndefined();
+      expect(useTasStore.getState().absentEmployees.find(e => e.employeeId === 'E1')?.active).toBe(false);
     });
     expect(useTasStore.getState().absentEmployees.find(e => e.employeeId === 'E2')).toBeDefined();
+    expect(screen.getByText('Ana López')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /reactivar Ana/i })).toBeInTheDocument();
+  });
+
+  it('toggling an inactive employee back to active calls setAbsentEmployeesActive with active=true', async () => {
+    setup();
+    useTasStore.getState().setAbsentEmployees([
+      { employeeId: 'E1', name: 'Ana López', active: false },
+      { employeeId: 'E2', name: 'Luis García' },
+    ]);
+    mockSetActive.mockResolvedValue(undefined);
+    render(<AbsentReviewOverlay />);
+
+    fireEvent.click(screen.getByRole('button', { name: /reactivar Ana/i }));
+
+    await waitFor(() => {
+      expect(mockSetActive).toHaveBeenCalledWith('tok-1', ['E1'], true);
+    });
+    expect(useTasStore.getState().absentEmployees.find(e => e.employeeId === 'E1')?.active).toBe(true);
   });
 });
 

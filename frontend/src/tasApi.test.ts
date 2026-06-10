@@ -16,7 +16,7 @@ const {
   resolveVerification,
   submitTas,
   getAbsentReview,
-  deactivateAbsentEmployees,
+  setAbsentEmployeesActive,
 } = await import('./tasApi');
 
 const mockResult: TasUploadResult = {
@@ -141,22 +141,23 @@ describe('getAbsentReview', () => {
 // deactivateAbsentEmployees
 // -----------------------------------------------------------------
 
-describe('deactivateAbsentEmployees', () => {
-  it('posts to /tas/absent-review/:token/deactivate with employeeIds', async () => {
+describe('setAbsentEmployeesActive', () => {
+  it('posts to /tas/absent-review/:token/deactivate with employeeIds and active', async () => {
     mockPost.mockResolvedValue({ data: undefined });
-    await deactivateAbsentEmployees('tok-abc', ['E1', 'E2']);
+    await setAbsentEmployeesActive('tok-abc', ['E1', 'E2'], false);
     expect(mockPost).toHaveBeenCalledWith('/tas/absent-review/tok-abc/deactivate', {
       employeeIds: ['E1', 'E2'],
+      active: false,
     });
   });
 
   it('resolves to undefined on success', async () => {
     mockPost.mockResolvedValue({ data: null });
-    await expect(deactivateAbsentEmployees('tok', ['E1'])).resolves.toBeUndefined();
+    await expect(setAbsentEmployeesActive('tok', ['E1'], true)).resolves.toBeUndefined();
   });
 
   it('propagates errors', async () => {
     mockPost.mockRejectedValue(new Error('forbidden'));
-    await expect(deactivateAbsentEmployees('tok', [])).rejects.toThrow('forbidden');
+    await expect(setAbsentEmployeesActive('tok', [], false)).rejects.toThrow('forbidden');
   });
 });

@@ -18,7 +18,7 @@ export interface TasSession {
 }
 
 export interface InactiveEmployee { employeeId: string; name: string; sessionCount: number }
-export interface AbsentEmployee { employeeId: string; name: string }
+export interface AbsentEmployee { employeeId: string; name: string; active?: boolean }
 
 export interface ResolvedRow {
   codigoEmpleado: string

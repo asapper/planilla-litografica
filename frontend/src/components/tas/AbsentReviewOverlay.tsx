@@ -1,5 +1,5 @@
 import { useTasStore } from '../../tasStore';
-import { deactivateAbsentEmployees } from '../../tasApi';
+import { setAbsentEmployeesActive } from '../../tasApi';
 
 export default function AbsentReviewOverlay() {
   const uploadToken     = useTasStore(s => s.uploadToken);
@@ -9,8 +9,12 @@ export default function AbsentReviewOverlay() {
 
   const handleToggle = async (employeeId: string) => {
     if (!uploadToken) return;
-    await deactivateAbsentEmployees(uploadToken, [employeeId]);
-    setAbsentEmployees(absentEmployees.filter(e => e.employeeId !== employeeId));
+    const isActive = absentEmployees.find(e => e.employeeId === employeeId)?.active !== false;
+    const nextActive = !isActive;
+    await setAbsentEmployeesActive(uploadToken, [employeeId], nextActive);
+    setAbsentEmployees(absentEmployees.map(e =>
+      e.employeeId === employeeId ? { ...e, active: nextActive } : e
+    ));
   };
 
   const handleClose = () => {
@@ -40,22 +44,36 @@ export default function AbsentReviewOverlay() {
               </tr>
             </thead>
             <tbody>
-              {absentEmployees.map(emp => (
-                <tr key={emp.employeeId} className="border-b border-outline-variant">
-                  <td className="py-3 pr-4 text-body-md text-on-surface">{emp.name}</td>
-                  <td className="py-3 pr-4 text-body-md text-on-surface-variant">{emp.employeeId}</td>
-                  <td className="py-3">
-                    <button
-                      onClick={() => handleToggle(emp.employeeId)}
-                      className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-green-400 text-green-700 text-label-sm hover:bg-green-50 transition-colors cursor-pointer"
-                      aria-label={`Desactivar ${emp.name}`}
-                    >
-                      <span className="w-2 h-2 rounded-full bg-green-500" />
-                      Activo
-                    </button>
-                  </td>
-                </tr>
-              ))}
+              {absentEmployees.map(emp => {
+                const isActive = emp.active !== false;
+                return (
+                  <tr key={emp.employeeId} className="border-b border-outline-variant">
+                    <td className="py-3 pr-4 text-body-md text-on-surface">{emp.name}</td>
+                    <td className="py-3 pr-4 text-body-md text-on-surface-variant">{emp.employeeId}</td>
+                    <td className="py-3">
+                      {isActive ? (
+                        <button
+                          onClick={() => handleToggle(emp.employeeId)}
+                          className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-green-400 text-green-700 text-label-sm hover:bg-green-50 transition-colors cursor-pointer"
+                          aria-label={`Desactivar ${emp.name}`}
+                        >
+                          <span className="w-2 h-2 rounded-full bg-green-500" />
+                          Activo
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => handleToggle(emp.employeeId)}
+                          className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-outline-variant text-on-surface-variant text-label-sm hover:bg-surface-container-low transition-colors cursor-pointer"
+                          aria-label={`Reactivar ${emp.name}`}
+                        >
+                          <span className="w-2 h-2 rounded-full bg-outline" />
+                          Inactivo
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
