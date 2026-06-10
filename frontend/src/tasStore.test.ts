@@ -299,6 +299,24 @@ describe('setError', () => {
 });
 
 // -----------------------------------------------------------------
+// setResolvedRows
+// -----------------------------------------------------------------
+
+describe('setResolvedRows', () => {
+  it('starts with an empty array', () => {
+    expect(useTasStore.getState().resolvedRows).toEqual([]);
+  });
+
+  it('stores the rows', () => {
+    const rows = [
+      { codigoEmpleado: 'E1', nombreEmpleado: 'Ana', diasNoLaborados: 0, horasExtrasSimples: 2, horasExtrasDobles: 0, mes: 3, anio: 2026, numeroDequincena: 1 },
+    ];
+    useTasStore.getState().setResolvedRows(rows);
+    expect(useTasStore.getState().resolvedRows).toEqual(rows);
+  });
+});
+
+// -----------------------------------------------------------------
 // resetTas
 // -----------------------------------------------------------------
 
@@ -315,6 +333,9 @@ describe('resetTas', () => {
     useTasStore.getState().setJobId('job-123');
     useTasStore.getState().setError('err');
     useTasStore.getState().setResolvedSession(1, { resolvedStart: '08:00', resolvedEnd: '17:00' });
+    useTasStore.getState().setResolvedRows([
+      { codigoEmpleado: 'E1', nombreEmpleado: 'Ana', diasNoLaborados: 0, horasExtrasSimples: 0, horasExtrasDobles: 0, mes: 3, anio: 2026, numeroDequincena: 1 },
+    ]);
 
     useTasStore.getState().resetTas();
 
@@ -331,5 +352,6 @@ describe('resetTas', () => {
     expect(s.fallbackBannerDismissed).toBe(false);
     expect(s.jobId).toBeNull();
     expect(s.error).toBeNull();
+    expect(s.resolvedRows).toEqual([]);
   });
 });

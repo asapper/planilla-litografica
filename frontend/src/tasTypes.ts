@@ -20,9 +20,20 @@ export interface TasSession {
 export interface InactiveEmployee { employeeId: string; name: string; sessionCount: number }
 export interface AbsentEmployee { employeeId: string; name: string }
 
+export interface ResolvedRow {
+  codigoEmpleado: string
+  nombreEmpleado: string
+  diasNoLaborados: number
+  horasExtrasSimples: number
+  horasExtrasDobles: number
+  mes: number
+  anio: number
+  numeroDequincena: number | null
+}
+
 export interface TasUploadResult {
   uploadToken: string
-  resolvedRows: unknown[]
+  resolvedRows?: ResolvedRow[]
   flaggedSessions: TasSession[]
   inactiveEmployeesFound: InactiveEmployee[]
   absentActiveEmployees: AbsentEmployee[]
@@ -32,10 +43,10 @@ export interface TasUploadResult {
 
 export interface TasResolveResult {
   uploadToken: string
-  resolvedRows: unknown[]
+  resolvedRows?: ResolvedRow[]
   flaggedSessions: TasSession[]
   usedFallbackHolidays: boolean
 }
 
 export type InactiveDecision = 'reactivate' | 'ignore'
-export type TasView = 'idle' | 'processing' | 'inactiveReview' | 'verification' | 'submitting' | 'result' | 'absentReview'
+export type TasView = 'idle' | 'processing' | 'inactiveReview' | 'verification' | 'review' | 'submitting' | 'result' | 'absentReview'

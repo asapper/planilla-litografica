@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { TasView, TasSession, InactiveEmployee, InactiveDecision, AbsentEmployee } from './tasTypes';
+import type { TasView, TasSession, InactiveEmployee, InactiveDecision, AbsentEmployee, ResolvedRow } from './tasTypes';
 
 export interface ResolvedSessionEntry {
   resolvedStart: string;
@@ -14,6 +14,7 @@ interface TasStore {
   flaggedSessions: TasSession[];
   resolvedSessions: Record<number, ResolvedSessionEntry>;
   resolvedRowCount: number;
+  resolvedRows: ResolvedRow[];
   inactiveEmployees: InactiveEmployee[];
   inactiveDecisions: Record<string, InactiveDecision>;
   absentEmployees: AbsentEmployee[];
@@ -29,6 +30,7 @@ interface TasStore {
   setResolvedSession: (id: number, entry: ResolvedSessionEntry) => void;
   clearResolvedSessions: () => void;
   setResolvedRowCount: (count: number) => void;
+  setResolvedRows: (rows: ResolvedRow[]) => void;
   setInactiveEmployees: (employees: InactiveEmployee[]) => void;
   setInactiveDecision: (employeeId: string, decision: InactiveDecision) => void;
   setAbsentEmployees: (employees: AbsentEmployee[]) => void;
@@ -46,6 +48,7 @@ const initialState = {
   flaggedSessions: [],
   resolvedSessions: {},
   resolvedRowCount: 0,
+  resolvedRows: [] as ResolvedRow[],
   inactiveEmployees: [],
   inactiveDecisions: {},
   absentEmployees: [],
@@ -67,6 +70,7 @@ export const useTasStore = create<TasStore>(set => ({
   })),
   clearResolvedSessions: () => set({ resolvedSessions: {} }),
   setResolvedRowCount: (count) => set({ resolvedRowCount: count }),
+  setResolvedRows: (rows) => set({ resolvedRows: rows }),
   setInactiveEmployees: (employees) => set({ inactiveEmployees: employees }),
   setInactiveDecision: (employeeId, decision) => set(s => ({
     inactiveDecisions: { ...s.inactiveDecisions, [employeeId]: decision },

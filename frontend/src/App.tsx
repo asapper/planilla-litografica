@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useStore } from './store';
 import { checkHealth } from './api';
-import { uploadTasFile, submitTas } from './tasApi';
+import { uploadTasFile } from './tasApi';
 import { useTasStore } from './tasStore';
 import EmptyState from './components/EmptyState';
 import TopAppBar from './components/TopAppBar';
@@ -36,11 +36,11 @@ export default function App() {
   const setUploadToken     = useTasStore(s => s.setUploadToken);
   const setFlaggedSessions    = useTasStore(s => s.setFlaggedSessions);
   const setResolvedRowCount   = useTasStore(s => s.setResolvedRowCount);
+  const setResolvedRows       = useTasStore(s => s.setResolvedRows);
   const setInactiveEmployees  = useTasStore(s => s.setInactiveEmployees);
   const setAbsentEmployees = useTasStore(s => s.setAbsentEmployees);
   const setUsedFallbackHolidays = useTasStore(s => s.setUsedFallbackHolidays);
   const setProcessingMessage = useTasStore(s => s.setProcessingMessage);
-  const setJobId           = useTasStore(s => s.setJobId);
   const setError           = useTasStore(s => s.setError);
   const resetTas           = useTasStore(s => s.resetTas);
 
@@ -55,6 +55,7 @@ export default function App() {
       setUploadToken(result.uploadToken);
       setFlaggedSessions(result.flaggedSessions);
       setResolvedRowCount(result.resolvedRows?.length ?? 0);
+      setResolvedRows(result.resolvedRows ?? []);
       setInactiveEmployees(result.inactiveEmployeesFound);
       setAbsentEmployees(result.absentActiveEmployees);
       setUsedFallbackHolidays(result.usedFallbackHolidays);
@@ -62,14 +63,7 @@ export default function App() {
         setTasView('inactiveReview');
       } else {
         const hasNeedsResolution = result.flaggedSessions.some(s => s.needsResolution);
-        if (hasNeedsResolution) {
-          setTasView('verification');
-        } else {
-          setTasView('submitting');
-          const { jobId } = await submitTas(result.uploadToken);
-          setJobId(jobId);
-          setTasView('result');
-        }
+        setTasView(hasNeedsResolution ? 'verification' : 'review');
       }
     } catch {
       setTasView('processing');

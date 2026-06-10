@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useTasStore } from '../../tasStore';
-import { resolveVerification, submitTas } from '../../tasApi';
+import { resolveVerification } from '../../tasApi';
 import type { TasSession, TasFlag } from '../../tasTypes';
 
 type FilterChip = 'all' | 'missing_entry' | 'missing_exit' | 'shift_mismatch' | 'cutoff';
@@ -206,8 +206,8 @@ export default function VerificationScreen() {
   const clearResolvedSessions = useTasStore(s => s.clearResolvedSessions);
   const setTasView            = useTasStore(s => s.setTasView);
   const setResolvedRowCount      = useTasStore(s => s.setResolvedRowCount);
+  const setResolvedRows          = useTasStore(s => s.setResolvedRows);
   const setUsedFallbackHolidays  = useTasStore(s => s.setUsedFallbackHolidays);
-  const setJobId                 = useTasStore(s => s.setJobId);
   const setFlaggedSessions    = useTasStore(s => s.setFlaggedSessions);
   const setUploadToken        = useTasStore(s => s.setUploadToken);
   const setError              = useTasStore(s => s.setError);
@@ -250,11 +250,9 @@ export default function VerificationScreen() {
       setFlaggedSessions(result.flaggedSessions);
       setUploadToken(result.uploadToken);
       setResolvedRowCount(result.resolvedRows?.length ?? 0);
+      setResolvedRows(result.resolvedRows ?? []);
       setUsedFallbackHolidays(result.usedFallbackHolidays);
-      setTasView('submitting');
-      const { jobId } = await submitTas(result.uploadToken);
-      setJobId(jobId);
-      setTasView('result');
+      setTasView('review');
     } catch {
       setTasView('verification');
       setError('Ocurrió un error al enviar. Intente nuevamente.');
