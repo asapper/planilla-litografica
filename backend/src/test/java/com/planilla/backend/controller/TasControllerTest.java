@@ -181,13 +181,15 @@ class TasControllerTest {
     // ── POST /api/tas/absent-review/{token}/deactivate ───────────────────────
 
     @Test
-    void deactivateAbsent_invalidToken_returns404() throws Exception {
+    void deactivateAbsent_afterUploadStateRemoved_succeeds() throws Exception {
+        // The upload state is removed once /submit completes, but the
+        // absent-review modal is shown afterwards on the result screen.
         Map<String, Object> body = Map.of("employeeIds", List.of("100"));
 
         mvc.perform(post("/api/tas/absent-review/nonexistent/deactivate")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(body)))
-           .andExpect(status().isNotFound());
+           .andExpect(status().isOk());
     }
 
     // ── POST /api/tas/inactive-review ────────────────────────────────────────

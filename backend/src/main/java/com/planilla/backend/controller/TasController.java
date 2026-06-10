@@ -241,11 +241,6 @@ public class TasController {
             @PathVariable String uploadToken,
             @RequestBody Map<String, Object> body) {
 
-        TasUploadState state = stateStore.get(uploadToken);
-        if (state == null) {
-            return ResponseEntity.notFound().build();
-        }
-
         @SuppressWarnings("unchecked")
         List<String> employeeIds = (List<String>) body.getOrDefault("employeeIds", Collections.emptyList());
         for (String empId : employeeIds) {
