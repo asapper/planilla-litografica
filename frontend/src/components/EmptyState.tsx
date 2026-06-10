@@ -1,19 +1,16 @@
 import { useRef, useState } from 'react';
-import { uploadCsv } from '../api';
-import { useStore } from '../store';
 import { isTasFile } from '../isTasFile';
 import ScreenLayout from './ui/ScreenLayout';
 import IconBadge from './ui/IconBadge';
 import AlertMessage from './ui/AlertMessage';
 
 interface Props {
-  onTasFile?: (file: File) => Promise<boolean>;
+  onTasFile: (file: File) => Promise<boolean>;
 }
 
 export default function EmptyState({ onTasFile }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const setLoaded = useStore(s => s.setLoaded);
   const [dragging, setDragging] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -21,21 +18,14 @@ export default function EmptyState({ onTasFile }: Props) {
   const handleFile = async (file: File) => {
     setError(null);
     setLoading(true);
-    if (onTasFile && await isTasFile(file)) {
-      try {
-        await onTasFile(file);
-      } catch {
-        setError('No se pudo procesar el archivo TAS. Intente nuevamente.');
-      } finally {
-        setLoading(false);
-      }
-      return;
-    }
     try {
-      const result = await uploadCsv(file);
-      setLoaded(result.rows, result.monthOptions, result.multiMonth, result.parseWarnings, file.name);
-    } catch (err: any) {
-      setError(err?.response?.data?.message ?? 'No se pudo leer el archivo. Verifica que el formato sea correcto e intenta de nuevo.');
+      if (await isTasFile(file)) {
+        await onTasFile(file);
+      } else {
+        setError('El archivo no tiene el formato esperado de marcaciones TAS.');
+      }
+    } catch {
+      setError('No se pudo procesar el archivo TAS. Intente nuevamente.');
     } finally {
       setLoading(false);
     }

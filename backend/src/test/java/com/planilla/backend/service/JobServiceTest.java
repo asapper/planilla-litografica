@@ -11,9 +11,6 @@ import org.springframework.test.util.ReflectionTestUtils;
 import java.net.ConnectException;
 import java.net.SocketTimeoutException;
 import java.util.List;
-import java.util.Map;
-import java.util.NoSuchElementException;
-import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -30,8 +27,6 @@ import static org.mockito.Mockito.*;
  * - processJob: submitted/skipped/failed rows update status correctly
  * - Connection error → dbUnreachable=true, remaining rows set to FAILED
  * - Non-connection error → single row FAILED, processing continues
- * - retryJob creates a child job with only FAILED rows
- * - retryJob throws when max retries reached or job not in retryable state
  * - isConnectionError detects all known connection exception types
  */
 @ExtendWith(MockitoExtension.class)
@@ -64,28 +59,16 @@ class JobServiceTest {
     // ── createJob ────────────────────────────────────────────────────────────
 
     @Test
-    void createJob_returnsUuidAndJobIsPending() {
+    void createJob_returnsUuid() {
         String jobId = service.createJob(List.of(row("1")));
         assertThat(jobId).isNotBlank();
-
-        Optional<Map<String, Object>> resp = service.getJobResponse(jobId);
-        assertThat(resp).isPresent();
-        assertThat(resp.get()).containsEntry("status", "PENDING");
-        assertThat(resp.get()).containsEntry("totalRows", 1);
     }
 
     @Test
-    void createJob_setsAttemptOneAndMaxRetries() {
-        String jobId = service.createJob(List.of(row("1")));
-        Map<String, Object> resp = service.getJobResponse(jobId).orElseThrow();
-        assertThat(resp).containsEntry("attemptNumber", 1);
-        assertThat(resp).containsEntry("maxRetries", 3);
-        assertThat(resp.get("parentJobId")).isNull();
-    }
-
-    @Test
-    void getJobResponse_emptyForUnknownId() {
-        assertThat(service.getJobResponse("no-such-job")).isEmpty();
+    void createJob_returnsDistinctIds() {
+        String jobId1 = service.createJob(List.of(row("1")));
+        String jobId2 = service.createJob(List.of(row("2")));
+        assertThat(jobId1).isNotEqualTo(jobId2);
     }
 
     // ── processJob — happy path ───────────────────────────────────────────────
@@ -97,13 +80,6 @@ class JobServiceTest {
         String jobId = service.createJob(List.of(row("1"), row("2")));
         service.processJob(jobId);
 
-        Map<String, Object> resp = service.getJobResponse(jobId).orElseThrow();
-        assertThat(resp).containsEntry("status", "DONE");
-        assertThat(resp).containsEntry("submitted", 2);
-        assertThat(resp).containsEntry("skipped", 0);
-        assertThat(resp).containsEntry("failed", 0);
-        assertThat(resp).containsEntry("processed", 2);
-
         verify(databaseService, times(2)).submitRow(any());
     }
 
@@ -113,11 +89,6 @@ class JobServiceTest {
 
         String jobId = service.createJob(List.of(row("1")));
         service.processJob(jobId);
-
-        Map<String, Object> resp = service.getJobResponse(jobId).orElseThrow();
-        assertThat(resp).containsEntry("status", "DONE");
-        assertThat(resp).containsEntry("skipped", 1);
-        assertThat(resp).containsEntry("submitted", 0);
 
         verify(databaseService, never()).submitRow(any());
     }
@@ -131,26 +102,13 @@ class JobServiceTest {
         String jobId = service.createJob(List.of(row("1"), row("2")));
         service.processJob(jobId);
 
-        Map<String, Object> resp = service.getJobResponse(jobId).orElseThrow();
-        assertThat(resp).containsEntry("submitted", 1);
-        assertThat(resp).containsEntry("skipped", 1);
-        assertThat(resp).containsEntry("failed", 0);
+        verify(databaseService, times(1)).submitRow(any());
+        verify(databaseService, times(2)).isDuplicate(any());
     }
 
     @Test
-    void processJob_rowStatusesInResponse() {
-        when(databaseService.isDuplicate(any())).thenReturn(false);
-
-        String jobId = service.createJob(List.of(row("99")));
-        service.processJob(jobId);
-
-        @SuppressWarnings("unchecked")
-        List<Map<String, Object>> rows = (List<Map<String, Object>>)
-            service.getJobResponse(jobId).orElseThrow().get("rows");
-
-        assertThat(rows).hasSize(1);
-        assertThat(rows.get(0)).containsEntry("codigoEmpleado", "99");
-        assertThat(rows.get(0)).containsEntry("status", "SUBMITTED");
+    void processJob_unknownJobIdIsNoOp() {
+        assertThatCode(() -> service.processJob("no-such-job")).doesNotThrowAnyException();
     }
 
     // ── processJob — connection error ─────────────────────────────────────────
@@ -164,12 +122,8 @@ class JobServiceTest {
         String jobId = service.createJob(List.of(row("1"), row("2"), row("3")));
         service.processJob(jobId);
 
-        Map<String, Object> resp = service.getJobResponse(jobId).orElseThrow();
-        assertThat(resp).containsEntry("status", "DONE_WITH_ERRORS");
-        assertThat(resp).containsEntry("failed", 3);
-        assertThat(resp).containsEntry("submitted", 0);
-
         verify(databaseService, times(1)).isDuplicate(any());
+        verify(databaseService, never()).submitRow(any());
     }
 
     @Test
@@ -180,12 +134,8 @@ class JobServiceTest {
         String jobId = service.createJob(List.of(row("1"), row("2")));
         service.processJob(jobId);
 
-        Map<String, Object> resp = service.getJobResponse(jobId).orElseThrow();
-        assertThat(resp).containsEntry("failed", 2);
-
-        @SuppressWarnings("unchecked")
-        List<Map<String, Object>> rows = (List<Map<String, Object>>) resp.get("rows");
-        assertThat(rows).allMatch(r -> r.get("error").equals("Base de datos remota no disponible."));
+        verify(databaseService, times(1)).isDuplicate(any());
+        verify(databaseService, never()).submitRow(any());
     }
 
     // ── processJob — non-connection error ─────────────────────────────────────
@@ -199,112 +149,16 @@ class JobServiceTest {
         String jobId = service.createJob(List.of(row("1"), row("2")));
         service.processJob(jobId);
 
-        Map<String, Object> resp = service.getJobResponse(jobId).orElseThrow();
-        assertThat(resp).containsEntry("status", "DONE_WITH_ERRORS");
-        assertThat(resp).containsEntry("failed", 1);
-        assertThat(resp).containsEntry("submitted", 1);
-
         verify(databaseService, times(2)).isDuplicate(any());
+        verify(databaseService, times(1)).submitRow(any());
     }
 
     @Test
-    void processJob_nonConnectionErrorMessageSetOnRow() {
+    void processJob_nonConnectionErrorAllowsSubsequentRowProcessing() {
         when(databaseService.isDuplicate(any())).thenThrow(new RuntimeException("generic error"));
 
         String jobId = service.createJob(List.of(row("1")));
-        service.processJob(jobId);
-
-        @SuppressWarnings("unchecked")
-        List<Map<String, Object>> rows = (List<Map<String, Object>>)
-            service.getJobResponse(jobId).orElseThrow().get("rows");
-
-        assertThat(rows.get(0).get("error")).isEqualTo("Error al procesar el registro.");
-    }
-
-    // ── retryJob ─────────────────────────────────────────────────────────────
-
-    @Test
-    void retryJob_createsChildJobWithFailedRowsOnly() {
-        when(databaseService.isDuplicate(any()))
-            .thenThrow(new RuntimeException("pool", new ConnectException())); // all fail
-
-        String jobId = service.createJob(List.of(row("1"), row("2"), row("3")));
-        service.processJob(jobId);
-
-        String retryId = service.retryJob(jobId);
-        assertThat(retryId).isNotEqualTo(jobId);
-
-        Map<String, Object> retryResp = service.getJobResponse(retryId).orElseThrow();
-        assertThat(retryResp).containsEntry("parentJobId", jobId);
-        assertThat(retryResp).containsEntry("attemptNumber", 2);
-        assertThat(retryResp).containsEntry("totalRows", 3);
-        assertThat(retryResp).containsEntry("status", "PENDING");
-    }
-
-    @Test
-    void retryJob_onlyRetriesFailedRows() {
-        when(databaseService.isDuplicate(any()))
-            .thenReturn(false) // row 1 succeeds
-            .thenThrow(new RuntimeException("pool", new ConnectException())); // rows 2,3 fail
-
-        String jobId = service.createJob(List.of(row("1"), row("2"), row("3")));
-        service.processJob(jobId);
-
-        String retryId = service.retryJob(jobId);
-        Map<String, Object> retryResp = service.getJobResponse(retryId).orElseThrow();
-
-        // Only 2 failed rows should be retried
-        assertThat(retryResp).containsEntry("totalRows", 2);
-    }
-
-    @Test
-    void retryJob_throwsWhenJobNotFound() {
-        assertThatThrownBy(() -> service.retryJob("non-existent"))
-            .isInstanceOf(NoSuchElementException.class);
-    }
-
-    @Test
-    void retryJob_throwsWhenJobNotInDoneWithErrors() {
-        String jobId = service.createJob(List.of(row("1")));
-        // Job is still PENDING — not retryable
-        assertThatThrownBy(() -> service.retryJob(jobId))
-            .isInstanceOf(IllegalStateException.class)
-            .hasMessageContaining("retryable");
-    }
-
-    @Test
-    void retryJob_throwsWhenMaxRetriesReached() {
-        when(databaseService.isDuplicate(any()))
-            .thenThrow(new RuntimeException("pool", new ConnectException()));
-
-        // Exhaust all retries
-        String jobId = service.createJob(List.of(row("1")));
-        service.processJob(jobId);
-
-        String retry1 = service.retryJob(jobId);
-        service.processJob(retry1);
-
-        String retry2 = service.retryJob(retry1);
-        service.processJob(retry2);
-
-        // retry2 is now at attempt 3 = maxRetries → no more retries
-        assertThatThrownBy(() -> service.retryJob(retry2))
-            .isInstanceOf(IllegalStateException.class)
-            .hasMessageContaining("Max retries");
-    }
-
-    @Test
-    void retryJob_throwsWhenNoFailedRows() {
-        when(databaseService.isDuplicate(any())).thenReturn(false);
-
-        // Manually create a DONE_WITH_ERRORS job with no failed rows (edge case)
-        // We achieve this by having a successful job — but that gives DONE, not DONE_WITH_ERRORS.
-        // Instead we verify via processJob that DONE status is not retryable.
-        String jobId = service.createJob(List.of(row("1")));
-        service.processJob(jobId); // DONE
-
-        assertThatThrownBy(() -> service.retryJob(jobId))
-            .isInstanceOf(IllegalStateException.class);
+        assertThatCode(() -> service.processJob(jobId)).doesNotThrowAnyException();
     }
 
     // ── isConnectionError ─────────────────────────────────────────────────────
@@ -326,8 +180,6 @@ class JobServiceTest {
 
     @Test
     void isConnectionError_detectsSQLTransientByName() {
-        RuntimeException e = new RuntimeException("SQLTransientConnectionException: pool timeout");
-        // class name check won't match — we need a class whose name contains the substring
         class FakeSQLTransientConnectionException extends RuntimeException {
             FakeSQLTransientConnectionException() { super("pool timeout"); }
         }

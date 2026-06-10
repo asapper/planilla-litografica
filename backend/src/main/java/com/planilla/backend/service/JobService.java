@@ -30,7 +30,7 @@ public class JobService {
     public String createJob(List<EmployeeRow> rows) {
         String jobId = UUID.randomUUID().toString();
         List<JobRowState> rowStates = rows.stream().map(JobRowState::new).collect(Collectors.toList());
-        jobs.put(jobId, new JobState(jobId, null, 1, maxRetries, rowStates));
+        jobs.put(jobId, new JobState(jobId, 1, maxRetries, rowStates));
         return jobId;
     }
 
@@ -77,62 +77,6 @@ public class JobService {
         job.status.set(finalStatus);
         log.info("Job {} finished — status={} submitted={} skipped={} failed={}",
             jobId, finalStatus, job.submitted(), job.skipped(), job.failed());
-    }
-
-    public Optional<Map<String, Object>> getJobResponse(String jobId) {
-        JobState job = jobs.get(jobId);
-        if (job == null) return Optional.empty();
-        return Optional.of(buildResponse(job));
-    }
-
-    public String retryJob(String jobId) {
-        JobState original = jobs.get(jobId);
-        if (original == null) throw new NoSuchElementException("Job not found: " + jobId);
-
-        String currentStatus = original.status.get();
-        if (!currentStatus.equals("DONE_WITH_ERRORS")) {
-            throw new IllegalStateException("Job is not in a retryable state: " + currentStatus);
-        }
-        if (original.attemptNumber >= original.maxRetries) {
-            throw new IllegalStateException("Max retries reached");
-        }
-
-        List<EmployeeRow> failedRows = original.rows.stream()
-            .filter(r -> r.getStatus().equals("FAILED"))
-            .map(r -> r.row)
-            .collect(Collectors.toList());
-
-        if (failedRows.isEmpty()) throw new IllegalStateException("No failed rows to retry");
-
-        String newJobId = UUID.randomUUID().toString();
-        List<JobRowState> rowStates = failedRows.stream().map(JobRowState::new).collect(Collectors.toList());
-        jobs.put(newJobId, new JobState(newJobId, jobId, original.attemptNumber + 1, original.maxRetries, rowStates));
-        return newJobId;
-    }
-
-    private Map<String, Object> buildResponse(JobState job) {
-        List<Map<String, Object>> rowList = job.rows.stream().map(r -> {
-            Map<String, Object> m = new LinkedHashMap<>();
-            m.put("codigoEmpleado", r.row.getCodigoEmpleado());
-            m.put("nombreEmpleado", r.row.getNombreEmpleado());
-            m.put("status", r.getStatus());
-            if (r.error != null) m.put("error", r.error);
-            return m;
-        }).collect(Collectors.toList());
-
-        Map<String, Object> resp = new LinkedHashMap<>();
-        resp.put("jobId", job.jobId);
-        resp.put("status", job.status.get());
-        resp.put("attemptNumber", job.attemptNumber);
-        resp.put("maxRetries", job.maxRetries);
-        resp.put("parentJobId", job.parentJobId);
-        resp.put("totalRows", job.totalRows());
-        resp.put("processed", job.processed());
-        resp.put("submitted", job.submitted());
-        resp.put("skipped", job.skipped());
-        resp.put("failed", job.failed());
-        resp.put("rows", rowList);
-        return resp;
     }
 
     static boolean isConnectionError(Exception e) {
