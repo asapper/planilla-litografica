@@ -43,13 +43,50 @@ class EmployeeRegistryServiceTest {
     }
 
     @Test
-    void getAll_noFilters_returnsAllEmployees() {
-        List<Map<String, Object>> expected = List.of(Map.of("employee_id", "1", "name", "Ana"));
-        when(jdbc.queryForList(anyString(), any(Object[].class))).thenReturn(expected);
+    void getAll_noFilters_mapsRowsToCamelCaseDto() {
+        Map<String, Object> row = new java.util.HashMap<>();
+        row.put("EMPLOYEE_ID", "emp1");
+        row.put("NAME", "Ana");
+        row.put("SHIFT_ID", "manana");
+        row.put("ACTIVE", true);
+        row.put("SHIFT_NAME", "Mañana");
+        when(jdbc.queryForList(anyString(), any(Object[].class))).thenReturn(List.of(row));
 
         List<Map<String, Object>> result = service.getAll(null, null, null);
 
-        assertThat(result).isEqualTo(expected);
+        assertThat(result).hasSize(1);
+        Map<String, Object> dto = result.get(0);
+        assertThat(dto.get("id")).isEqualTo("emp1");
+        assertThat(dto.get("code")).isEqualTo("emp1");
+        assertThat(dto.get("name")).isEqualTo("Ana");
+        assertThat(dto.get("shiftId")).isEqualTo("manana");
+        assertThat(dto.get("shiftName")).isEqualTo("Mañana");
+        assertThat(dto.get("active")).isEqualTo(true);
+    }
+
+    @Test
+    void getAll_employeeWithoutShift_shiftNameIsNull() {
+        Map<String, Object> row = new java.util.HashMap<>();
+        row.put("EMPLOYEE_ID", "emp2");
+        row.put("NAME", "Carlos");
+        row.put("SHIFT_ID", null);
+        row.put("ACTIVE", false);
+        row.put("SHIFT_NAME", null);
+        when(jdbc.queryForList(anyString(), any(Object[].class))).thenReturn(List.of(row));
+
+        List<Map<String, Object>> result = service.getAll(null, null, null);
+
+        assertThat(result.get(0).get("shiftId")).isNull();
+        assertThat(result.get(0).get("shiftName")).isNull();
+    }
+
+    @Test
+    void getAll_queryJoinsShiftConfigForShiftName() {
+        when(jdbc.queryForList(anyString(), any(Object[].class))).thenReturn(List.of());
+
+        service.getAll(null, null, null);
+
+        verify(jdbc).queryForList(contains("LEFT JOIN shift_config"), any(Object[].class));
     }
 
     @Test
@@ -94,29 +131,56 @@ class EmployeeRegistryServiceTest {
     }
 
     @Test
-    void updateEmployee_bothParams_updatesBoth() {
-        service.updateEmployee("emp1", "tarde", true);
+    void updateEmployee_bothParams_returnsUpdatedDto() {
+        Map<String, Object> row = new java.util.HashMap<>();
+        row.put("EMPLOYEE_ID", "emp1");
+        row.put("NAME", "Ana");
+        row.put("SHIFT_ID", "tarde");
+        row.put("ACTIVE", true);
+        row.put("SHIFT_NAME", "Tarde");
+        when(jdbc.queryForList(anyString(), eq("emp1"))).thenReturn(List.of(row));
+
+        Map<String, Object> result = service.updateEmployee("emp1", "tarde", true);
 
         verify(jdbc).update(contains("SET shift_id = ?, active = ?"), eq("tarde"), eq(true), eq("emp1"));
+        assertThat(result.get("shiftId")).isEqualTo("tarde");
     }
 
     @Test
-    void updateEmployee_shiftIdOnly_updatesShiftOnly() {
-        service.updateEmployee("emp1", "tarde", null);
+    void updateEmployee_shiftIdOnly_returnsUpdatedDto() {
+        Map<String, Object> row = new java.util.HashMap<>();
+        row.put("EMPLOYEE_ID", "emp1");
+        row.put("NAME", "Ana");
+        row.put("SHIFT_ID", "tarde");
+        row.put("ACTIVE", true);
+        row.put("SHIFT_NAME", "Tarde");
+        when(jdbc.queryForList(anyString(), eq("emp1"))).thenReturn(List.of(row));
+
+        Map<String, Object> result = service.updateEmployee("emp1", "tarde", null);
 
         verify(jdbc).update(contains("SET shift_id = ?"), eq("tarde"), eq("emp1"));
+        assertThat(result.get("id")).isEqualTo("emp1");
     }
 
     @Test
-    void updateEmployee_activeOnly_updatesActiveOnly() {
-        service.updateEmployee("emp1", null, false);
+    void updateEmployee_activeOnly_returnsUpdatedDto() {
+        Map<String, Object> row = new java.util.HashMap<>();
+        row.put("EMPLOYEE_ID", "emp1");
+        row.put("NAME", "Ana");
+        row.put("SHIFT_ID", null);
+        row.put("ACTIVE", false);
+        row.put("SHIFT_NAME", null);
+        when(jdbc.queryForList(anyString(), eq("emp1"))).thenReturn(List.of(row));
+
+        Map<String, Object> result = service.updateEmployee("emp1", null, false);
 
         verify(jdbc).update(contains("SET active = ?"), eq(false), eq("emp1"));
+        assertThat(result.get("active")).isEqualTo(false);
     }
 
     @Test
     void updateEmployee_neitherParam_doesNothing() {
-        service.updateEmployee("emp1", null, null);
+        assertThat(service.updateEmployee("emp1", null, null)).isNull();
 
         verify(jdbc, never()).update(anyString(), any(), any(), any());
     }
@@ -129,28 +193,53 @@ class EmployeeRegistryServiceTest {
     }
 
     @Test
-    void setActive_false_setsActiveFalse() {
-        service.setActive("emp1", false);
+    void setActive_false_returnsUpdatedDto() {
+        Map<String, Object> row = new java.util.HashMap<>();
+        row.put("EMPLOYEE_ID", "emp1");
+        row.put("NAME", "Ana");
+        row.put("SHIFT_ID", "manana");
+        row.put("ACTIVE", false);
+        row.put("SHIFT_NAME", "Mañana");
+        when(jdbc.queryForList(anyString(), eq("emp1"))).thenReturn(List.of(row));
+
+        Map<String, Object> result = service.setActive("emp1", false);
 
         verify(jdbc).update(anyString(), eq(false), eq("emp1"));
+        assertThat(result.get("active")).isEqualTo(false);
     }
 
     @Test
-    void setActive_true_withNullShift_setsMananaShift() {
+    void setActive_true_withNullShift_setsMananaShiftAndReturnsDto() {
         when(jdbc.queryForObject(anyString(), eq(Integer.class), any())).thenReturn(1);
+        Map<String, Object> row = new java.util.HashMap<>();
+        row.put("EMPLOYEE_ID", "emp1");
+        row.put("NAME", "Ana");
+        row.put("SHIFT_ID", "manana");
+        row.put("ACTIVE", true);
+        row.put("SHIFT_NAME", "Mañana");
+        when(jdbc.queryForList(anyString(), eq("emp1"))).thenReturn(List.of(row));
 
-        service.setActive("emp1", true);
+        Map<String, Object> result = service.setActive("emp1", true);
 
         verify(jdbc).update(contains("shift_id = 'manana'"), eq("emp1"));
+        assertThat(result.get("shiftId")).isEqualTo("manana");
     }
 
     @Test
-    void setActive_true_withExistingShift_setsActiveTrue() {
+    void setActive_true_withExistingShift_returnsDto() {
         when(jdbc.queryForObject(anyString(), eq(Integer.class), any())).thenReturn(0);
+        Map<String, Object> row = new java.util.HashMap<>();
+        row.put("EMPLOYEE_ID", "emp1");
+        row.put("NAME", "Ana");
+        row.put("SHIFT_ID", "tarde");
+        row.put("ACTIVE", true);
+        row.put("SHIFT_NAME", "Tarde");
+        when(jdbc.queryForList(anyString(), eq("emp1"))).thenReturn(List.of(row));
 
-        service.setActive("emp1", true);
+        Map<String, Object> result = service.setActive("emp1", true);
 
         verify(jdbc).update(anyString(), eq(true), eq("emp1"));
+        assertThat(result.get("active")).isEqualTo(true);
     }
 
     @Test

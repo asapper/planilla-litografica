@@ -7,12 +7,17 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 @Service
 public class EmployeeRegistryService {
+
+    private static final String SELECT_BASE =
+        "SELECT r.employee_id, r.name, r.shift_id, r.active, s.name AS shift_name " +
+        "FROM employee_registry r LEFT JOIN shift_config s ON r.shift_id = s.id";
 
     private final JdbcTemplate jdbc;
 
@@ -21,28 +26,31 @@ public class EmployeeRegistryService {
     }
 
     public List<Map<String, Object>> getAll(Boolean active, String shiftId, String search) {
-        StringBuilder sql = new StringBuilder(
-            "SELECT employee_id, name, shift_id, active, first_seen, last_seen FROM employee_registry WHERE 1=1"
-        );
+        StringBuilder sql = new StringBuilder(SELECT_BASE + " WHERE 1=1");
         List<Object> params = new ArrayList<>();
 
         if (active != null) {
-            sql.append(" AND active = ?");
+            sql.append(" AND r.active = ?");
             params.add(active);
         }
         if (shiftId != null && !shiftId.isBlank()) {
-            sql.append(" AND shift_id = ?");
+            sql.append(" AND r.shift_id = ?");
             params.add(shiftId);
         }
         if (search != null && !search.isBlank()) {
-            sql.append(" AND (LOWER(name) LIKE ? OR LOWER(employee_id) LIKE ?)");
+            sql.append(" AND (LOWER(r.name) LIKE ? OR LOWER(r.employee_id) LIKE ?)");
             String pattern = "%" + search.toLowerCase() + "%";
             params.add(pattern);
             params.add(pattern);
         }
-        sql.append(" ORDER BY name");
+        sql.append(" ORDER BY r.name");
 
-        return jdbc.queryForList(sql.toString(), params.toArray());
+        List<Map<String, Object>> rows = jdbc.queryForList(sql.toString(), params.toArray());
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (Map<String, Object> row : rows) {
+            result.add(toEmployeeDto(row));
+        }
+        return result;
     }
 
     public void upsertEmployee(String employeeId, String name) {
@@ -57,9 +65,9 @@ public class EmployeeRegistryService {
         );
     }
 
-    public void updateEmployee(String employeeId, String shiftId, Boolean active) {
+    public Map<String, Object> updateEmployee(String employeeId, String shiftId, Boolean active) {
         if (shiftId == null && active == null) {
-            return;
+            return null;
         }
         if (shiftId != null && active != null) {
             jdbc.update(
@@ -77,6 +85,7 @@ public class EmployeeRegistryService {
                 active, employeeId
             );
         }
+        return getById(employeeId);
     }
 
     public void bulkAssignShift(List<String> employeeIds, String shiftId) {
@@ -88,7 +97,7 @@ public class EmployeeRegistryService {
         }
     }
 
-    public void setActive(String employeeId, boolean active) {
+    public Map<String, Object> setActive(String employeeId, boolean active) {
         if (active) {
             Integer nullShift = jdbc.queryForObject(
                 "SELECT COUNT(*) FROM employee_registry WHERE employee_id = ? AND shift_id IS NULL",
@@ -99,13 +108,14 @@ public class EmployeeRegistryService {
                     "UPDATE employee_registry SET active = TRUE, shift_id = 'manana' WHERE employee_id = ?",
                     employeeId
                 );
-                return;
+                return getById(employeeId);
             }
         }
         jdbc.update(
             "UPDATE employee_registry SET active = ? WHERE employee_id = ?",
             active, employeeId
         );
+        return getById(employeeId);
     }
 
     public boolean isNewEmployee(String employeeId) {
@@ -157,5 +167,22 @@ public class EmployeeRegistryService {
             }
         }
         return result;
+    }
+
+    private Map<String, Object> getById(String employeeId) {
+        List<Map<String, Object>> rows = jdbc.queryForList(SELECT_BASE + " WHERE r.employee_id = ?", employeeId);
+        return rows.isEmpty() ? null : toEmployeeDto(rows.get(0));
+    }
+
+    private Map<String, Object> toEmployeeDto(Map<String, Object> row) {
+        Map<String, Object> dto = new LinkedHashMap<>();
+        Object id = row.get("EMPLOYEE_ID");
+        dto.put("id", id);
+        dto.put("code", id);
+        dto.put("name", row.get("NAME"));
+        dto.put("shiftId", row.get("SHIFT_ID"));
+        dto.put("shiftName", row.get("SHIFT_NAME"));
+        dto.put("active", row.get("ACTIVE"));
+        return dto;
     }
 }
