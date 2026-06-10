@@ -1,5 +1,5 @@
 import { useTasStore } from '../../tasStore';
-import { submitInactiveReview, submitTas } from '../../tasApi';
+import { submitInactiveReview } from '../../tasApi';
 import type { InactiveDecision } from '../../tasTypes';
 
 export default function ReactivationReviewScreen() {
@@ -14,7 +14,7 @@ export default function ReactivationReviewScreen() {
   const setAbsentEmployees = useTasStore(s => s.setAbsentEmployees);
   const setUsedFallbackHolidays = useTasStore(s => s.setUsedFallbackHolidays);
   const setResolvedRowCount = useTasStore(s => s.setResolvedRowCount);
-  const setJobId           = useTasStore(s => s.setJobId);
+  const setResolvedRows    = useTasStore(s => s.setResolvedRows);
   const setError           = useTasStore(s => s.setError);
 
   const getDecision = (employeeId: string): InactiveDecision =>
@@ -38,15 +38,9 @@ export default function ReactivationReviewScreen() {
       setAbsentEmployees(result.absentActiveEmployees);
       setUsedFallbackHolidays(result.usedFallbackHolidays);
 
+      setResolvedRows(result.resolvedRows ?? []);
       const hasNeedsResolution = result.flaggedSessions.some(s => s.needsResolution);
-      if (hasNeedsResolution) {
-        setTasView('verification');
-      } else {
-        setTasView('submitting');
-        const { jobId } = await submitTas(result.uploadToken);
-        setJobId(jobId);
-        setTasView('result');
-      }
+      setTasView(hasNeedsResolution ? 'verification' : 'review');
     } catch {
       setTasView('inactiveReview');
       setError('Ocurrió un error al continuar. Intente nuevamente.');
