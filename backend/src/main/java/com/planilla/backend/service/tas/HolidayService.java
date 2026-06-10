@@ -46,18 +46,28 @@ public class HolidayService {
     }
 
     public List<Map<String, Object>> getHolidaysForYear(int year) {
-        return jdbc.queryForList(
+        List<Map<String, Object>> rows = jdbc.queryForList(
             "SELECT id, holiday_date, name, holiday_year, source FROM holiday_cache WHERE holiday_year = ? ORDER BY holiday_date",
             year
         );
+        List<Map<String, Object>> result = new java.util.ArrayList<>();
+        for (Map<String, Object> row : rows) {
+            result.add(toHolidayDto(row));
+        }
+        return result;
     }
 
-    public void addManualHoliday(String date, String name) {
+    public Map<String, Object> addManualHoliday(String date, String name) {
         LocalDate localDate = LocalDate.parse(date);
         jdbc.update(
             "INSERT INTO holiday_cache (holiday_date, name, holiday_year, source) VALUES (?, ?, ?, 'MANUAL')",
             java.sql.Date.valueOf(localDate), name, localDate.getYear()
         );
+        Map<String, Object> row = jdbc.queryForMap(
+            "SELECT id, holiday_date, name, holiday_year, source FROM holiday_cache WHERE holiday_date = ? AND source = 'MANUAL'",
+            java.sql.Date.valueOf(localDate)
+        );
+        return toHolidayDto(row);
     }
 
     public void deleteHoliday(long id) {
@@ -156,5 +166,15 @@ public class HolidayService {
             }
         }
         return allSucceeded;
+    }
+
+    private Map<String, Object> toHolidayDto(Map<String, Object> row) {
+        Map<String, Object> dto = new java.util.LinkedHashMap<>();
+        dto.put("id", row.get("ID"));
+        dto.put("date", row.get("HOLIDAY_DATE").toString());
+        dto.put("name", row.get("NAME"));
+        Object source = row.get("SOURCE");
+        dto.put("source", "API".equals(source) ? "API" : "Manual");
+        return dto;
     }
 }
