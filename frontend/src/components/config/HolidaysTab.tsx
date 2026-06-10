@@ -3,6 +3,7 @@ import { useConfigStore } from '../../configStore';
 import { getHolidays, createHoliday, deleteHoliday, refreshHolidays } from '../../configApi';
 import type { Holiday } from '../../configTypes';
 import Spinner from '../ui/Spinner';
+import ConfirmModal from '../ui/ConfirmModal';
 
 const DAY_NAMES = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
 const MONTH_NAMES_ES = [
@@ -17,40 +18,6 @@ function formatDate(dateStr: string): string {
   const monthName = MONTH_NAMES_ES[month];
   const capitalDay = dayName.charAt(0).toUpperCase() + dayName.slice(1);
   return `${capitalDay} ${day} de ${monthName}`;
-}
-
-interface DeleteModalProps {
-  holiday: Holiday;
-  onConfirm: () => void;
-  onCancel: () => void;
-}
-
-function DeleteModal({ holiday, onConfirm, onCancel }: DeleteModalProps) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="bg-white rounded-lg shadow-lg max-w-sm w-full mx-4 p-6">
-        <h3 className="text-base font-medium text-gray-900 mb-2">Eliminar feriado</h3>
-        <p className="text-sm text-gray-600 mb-6">
-          ¿Estás seguro de que deseas eliminar <strong>{holiday.name}</strong> ({formatDate(holiday.date)})?
-          Esta acción no se puede deshacer.
-        </p>
-        <div className="flex gap-3 justify-end">
-          <button
-            onClick={onCancel}
-            className="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded hover:bg-gray-50"
-          >
-            Cancelar
-          </button>
-          <button
-            onClick={onConfirm}
-            className="px-4 py-2 text-sm text-white bg-red-600 rounded hover:bg-red-700"
-          >
-            Eliminar
-          </button>
-        </div>
-      </div>
-    </div>
-  );
 }
 
 export default function HolidaysTab() {
@@ -267,8 +234,11 @@ export default function HolidaysTab() {
       </div>
 
       {deleteTarget && (
-        <DeleteModal
-          holiday={deleteTarget}
+        <ConfirmModal
+          title="Eliminar feriado"
+          message={`¿Estás seguro de que deseas eliminar ${deleteTarget.name} (${formatDate(deleteTarget.date)})? Esta acción no se puede deshacer.`}
+          confirmLabel="Eliminar"
+          cancelLabel="Cancelar"
           onConfirm={handleDeleteConfirm}
           onCancel={() => setDeleteTarget(null)}
         />

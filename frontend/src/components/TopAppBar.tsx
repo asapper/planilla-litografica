@@ -1,12 +1,19 @@
+import { useState } from 'react';
 import { APP_BAR } from '../constants/colors';
 import type { AppView } from '../types';
+import type { TasView } from '../tasTypes';
+import ConfirmModal from './ui/ConfirmModal';
 
 interface Props {
   currentView: AppView;
   onViewChange: (view: AppView) => void;
+  tasView: TasView;
+  onNewUpload: () => void;
 }
 
-export default function TopAppBar({ currentView, onViewChange }: Props) {
+export default function TopAppBar({ currentView, onViewChange, tasView, onNewUpload }: Props) {
+  const [showConfirm, setShowConfirm] = useState(false);
+
   return (
     <header
       className="fixed left-0 right-0 flex items-center justify-between px-5 bg-primary"
@@ -28,8 +35,19 @@ export default function TopAppBar({ currentView, onViewChange }: Props) {
       {/* Center: spacer */}
       <div className="flex-1 mx-6" />
 
-      {/* Trailing: Configuración */}
+      {/* Trailing: session actions + Configuración */}
       <div className="flex items-center gap-2 shrink-0">
+        {tasView !== 'idle' && (
+          <button
+            onClick={() => setShowConfirm(true)}
+            className="inline-flex items-center gap-1.5 px-4 h-8 rounded-shape-full text-label-lg font-medium text-white/80 border border-white/50 hover:bg-white/15 transition-colors duration-150 cursor-pointer"
+          >
+            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            Nueva carga
+          </button>
+        )}
         <button
           onClick={() => onViewChange('config')}
           aria-current={currentView === 'config' ? 'page' : undefined}
@@ -47,6 +65,20 @@ export default function TopAppBar({ currentView, onViewChange }: Props) {
           Configuración
         </button>
       </div>
+
+      {showConfirm && (
+        <ConfirmModal
+          title="Iniciar nueva carga"
+          message="Esta acción descartará la sesión actual, incluyendo los cambios sin guardar. ¿Deseas continuar?"
+          confirmLabel="Sí, descartar"
+          cancelLabel="Cancelar"
+          onConfirm={() => {
+            setShowConfirm(false);
+            onNewUpload();
+          }}
+          onCancel={() => setShowConfirm(false)}
+        />
+      )}
     </header>
   );
 }

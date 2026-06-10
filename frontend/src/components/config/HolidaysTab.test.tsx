@@ -161,8 +161,7 @@ describe('HolidaysTab delete', () => {
     await waitFor(() => screen.getByText('Año Nuevo'));
     const deleteButtons = screen.getAllByRole('button', { name: /eliminar feriado/i });
     fireEvent.click(deleteButtons[0]);
-    const modal = screen.getByText(/estás seguro/i).closest('div') as HTMLElement;
-    expect(modal.querySelector('strong')?.textContent).toBe('Año Nuevo');
+    expect(screen.getByText(/estás seguro/i).textContent).toContain('Año Nuevo');
   });
 
   it('clicking Cancelar closes modal without deleting', async () => {

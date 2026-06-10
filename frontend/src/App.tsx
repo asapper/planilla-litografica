@@ -119,7 +119,15 @@ export default function App() {
   // ── Normal app ───────────────────────────────────────────────────────
   return (
     <ErrorBoundary>
-      <TopAppBar currentView={currentView} onViewChange={setCurrentView} />
+      <TopAppBar
+        currentView={currentView}
+        onViewChange={setCurrentView}
+        tasView={tasView}
+        onNewUpload={() => {
+          resetTas();
+          setCurrentView('tas');
+        }}
+      />
 
       {currentView === 'config' && <ConfigPage />}
 
