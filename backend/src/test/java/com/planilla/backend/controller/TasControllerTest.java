@@ -190,6 +190,20 @@ class TasControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(body)))
            .andExpect(status().isOk());
+
+        verify(registryService).setActive("100", false);
+    }
+
+    @Test
+    void deactivateAbsent_withActiveTrue_reactivatesEmployee() throws Exception {
+        Map<String, Object> body = Map.of("employeeIds", List.of("100"), "active", true);
+
+        mvc.perform(post("/api/tas/absent-review/nonexistent/deactivate")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(body)))
+           .andExpect(status().isOk());
+
+        verify(registryService).setActive("100", true);
     }
 
     // ── POST /api/tas/inactive-review ────────────────────────────────────────

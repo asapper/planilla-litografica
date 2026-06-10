@@ -31,5 +31,5 @@ export const submitTas = (token: string): Promise<{ jobId: string }> =>
 export const getAbsentReview = (token: string): Promise<{ absentEmployees: AbsentEmployee[] }> =>
   client.get<{ absentEmployees: AbsentEmployee[] }>(`/tas/absent-review/${token}`).then(r => r.data);
 
-export const deactivateAbsentEmployees = (token: string, employeeIds: string[]): Promise<void> =>
-  client.post(`/tas/absent-review/${token}/deactivate`, { employeeIds }).then(() => undefined);
+export const setAbsentEmployeesActive = (token: string, employeeIds: string[], active: boolean): Promise<void> =>
+  client.post(`/tas/absent-review/${token}/deactivate`, { employeeIds, active }).then(() => undefined);

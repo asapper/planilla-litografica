@@ -243,8 +243,9 @@ public class TasController {
 
         @SuppressWarnings("unchecked")
         List<String> employeeIds = (List<String>) body.getOrDefault("employeeIds", Collections.emptyList());
+        boolean active = (boolean) body.getOrDefault("active", false);
         for (String empId : employeeIds) {
-            registryService.setActive(empId, false);
+            registryService.setActive(empId, active);
         }
         return ResponseEntity.ok().build();
     }
