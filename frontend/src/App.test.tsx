@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, waitFor, act, fireEvent } from '@testing-library/react';
 import { useTasStore } from './tasStore';
@@ -24,7 +25,28 @@ vi.mock('./components/EmptyState', () => ({
   ),
 }));
 vi.mock('./components/TopAppBar', () => ({
-  default: () => <div data-testid="top-app-bar" />,
+  default: ({ tasView, onNewUpload }: { tasView: string; onNewUpload: () => void }) => {
+    const [showConfirm, setShowConfirm] = useState(false);
+    return (
+      <div data-testid="top-app-bar">
+        {tasView !== 'idle' && (
+          <>
+            <button onClick={() => setShowConfirm(true)}>Nueva carga</button>
+            {showConfirm && (
+              <button
+                onClick={() => {
+                  setShowConfirm(false);
+                  onNewUpload();
+                }}
+              >
+                Sí, descartar
+              </button>
+            )}
+          </>
+        )}
+      </div>
+    );
+  },
 }));
 vi.mock('./components/ConfigPage', () => ({
   default: () => <div data-testid="config-page" />,
@@ -128,6 +150,24 @@ describe('TAS Nueva carga redirect', () => {
     expect(screen.queryByTestId('empty-state')).not.toBeInTheDocument();
 
     act(() => useTasStore.getState().resetTas());
+
+    await waitFor(() => expect(screen.getByTestId('empty-state')).toBeInTheDocument());
+  });
+});
+
+describe('Top bar Nueva carga button', () => {
+  it('resets the session and returns to the upload screen when confirmed', async () => {
+    render(<App />);
+
+    await waitFor(() => expect(screen.getByTestId('empty-state')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('button', { name: /cargar tas/i }));
+
+    await waitFor(() => expect(useTasStore.getState().tasView).toBe('review'));
+    expect(screen.queryByTestId('empty-state')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /nueva carga/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Sí, descartar' }));
 
     await waitFor(() => expect(screen.getByTestId('empty-state')).toBeInTheDocument());
   });
