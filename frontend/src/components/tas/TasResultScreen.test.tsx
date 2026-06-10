@@ -2,16 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import TasResultScreen from './TasResultScreen';
 import { useTasStore } from '../../tasStore';
-import type { TasSession, AbsentEmployee } from '../../tasTypes';
-
-function makeSession(id: number): TasSession {
-  return {
-    sessionId: id, employeeId: `E${id}`, employeeName: `Emp ${id}`,
-    date: '2026-03-01', scans: [], matchedShiftId: null, matchedShiftName: null,
-    effectiveStart: null, lastScan: null, workedMinutes: 0, workedHours: 0,
-    needsResolution: false, flags: [], consistentMismatch: false,
-  };
-}
+import type { AbsentEmployee } from '../../tasTypes';
 
 beforeEach(() => {
   useTasStore.getState().resetTas();
