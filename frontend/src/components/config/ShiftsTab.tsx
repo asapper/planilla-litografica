@@ -11,8 +11,8 @@ function isCrossMidnight(start: string, end: string): boolean {
 
 interface RowProps {
   shift: Shift;
-  onUpdate: (id: number, field: keyof Pick<Shift, 'name' | 'startTime' | 'endTime'>, value: string) => void;
-  onDelete: (id: number) => void;
+  onUpdate: (id: string, field: keyof Pick<Shift, 'name' | 'startTime' | 'endTime'>, value: string) => void;
+  onDelete: (id: string) => void;
   deleteError: string | null;
 }
 
@@ -163,7 +163,7 @@ export default function ShiftsTab() {
   const showToast = useConfigStore(s => s.showToast);
 
   const [localShifts, setLocalShifts] = useState<Shift[]>([]);
-  const [deleteErrors, setDeleteErrors] = useState<Record<number, string>>({});
+  const [deleteErrors, setDeleteErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (shiftsData) {
@@ -179,7 +179,7 @@ export default function ShiftsTab() {
       .finally(() => setShiftsLoading(false));
   }, [setShiftsLoading, setShiftsData, setShiftsError]);
 
-  const handleUpdate = (id: number, field: keyof Pick<Shift, 'name' | 'startTime' | 'endTime'>, value: string) => {
+  const handleUpdate = (id: string, field: keyof Pick<Shift, 'name' | 'startTime' | 'endTime'>, value: string) => {
     setLocalShifts(prev => prev.map(s => {
       if (s.id !== id) return s;
       const updated = { ...s, [field]: value };
@@ -218,7 +218,7 @@ export default function ShiftsTab() {
     setShiftsDirty(false);
   };
 
-  const handleDelete = async (id: number) => {
+  const handleDelete = async (id: string) => {
     try {
       await deleteShift(id);
       const newData = localShifts.filter(s => s.id !== id);
