@@ -75,4 +75,14 @@ describe('ReviewScreen submit', () => {
     await waitFor(() => expect(useTasStore.getState().error).not.toBeNull());
     expect(useTasStore.getState().tasView).toBe('review');
   });
+
+  it('does nothing when uploadToken is null', () => {
+    useTasStore.getState().setResolvedRows(rows);
+
+    render(<ReviewScreen />);
+    fireEvent.click(screen.getByRole('button', { name: /enviar/i }));
+
+    expect(mockSubmitTas).not.toHaveBeenCalled();
+    expect(useTasStore.getState().tasView).toBe('idle');
+  });
 });
