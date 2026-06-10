@@ -40,3 +40,4 @@ logs/
 backend/data/
 *.mv.db
 *.trace.db
+.worktrees/
