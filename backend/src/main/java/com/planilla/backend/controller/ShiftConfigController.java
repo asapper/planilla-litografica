@@ -29,14 +29,13 @@ public class ShiftConfigController {
 
     @PostMapping
     public ResponseEntity<?> create(@RequestBody Map<String, Object> body) {
-        String id = (String) body.get("id");
         String name = (String) body.get("name");
         String startTime = (String) body.get("startTime");
         String endTime = (String) body.get("endTime");
         Boolean crossMidnight = body.containsKey("crossMidnight") ? (Boolean) body.get("crossMidnight") : false;
 
         try {
-            shiftConfigService.createShift(id, name, startTime, endTime, crossMidnight != null && crossMidnight);
+            shiftConfigService.createShift(name, startTime, endTime, crossMidnight != null && crossMidnight);
             return ResponseEntity.ok().build();
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(error(400, "CREATE_FAILED", e.getMessage()));

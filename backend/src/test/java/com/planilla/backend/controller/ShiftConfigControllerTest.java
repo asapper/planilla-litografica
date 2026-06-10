@@ -65,13 +65,13 @@ class ShiftConfigControllerTest {
                 .content(mapper.writeValueAsString(body)))
            .andExpect(status().isOk());
 
-        verify(shiftConfigService).createShift(eq("tarde"), eq("Tarde"), eq("15:00"), eq("23:00"), eq(false));
+        verify(shiftConfigService).createShift(eq("Tarde"), eq("15:00"), eq("23:00"), eq(false));
     }
 
     @Test
     void create_returns400OnException() throws Exception {
         doThrow(new RuntimeException("Duplicate key")).when(shiftConfigService)
-            .createShift(any(), any(), any(), any(), anyBoolean());
+            .createShift(any(), any(), any(), anyBoolean());
 
         Map<String, Object> body = Map.of("id", "dup", "name", "Dup", "startTime", "15:00", "endTime", "23:00");
 
@@ -168,6 +168,6 @@ class ShiftConfigControllerTest {
                 .content(mapper.writeValueAsString(body)))
            .andExpect(status().isOk());
 
-        verify(shiftConfigService).createShift(eq("x"), eq("X"), eq("06:00"), eq("14:00"), eq(false));
+        verify(shiftConfigService).createShift(eq("X"), eq("06:00"), eq("14:00"), eq(false));
     }
 }
