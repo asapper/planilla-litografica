@@ -79,6 +79,19 @@ public class EmployeeRegistryController {
         }
     }
 
+    @PatchMapping("/{id}/accrues-overtime")
+    public ResponseEntity<?> updateAccruesOvertime(@PathVariable String id, @RequestBody Map<String, Object> body) {
+        Object value = body.get("accruesOvertime");
+        if (!(value instanceof Boolean)) {
+            return ResponseEntity.badRequest().body(error(400, "MISSING_FIELD", "accruesOvertime is required"));
+        }
+        Map<String, Object> updated = employeeRegistryService.setAccruesOvertime(id, (Boolean) value);
+        if (updated == null) {
+            return ResponseEntity.status(404).body(error(404, "EMPLOYEE_NOT_FOUND", "Employee not found"));
+        }
+        return ResponseEntity.ok(updated);
+    }
+
     private Map<String, Object> error(int status, String code, String message) {
         Map<String, Object> body = new HashMap<>();
         body.put("status", status);
