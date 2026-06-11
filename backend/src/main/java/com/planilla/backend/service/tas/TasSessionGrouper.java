@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 
 @Service
@@ -16,6 +17,7 @@ public class TasSessionGrouper {
     private static final int DEDUP_WINDOW_MINUTES    = 5;
     private static final int DETECTION_BEFORE_MINUTES = 60;
     private static final int DETECTION_AFTER_MINUTES  = 10;
+    private static final int AMBIGUOUS_MAX_SPAN_MINUTES = 720;
 
     public List<TasSession> group(
             List<TasScanRecord> scans,
@@ -82,10 +84,9 @@ public class TasSessionGrouper {
         for (TasScanRecord scan : scans) {
             if (currentSession == null) {
                 Map<String, Object> openerShift = findOpenerShift(scan.getTimestamp(), shifts, assignedShift, isCrossMidnight);
-                if (openerShift == null) {
-                    continue;
-                }
-                currentSession = openSession(employeeId, scan, openerShift, assignedShift, isCrossMidnight);
+                currentSession = openerShift != null
+                        ? openSession(employeeId, scan, openerShift, assignedShift, isCrossMidnight)
+                        : openAmbiguousSession(employeeId, scan);
             } else {
                 if (isNextShiftExitScan(scan.getTimestamp(), currentSession, shifts, assignedShift)) {
                     currentSession.getScans().add(scan.getTimestamp());
@@ -208,6 +209,24 @@ public class TasSessionGrouper {
         if (!openerShift.equals(assignedShift)) {
             session.getFlags().add(TasFlag.SHIFT_MISMATCH);
         }
+
+        return session;
+    }
+
+    private TasSession openAmbiguousSession(String employeeId, TasScanRecord firstScan) {
+        TasSession session = new TasSession();
+        session.setEmployeeId(employeeId);
+        session.setEmployeeName(firstScan.getEmployeeName());
+        session.setDate(firstScan.getTimestamp().toLocalDate());
+        session.setCrossMidnight(false);
+        session.setSessionAnchor("D");
+        session.setFlags(new ArrayList<>(List.of(TasFlag.AMBIGUOUS_SHIFT)));
+
+        List<LocalDateTime> scans = new ArrayList<>();
+        scans.add(firstScan.getTimestamp());
+        session.setScans(scans);
+
+        session.setMatchedShiftId(null);
 
         return session;
     }

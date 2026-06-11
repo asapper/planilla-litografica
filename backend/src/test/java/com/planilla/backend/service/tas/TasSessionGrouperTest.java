@@ -175,14 +175,18 @@ class TasSessionGrouperTest {
     }
 
     @Test
-    void group_scanOutsideAllWindows_notGroupedIntoSession() {
+    void group_scanOutsideAllWindows_createsAmbiguousSession() {
         List<TasScanRecord> scans = List.of(
             scan("100", LocalDateTime.of(2026, 3, 10, 11, 30))
         );
 
         List<TasSession> sessions = grouper.group(scans, shifts, assignManana("100"));
 
-        assertThat(sessions).isEmpty();
+        assertThat(sessions).hasSize(1);
+        TasSession s = sessions.get(0);
+        assertThat(s.getMatchedShiftId()).isNull();
+        assertThat(s.getFlags()).containsExactly(TasFlag.AMBIGUOUS_SHIFT);
+        assertThat(s.getScans()).containsExactly(LocalDateTime.of(2026, 3, 10, 11, 30));
     }
 
     @Test
