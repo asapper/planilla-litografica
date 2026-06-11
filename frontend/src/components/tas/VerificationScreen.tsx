@@ -308,19 +308,23 @@ export default function VerificationScreen() {
         </h2>
 
         {availablePeriods.length > 1 && (
-          <select
-            aria-label="Periodo"
-            value={selectedPeriod ? periodKey(selectedPeriod) : ''}
-            onChange={e => {
-              const period = availablePeriods.find(p => periodKey(p) === e.target.value);
-              if (period) setSelectedPeriod(period);
-            }}
-            className="mb-2 h-9 px-3 rounded-shape-sm border border-outline bg-white text-body-md focus:outline-none focus:border-primary"
-          >
-            {availablePeriods.map(p => (
-              <option key={periodKey(p)} value={periodKey(p)}>{periodLabel(p)}</option>
-            ))}
-          </select>
+          <div className="flex flex-col gap-1 mb-2">
+            <label htmlFor="period-select" className="text-label-sm text-on-surface-variant">Periodo</label>
+            <select
+              id="period-select"
+              aria-label="Periodo"
+              value={selectedPeriod ? periodKey(selectedPeriod) : ''}
+              onChange={e => {
+                const period = availablePeriods.find(p => periodKey(p) === e.target.value);
+                if (period) setSelectedPeriod(period);
+              }}
+              className="h-9 px-3 rounded-shape-sm border border-outline bg-white text-body-md focus:outline-none focus:border-primary"
+            >
+              {availablePeriods.map(p => (
+                <option key={periodKey(p)} value={periodKey(p)}>{periodLabel(p)}</option>
+              ))}
+            </select>
+          </div>
         )}
 
         <p className="text-body-sm text-on-surface-variant mb-4">
