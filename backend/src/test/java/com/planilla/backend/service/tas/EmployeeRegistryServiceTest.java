@@ -253,6 +253,27 @@ class EmployeeRegistryServiceTest {
         assertThat(result.get("accruesOvertime")).isEqualTo(false);
     }
 
+    @Test
+    void getAccruesOvertimeFlags_returnsTrueFalseAndDefaultForMissing() {
+        Map<String, Object> row1 = new java.util.HashMap<>();
+        row1.put("EMPLOYEE_ID", "100");
+        row1.put("ACCRUES_OVERTIME", true);
+
+        Map<String, Object> row2 = new java.util.HashMap<>();
+        row2.put("EMPLOYEE_ID", "101");
+        row2.put("ACCRUES_OVERTIME", false);
+
+        when(jdbc.queryForList(contains("IN (?,?,?)"), eq("100"), eq("101"), eq("102")))
+            .thenReturn(List.of(row1, row2));
+
+        Map<String, Boolean> result = service.getAccruesOvertimeFlags(List.of("100", "101", "102"));
+
+        assertThat(result.get("100")).isTrue();
+        assertThat(result.get("101")).isFalse();
+        assertThat(result.containsKey("102")).isFalse();
+        assertThat(result.getOrDefault("102", true)).isTrue();
+    }
+
     private Map<String, Object> rowMap(String id, String name, String shiftId, String shiftName, boolean active, boolean accruesOvertime) {
         Map<String, Object> row = new java.util.LinkedHashMap<>();
         row.put("EMPLOYEE_ID", id);
