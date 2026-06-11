@@ -340,4 +340,88 @@ class TasHoursCalculatorTest {
         assertThat(s.getSimplesMinutes()).isEqualTo(0);
         assertThat(s.getDoblesMinutes()).isEqualTo(0);
     }
+
+    @Test
+    void calculate_crossMidnight_startsSunday_endsMonday_splitsAtMidnight() {
+        // Sunday 2026-03-08 19:00 -> Monday 2026-03-09 07:00 (noche shift, no break)
+        LocalDate sunday = LocalDate.of(2026, 3, 8);
+        TasSession s = session(sunday,
+            LocalDateTime.of(2026, 3, 8, 19, 0),
+            LocalDateTime.of(2026, 3, 9, 7, 0)
+        );
+        s.setCrossMidnight(true);
+        s.setMatchedShiftId("noche");
+
+        Map<String, Object> nocheShift = new LinkedHashMap<>();
+        nocheShift.put("id", "noche");
+        nocheShift.put("name", "Noche");
+        nocheShift.put("start_time", "19:00");
+        nocheShift.put("end_time", "07:00");
+        nocheShift.put("cross_midnight", true);
+        when(shiftConfigService.getAllShifts()).thenReturn(List.of(nocheShift));
+
+        calculator.calculate(List.of(s), REPORT_START, REPORT_END);
+
+        assertThat(s.isNeedsResolution()).isFalse();
+        assertThat(s.getWorkedMinutes()).isEqualTo(720); // 12h, no break
+        // 5h (19:00-00:00) on Sunday -> dobles; 7h (00:00-07:00) Monday, within 12h shift -> simples 0
+        assertThat(s.getDoblesMinutes()).isEqualTo(300);
+        assertThat(s.getSimplesMinutes()).isEqualTo(0);
+    }
+
+    @Test
+    void calculate_crossMidnight_startsSaturday_endsSunday_splitsAtMidnight() {
+        // Saturday 2026-03-07 19:00 -> Sunday 2026-03-08 07:00 (noche shift, no break)
+        LocalDate saturday = LocalDate.of(2026, 3, 7);
+        TasSession s = session(saturday,
+            LocalDateTime.of(2026, 3, 7, 19, 0),
+            LocalDateTime.of(2026, 3, 8, 7, 0)
+        );
+        s.setCrossMidnight(true);
+        s.setMatchedShiftId("noche");
+
+        Map<String, Object> nocheShift = new LinkedHashMap<>();
+        nocheShift.put("id", "noche");
+        nocheShift.put("name", "Noche");
+        nocheShift.put("start_time", "19:00");
+        nocheShift.put("end_time", "07:00");
+        nocheShift.put("cross_midnight", true);
+        when(shiftConfigService.getAllShifts()).thenReturn(List.of(nocheShift));
+
+        calculator.calculate(List.of(s), REPORT_START, REPORT_END);
+
+        assertThat(s.isNeedsResolution()).isFalse();
+        assertThat(s.getWorkedMinutes()).isEqualTo(720); // 12h, no break
+        // 5h (19:00-00:00) Saturday is normal; 7h (00:00-07:00) Sunday -> dobles
+        assertThat(s.getDoblesMinutes()).isEqualTo(420);
+        assertThat(s.getSimplesMinutes()).isEqualTo(0);
+    }
+
+    @Test
+    void calculate_crossMidnight_startsFriday_endsSaturday_noSpecialDay_normalSplit() {
+        // Friday 2026-03-06 19:00 -> Saturday 2026-03-07 09:00 (noche shift, 14h worked, no break)
+        LocalDate friday = LocalDate.of(2026, 3, 6);
+        TasSession s = session(friday,
+            LocalDateTime.of(2026, 3, 6, 19, 0),
+            LocalDateTime.of(2026, 3, 7, 9, 0)
+        );
+        s.setCrossMidnight(true);
+        s.setMatchedShiftId("noche");
+
+        Map<String, Object> nocheShift = new LinkedHashMap<>();
+        nocheShift.put("id", "noche");
+        nocheShift.put("name", "Noche");
+        nocheShift.put("start_time", "19:00");
+        nocheShift.put("end_time", "07:00");
+        nocheShift.put("cross_midnight", true);
+        when(shiftConfigService.getAllShifts()).thenReturn(List.of(nocheShift));
+
+        calculator.calculate(List.of(s), REPORT_START, REPORT_END);
+
+        assertThat(s.isNeedsResolution()).isFalse();
+        assertThat(s.getWorkedMinutes()).isEqualTo(840); // 14h, no break
+        // Neither Friday nor Saturday is special -> normal split: 840 - 720 (12h shift) = 120 simples
+        assertThat(s.getSimplesMinutes()).isEqualTo(120);
+        assertThat(s.getDoblesMinutes()).isEqualTo(0);
+    }
 }
