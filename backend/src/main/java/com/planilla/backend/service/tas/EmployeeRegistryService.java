@@ -134,6 +134,16 @@ public class EmployeeRegistryService {
         return count == null || count == 0;
     }
 
+    public boolean isAccruesOvertime(String employeeId) {
+        List<Map<String, Object>> rows = jdbc.queryForList(
+            "SELECT accrues_overtime FROM employee_registry WHERE employee_id = ?", employeeId
+        );
+        if (rows.isEmpty()) return true;
+        Object value = rows.get(0).get("ACCRUES_OVERTIME");
+        if (value == null) value = rows.get(0).get("accrues_overtime");
+        return !(value instanceof Boolean) || (Boolean) value;
+    }
+
     public List<TasAbsentEmployee> getAbsentActiveEmployees(Set<String> presentEmployeeIds) {
         List<Map<String, Object>> rows = jdbc.queryForList(
             "SELECT employee_id, name FROM employee_registry WHERE active = TRUE AND first_seen < DATEADD('MINUTE', -1, CURRENT_TIMESTAMP)"

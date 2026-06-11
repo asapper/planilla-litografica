@@ -15,9 +15,11 @@ import java.util.stream.Collectors;
 public class TasReportBuilder {
 
     private final HolidayService holidayService;
+    private final EmployeeRegistryService employeeRegistryService;
 
-    public TasReportBuilder(HolidayService holidayService) {
+    public TasReportBuilder(HolidayService holidayService, EmployeeRegistryService employeeRegistryService) {
         this.holidayService = holidayService;
+        this.employeeRegistryService = employeeRegistryService;
     }
 
     public BuildResult build(
@@ -114,6 +116,13 @@ public class TasReportBuilder {
                         .getOrDefault(period, Set.of())
                         .size();
                 row.setDiasTurnoAmbiguo(diasTurnoAmbiguo);
+
+                boolean accruesOvertime = employeeRegistryService.isAccruesOvertime(empId);
+                row.setAccruesOvertime(accruesOvertime);
+                if (!accruesOvertime) {
+                    row.setHorasExtrasSimples(0);
+                    row.setHorasExtrasDobles(0);
+                }
 
                 rows.add(row);
             }
