@@ -40,9 +40,52 @@ if (totalMinutes <= shiftDurationRoundedMinutes) {
 }
 ```
 
-The Sunday/holiday branch (`simplesMinutes = 0; doblesMinutes = totalMinutes;`) is unchanged.
+The Sunday/holiday branch (`simplesMinutes = 0; doblesMinutes = totalMinutes;`) is unchanged for sessions that don't cross a Sunday/holiday boundary.
 
 The 8h-default-duration fallback for `AMBIGUOUS_SHIFT` sessions (see "Worked Hours per Session" in `docs/tas_shift_rules.md`) requires no change — the formula shape is preserved, only the bucket assignment changes.
+
+### Cross-midnight sessions spanning a Sunday/holiday boundary
+
+A cross-midnight shift can start on a Sunday/holiday and end on a normal day, or start on a normal day and end on a Sunday/holiday (e.g. a Saturday-night shift ending early Sunday morning). In both cases the session must be split at midnight:
+
+- The portion of worked minutes that falls on the Sunday/holiday calendar date counts **in full** as `dobles` (uncapped by shift duration).
+- The remaining portion (on the normal day) is classified using the normal Mon-Sat overtime-only logic (section above) — `simples` if it exceeds shift duration, otherwise `0`.
+
+Algorithm (`classifyHours`):
+```java
+boolean startIsSpecial = isSpecialDay(sessionDate); // Sunday or holiday
+
+if (session crosses into the next calendar day) {
+    LocalDate nextDate = effectiveStart.toLocalDate().plusDays(1);
+    boolean endIsSpecial = isSpecialDay(nextDate);
+
+    if (startIsSpecial != endIsSpecial) {
+        LocalDateTime midnight = LocalDateTime.of(nextDate, LocalTime.MIDNIGHT);
+        long rawBeforeMidnight = max(0, minutesBetween(effectiveStart, midnight));
+        long rawAfterMidnight  = max(0, minutesBetween(midnight, lastScan));
+
+        int specialMinutes = startIsSpecial
+            ? (int) Math.min(totalMinutes, rawBeforeMidnight)
+            : (int) Math.min(totalMinutes, rawAfterMidnight);
+        int normalMinutes = totalMinutes - specialMinutes;
+
+        // normalMinutes goes through the normal Mon-Sat overtime-only split (always contributes 0 to dobles)
+        simplesMinutes = (normalMinutes > shiftDurationRoundedMinutes) ? normalMinutes - shiftDurationRoundedMinutes : 0;
+        doblesMinutes  = specialMinutes;
+        return;
+    }
+}
+
+if (startIsSpecial) {
+    simplesMinutes = 0; doblesMinutes = totalMinutes; return;
+}
+
+// normal Mon-Sat overtime-only split applies to totalMinutes as before
+```
+
+`isSpecialDay(date)` = `date.getDayOfWeek() == SUNDAY || holidayService.isHoliday(date)`.
+
+This is symmetric: it applies whether the Sunday/holiday day is the start or the end of the cross-midnight session. Per Andy: break-allowance handling does not need special treatment for the split — `totalMinutes` (already net of the deductible break) is divided between the special and normal portions using the raw (pre-break) time split, capping the special portion at `totalMinutes`.
 
 ## Overtime exemption flag
 
@@ -72,7 +115,7 @@ accrues_overtime BOOLEAN NOT NULL DEFAULT TRUE
 
 ## Testing
 
-- `TasHoursCalculatorTest`: update Mon-Sat overtime cases for the new split (within-shift → 0/0, overtime → simples only); Sunday/holiday cases unchanged.
+- `TasHoursCalculatorTest`: update Mon-Sat overtime cases for the new split (within-shift → 0/0, overtime → simples only); Sunday/holiday cases unchanged; new cases for cross-midnight sessions spanning a Sunday/holiday boundary in both directions (start-special/end-normal and start-normal/end-special).
 - `TasReportBuilderTest`: new case for `accruesOvertime = false` zeroing both fields.
 - `EmployeeRegistryServiceTest` / controller tests: flag get/set, PATCH endpoint.
 - New test for the recompute endpoint: given an `uploadToken` and an updated flag, returns updated rows.
