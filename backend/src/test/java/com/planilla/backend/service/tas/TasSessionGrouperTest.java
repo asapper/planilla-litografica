@@ -167,6 +167,36 @@ class TasSessionGrouperTest {
     }
 
     @Test
+    void group_sameDayDouble_normalAndAmbiguousSessionsSameDay() {
+        List<TasScanRecord> scans = List.of(
+            scan("100", LocalDateTime.of(2026, 3, 10, 0, 0)),
+            scan("100", LocalDateTime.of(2026, 3, 10, 14, 30))
+        );
+
+        List<TasSession> sessions = grouper.group(scans, shifts, assignManana("100"));
+
+        assertThat(sessions).hasSize(2);
+        assertThat(sessions.get(0).getFlags()).contains(TasFlag.AMBIGUOUS_SHIFT, TasFlag.SAME_DAY_DOUBLE);
+        assertThat(sessions.get(1).getMatchedShiftId()).isEqualTo(TARDE_ID);
+        assertThat(sessions.get(1).getFlags()).contains(TasFlag.SAME_DAY_DOUBLE);
+    }
+
+    @Test
+    void group_sameDayDouble_twoAmbiguousSessionsSameDay() {
+        List<TasScanRecord> scans = List.of(
+            scan("100", LocalDateTime.of(2026, 3, 10, 0, 0)),
+            scan("100", LocalDateTime.of(2026, 3, 10, 12, 30))
+        );
+
+        List<TasSession> sessions = grouper.group(scans, shifts, assignManana("100"));
+
+        assertThat(sessions).hasSize(2);
+        assertThat(sessions.get(0).getFlags()).contains(TasFlag.AMBIGUOUS_SHIFT, TasFlag.SAME_DAY_DOUBLE);
+        assertThat(sessions.get(1).getFlags()).contains(TasFlag.AMBIGUOUS_SHIFT, TasFlag.SAME_DAY_DOUBLE);
+        assertThat(sessions.get(1).getMatchedShiftId()).isNull();
+    }
+
+    @Test
     void group_employeeWithNoScans_producesNoSessions() {
         List<TasScanRecord> scans = Collections.emptyList();
 

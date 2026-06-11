@@ -264,7 +264,12 @@ public class TasSessionGrouper {
         for (List<TasSession> daySessions : byDate.values()) {
             if (daySessions.size() < 2) continue;
             Set<String> shiftIds = new HashSet<>();
-            for (TasSession s : daySessions) shiftIds.add(s.getMatchedShiftId());
+            for (TasSession s : daySessions) {
+                String key = s.getFlags().contains(TasFlag.AMBIGUOUS_SHIFT)
+                        ? "ambiguous-" + System.identityHashCode(s)
+                        : s.getMatchedShiftId();
+                shiftIds.add(key);
+            }
             if (shiftIds.size() < 2) continue;
             for (TasSession s : daySessions) {
                 if (!s.getFlags().contains(TasFlag.SAME_DAY_DOUBLE)) {
