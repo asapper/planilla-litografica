@@ -28,6 +28,7 @@ class TasControllerTest {
 
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper mapper;
+    @Autowired TasController tasController;
 
     @MockBean TasParserService        parserService;
     @MockBean TasUploadService        uploadService;
@@ -382,5 +383,37 @@ class TasControllerTest {
            .andExpect(status().isOk())
            .andExpect(jsonPath("$.uploadToken").value(token))
            .andExpect(jsonPath("$.resolvedRows[0].codigoEmpleado").value("100"));
+    }
+
+    @Test
+    void recompute_nullSessions_treatedAsEmptyList() throws Exception {
+        TasUploadResult result = emptyResult();
+        result.setAllSessions(new ArrayList<>());
+        when(parserService.parse(any())).thenReturn(emptyParseResult());
+        when(uploadService.processScans(any(), any(), any())).thenReturn(result);
+
+        MockMultipartFile file = new MockMultipartFile("file", "test.csv", "text/csv", "data".getBytes());
+
+        String uploadResponse = mvc.perform(multipart("/api/tas/upload").file(file))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        String token = (String) mapper.readValue(uploadResponse, Map.class).get("uploadToken");
+
+        java.lang.reflect.Field stateStoreField = TasController.class.getDeclaredField("stateStore");
+        stateStoreField.setAccessible(true);
+        @SuppressWarnings("unchecked")
+        Map<String, TasUploadState> stateStore = (Map<String, TasUploadState>) stateStoreField.get(tasController);
+        stateStore.get(token).setSessions(null);
+
+        when(shiftConfigService.getAllShifts()).thenReturn(new ArrayList<>());
+        when(reportBuilder.build(any(), any(), any(), any(), isNull()))
+                .thenReturn(new TasReportBuilder.BuildResult(new ArrayList<>(), new LinkedHashMap<>()));
+
+        mvc.perform(post("/api/tas/recompute/" + token))
+           .andExpect(status().isOk())
+           .andExpect(jsonPath("$.uploadToken").value(token));
+
+        verify(reportBuilder).build(eq(Collections.emptyList()), any(), any(), any(), isNull());
     }
 }
