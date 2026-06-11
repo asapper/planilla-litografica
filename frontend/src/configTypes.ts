@@ -13,6 +13,7 @@ export interface Employee {
   shiftId: string | null;
   shiftName: string | null;
   active: boolean;
+  accruesOvertime: boolean;
 }
 
 export interface Holiday {

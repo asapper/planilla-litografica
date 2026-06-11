@@ -4,6 +4,7 @@ import type { Shift, Employee, Holiday, GeneralConfig } from './configTypes';
 const mockPost = vi.hoisted(() => vi.fn());
 const mockGet  = vi.hoisted(() => vi.fn());
 const mockPut  = vi.hoisted(() => vi.fn());
+const mockPatch = vi.hoisted(() => vi.fn());
 const mockDelete = vi.hoisted(() => vi.fn());
 
 vi.mock('axios', () => ({
@@ -12,6 +13,7 @@ vi.mock('axios', () => ({
       post:   mockPost,
       get:    mockGet,
       put:    mockPut,
+      patch:  mockPatch,
       delete: mockDelete,
     })),
   },
@@ -19,13 +21,13 @@ vi.mock('axios', () => ({
 
 const {
   getShifts, createShift, updateShift, deleteShift,
-  getEmployees, updateEmployee, bulkAssignShift, deactivateEmployee,
+  getEmployees, updateEmployee, bulkAssignShift, deactivateEmployee, updateAccruesOvertime,
   getHolidays, createHoliday, deleteHoliday, refreshHolidays,
   getGeneralConfig, updateGeneralConfig,
 } = await import('./configApi');
 
 const shift: Shift = { id: 'manana', name: 'Diurno', startTime: '08:00', endTime: '17:00', crossMidnight: false };
-const employee: Employee = { id: 'emp1', code: 'EMP001', name: 'Ana García', shiftId: 'manana', shiftName: 'Diurno', active: true };
+const employee: Employee = { id: 'emp1', code: 'EMP001', name: 'Ana García', shiftId: 'manana', shiftName: 'Diurno', active: true, accruesOvertime: true };
 const holiday: Holiday = { id: 1, date: '2026-01-01', name: 'Año Nuevo', source: 'API' };
 const generalConfig: GeneralConfig = { legalBreakAllowanceMinutes: 45 };
 
@@ -33,6 +35,7 @@ beforeEach(() => {
   mockPost.mockReset();
   mockGet.mockReset();
   mockPut.mockReset();
+  mockPatch.mockReset();
   mockDelete.mockReset();
 });
 
@@ -139,6 +142,15 @@ describe('deactivateEmployee', () => {
     mockPost.mockResolvedValue({});
     await expect(deactivateEmployee('emp1')).resolves.toBeUndefined();
     expect(mockPost).toHaveBeenCalledWith('/config/employees/emp1/deactivate');
+  });
+});
+
+describe('updateAccruesOvertime', () => {
+  it('patches /config/employees/{id}/accrues-overtime and returns updated employee', async () => {
+    mockPatch.mockResolvedValue({ data: employee });
+    const result = await updateAccruesOvertime('emp1', false);
+    expect(mockPatch).toHaveBeenCalledWith('/config/employees/emp1/accrues-overtime', { accruesOvertime: false });
+    expect(result).toEqual(employee);
   });
 });
 
