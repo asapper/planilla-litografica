@@ -6,5 +6,6 @@ public enum TasFlag {
     SHIFT_MISMATCH,
     SAME_DAY_DOUBLE,
     START_CUTOFF,
-    END_CUTOFF
+    END_CUTOFF,
+    AMBIGUOUS_SHIFT
 }
