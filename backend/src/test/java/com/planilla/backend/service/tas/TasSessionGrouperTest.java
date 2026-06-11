@@ -326,4 +326,25 @@ class TasSessionGrouperTest {
         assertThat(sessions).hasSize(1);
         assertThat(sessions.get(0).getMatchedShiftId()).isEqualTo(MANANA_ID);
     }
+
+    @Test
+    void group_ambiguousScansAcrossMidnight_splitsAtDayBoundary_knownLimitation() {
+        // Known limitation: an overnight stretch of scans that matches no shift window
+        // is split into two single-scan ambiguous sessions at the calendar-day boundary,
+        // instead of one continuous cross-midnight session.
+        List<TasScanRecord> scans = List.of(
+            scan("100", LocalDateTime.of(2026, 3, 10, 23, 0)),
+            scan("100", LocalDateTime.of(2026, 3, 11, 1, 0))
+        );
+
+        List<TasSession> sessions = grouper.group(scans, shifts, assignManana("100"));
+
+        assertThat(sessions).hasSize(2);
+        assertThat(sessions.get(0).getDate()).isEqualTo(LocalDate.of(2026, 3, 10));
+        assertThat(sessions.get(0).getScans()).containsExactly(LocalDateTime.of(2026, 3, 10, 23, 0));
+        assertThat(sessions.get(0).getFlags()).contains(TasFlag.AMBIGUOUS_SHIFT);
+        assertThat(sessions.get(1).getDate()).isEqualTo(LocalDate.of(2026, 3, 11));
+        assertThat(sessions.get(1).getScans()).containsExactly(LocalDateTime.of(2026, 3, 11, 1, 0));
+        assertThat(sessions.get(1).getFlags()).contains(TasFlag.AMBIGUOUS_SHIFT);
+    }
 }
