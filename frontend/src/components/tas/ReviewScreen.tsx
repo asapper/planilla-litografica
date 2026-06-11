@@ -46,7 +46,17 @@ export default function ReviewScreen() {
           <tbody>
             {resolvedRows.map(row => (
               <tr key={`${row.codigoEmpleado}-${row.anio}-${row.mes}-${row.numeroDequincena}`} className="border-b border-outline-variant last:border-b-0">
-                <td className="py-3 px-4 text-body-md text-on-surface">{row.nombreEmpleado}</td>
+                <td className="py-3 px-4 text-body-md text-on-surface">
+                  {row.nombreEmpleado}
+                  {row.diasTurnoAmbiguo > 0 && (
+                    <span
+                      title={`${row.diasTurnoAmbiguo} día(s) en que las marcaciones no coincidieron con ningún turno configurado. Se calcularon con base en las marcaciones reales (turno de 8h por defecto).`}
+                      className="ml-2 text-label-sm px-2 py-0.5 rounded-full bg-amber-100 text-amber-700"
+                    >
+                      {row.diasTurnoAmbiguo} sin turno
+                    </span>
+                  )}
+                </td>
                 <td className="py-3 px-4 text-body-md text-on-surface-variant">{row.codigoEmpleado}</td>
                 <td className="py-3 px-4 text-body-md text-on-surface-variant text-right">{row.diasNoLaborados}</td>
                 <td className="py-3 px-4 text-body-md text-on-surface-variant text-right">{row.horasExtrasSimples}</td>

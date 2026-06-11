@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 
 @Service
@@ -16,6 +17,7 @@ public class TasSessionGrouper {
     private static final int DEDUP_WINDOW_MINUTES    = 5;
     private static final int DETECTION_BEFORE_MINUTES = 60;
     private static final int DETECTION_AFTER_MINUTES  = 10;
+    private static final int AMBIGUOUS_MAX_SPAN_MINUTES = 720;
 
     public List<TasSession> group(
             List<TasScanRecord> scans,
@@ -82,16 +84,33 @@ public class TasSessionGrouper {
         for (TasScanRecord scan : scans) {
             if (currentSession == null) {
                 Map<String, Object> openerShift = findOpenerShift(scan.getTimestamp(), shifts, assignedShift, isCrossMidnight);
-                if (openerShift == null) {
-                    continue;
-                }
-                currentSession = openSession(employeeId, scan, openerShift, assignedShift, isCrossMidnight);
+                currentSession = openerShift != null
+                        ? openSession(employeeId, scan, openerShift, assignedShift, isCrossMidnight)
+                        : openAmbiguousSession(employeeId, scan);
             } else {
                 if (isNextShiftExitScan(scan.getTimestamp(), currentSession, shifts, assignedShift)) {
                     currentSession.getScans().add(scan.getTimestamp());
                     finalizeSession(currentSession);
                     sessions.add(currentSession);
                     currentSession = null;
+                    continue;
+                }
+
+                if (currentSession.getMatchedShiftId() == null) {
+                    LocalDateTime sessionFirstScan = currentSession.getScans().get(0);
+                    boolean differentDay = !scan.getTimestamp().toLocalDate().equals(currentSession.getDate());
+                    boolean exceedsSpan = ChronoUnit.MINUTES.between(sessionFirstScan, scan.getTimestamp()) > AMBIGUOUS_MAX_SPAN_MINUTES;
+
+                    if (differentDay || exceedsSpan) {
+                        finalizeSession(currentSession);
+                        sessions.add(currentSession);
+                        Map<String, Object> openerShift = findOpenerShift(scan.getTimestamp(), shifts, assignedShift, isCrossMidnight);
+                        currentSession = openerShift != null
+                                ? openSession(employeeId, scan, openerShift, assignedShift, isCrossMidnight)
+                                : openAmbiguousSession(employeeId, scan);
+                    } else {
+                        currentSession.getScans().add(scan.getTimestamp());
+                    }
                     continue;
                 }
 
@@ -212,6 +231,24 @@ public class TasSessionGrouper {
         return session;
     }
 
+    private TasSession openAmbiguousSession(String employeeId, TasScanRecord firstScan) {
+        TasSession session = new TasSession();
+        session.setEmployeeId(employeeId);
+        session.setEmployeeName(firstScan.getEmployeeName());
+        session.setDate(firstScan.getTimestamp().toLocalDate());
+        session.setCrossMidnight(false);
+        session.setSessionAnchor("D");
+        session.setFlags(new ArrayList<>(List.of(TasFlag.AMBIGUOUS_SHIFT)));
+
+        List<LocalDateTime> scans = new ArrayList<>();
+        scans.add(firstScan.getTimestamp());
+        session.setScans(scans);
+
+        session.setMatchedShiftId(null);
+
+        return session;
+    }
+
     private void finalizeSession(TasSession session) {
         List<LocalDateTime> scans = session.getScans();
         if (!scans.isEmpty()) {
@@ -227,7 +264,12 @@ public class TasSessionGrouper {
         for (List<TasSession> daySessions : byDate.values()) {
             if (daySessions.size() < 2) continue;
             Set<String> shiftIds = new HashSet<>();
-            for (TasSession s : daySessions) shiftIds.add(s.getMatchedShiftId());
+            for (TasSession s : daySessions) {
+                String key = s.getFlags().contains(TasFlag.AMBIGUOUS_SHIFT)
+                        ? "ambiguous-" + System.identityHashCode(s)
+                        : s.getMatchedShiftId();
+                shiftIds.add(key);
+            }
             if (shiftIds.size() < 2) continue;
             for (TasSession s : daySessions) {
                 if (!s.getFlags().contains(TasFlag.SAME_DAY_DOUBLE)) {

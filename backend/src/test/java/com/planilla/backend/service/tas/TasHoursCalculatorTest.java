@@ -300,4 +300,44 @@ class TasHoursCalculatorTest {
         assertThat(s.getDoblesMinutes()).isGreaterThan(0);
         assertThat(s.getSimplesMinutes() + s.getDoblesMinutes()).isEqualTo(s.getWorkedMinutes());
     }
+
+    @Test
+    void calculate_ambiguousShiftFlagAlone_doesNotBlockHoursComputation() {
+        LocalDate date = LocalDate.of(2026, 3, 10);
+        TasSession s = session(date,
+            LocalDateTime.of(2026, 3, 10, 9, 0),
+            LocalDateTime.of(2026, 3, 10, 19, 0)
+        );
+        s.setMatchedShiftId(null);
+        s.setFlags(new ArrayList<>(List.of(TasFlag.AMBIGUOUS_SHIFT)));
+
+        calculator.calculate(List.of(s), REPORT_START, REPORT_END);
+
+        assertThat(s.isNeedsResolution()).isFalse();
+        assertThat(s.getEffectiveStart()).isEqualTo(LocalDateTime.of(2026, 3, 10, 9, 0));
+        assertThat(s.getWorkedMinutes()).isEqualTo(600);
+        assertThat(s.getWorkedHours()).isEqualTo(10.0);
+        // 8h default shift duration: 480min simples, remainder dobles
+        assertThat(s.getSimplesMinutes()).isEqualTo(480);
+        assertThat(s.getDoblesMinutes()).isEqualTo(120);
+    }
+
+    @Test
+    void calculate_ambiguousShiftWithOtherFlag_stillNeedsResolution() {
+        LocalDate date = LocalDate.of(2026, 3, 10);
+        TasSession s = session(date,
+            LocalDateTime.of(2026, 3, 10, 9, 0),
+            LocalDateTime.of(2026, 3, 10, 19, 0)
+        );
+        s.setMatchedShiftId(null);
+        s.setFlags(new ArrayList<>(List.of(TasFlag.AMBIGUOUS_SHIFT, TasFlag.SAME_DAY_DOUBLE)));
+
+        calculator.calculate(List.of(s), REPORT_START, REPORT_END);
+
+        assertThat(s.isNeedsResolution()).isTrue();
+        assertThat(s.getWorkedMinutes()).isEqualTo(0);
+        assertThat(s.getWorkedHours()).isEqualTo(0.0);
+        assertThat(s.getSimplesMinutes()).isEqualTo(0);
+        assertThat(s.getDoblesMinutes()).isEqualTo(0);
+    }
 }

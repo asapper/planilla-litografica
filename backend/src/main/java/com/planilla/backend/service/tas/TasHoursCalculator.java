@@ -39,10 +39,11 @@ public class TasHoursCalculator {
             detectCutoffFlags(session, reportStart, reportEnd);
             detectMissingScansFlags(session, shifts, legalBreakAllowance);
 
-            boolean flagged = session.getFlags() != null && !session.getFlags().isEmpty();
-            session.setNeedsResolution(flagged);
+            boolean hasBlockingFlags = session.getFlags() != null
+                    && session.getFlags().stream().anyMatch(f -> f != TasFlag.AMBIGUOUS_SHIFT);
+            session.setNeedsResolution(hasBlockingFlags);
 
-            if (!flagged) {
+            if (!hasBlockingFlags) {
                 computeWorkedHours(session, shifts, legalBreakAllowance);
                 classifyHours(session, shifts);
             } else {

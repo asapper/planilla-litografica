@@ -1,4 +1,4 @@
-export type TasFlag = 'MISSING_ENTRY' | 'MISSING_EXIT' | 'SHIFT_MISMATCH' | 'SAME_DAY_DOUBLE' | 'START_CUTOFF' | 'END_CUTOFF'
+export type TasFlag = 'MISSING_ENTRY' | 'MISSING_EXIT' | 'SHIFT_MISMATCH' | 'SAME_DAY_DOUBLE' | 'START_CUTOFF' | 'END_CUTOFF' | 'AMBIGUOUS_SHIFT'
 
 export interface TasSession {
   sessionId: number
@@ -29,6 +29,7 @@ export interface ResolvedRow {
   mes: number
   anio: number
   numeroDequincena: number | null
+  diasTurnoAmbiguo: number
 }
 
 export interface TasUploadResult {

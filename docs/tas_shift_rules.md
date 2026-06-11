@@ -98,7 +98,11 @@ Tuesday  07:00  → exit scan (Mañana window, but employee is Noche → closes 
 Tuesday  19:05  → new session opens (Noche detection window)
 ```
 
-**Same-day double session**: if two detection-window hits from **different** shifts occur on the same calendar day → flag for manual confirmation.
+**Ambiguous sessions**: if a scan would open a new session (`currentSession == null`) but does not fall within any configured shift's detection window, a session is still opened from that scan — flagged `AMBIGUOUS_SHIFT`, with `matchedShiftId = null`. Subsequent scans accumulate into this session as long as they're on the **same calendar day** and within **12 hours** of the session's first scan; once either limit is exceeded, the session closes and a new one opens (ambiguous again, or matched, depending on the triggering scan).
+
+**Known limitation**: an overnight stretch of scans that matches no shift window is split into two single-scan ambiguous sessions at the calendar-day boundary, instead of one continuous cross-midnight session. Same category as the missing-exit-plus-same-day-re-entry limitation below.
+
+**Same-day double session**: if two detection-window hits from **different** shifts occur on the same calendar day → flag for manual confirmation. Two ambiguous sessions on the same calendar day are also treated as distinct "shifts" for this check (each gets a unique internal key), so they are flagged too.
 
 ---
 
@@ -110,7 +114,7 @@ If the first scan of a session falls outside the employee's assigned shift's det
 2. If a match is found:
    - **Consistent across the entire quincena** — defined as: every session in the quincena that hits any detection window hits the same alternate shift's window → surface suggestion: "Las marcaciones de [nombre] corresponden al turno [X] en toda la quincena. ¿Desea actualizar su turno asignado?" Accepting updates the saved config.
    - **Only on specific days** — one or more sessions fall in a different window than the rest → surface per-day exception in the verification screen; saved config unchanged.
-3. If no shift matches → flag as ambiguous; client provides start and end manually.
+3. If no shift matches → the session is still built from the actual scans (first scan = entry, last scan = exit, same grouping rules as a normal session, capped at a 12h same-day span — see Session Grouping), flagged `AMBIGUOUS_SHIFT`, and computed normally (effectiveStart = first scan, no grace/tardy, 8h default shift duration for the simples/dobles split — see Worked Hours per Session). This is purely informational: shown as a badge on the employee's row in the pre-submit review screen ("N sin turno"), no manual input required.
 
 ---
 
@@ -151,6 +155,8 @@ Both cutoff cases are flagged for manual verification.
 
 **Known limitation**: if an employee forgets their exit scan and re-enters later the same day, the timing-based detection may not catch the missing exit if the re-entry scan is in the same shift window. This is a known false negative.
 
+**Ambiguous sessions** (`AMBIGUOUS_SHIFT`, `matchedShiftId = null`) never get `MISSING_ENTRY`/`MISSING_EXIT` flags — there is no expected shift time to compare scans against.
+
 ---
 
 ## Worked Hours per Session **[CONFIRMED]**
@@ -172,6 +178,8 @@ Examples (45-min allowance, 07:00 entry):
 - Scans: 07:00, 10:00, 10:20, 12:00, 12:40, 15:30 → break = 20+40 = 60 min → deductible = 15 min → workedMinutes = 495 → **8.0h** (compensated by staying later)
 
 Sessions with `needsResolution = true` get `workedMinutes = 0` and `workedHours = 0.0` until resolved.
+
+**Ambiguous sessions** (`AMBIGUOUS_SHIFT`, `matchedShiftId = null`) are computed normally: `effectiveStart = firstScan` (no grace/tardy adjustment), and the simples/dobles split uses an **8h default shift duration** — the existing fallback when no shift is matched. `AMBIGUOUS_SHIFT` alone does **not** set `needsResolution = true`; only if it co-occurs with another flag (e.g. `SAME_DAY_DOUBLE`) is the session blocked and zeroed as above. **Note**: this 8h default is shared with TASK-33's planned overtime-rules redesign — when TASK-33 changes how shift duration feeds into simples/dobles, this fallback for ambiguous sessions should be revisited too.
 
 ---
 
@@ -354,3 +362,5 @@ Consecutive scans from the same employee within **5 minutes** of each other are 
 ## Output Flow **[CONFIRMED]**
 
 Same as the existing planilla flow: the user reviews and resolves all flagged items on the verification screen, then validates and clicks submit. Submit calls the stored procedure `carga_datos_empleados` once per employee per quincena with the computed values.
+
+If any employee has one or more days flagged `AMBIGUOUS_SHIFT` in the quincena, the review screen shows an informational badge next to their name ("N sin turno") with a tooltip explaining that those days' hours were calculated from the actual scans using an 8h default shift duration. This badge is purely informational and does not block submission.
