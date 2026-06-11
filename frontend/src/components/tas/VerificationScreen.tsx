@@ -331,38 +331,48 @@ export default function VerificationScreen() {
           Solo se enviará el periodo seleccionado. Para procesar otros periodos, vuelva a cargar el archivo.
         </p>
 
-        <div className="flex gap-2 flex-wrap mb-6">
-          {chips.map(chip => (
-            chipCounts[chip.key] > 0 || chip.key === 'all' ? (
-              <button
-                key={chip.key}
-                onClick={() => setActiveFilter(chip.key)}
-                className={`px-3 py-1 rounded-full text-label-md font-medium border transition-colors cursor-pointer ${
-                  activeFilter === chip.key
-                    ? 'bg-primary text-white border-primary'
-                    : 'bg-white text-on-surface-variant border-outline-variant hover:bg-surface-container-low'
-                }`}
-              >
-                {chip.label} {chipCounts[chip.key] > 0 ? `(${chipCounts[chip.key]})` : ''}
-              </button>
-            ) : null
-          ))}
-        </div>
+        {totalToResolve === 0 ? (
+          <div className="rounded-shape-md border border-outline-variant bg-white px-4 py-6 text-center">
+            <p className="text-body-md text-on-surface">
+              ✓ Este periodo no presenta inconsistencias — los datos están completos y no requieren revisión manual. Puede continuar y enviar.
+            </p>
+          </div>
+        ) : (
+          <>
+            <div className="flex gap-2 flex-wrap mb-6">
+              {chips.map(chip => (
+                chipCounts[chip.key] > 0 || chip.key === 'all' ? (
+                  <button
+                    key={chip.key}
+                    onClick={() => setActiveFilter(chip.key)}
+                    className={`px-3 py-1 rounded-full text-label-md font-medium border transition-colors cursor-pointer ${
+                      activeFilter === chip.key
+                        ? 'bg-primary text-white border-primary'
+                        : 'bg-white text-on-surface-variant border-outline-variant hover:bg-surface-container-low'
+                    }`}
+                  >
+                    {chip.label} {chipCounts[chip.key] > 0 ? `(${chipCounts[chip.key]})` : ''}
+                  </button>
+                ) : null
+              ))}
+            </div>
 
-        {filtered.map(session => (
-          <SessionCard
-            key={session.sessionId}
-            session={session}
-            confirmed={!!resolvedSessions[session.sessionId]}
-            onConfirm={(resolvedStart, resolvedEnd, mismatchChoice) =>
-              setResolvedSession(session.sessionId, {
-                resolvedStart,
-                resolvedEnd,
-                updateShift: mismatchChoice === 'update' ? true : mismatchChoice === 'keep' ? false : undefined,
-              })
-            }
-          />
-        ))}
+            {filtered.map(session => (
+              <SessionCard
+                key={session.sessionId}
+                session={session}
+                confirmed={!!resolvedSessions[session.sessionId]}
+                onConfirm={(resolvedStart, resolvedEnd, mismatchChoice) =>
+                  setResolvedSession(session.sessionId, {
+                    resolvedStart,
+                    resolvedEnd,
+                    updateShift: mismatchChoice === 'update' ? true : mismatchChoice === 'keep' ? false : undefined,
+                  })
+                }
+              />
+            ))}
+          </>
+        )}
       </div>
 
       <div className="sticky bottom-0 bg-white border-t border-outline-variant px-6 py-4 flex items-center justify-between">

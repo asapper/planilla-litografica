@@ -394,3 +394,56 @@ describe('VerificationScreen period selector', () => {
     });
   });
 });
+
+describe('VerificationScreen empty state for selected period', () => {
+  const periods: TasPeriod[] = [
+    { anio: 2026, mes: 3, numeroDequincena: 1 },
+    { anio: 2026, mes: 3, numeroDequincena: 2 },
+  ];
+
+  it('shows an empty-state message and hides chips/sessions when the selected period has nothing to resolve', () => {
+    useTasStore.getState().setFlaggedSessions([
+      makeSession({ sessionId: 1, employeeName: 'Ana', date: '2026-03-20' }),
+    ]);
+    useTasStore.getState().setAvailablePeriods(periods);
+    useTasStore.getState().setSelectedPeriod(periods[0]);
+
+    render(<VerificationScreen />);
+
+    expect(screen.getByText(/Este periodo no presenta inconsistencias/i)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /todos/i })).not.toBeInTheDocument();
+    expect(screen.queryByText('Ana')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /enviar/i })).not.toBeDisabled();
+  });
+
+  it('hides the empty-state message and shows chips/sessions when the selected period has sessions to resolve', () => {
+    useTasStore.getState().setFlaggedSessions([
+      makeSession({ sessionId: 1, date: '2026-03-05' }),
+    ]);
+    useTasStore.getState().setAvailablePeriods(periods);
+    useTasStore.getState().setSelectedPeriod(periods[0]);
+
+    render(<VerificationScreen />);
+
+    expect(screen.queryByText(/Este periodo no presenta inconsistencias/i)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /todos/i })).toBeInTheDocument();
+    expect(screen.getByText('Ana López')).toBeInTheDocument();
+  });
+
+  it('toggles between empty state and session list when switching periods', () => {
+    useTasStore.getState().setFlaggedSessions([
+      makeSession({ sessionId: 1, date: '2026-03-05' }),
+    ]);
+    useTasStore.getState().setAvailablePeriods(periods);
+    useTasStore.getState().setSelectedPeriod(periods[0]);
+
+    render(<VerificationScreen />);
+
+    expect(screen.queryByText(/Este periodo no presenta inconsistencias/i)).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText(/periodo/i), { target: { value: '2026-3-2' } });
+
+    expect(screen.getByText(/Este periodo no presenta inconsistencias/i)).toBeInTheDocument();
+    expect(screen.queryByText('Ana López')).not.toBeInTheDocument();
+  });
+});
