@@ -6,6 +6,7 @@ import com.planilla.backend.model.tas.TasSession;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.*;
 
@@ -187,6 +188,60 @@ class TasSessionGrouperTest {
         assertThat(s.getMatchedShiftId()).isNull();
         assertThat(s.getFlags()).containsExactly(TasFlag.AMBIGUOUS_SHIFT);
         assertThat(s.getScans()).containsExactly(LocalDateTime.of(2026, 3, 10, 11, 30));
+    }
+
+    @Test
+    void group_ambiguousSession_accumulatesSameDayScans() {
+        List<TasScanRecord> scans = List.of(
+            scan("134", LocalDateTime.of(2026, 4, 30, 8, 51)),
+            scan("134", LocalDateTime.of(2026, 4, 30, 19, 11))
+        );
+
+        List<TasSession> sessions = grouper.group(scans, shifts, assignManana("134"));
+
+        assertThat(sessions).hasSize(1);
+        TasSession s = sessions.get(0);
+        assertThat(s.getMatchedShiftId()).isNull();
+        assertThat(s.getFlags()).containsExactly(TasFlag.AMBIGUOUS_SHIFT);
+        assertThat(s.getScans()).containsExactly(
+            LocalDateTime.of(2026, 4, 30, 8, 51),
+            LocalDateTime.of(2026, 4, 30, 19, 11)
+        );
+    }
+
+    @Test
+    void group_ambiguousSession_splitsAcrossCalendarDays() {
+        List<TasScanRecord> scans = List.of(
+            scan("134", LocalDateTime.of(2026, 4, 30, 8, 51)),
+            scan("134", LocalDateTime.of(2026, 4, 30, 19, 11)),
+            scan("134", LocalDateTime.of(2026, 5, 1, 9, 2))
+        );
+
+        List<TasSession> sessions = grouper.group(scans, shifts, assignManana("134"));
+
+        assertThat(sessions).hasSize(2);
+        assertThat(sessions.get(0).getDate()).isEqualTo(LocalDate.of(2026, 4, 30));
+        assertThat(sessions.get(0).getScans()).hasSize(2);
+        assertThat(sessions.get(0).getFlags()).contains(TasFlag.AMBIGUOUS_SHIFT);
+        assertThat(sessions.get(1).getDate()).isEqualTo(LocalDate.of(2026, 5, 1));
+        assertThat(sessions.get(1).getScans()).containsExactly(LocalDateTime.of(2026, 5, 1, 9, 2));
+        assertThat(sessions.get(1).getFlags()).contains(TasFlag.AMBIGUOUS_SHIFT);
+    }
+
+    @Test
+    void group_ambiguousSession_splitsWhenSpanExceeds12Hours() {
+        List<TasScanRecord> scans = List.of(
+            scan("100", LocalDateTime.of(2026, 3, 10, 8, 0)),
+            scan("100", LocalDateTime.of(2026, 3, 10, 21, 0))
+        );
+
+        List<TasSession> sessions = grouper.group(scans, shifts, assignManana("100"));
+
+        assertThat(sessions).hasSize(2);
+        assertThat(sessions.get(0).getScans()).containsExactly(LocalDateTime.of(2026, 3, 10, 8, 0));
+        assertThat(sessions.get(0).getFlags()).contains(TasFlag.AMBIGUOUS_SHIFT);
+        assertThat(sessions.get(1).getScans()).containsExactly(LocalDateTime.of(2026, 3, 10, 21, 0));
+        assertThat(sessions.get(1).getFlags()).contains(TasFlag.AMBIGUOUS_SHIFT);
     }
 
     @Test

@@ -96,6 +96,24 @@ public class TasSessionGrouper {
                     continue;
                 }
 
+                if (currentSession.getMatchedShiftId() == null) {
+                    LocalDateTime sessionFirstScan = currentSession.getScans().get(0);
+                    boolean differentDay = !scan.getTimestamp().toLocalDate().equals(currentSession.getDate());
+                    boolean exceedsSpan = ChronoUnit.MINUTES.between(sessionFirstScan, scan.getTimestamp()) > AMBIGUOUS_MAX_SPAN_MINUTES;
+
+                    if (differentDay || exceedsSpan) {
+                        finalizeSession(currentSession);
+                        sessions.add(currentSession);
+                        Map<String, Object> openerShift = findOpenerShift(scan.getTimestamp(), shifts, assignedShift, isCrossMidnight);
+                        currentSession = openerShift != null
+                                ? openSession(employeeId, scan, openerShift, assignedShift, isCrossMidnight)
+                                : openAmbiguousSession(employeeId, scan);
+                    } else {
+                        currentSession.getScans().add(scan.getTimestamp());
+                    }
+                    continue;
+                }
+
                 Map<String, Object> openerShift = currentSession.getScans().size() == 1
                         && isScanAfterCurrentShiftEnd(scan.getTimestamp(), currentSession, shifts)
                         ? findOpenerShift(scan.getTimestamp(), shifts, assignedShift, isCrossMidnight)
