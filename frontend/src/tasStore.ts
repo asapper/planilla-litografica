@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { TasView, TasSession, InactiveEmployee, InactiveDecision, AbsentEmployee, ResolvedRow } from './tasTypes';
+import type { TasView, TasSession, InactiveEmployee, InactiveDecision, AbsentEmployee, ResolvedRow, TasPeriod } from './tasTypes';
 
 export interface ResolvedSessionEntry {
   resolvedStart: string;
@@ -15,6 +15,8 @@ interface TasStore {
   resolvedSessions: Record<number, ResolvedSessionEntry>;
   resolvedRowCount: number;
   resolvedRows: ResolvedRow[];
+  availablePeriods: TasPeriod[];
+  selectedPeriod: TasPeriod | null;
   inactiveEmployees: InactiveEmployee[];
   inactiveDecisions: Record<string, InactiveDecision>;
   absentEmployees: AbsentEmployee[];
@@ -31,6 +33,8 @@ interface TasStore {
   clearResolvedSessions: () => void;
   setResolvedRowCount: (count: number) => void;
   setResolvedRows: (rows: ResolvedRow[]) => void;
+  setAvailablePeriods: (periods: TasPeriod[]) => void;
+  setSelectedPeriod: (period: TasPeriod | null) => void;
   setInactiveEmployees: (employees: InactiveEmployee[]) => void;
   setInactiveDecision: (employeeId: string, decision: InactiveDecision) => void;
   setAbsentEmployees: (employees: AbsentEmployee[]) => void;
@@ -49,6 +53,8 @@ const initialState = {
   resolvedSessions: {},
   resolvedRowCount: 0,
   resolvedRows: [] as ResolvedRow[],
+  availablePeriods: [] as TasPeriod[],
+  selectedPeriod: null as TasPeriod | null,
   inactiveEmployees: [],
   inactiveDecisions: {},
   absentEmployees: [],
@@ -71,6 +77,18 @@ export const useTasStore = create<TasStore>(set => ({
   clearResolvedSessions: () => set({ resolvedSessions: {} }),
   setResolvedRowCount: (count) => set({ resolvedRowCount: count }),
   setResolvedRows: (rows) => set({ resolvedRows: rows }),
+  setAvailablePeriods: (periods) => set(s => {
+    const stillValid = s.selectedPeriod !== null && periods.some(
+      p => p.anio === s.selectedPeriod!.anio
+        && p.mes === s.selectedPeriod!.mes
+        && p.numeroDequincena === s.selectedPeriod!.numeroDequincena,
+    );
+    return {
+      availablePeriods: periods,
+      selectedPeriod: stillValid ? s.selectedPeriod : (periods[0] ?? null),
+    };
+  }),
+  setSelectedPeriod: (period) => set({ selectedPeriod: period }),
   setInactiveEmployees: (employees) => set({ inactiveEmployees: employees }),
   setInactiveDecision: (employeeId, decision) => set(s => ({
     inactiveDecisions: { ...s.inactiveDecisions, [employeeId]: decision },
