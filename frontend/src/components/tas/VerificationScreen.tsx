@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useTasStore } from '../../tasStore';
 import { resolveVerification } from '../../tasApi';
-import type { TasSession, TasFlag } from '../../tasTypes';
+import { MONTH_NAMES_ES } from '../../dateNames';
+import type { TasSession, TasFlag, TasPeriod } from '../../tasTypes';
 
 type FilterChip = 'all' | 'missing_entry' | 'missing_exit' | 'shift_mismatch' | 'cutoff';
 
@@ -43,6 +44,27 @@ function calcHours(entry: string, exit: string): string {
   if (exitMin <= entryMin) return '—';
   const hours = Math.floor((exitMin - entryMin) / 30) / 2;
   return `${hours.toFixed(1)}h`;
+}
+
+function getSessionPeriod(dateStr: string): TasPeriod {
+  const [anio, mes, day] = dateStr.split('-').map(Number);
+  return { anio, mes, numeroDequincena: day <= 15 ? 1 : 2 };
+}
+
+function periodsEqual(a: TasPeriod | null, b: TasPeriod | null): boolean {
+  if (a === null && b === null) return true;
+  if (a === null || b === null) return false;
+  return a.anio === b.anio && a.mes === b.mes && a.numeroDequincena === b.numeroDequincena;
+}
+
+function periodLabel(p: TasPeriod): string {
+  const month = MONTH_NAMES_ES[p.mes];
+  const capitalized = month.charAt(0).toUpperCase() + month.slice(1);
+  return `${capitalized} ${p.anio} - Quincena ${p.numeroDequincena}`;
+}
+
+function periodKey(p: TasPeriod): string {
+  return `${p.anio}-${p.mes}-${p.numeroDequincena}`;
 }
 
 function sessionMatchesFilter(session: TasSession, filter: FilterChip): boolean {
@@ -211,10 +233,16 @@ export default function VerificationScreen() {
   const setFlaggedSessions    = useTasStore(s => s.setFlaggedSessions);
   const setUploadToken        = useTasStore(s => s.setUploadToken);
   const setError              = useTasStore(s => s.setError);
+  const availablePeriods      = useTasStore(s => s.availablePeriods);
+  const selectedPeriod        = useTasStore(s => s.selectedPeriod);
+  const setSelectedPeriod     = useTasStore(s => s.setSelectedPeriod);
+  const setAvailablePeriods   = useTasStore(s => s.setAvailablePeriods);
 
   const [activeFilter, setActiveFilter] = useState<FilterChip>('all');
 
-  const needsResolutionSessions = flaggedSessions.filter(s => s.needsResolution);
+  const needsResolutionSessions = flaggedSessions.filter(
+    s => s.needsResolution && periodsEqual(getSessionPeriod(s.date), selectedPeriod),
+  );
   const confirmedCount  = Object.keys(resolvedSessions).length;
   const totalToResolve  = needsResolutionSessions.length;
   const pendingCount    = totalToResolve - confirmedCount;
@@ -229,7 +257,7 @@ export default function VerificationScreen() {
     cutoff:        needsResolutionSessions.filter(s => s.flags.includes('START_CUTOFF') || s.flags.includes('END_CUTOFF')).length,
   };
 
-  const allConfirmed = pendingCount === 0 && totalToResolve > 0;
+  const allConfirmed = pendingCount === 0;
 
   const handleSubmit = async () => {
     if (!uploadToken) return;
@@ -240,11 +268,15 @@ export default function VerificationScreen() {
         resolvedEnd:   entry.resolvedEnd,
         updateShift:   entry.updateShift,
       }));
-      const result = await resolveVerification(uploadToken, resolutions);
-      if (result.flaggedSessions.some(s => s.needsResolution)) {
+      const result = await resolveVerification(uploadToken, resolutions, selectedPeriod);
+      const stillNeedsResolution = result.flaggedSessions.some(
+        s => s.needsResolution && periodsEqual(getSessionPeriod(s.date), selectedPeriod),
+      );
+      if (stillNeedsResolution) {
         clearResolvedSessions();
         setFlaggedSessions(result.flaggedSessions);
         setUploadToken(result.uploadToken);
+        setAvailablePeriods(result.availablePeriods ?? []);
         return;
       }
       setFlaggedSessions(result.flaggedSessions);
@@ -252,6 +284,7 @@ export default function VerificationScreen() {
       setResolvedRowCount(result.resolvedRows?.length ?? 0);
       setResolvedRows(result.resolvedRows ?? []);
       setUsedFallbackHolidays(result.usedFallbackHolidays);
+      setAvailablePeriods(result.availablePeriods ?? []);
       setTasView('review');
     } catch {
       setTasView('verification');
@@ -273,6 +306,26 @@ export default function VerificationScreen() {
         <h2 className="text-headline-sm font-medium text-on-surface mb-4">
           Verificación de marcaciones
         </h2>
+
+        {availablePeriods.length > 1 && (
+          <select
+            aria-label="Periodo"
+            value={selectedPeriod ? periodKey(selectedPeriod) : ''}
+            onChange={e => {
+              const period = availablePeriods.find(p => periodKey(p) === e.target.value);
+              if (period) setSelectedPeriod(period);
+            }}
+            className="mb-2 h-9 px-3 rounded-shape-sm border border-outline bg-white text-body-md focus:outline-none focus:border-primary"
+          >
+            {availablePeriods.map(p => (
+              <option key={periodKey(p)} value={periodKey(p)}>{periodLabel(p)}</option>
+            ))}
+          </select>
+        )}
+
+        <p className="text-body-sm text-on-surface-variant mb-4">
+          Solo se enviará el periodo seleccionado. Para procesar otros periodos, vuelva a cargar el archivo.
+        </p>
 
         <div className="flex gap-2 flex-wrap mb-6">
           {chips.map(chip => (
