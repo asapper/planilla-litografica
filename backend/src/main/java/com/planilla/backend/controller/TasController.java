@@ -238,6 +238,28 @@ public class TasController {
         return ResponseEntity.ok(Map.of("jobId", jobId));
     }
 
+    @PostMapping("/recompute/{uploadToken}")
+    public ResponseEntity<?> recompute(@PathVariable String uploadToken) {
+        TasUploadState state = stateStore.get(uploadToken);
+        if (state == null) {
+            return ResponseEntity.badRequest().body(Map.of("code", "INVALID_TOKEN", "message", "Token inválido."));
+        }
+
+        List<TasSession> sessions = state.getSessions();
+        if (sessions == null) sessions = Collections.emptyList();
+
+        List<Map<String, Object>> shifts = shiftConfigService.getAllShifts();
+
+        TasReportBuilder.BuildResult buildResult = reportBuilder.build(
+                sessions, state.getReportStart(), state.getReportEnd(), shifts, null);
+        state.setResolvedRows(buildResult.rows);
+
+        Map<String, Object> resp = new LinkedHashMap<>();
+        resp.put("uploadToken", uploadToken);
+        resp.put("resolvedRows", state.getResolvedRows());
+        return ResponseEntity.ok(resp);
+    }
+
     @GetMapping("/absent-review/{uploadToken}")
     public ResponseEntity<?> getAbsentReview(@PathVariable String uploadToken) {
         TasUploadState state = stateStore.get(uploadToken);

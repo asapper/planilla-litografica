@@ -346,4 +346,41 @@ class TasControllerTest {
            .andExpect(status().isConflict())
            .andExpect(jsonPath("$.code").value("UNRESOLVED_SESSIONS"));
     }
+
+    // ── POST /api/tas/recompute/{uploadToken} ───────────────────────────────
+
+    @Test
+    void recompute_invalidToken_returns400() throws Exception {
+        mvc.perform(post("/api/tas/recompute/does-not-exist"))
+           .andExpect(status().isBadRequest())
+           .andExpect(jsonPath("$.code").value("INVALID_TOKEN"));
+    }
+
+    @Test
+    void recompute_rebuildsResolvedRowsFromCachedSessions() throws Exception {
+        TasUploadResult result = emptyResult();
+        result.setAllSessions(new ArrayList<>());
+        when(parserService.parse(any())).thenReturn(emptyParseResult());
+        when(uploadService.processScans(any(), any(), any())).thenReturn(result);
+
+        MockMultipartFile file = new MockMultipartFile("file", "test.csv", "text/csv", "data".getBytes());
+
+        String uploadResponse = mvc.perform(multipart("/api/tas/upload").file(file))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        String token = (String) mapper.readValue(uploadResponse, Map.class).get("uploadToken");
+
+        EmployeeRow recomputedRow = new EmployeeRow();
+        recomputedRow.setCodigoEmpleado("100");
+
+        when(shiftConfigService.getAllShifts()).thenReturn(new ArrayList<>());
+        when(reportBuilder.build(any(), any(), any(), any(), isNull()))
+                .thenReturn(new TasReportBuilder.BuildResult(List.of(recomputedRow), new LinkedHashMap<>()));
+
+        mvc.perform(post("/api/tas/recompute/" + token))
+           .andExpect(status().isOk())
+           .andExpect(jsonPath("$.uploadToken").value(token))
+           .andExpect(jsonPath("$.resolvedRows[0].codigoEmpleado").value("100"));
+    }
 }
