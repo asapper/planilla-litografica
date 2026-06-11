@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS employee_registry (
     name            VARCHAR(255)  NOT NULL,
     shift_id        VARCHAR(36),
     active          BOOLEAN       NOT NULL DEFAULT TRUE,
+    accrues_overtime BOOLEAN      NOT NULL DEFAULT TRUE,
     first_seen      TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     last_seen       TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_emp_shift FOREIGN KEY (shift_id) REFERENCES shift_config(id) ON DELETE SET NULL
