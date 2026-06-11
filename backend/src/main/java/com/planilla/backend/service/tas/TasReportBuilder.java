@@ -27,6 +27,7 @@ public class TasReportBuilder {
         Map<String, String> employeeNames = new LinkedHashMap<>();
         Map<String, Set<LocalDate>> workedDaysByEmployee = new LinkedHashMap<>();
         Map<String, Map<Integer, int[]>> minutesByEmployeeQuincena = new LinkedHashMap<>();
+        Map<String, Map<Integer, Set<LocalDate>>> ambiguousDaysByEmpQuincena = new LinkedHashMap<>();
 
         for (TasSession session : sessions) {
             String empId = session.getEmployeeId();
@@ -45,6 +46,13 @@ public class TasReportBuilder {
             if (!session.isNeedsResolution()) {
                 minutes[0] += session.getSimplesMinutes();
                 minutes[1] += session.getDoblesMinutes();
+            }
+
+            if (session.getFlags() != null && session.getFlags().contains(TasFlag.AMBIGUOUS_SHIFT)) {
+                ambiguousDaysByEmpQuincena
+                        .computeIfAbsent(empId, k -> new LinkedHashMap<>())
+                        .computeIfAbsent(quincena, k -> new HashSet<>())
+                        .add(session.getDate());
             }
         }
 
@@ -87,6 +95,13 @@ public class TasReportBuilder {
                 row.setMes(qStart.getMonthValue());
                 row.setAnio(qStart.getYear());
                 row.setNumeroDequincena(quincena);
+
+                int diasTurnoAmbiguo = ambiguousDaysByEmpQuincena
+                        .getOrDefault(empId, Map.of())
+                        .getOrDefault(quincena, Set.of())
+                        .size();
+                row.setDiasTurnoAmbiguo(diasTurnoAmbiguo);
+
                 rows.add(row);
             }
         }

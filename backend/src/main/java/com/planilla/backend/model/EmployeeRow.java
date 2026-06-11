@@ -10,6 +10,7 @@ public class EmployeeRow {
     private int mes;
     private int anio;
     private Integer numeroDequincena; // set by user after upload
+    private int diasTurnoAmbiguo;
 
     public EmployeeRow() {}
 
@@ -36,4 +37,7 @@ public class EmployeeRow {
 
     public Integer getNumeroDequincena() { return numeroDequincena; }
     public void setNumeroDequincena(Integer numeroDequincena) { this.numeroDequincena = numeroDequincena; }
+
+    public int getDiasTurnoAmbiguo() { return diasTurnoAmbiguo; }
+    public void setDiasTurnoAmbiguo(int diasTurnoAmbiguo) { this.diasTurnoAmbiguo = diasTurnoAmbiguo; }
 }

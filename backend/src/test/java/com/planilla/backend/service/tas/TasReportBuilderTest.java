@@ -226,4 +226,21 @@ class TasReportBuilderTest {
         assertThat(row.getMes()).isEqualTo(3);
         assertThat(row.getAnio()).isEqualTo(2026);
     }
+
+    @Test
+    void build_diasTurnoAmbiguo_countsDistinctAmbiguousDaysPerEmployeeQuincena() {
+        LocalDate start = LocalDate.of(2026, 3, 1);
+        LocalDate end   = LocalDate.of(2026, 3, 15);
+
+        TasSession ambiguous = resolvedSession("100", LocalDate.of(2026, 3, 5), 480, 0);
+        ambiguous.setMatchedShiftId(null);
+        ambiguous.setFlags(new ArrayList<>(List.of(TasFlag.AMBIGUOUS_SHIFT)));
+
+        TasSession normal = resolvedSession("100", LocalDate.of(2026, 3, 6), 480, 0);
+
+        TasReportBuilder.BuildResult result = builder.build(List.of(ambiguous, normal), start, end, shifts);
+
+        assertThat(result.rows).hasSize(1);
+        assertThat(result.rows.get(0).getDiasTurnoAmbiguo()).isEqualTo(1);
+    }
 }
