@@ -16,7 +16,7 @@ import java.util.Set;
 public class EmployeeRegistryService {
 
     private static final String SELECT_BASE =
-        "SELECT r.employee_id, r.name, r.shift_id, r.active, s.name AS shift_name " +
+        "SELECT r.employee_id, r.name, r.shift_id, r.active, r.accrues_overtime, s.name AS shift_name " +
         "FROM employee_registry r LEFT JOIN shift_config s ON r.shift_id = s.id";
 
     private final JdbcTemplate jdbc;
@@ -118,6 +118,14 @@ public class EmployeeRegistryService {
         return getById(employeeId);
     }
 
+    public Map<String, Object> setAccruesOvertime(String employeeId, boolean accruesOvertime) {
+        jdbc.update(
+            "UPDATE employee_registry SET accrues_overtime = ? WHERE employee_id = ?",
+            accruesOvertime, employeeId
+        );
+        return getById(employeeId);
+    }
+
     public boolean isNewEmployee(String employeeId) {
         Integer count = jdbc.queryForObject(
             "SELECT COUNT(*) FROM employee_registry WHERE employee_id = ?",
@@ -183,6 +191,7 @@ public class EmployeeRegistryService {
         dto.put("shiftId", row.get("SHIFT_ID"));
         dto.put("shiftName", row.get("SHIFT_NAME"));
         dto.put("active", row.get("ACTIVE"));
+        dto.put("accruesOvertime", row.get("ACCRUES_OVERTIME"));
         return dto;
     }
 }

@@ -243,6 +243,28 @@ class EmployeeRegistryServiceTest {
     }
 
     @Test
+    void setAccruesOvertime_updatesFlagAndReturnsDto() {
+        when(jdbc.queryForList(contains("WHERE r.employee_id = ?"), eq("100")))
+            .thenReturn(List.of(rowMap("100", "Ana", "manana", "Manana", true, false)));
+
+        Map<String, Object> result = service.setAccruesOvertime("100", false);
+
+        verify(jdbc).update("UPDATE employee_registry SET accrues_overtime = ? WHERE employee_id = ?", false, "100");
+        assertThat(result.get("accruesOvertime")).isEqualTo(false);
+    }
+
+    private Map<String, Object> rowMap(String id, String name, String shiftId, String shiftName, boolean active, boolean accruesOvertime) {
+        Map<String, Object> row = new java.util.LinkedHashMap<>();
+        row.put("EMPLOYEE_ID", id);
+        row.put("NAME", name);
+        row.put("SHIFT_ID", shiftId);
+        row.put("SHIFT_NAME", shiftName);
+        row.put("ACTIVE", active);
+        row.put("ACCRUES_OVERTIME", accruesOvertime);
+        return row;
+    }
+
+    @Test
     void isNewEmployee_trueWhenNotFound() {
         when(jdbc.queryForObject(anyString(), eq(Integer.class), any())).thenReturn(0);
 
