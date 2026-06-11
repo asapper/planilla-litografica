@@ -139,6 +139,55 @@ describe('App view routing', () => {
   });
 });
 
+describe('TAS multi-period upload routing', () => {
+  it('routes to verification when upload has multiple available periods even with no flagged sessions', async () => {
+    mockUploadTasFile.mockResolvedValue({
+      uploadToken: 'tok-1',
+      flaggedSessions: [],
+      resolvedRows: [],
+      inactiveEmployeesFound: [],
+      absentActiveEmployees: [],
+      usedFallbackHolidays: false,
+      warnings: [],
+      availablePeriods: [
+        { anio: 2026, mes: 4, numeroDequincena: 1 },
+        { anio: 2026, mes: 4, numeroDequincena: 2 },
+      ],
+    });
+
+    render(<App />);
+    await waitFor(() => expect(screen.getByTestId('empty-state')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('button', { name: /cargar tas/i }));
+
+    await waitFor(() => expect(useTasStore.getState().tasView).toBe('verification'));
+  });
+
+  it('stores availablePeriods after a successful upload', async () => {
+    mockUploadTasFile.mockResolvedValue({
+      uploadToken: 'tok-1',
+      flaggedSessions: [],
+      resolvedRows: [],
+      inactiveEmployeesFound: [],
+      absentActiveEmployees: [],
+      usedFallbackHolidays: false,
+      warnings: [],
+      availablePeriods: [{ anio: 2026, mes: 3, numeroDequincena: 1 }],
+    });
+
+    render(<App />);
+    await waitFor(() => expect(screen.getByTestId('empty-state')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('button', { name: /cargar tas/i }));
+
+    await waitFor(() =>
+      expect(useTasStore.getState().availablePeriods).toEqual([
+        { anio: 2026, mes: 3, numeroDequincena: 1 },
+      ])
+    );
+  });
+});
+
 describe('TAS Nueva carga redirect', () => {
   it('returns to the upload screen after the TAS session is reset', async () => {
     render(<App />);

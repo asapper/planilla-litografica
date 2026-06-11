@@ -133,6 +133,35 @@ describe('ReactivationReviewScreen continue', () => {
     expect(mockSubmitTas).not.toHaveBeenCalled();
   });
 
+  it('advances to verification when multiple availablePeriods even with no flagged sessions', async () => {
+    setup();
+    mockSubmitInactiveReview.mockResolvedValue({
+      ...mockResult,
+      availablePeriods: [
+        { anio: 2026, mes: 4, numeroDequincena: 1 },
+        { anio: 2026, mes: 4, numeroDequincena: 2 },
+      ],
+    });
+    render(<ReactivationReviewScreen />);
+    fireEvent.click(screen.getByRole('button', { name: /continuar/i }));
+    await waitFor(() => expect(useTasStore.getState().tasView).toBe('verification'));
+  });
+
+  it('stores availablePeriods from result', async () => {
+    setup();
+    mockSubmitInactiveReview.mockResolvedValue({
+      ...mockResult,
+      availablePeriods: [{ anio: 2026, mes: 3, numeroDequincena: 1 }],
+    });
+    render(<ReactivationReviewScreen />);
+    fireEvent.click(screen.getByRole('button', { name: /continuar/i }));
+    await waitFor(() =>
+      expect(useTasStore.getState().availablePeriods).toEqual([
+        { anio: 2026, mes: 3, numeroDequincena: 1 },
+      ])
+    );
+  });
+
   it('updates the store with new token from result', async () => {
     setup();
     mockSubmitInactiveReview.mockResolvedValue({ ...mockResult, uploadToken: 'tok-new' });

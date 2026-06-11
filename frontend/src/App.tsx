@@ -30,6 +30,7 @@ export default function App() {
   const setInactiveEmployees  = useTasStore(s => s.setInactiveEmployees);
   const setAbsentEmployees = useTasStore(s => s.setAbsentEmployees);
   const setUsedFallbackHolidays = useTasStore(s => s.setUsedFallbackHolidays);
+  const setAvailablePeriods = useTasStore(s => s.setAvailablePeriods);
   const setProcessingMessage = useTasStore(s => s.setProcessingMessage);
   const setError           = useTasStore(s => s.setError);
   const resetTas           = useTasStore(s => s.resetTas);
@@ -50,11 +51,13 @@ export default function App() {
       setInactiveEmployees(result.inactiveEmployeesFound);
       setAbsentEmployees(result.absentActiveEmployees);
       setUsedFallbackHolidays(result.usedFallbackHolidays);
+      setAvailablePeriods(result.availablePeriods ?? []);
       if (result.inactiveEmployeesFound.length > 0) {
         setTasView('inactiveReview');
       } else {
         const hasNeedsResolution = result.flaggedSessions.some(s => s.needsResolution);
-        setTasView(hasNeedsResolution ? 'verification' : 'review');
+        const hasMultiplePeriods = (result.availablePeriods?.length ?? 0) > 1;
+        setTasView(hasNeedsResolution || hasMultiplePeriods ? 'verification' : 'review');
       }
     } catch {
       setTasView('processing');
