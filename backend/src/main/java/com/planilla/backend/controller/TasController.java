@@ -3,6 +3,7 @@ package com.planilla.backend.controller;
 import com.planilla.backend.model.EmployeeRow;
 import com.planilla.backend.model.tas.TasScanRecord;
 import com.planilla.backend.model.tas.TasSession;
+import com.planilla.backend.model.tas.TasPeriod;
 import com.planilla.backend.model.tas.TasUploadResult;
 import com.planilla.backend.service.JobService;
 import com.planilla.backend.service.tas.*;
@@ -175,8 +176,19 @@ public class TasController {
                 hoursCalculator.classifyHours(session, shifts);
             }
         }
+        TasPeriod periodFilter = null;
+        Object anioObj = body.get("anio");
+        Object mesObj = body.get("mes");
+        Object numeroDequincenaObj = body.get("numeroDequincena");
+        if (anioObj != null && mesObj != null && numeroDequincenaObj != null) {
+            periodFilter = new TasPeriod(
+                    ((Number) anioObj).intValue(),
+                    ((Number) mesObj).intValue(),
+                    ((Number) numeroDequincenaObj).intValue());
+        }
+
         TasReportBuilder.BuildResult buildResult = reportBuilder.build(
-                sessions, state.getReportStart(), state.getReportEnd(), shifts);
+                sessions, state.getReportStart(), state.getReportEnd(), shifts, periodFilter);
         state.setResolvedRows(buildResult.rows);
 
         List<TasSession> remainingFlagged = sessions.stream()
@@ -188,6 +200,7 @@ public class TasController {
         resp.put("resolvedRows", state.getResolvedRows());
         resp.put("flaggedSessions", remainingFlagged);
         resp.put("usedFallbackHolidays", state.isUsedFallbackHolidays());
+        resp.put("availablePeriods", reportBuilder.computeAvailablePeriods(sessions));
         return ResponseEntity.ok(resp);
     }
 
@@ -286,6 +299,8 @@ public class TasController {
         body.put("warnings", result.getWarnings());
         body.put("usedFallbackHolidays", result.isUsedFallbackHolidays());
         body.put("absentActiveEmployees", result.getAbsentActiveEmployees());
+        body.put("availablePeriods", reportBuilder.computeAvailablePeriods(
+                result.getAllSessions() != null ? result.getAllSessions() : Collections.emptyList()));
         return body;
     }
 }

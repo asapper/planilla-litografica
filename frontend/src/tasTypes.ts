@@ -17,6 +17,12 @@ export interface TasSession {
   consistentMismatch: boolean
 }
 
+export interface TasPeriod {
+  anio: number
+  mes: number
+  numeroDequincena: number
+}
+
 export interface InactiveEmployee { employeeId: string; name: string; sessionCount: number }
 export interface AbsentEmployee { employeeId: string; name: string; active?: boolean }
 
@@ -40,6 +46,7 @@ export interface TasUploadResult {
   absentActiveEmployees: AbsentEmployee[]
   usedFallbackHolidays: boolean
   warnings: string[]
+  availablePeriods?: TasPeriod[]
 }
 
 export interface TasResolveResult {
@@ -47,6 +54,7 @@ export interface TasResolveResult {
   resolvedRows?: ResolvedRow[]
   flaggedSessions: TasSession[]
   usedFallbackHolidays: boolean
+  availablePeriods?: TasPeriod[]
 }
 
 export type InactiveDecision = 'reactivate' | 'ignore'

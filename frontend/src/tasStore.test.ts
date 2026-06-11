@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { useTasStore } from './tasStore';
-import type { TasSession, InactiveEmployee, AbsentEmployee } from './tasTypes';
+import type { TasSession, InactiveEmployee, AbsentEmployee, TasPeriod } from './tasTypes';
 
 function makeSession(id: number): TasSession {
   return {
@@ -317,6 +317,70 @@ describe('setResolvedRows', () => {
 });
 
 // -----------------------------------------------------------------
+// availablePeriods / selectedPeriod
+// -----------------------------------------------------------------
+
+describe('initial state', () => {
+  it('starts with empty availablePeriods', () => {
+    expect(useTasStore.getState().availablePeriods).toEqual([]);
+  });
+
+  it('starts with null selectedPeriod', () => {
+    expect(useTasStore.getState().selectedPeriod).toBeNull();
+  });
+});
+
+describe('setAvailablePeriods', () => {
+  const p1: TasPeriod = { anio: 2026, mes: 4, numeroDequincena: 1 };
+  const p2: TasPeriod = { anio: 2026, mes: 4, numeroDequincena: 2 };
+
+  it('stores the periods', () => {
+    useTasStore.getState().setAvailablePeriods([p1, p2]);
+    expect(useTasStore.getState().availablePeriods).toEqual([p1, p2]);
+  });
+
+  it('auto-selects the first period when selectedPeriod is null', () => {
+    useTasStore.getState().setAvailablePeriods([p1, p2]);
+    expect(useTasStore.getState().selectedPeriod).toEqual(p1);
+  });
+
+  it('preserves the current selection if still present in the new list', () => {
+    useTasStore.getState().setAvailablePeriods([p1, p2]);
+    useTasStore.getState().setSelectedPeriod(p2);
+    useTasStore.getState().setAvailablePeriods([p1, p2]);
+    expect(useTasStore.getState().selectedPeriod).toEqual(p2);
+  });
+
+  it('falls back to the first period if the current selection is no longer present', () => {
+    useTasStore.getState().setAvailablePeriods([p1, p2]);
+    useTasStore.getState().setSelectedPeriod(p2);
+    useTasStore.getState().setAvailablePeriods([p1]);
+    expect(useTasStore.getState().selectedPeriod).toEqual(p1);
+  });
+
+  it('sets selectedPeriod to null when periods is empty', () => {
+    useTasStore.getState().setAvailablePeriods([p1, p2]);
+    useTasStore.getState().setAvailablePeriods([]);
+    expect(useTasStore.getState().selectedPeriod).toBeNull();
+  });
+});
+
+describe('setSelectedPeriod', () => {
+  it('sets the selected period directly', () => {
+    const p: TasPeriod = { anio: 2026, mes: 5, numeroDequincena: 1 };
+    useTasStore.getState().setSelectedPeriod(p);
+    expect(useTasStore.getState().selectedPeriod).toEqual(p);
+  });
+
+  it('can be set to null', () => {
+    const p: TasPeriod = { anio: 2026, mes: 5, numeroDequincena: 1 };
+    useTasStore.getState().setSelectedPeriod(p);
+    useTasStore.getState().setSelectedPeriod(null);
+    expect(useTasStore.getState().selectedPeriod).toBeNull();
+  });
+});
+
+// -----------------------------------------------------------------
 // resetTas
 // -----------------------------------------------------------------
 
@@ -336,6 +400,7 @@ describe('resetTas', () => {
     useTasStore.getState().setResolvedRows([
       { codigoEmpleado: 'E1', nombreEmpleado: 'Ana', diasNoLaborados: 0, horasExtrasSimples: 0, horasExtrasDobles: 0, mes: 3, anio: 2026, numeroDequincena: 1, diasTurnoAmbiguo: 0 },
     ]);
+    useTasStore.getState().setAvailablePeriods([{ anio: 2026, mes: 4, numeroDequincena: 1 }]);
 
     useTasStore.getState().resetTas();
 
@@ -353,5 +418,7 @@ describe('resetTas', () => {
     expect(s.jobId).toBeNull();
     expect(s.error).toBeNull();
     expect(s.resolvedRows).toEqual([]);
+    expect(s.availablePeriods).toEqual([]);
+    expect(s.selectedPeriod).toBeNull();
   });
 });

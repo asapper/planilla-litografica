@@ -13,6 +13,7 @@ export default function ReactivationReviewScreen() {
   const setInactiveEmployees = useTasStore(s => s.setInactiveEmployees);
   const setAbsentEmployees = useTasStore(s => s.setAbsentEmployees);
   const setUsedFallbackHolidays = useTasStore(s => s.setUsedFallbackHolidays);
+  const setAvailablePeriods = useTasStore(s => s.setAvailablePeriods);
   const setResolvedRowCount = useTasStore(s => s.setResolvedRowCount);
   const setResolvedRows    = useTasStore(s => s.setResolvedRows);
   const setError           = useTasStore(s => s.setError);
@@ -37,10 +38,12 @@ export default function ReactivationReviewScreen() {
       setInactiveEmployees(result.inactiveEmployeesFound);
       setAbsentEmployees(result.absentActiveEmployees);
       setUsedFallbackHolidays(result.usedFallbackHolidays);
+      setAvailablePeriods(result.availablePeriods ?? []);
 
       setResolvedRows(result.resolvedRows ?? []);
       const hasNeedsResolution = result.flaggedSessions.some(s => s.needsResolution);
-      setTasView(hasNeedsResolution ? 'verification' : 'review');
+      const hasMultiplePeriods = (result.availablePeriods?.length ?? 0) > 1;
+      setTasView(hasNeedsResolution || hasMultiplePeriods ? 'verification' : 'review');
     } catch {
       setTasView('inactiveReview');
       setError('Ocurrió un error al continuar. Intente nuevamente.');

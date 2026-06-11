@@ -2,12 +2,14 @@ package com.planilla.backend.service.tas;
 
 import com.planilla.backend.model.EmployeeRow;
 import com.planilla.backend.model.tas.TasFlag;
+import com.planilla.backend.model.tas.TasPeriod;
 import com.planilla.backend.model.tas.TasSession;
 import org.springframework.stereotype.Service;
 
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 public class TasReportBuilder {
@@ -23,25 +25,37 @@ public class TasReportBuilder {
             LocalDate reportStart,
             LocalDate reportEnd,
             List<Map<String, Object>> shifts) {
+        return build(sessions, reportStart, reportEnd, shifts, null);
+    }
 
-        Map<String, String> employeeNames = new LinkedHashMap<>();
+    public BuildResult build(
+            List<TasSession> sessions,
+            LocalDate reportStart,
+            LocalDate reportEnd,
+            List<Map<String, Object>> shifts,
+            TasPeriod periodFilter) {
+
+        List<TasSession> filteredSessions = periodFilter == null
+                ? sessions
+                : sessions.stream()
+                        .filter(s -> TasPeriod.of(s.getDate()).equals(periodFilter))
+                        .collect(Collectors.toList());
+
         Map<String, Set<LocalDate>> workedDaysByEmployee = new LinkedHashMap<>();
-        Map<String, Map<Integer, int[]>> minutesByEmployeeQuincena = new LinkedHashMap<>();
-        Map<String, Map<Integer, Set<LocalDate>>> ambiguousDaysByEmpQuincena = new LinkedHashMap<>();
+        Map<String, Map<TasPeriod, int[]>> minutesByEmployeePeriod = new LinkedHashMap<>();
+        Map<String, Map<TasPeriod, Set<LocalDate>>> ambiguousDaysByEmpPeriod = new LinkedHashMap<>();
 
-        for (TasSession session : sessions) {
+        for (TasSession session : filteredSessions) {
             String empId = session.getEmployeeId();
-            employeeNames.putIfAbsent(empId, "");
-
-            int quincena = session.getDate().getDayOfMonth() <= 15 ? 1 : 2;
+            TasPeriod period = TasPeriod.of(session.getDate());
 
             workedDaysByEmployee
                     .computeIfAbsent(empId, k -> new HashSet<>())
                     .add(session.getDate());
 
-            int[] minutes = minutesByEmployeeQuincena
+            int[] minutes = minutesByEmployeePeriod
                     .computeIfAbsent(empId, k -> new LinkedHashMap<>())
-                    .computeIfAbsent(quincena, k -> new int[2]);
+                    .computeIfAbsent(period, k -> new int[2]);
 
             if (!session.isNeedsResolution()) {
                 minutes[0] += session.getSimplesMinutes();
@@ -49,37 +63,36 @@ public class TasReportBuilder {
             }
 
             if (session.getFlags() != null && session.getFlags().contains(TasFlag.AMBIGUOUS_SHIFT)) {
-                ambiguousDaysByEmpQuincena
+                ambiguousDaysByEmpPeriod
                         .computeIfAbsent(empId, k -> new LinkedHashMap<>())
-                        .computeIfAbsent(quincena, k -> new HashSet<>())
+                        .computeIfAbsent(period, k -> new HashSet<>())
                         .add(session.getDate());
             }
         }
 
-        Map<String, String> employeeNamesFromScans = buildEmployeeNamesMap(sessions);
-
-        Map<String, String> consistentMismatchShiftIds = detectConsistentMismatches(sessions);
+        Map<String, String> employeeNamesFromScans = buildEmployeeNamesMap(filteredSessions);
+        Map<String, String> consistentMismatchShiftIds = detectConsistentMismatches(filteredSessions);
 
         List<EmployeeRow> rows = new ArrayList<>();
 
-        for (Map.Entry<String, Map<Integer, int[]>> empEntry : minutesByEmployeeQuincena.entrySet()) {
+        for (Map.Entry<String, Map<TasPeriod, int[]>> empEntry : minutesByEmployeePeriod.entrySet()) {
             String empId = empEntry.getKey();
             String empName = employeeNamesFromScans.getOrDefault(empId, "");
             Set<LocalDate> workedDays = workedDaysByEmployee.getOrDefault(empId, new HashSet<>());
 
-            for (Map.Entry<Integer, int[]> qEntry : empEntry.getValue().entrySet()) {
-                int quincena = qEntry.getKey();
-                int[] minutes = qEntry.getValue();
+            for (Map.Entry<TasPeriod, int[]> pEntry : empEntry.getValue().entrySet()) {
+                TasPeriod period = pEntry.getKey();
+                int[] minutes = pEntry.getValue();
 
                 int simplesHours = (int) Math.round(Math.floor(minutes[0] / 30.0) / 2.0);
                 int doblesHours  = (int) Math.round(Math.floor(minutes[1] / 30.0) / 2.0);
 
-                LocalDate qStart = quincena == 1
-                        ? reportStart.withDayOfMonth(1)
-                        : reportStart.withDayOfMonth(16);
-                LocalDate qEnd = quincena == 1
-                        ? reportStart.withDayOfMonth(15)
-                        : reportStart.withDayOfMonth(reportStart.lengthOfMonth());
+                LocalDate qStart = period.numeroDequincena() == 1
+                        ? LocalDate.of(period.anio(), period.mes(), 1)
+                        : LocalDate.of(period.anio(), period.mes(), 16);
+                LocalDate qEnd = period.numeroDequincena() == 1
+                        ? LocalDate.of(period.anio(), period.mes(), 15)
+                        : qStart.withDayOfMonth(qStart.lengthOfMonth());
 
                 if (qStart.isBefore(reportStart)) qStart = reportStart;
                 if (qEnd.isAfter(reportEnd)) qEnd = reportEnd;
@@ -92,13 +105,13 @@ public class TasReportBuilder {
                 row.setHorasExtrasSimples(simplesHours);
                 row.setHorasExtrasDobles(doblesHours);
                 row.setDiasNoLaborados(nonWorkedDays);
-                row.setMes(qStart.getMonthValue());
-                row.setAnio(qStart.getYear());
-                row.setNumeroDequincena(quincena);
+                row.setMes(period.mes());
+                row.setAnio(period.anio());
+                row.setNumeroDequincena(period.numeroDequincena());
 
-                int diasTurnoAmbiguo = ambiguousDaysByEmpQuincena
+                int diasTurnoAmbiguo = ambiguousDaysByEmpPeriod
                         .getOrDefault(empId, Map.of())
-                        .getOrDefault(quincena, Set.of())
+                        .getOrDefault(period, Set.of())
                         .size();
                 row.setDiasTurnoAmbiguo(diasTurnoAmbiguo);
 
@@ -107,6 +120,16 @@ public class TasReportBuilder {
         }
 
         return new BuildResult(rows, consistentMismatchShiftIds);
+    }
+
+    public List<TasPeriod> computeAvailablePeriods(List<TasSession> sessions) {
+        return sessions.stream()
+                .map(s -> TasPeriod.of(s.getDate()))
+                .distinct()
+                .sorted(Comparator.comparingInt(TasPeriod::anio)
+                        .thenComparingInt(TasPeriod::mes)
+                        .thenComparingInt(TasPeriod::numeroDequincena))
+                .collect(Collectors.toList());
     }
 
     private int countNonWorkedDays(LocalDate start, LocalDate end, Set<LocalDate> workedDays) {
@@ -134,46 +157,40 @@ public class TasReportBuilder {
     }
 
     private Map<String, String> detectConsistentMismatches(List<TasSession> sessions) {
-        Map<String, Map<Integer, Set<String>>> mismatchShiftsByEmpQuincena = new LinkedHashMap<>();
-
-        for (TasSession session : sessions) {
-            if (session.getFlags() != null && session.getFlags().contains(TasFlag.SHIFT_MISMATCH)
-                    && session.getMatchedShiftId() != null) {
-                String empId   = session.getEmployeeId();
-                int quincena   = session.getDate().getDayOfMonth() <= 15 ? 1 : 2;
-                mismatchShiftsByEmpQuincena
-                        .computeIfAbsent(empId, k -> new LinkedHashMap<>())
-                        .computeIfAbsent(quincena, k -> new HashSet<>())
-                        .add(session.getMatchedShiftId());
-            }
-        }
-
-        Map<String, Set<LocalDate>> sessionDaysByEmpQuincena = new LinkedHashMap<>();
-        Map<String, Integer> totalSessionsByEmpQuincena = new LinkedHashMap<>();
-        Map<String, Integer> mismatchSessionsByEmpQuincena = new LinkedHashMap<>();
+        Map<String, Map<TasPeriod, Set<String>>> mismatchShiftsByEmpPeriod = new LinkedHashMap<>();
+        Map<String, Integer> totalSessionsByEmpPeriod = new LinkedHashMap<>();
+        Map<String, Integer> mismatchSessionsByEmpPeriod = new LinkedHashMap<>();
 
         for (TasSession session : sessions) {
             String empId  = session.getEmployeeId();
-            int quincena  = session.getDate().getDayOfMonth() <= 15 ? 1 : 2;
-            String key    = empId + ":" + quincena;
-            totalSessionsByEmpQuincena.merge(key, 1, Integer::sum);
+            TasPeriod period = TasPeriod.of(session.getDate());
+            String key = empId + ":" + period;
+
+            totalSessionsByEmpPeriod.merge(key, 1, Integer::sum);
+
             if (session.getFlags() != null && session.getFlags().contains(TasFlag.SHIFT_MISMATCH)) {
-                mismatchSessionsByEmpQuincena.merge(key, 1, Integer::sum);
+                mismatchSessionsByEmpPeriod.merge(key, 1, Integer::sum);
+                if (session.getMatchedShiftId() != null) {
+                    mismatchShiftsByEmpPeriod
+                            .computeIfAbsent(empId, k -> new LinkedHashMap<>())
+                            .computeIfAbsent(period, k -> new HashSet<>())
+                            .add(session.getMatchedShiftId());
+                }
             }
         }
 
         Map<String, String> result = new LinkedHashMap<>();
 
-        for (Map.Entry<String, Map<Integer, Set<String>>> empEntry : mismatchShiftsByEmpQuincena.entrySet()) {
+        for (Map.Entry<String, Map<TasPeriod, Set<String>>> empEntry : mismatchShiftsByEmpPeriod.entrySet()) {
             String empId = empEntry.getKey();
-            for (Map.Entry<Integer, Set<String>> qEntry : empEntry.getValue().entrySet()) {
-                int quincena = qEntry.getKey();
-                Set<String> altShifts = qEntry.getValue();
+            for (Map.Entry<TasPeriod, Set<String>> pEntry : empEntry.getValue().entrySet()) {
+                TasPeriod period = pEntry.getKey();
+                Set<String> altShifts = pEntry.getValue();
                 if (altShifts.size() != 1) continue;
 
-                String key = empId + ":" + quincena;
-                int total    = totalSessionsByEmpQuincena.getOrDefault(key, 0);
-                int mismatched = mismatchSessionsByEmpQuincena.getOrDefault(key, 0);
+                String key = empId + ":" + period;
+                int total      = totalSessionsByEmpPeriod.getOrDefault(key, 0);
+                int mismatched = mismatchSessionsByEmpPeriod.getOrDefault(key, 0);
 
                 if (total > 0 && total == mismatched) {
                     result.put(empId, altShifts.iterator().next());

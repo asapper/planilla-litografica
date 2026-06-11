@@ -2,6 +2,7 @@ package com.planilla.backend.service.tas;
 
 import com.planilla.backend.model.EmployeeRow;
 import com.planilla.backend.model.tas.TasFlag;
+import com.planilla.backend.model.tas.TasPeriod;
 import com.planilla.backend.model.tas.TasSession;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -29,7 +30,7 @@ class TasReportBuilderTest {
     @BeforeEach
     void setUp() {
         builder = new TasReportBuilder(holidayService);
-        when(holidayService.isHoliday(any())).thenReturn(false);
+        lenient().when(holidayService.isHoliday(any())).thenReturn(false);
 
         Map<String, Object> manana = new LinkedHashMap<>();
         manana.put("id", "manana");
@@ -242,5 +243,58 @@ class TasReportBuilderTest {
 
         assertThat(result.rows).hasSize(1);
         assertThat(result.rows.get(0).getDiasTurnoAmbiguo()).isEqualTo(1);
+    }
+
+    @Test
+    void build_multiMonthFile_groupsByYearMonthQuincena() {
+        LocalDate start = LocalDate.of(2026, 4, 16);
+        LocalDate end   = LocalDate.of(2026, 5, 15);
+
+        List<TasSession> sessions = List.of(
+            resolvedSession("100", LocalDate.of(2026, 4, 20), 480, 0),
+            resolvedSession("100", LocalDate.of(2026, 5, 5), 480, 0)
+        );
+
+        TasReportBuilder.BuildResult result = builder.build(sessions, start, end, shifts);
+
+        assertThat(result.rows).hasSize(2);
+        EmployeeRow aprilRow = result.rows.stream().filter(r -> r.getMes() == 4).findFirst().orElseThrow();
+        EmployeeRow mayRow   = result.rows.stream().filter(r -> r.getMes() == 5).findFirst().orElseThrow();
+        assertThat(aprilRow.getAnio()).isEqualTo(2026);
+        assertThat(aprilRow.getNumeroDequincena()).isEqualTo(2);
+        assertThat(mayRow.getAnio()).isEqualTo(2026);
+        assertThat(mayRow.getNumeroDequincena()).isEqualTo(1);
+    }
+
+    @Test
+    void build_periodFilter_onlyMatchingPeriodReturned() {
+        LocalDate start = LocalDate.of(2026, 3, 1);
+        LocalDate end   = LocalDate.of(2026, 3, 31);
+
+        List<TasSession> sessions = List.of(
+            resolvedSession("100", LocalDate.of(2026, 3, 5), 480, 0),
+            resolvedSession("100", LocalDate.of(2026, 3, 20), 480, 0)
+        );
+
+        TasReportBuilder.BuildResult result = builder.build(sessions, start, end, shifts, new TasPeriod(2026, 3, 1));
+
+        assertThat(result.rows).hasSize(1);
+        assertThat(result.rows.get(0).getNumeroDequincena()).isEqualTo(1);
+    }
+
+    @Test
+    void computeAvailablePeriods_returnsDistinctSortedPeriods() {
+        List<TasSession> sessions = List.of(
+            resolvedSession("100", LocalDate.of(2026, 4, 20), 480, 0),
+            resolvedSession("100", LocalDate.of(2026, 4, 21), 480, 0),
+            resolvedSession("100", LocalDate.of(2026, 5, 5), 480, 0)
+        );
+
+        List<TasPeriod> periods = builder.computeAvailablePeriods(sessions);
+
+        assertThat(periods).containsExactly(
+            new TasPeriod(2026, 4, 2),
+            new TasPeriod(2026, 5, 1)
+        );
     }
 }
