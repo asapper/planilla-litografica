@@ -29,6 +29,7 @@ export interface ResolvedRow {
   mes: number
   anio: number
   numeroDequincena: number | null
+  diasTurnoAmbiguo: number
 }
 
 export interface TasUploadResult {
