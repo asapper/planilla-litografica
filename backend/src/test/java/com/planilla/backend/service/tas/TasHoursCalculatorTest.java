@@ -271,7 +271,7 @@ class TasHoursCalculatorTest {
     }
 
     @Test
-    void calculate_hoursWithinShiftDuration_allSimples() {
+    void calculate_hoursWithinShiftDuration_noOvertime() {
         LocalDate date = LocalDate.of(2026, 3, 10);
         TasSession s = session(date,
             LocalDateTime.of(2026, 3, 10, 7, 0),
@@ -281,12 +281,12 @@ class TasHoursCalculatorTest {
         calculator.calculate(List.of(s), REPORT_START, REPORT_END);
 
         assertThat(s.isNeedsResolution()).isFalse();
+        assertThat(s.getSimplesMinutes()).isEqualTo(0);
         assertThat(s.getDoblesMinutes()).isEqualTo(0);
-        assertThat(s.getSimplesMinutes()).isEqualTo(s.getWorkedMinutes());
     }
 
     @Test
-    void calculate_hoursExceedingShiftDuration_splitSimplesDobles() {
+    void calculate_hoursExceedingShiftDuration_overtimeGoesToSimplesOnly() {
         LocalDate date = LocalDate.of(2026, 3, 10);
         TasSession s = session(date,
             LocalDateTime.of(2026, 3, 10, 7, 0),
@@ -296,9 +296,9 @@ class TasHoursCalculatorTest {
         calculator.calculate(List.of(s), REPORT_START, REPORT_END);
 
         assertThat(s.isNeedsResolution()).isFalse();
-        assertThat(s.getSimplesMinutes()).isGreaterThan(0);
-        assertThat(s.getDoblesMinutes()).isGreaterThan(0);
-        assertThat(s.getSimplesMinutes() + s.getDoblesMinutes()).isEqualTo(s.getWorkedMinutes());
+        assertThat(s.getWorkedMinutes()).isEqualTo(600);
+        assertThat(s.getSimplesMinutes()).isEqualTo(120); // 600 - 480 (shift duration)
+        assertThat(s.getDoblesMinutes()).isEqualTo(0);
     }
 
     @Test
@@ -317,9 +317,9 @@ class TasHoursCalculatorTest {
         assertThat(s.getEffectiveStart()).isEqualTo(LocalDateTime.of(2026, 3, 10, 9, 0));
         assertThat(s.getWorkedMinutes()).isEqualTo(600);
         assertThat(s.getWorkedHours()).isEqualTo(10.0);
-        // 8h default shift duration: 480min simples, remainder dobles
-        assertThat(s.getSimplesMinutes()).isEqualTo(480);
-        assertThat(s.getDoblesMinutes()).isEqualTo(120);
+        // 8h default shift duration: overtime beyond 480min goes to simples, dobles stays 0
+        assertThat(s.getSimplesMinutes()).isEqualTo(120);
+        assertThat(s.getDoblesMinutes()).isEqualTo(0);
     }
 
     @Test
