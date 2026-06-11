@@ -1,5 +1,5 @@
 import { vi, describe, it, expect, beforeEach } from 'vitest';
-import type { TasUploadResult, AbsentEmployee } from './tasTypes';
+import type { TasUploadResult, AbsentEmployee, TasPeriod } from './tasTypes';
 
 const mockPost = vi.hoisted(() => vi.fn());
 const mockGet  = vi.hoisted(() => vi.fn());
@@ -97,6 +97,31 @@ describe('resolveVerification', () => {
   it('propagates errors', async () => {
     mockPost.mockRejectedValue(new Error('server error'));
     await expect(resolveVerification('tok', [])).rejects.toThrow('server error');
+  });
+
+  it('includes anio/mes/numeroDequincena in the body when period is provided', async () => {
+    mockPost.mockResolvedValue({ data: mockResult });
+    const resolutions = [{ sessionId: 1, resolvedStart: '08:00', resolvedEnd: '17:00' }];
+    const period: TasPeriod = { anio: 2026, mes: 4, numeroDequincena: 1 };
+    const result = await resolveVerification('tok-abc', resolutions, period);
+    expect(mockPost).toHaveBeenCalledWith('/tas/resolve', {
+      uploadToken: 'tok-abc',
+      resolutions,
+      anio: 2026,
+      mes: 4,
+      numeroDequincena: 1,
+    });
+    expect(result).toEqual(mockResult);
+  });
+
+  it('omits period fields from the body when period is not provided', async () => {
+    mockPost.mockResolvedValue({ data: mockResult });
+    const resolutions = [{ sessionId: 1, resolvedStart: '08:00', resolvedEnd: '17:00' }];
+    await resolveVerification('tok-abc', resolutions);
+    expect(mockPost).toHaveBeenCalledWith('/tas/resolve', {
+      uploadToken: 'tok-abc',
+      resolutions,
+    });
   });
 });
 
