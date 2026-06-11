@@ -3,6 +3,7 @@ package com.planilla.backend.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.planilla.backend.model.EmployeeRow;
 import com.planilla.backend.model.tas.TasScanRecord;
+import com.planilla.backend.model.tas.TasPeriod;
 import com.planilla.backend.model.tas.TasSession;
 import com.planilla.backend.model.tas.TasUploadResult;
 import com.planilla.backend.service.JobService;
@@ -136,7 +137,7 @@ class TasControllerTest {
 
         when(shiftConfigService.getAllShifts()).thenReturn(new ArrayList<>());
         TasReportBuilder.BuildResult buildResult = new TasReportBuilder.BuildResult(new ArrayList<>(), new LinkedHashMap<>());
-        when(reportBuilder.build(any(), any(), any(), any())).thenReturn(buildResult);
+        when(reportBuilder.build(any(), any(), any(), any(), any())).thenReturn(buildResult);
 
         Map<String, Object> resolution = new LinkedHashMap<>();
         resolution.put("sessionId", 42);
@@ -155,6 +156,63 @@ class TasControllerTest {
            .andExpect(jsonPath("$.flaggedSessions.length()").value(0));
 
         verify(hoursCalculator).classifyHours(any(), any());
+    }
+
+    @Test
+    void upload_includesAvailablePeriodsField() throws Exception {
+        when(parserService.parse(any())).thenReturn(emptyParseResult());
+        when(uploadService.processScans(any(), any(), any())).thenReturn(emptyResult());
+
+        MockMultipartFile file = new MockMultipartFile("file", "test.csv", "text/csv", "data".getBytes());
+
+        mvc.perform(multipart("/api/tas/upload").file(file))
+           .andExpect(status().isOk())
+           .andExpect(jsonPath("$.availablePeriods").isArray());
+    }
+
+    @Test
+    void resolve_withPeriod_passesPeriodFilterToReportBuilder() throws Exception {
+        TasSession flagged = new TasSession();
+        flagged.setSessionId(42);
+        flagged.setEmployeeId("100");
+        flagged.setNeedsResolution(true);
+        flagged.setFlags(new ArrayList<>(List.of(com.planilla.backend.model.tas.TasFlag.MISSING_EXIT)));
+
+        TasUploadResult result = emptyResult();
+        result.setFlaggedSessions(List.of(flagged));
+        result.setAllSessions(List.of(flagged));
+        when(parserService.parse(any())).thenReturn(emptyParseResult());
+        when(uploadService.processScans(any(), any(), any())).thenReturn(result);
+
+        MockMultipartFile file = new MockMultipartFile("file", "test.csv", "text/csv", "data".getBytes());
+        String uploadResponse = mvc.perform(multipart("/api/tas/upload").file(file))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        String token = (String) mapper.readValue(uploadResponse, Map.class).get("uploadToken");
+
+        when(shiftConfigService.getAllShifts()).thenReturn(new ArrayList<>());
+        TasReportBuilder.BuildResult buildResult = new TasReportBuilder.BuildResult(new ArrayList<>(), new LinkedHashMap<>());
+        when(reportBuilder.build(any(), any(), any(), any(), any())).thenReturn(buildResult);
+
+        Map<String, Object> resolution = new LinkedHashMap<>();
+        resolution.put("sessionId", 42);
+        resolution.put("resolvedStart", "2026-03-10 07:00");
+        resolution.put("resolvedEnd", "2026-03-10 15:00");
+
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("uploadToken", token);
+        body.put("resolutions", List.of(resolution));
+        body.put("anio", 2026);
+        body.put("mes", 3);
+        body.put("numeroDequincena", 1);
+
+        mvc.perform(post("/api/tas/resolve")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(body)))
+           .andExpect(status().isOk())
+           .andExpect(jsonPath("$.availablePeriods").isArray());
+
+        verify(reportBuilder).build(any(), any(), any(), any(), eq(new TasPeriod(2026, 3, 1)));
     }
 
     // ── POST /api/tas/submit ──────────────────────────────────────────────────
