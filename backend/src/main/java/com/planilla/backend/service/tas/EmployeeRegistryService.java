@@ -7,10 +7,13 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 public class EmployeeRegistryService {
@@ -142,6 +145,24 @@ public class EmployeeRegistryService {
         Object value = rows.get(0).get("ACCRUES_OVERTIME");
         if (value == null) value = rows.get(0).get("accrues_overtime");
         return !(value instanceof Boolean) || (Boolean) value;
+    }
+
+    public Map<String, Boolean> getAccruesOvertimeFlags(Collection<String> employeeIds) {
+        if (employeeIds.isEmpty()) return Map.of();
+        Map<String, Boolean> result = new HashMap<>();
+        List<Map<String, Object>> rows = jdbc.queryForList(
+            "SELECT employee_id, accrues_overtime FROM employee_registry WHERE employee_id IN (" +
+                employeeIds.stream().map(id -> "?").collect(Collectors.joining(",")) + ")",
+            employeeIds.toArray()
+        );
+        for (Map<String, Object> row : rows) {
+            Object empId = row.get("EMPLOYEE_ID");
+            if (empId == null) empId = row.get("employee_id");
+            Object value = row.get("ACCRUES_OVERTIME");
+            if (value == null) value = row.get("accrues_overtime");
+            result.put((String) empId, !(value instanceof Boolean) || (Boolean) value);
+        }
+        return result;
     }
 
     public List<TasAbsentEmployee> getAbsentActiveEmployees(Set<String> presentEmployeeIds) {

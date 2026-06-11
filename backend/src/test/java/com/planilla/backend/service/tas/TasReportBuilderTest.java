@@ -32,7 +32,7 @@ class TasReportBuilderTest {
     void setUp() {
         builder = new TasReportBuilder(holidayService, employeeRegistryService);
         lenient().when(holidayService.isHoliday(any())).thenReturn(false);
-        lenient().when(employeeRegistryService.isAccruesOvertime(any())).thenReturn(true);
+        lenient().when(employeeRegistryService.getAccruesOvertimeFlags(any())).thenReturn(Map.of());
 
         Map<String, Object> manana = new LinkedHashMap<>();
         manana.put("id", "manana");
@@ -289,7 +289,7 @@ class TasReportBuilderTest {
         LocalDate start = LocalDate.of(2026, 3, 1);
         LocalDate end   = LocalDate.of(2026, 3, 15);
 
-        when(employeeRegistryService.isAccruesOvertime("100")).thenReturn(false);
+        when(employeeRegistryService.getAccruesOvertimeFlags(any())).thenReturn(Map.of("100", false));
 
         List<TasSession> sessions = List.of(
             resolvedSession("100", LocalDate.of(2026, 3, 5), 480, 60)
@@ -309,7 +309,7 @@ class TasReportBuilderTest {
         LocalDate start = LocalDate.of(2026, 3, 1);
         LocalDate end   = LocalDate.of(2026, 3, 15);
 
-        when(employeeRegistryService.isAccruesOvertime("100")).thenReturn(true);
+        when(employeeRegistryService.getAccruesOvertimeFlags(any())).thenReturn(Map.of("100", true));
 
         List<TasSession> sessions = List.of(
             resolvedSession("100", LocalDate.of(2026, 3, 5), 480, 60)

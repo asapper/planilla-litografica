@@ -42,7 +42,7 @@ class TasAmbiguousShiftPipelineTest {
         grouper = new TasSessionGrouper();
         calculator = new TasHoursCalculator(appConfigService, holidayService, shiftConfigService);
         reportBuilder = new TasReportBuilder(holidayService, employeeRegistryService);
-        lenient().when(employeeRegistryService.isAccruesOvertime(any())).thenReturn(true);
+        lenient().when(employeeRegistryService.getAccruesOvertimeFlags(any())).thenReturn(Map.of());
 
         Map<String, Object> manana = new LinkedHashMap<>();
         manana.put("id", "manana");

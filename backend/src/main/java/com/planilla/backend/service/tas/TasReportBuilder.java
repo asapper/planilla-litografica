@@ -75,6 +75,9 @@ public class TasReportBuilder {
         Map<String, String> employeeNamesFromScans = buildEmployeeNamesMap(filteredSessions);
         Map<String, String> consistentMismatchShiftIds = detectConsistentMismatches(filteredSessions);
 
+        Map<String, Boolean> accruesOvertimeFlags =
+                employeeRegistryService.getAccruesOvertimeFlags(minutesByEmployeePeriod.keySet());
+
         List<EmployeeRow> rows = new ArrayList<>();
 
         for (Map.Entry<String, Map<TasPeriod, int[]>> empEntry : minutesByEmployeePeriod.entrySet()) {
@@ -117,7 +120,7 @@ public class TasReportBuilder {
                         .size();
                 row.setDiasTurnoAmbiguo(diasTurnoAmbiguo);
 
-                boolean accruesOvertime = employeeRegistryService.isAccruesOvertime(empId);
+                boolean accruesOvertime = accruesOvertimeFlags.getOrDefault(empId, true);
                 row.setAccruesOvertime(accruesOvertime);
                 if (!accruesOvertime) {
                     row.setHorasExtrasSimples(0);
