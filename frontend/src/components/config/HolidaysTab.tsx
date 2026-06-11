@@ -4,12 +4,9 @@ import { getHolidays, createHoliday, deleteHoliday, refreshHolidays } from '../.
 import type { Holiday } from '../../configTypes';
 import Spinner from '../ui/Spinner';
 import ConfirmModal from '../ui/ConfirmModal';
+import { MONTH_NAMES_ES } from '../../dateNames';
 
 const DAY_NAMES = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
-const MONTH_NAMES_ES = [
-  '', 'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
-  'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre',
-];
 
 function formatDate(dateStr: string): string {
   const [year, month, day] = dateStr.split('-').map(Number);
