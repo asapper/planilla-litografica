@@ -413,21 +413,20 @@ describe('VerificationScreen shift mismatch card', () => {
     expect(screen.queryByText(/Horas calculadas/)).not.toBeInTheDocument();
   });
 
-  it('Confirmar is enabled by default', () => {
+  it('shows a note that the displayed shift will apply automatically unless changed', () => {
     render(<VerificationScreen />);
-    expect(screen.getByRole('button', { name: /confirmar/i })).toBeEnabled();
+    expect(screen.getByText(/se aplicará automáticamente si no realiza ningún cambio/i)).toBeInTheDocument();
   });
 
-  it('disables Confirmar when there is no matched shift and no shifts available', () => {
+  it('has no Confirmar button', () => {
+    render(<VerificationScreen />);
+    expect(screen.queryByRole('button', { name: /confirmar/i })).not.toBeInTheDocument();
+  });
+
+  it('falls back to an empty acceptedShiftId when there is no matched shift', () => {
     useTasStore.getState().setFlaggedSessions([mismatchSession({ matchedShiftId: null, matchedShiftName: null })]);
     render(<VerificationScreen />);
-    expect(screen.getByRole('button', { name: /confirmar/i })).toBeDisabled();
-  });
-
-  it('confirming without choosing a different shift records the matched shift as accepted', () => {
-    render(<VerificationScreen />);
-    fireEvent.click(screen.getByRole('button', { name: /confirmar/i }));
-    expect(useTasStore.getState().shiftAcceptances[1]).toBe('tarde');
+    expect(useTasStore.getState().shiftAcceptances[1]).toBeUndefined();
   });
 
   it('clicking "Elegir otro turno" reveals a shift select with Aplicar/Cancelar', () => {
@@ -446,14 +445,13 @@ describe('VerificationScreen shift mismatch card', () => {
     expect(screen.getByText(/se aplicará Tarde/)).toBeInTheDocument();
   });
 
-  it('includes acceptedShiftId in resolveVerification payload on submit', async () => {
+  it('includes the matched shift as acceptedShiftId in resolveVerification payload on submit by default', async () => {
     useTasStore.getState().setUploadToken('tok-1');
     useTasStore.getState().setFlaggedSessions([mismatchSession()]);
     useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
     mockResolveVerification.mockResolvedValue(mockResult);
 
     render(<VerificationScreen />);
-    fireEvent.click(screen.getByRole('button', { name: /confirmar/i }));
     fireEvent.click(screen.getByRole('button', { name: /enviar/i }));
 
     await waitFor(() => expect(useTasStore.getState().tasView).toBe('review'));
@@ -462,7 +460,7 @@ describe('VerificationScreen shift mismatch card', () => {
     expect(payload[0]).toEqual({ sessionId: 1, acceptedShiftId: 'tarde' });
   });
 
-  it('Aplicar updates the confirmation message and records the chosen shift on confirm', () => {
+  it('Aplicar updates the confirmation message and records the chosen shift', () => {
     useTasStore.getState().setFlaggedSessions([mismatchSession()]);
     useTasStore.getState().setAvailableShifts([
       { id: 'tarde', name: 'Tarde', startTime: '15:00', endTime: '23:00' },
@@ -474,7 +472,6 @@ describe('VerificationScreen shift mismatch card', () => {
     fireEvent.click(screen.getByRole('button', { name: /aplicar/i }));
     expect(screen.getByText(/se aplicará Manana/)).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: /confirmar/i }));
     expect(useTasStore.getState().shiftAcceptances[1]).toBe('manana');
   });
 });
@@ -576,26 +573,24 @@ describe('VerificationScreen same-day double group', () => {
     expect(screen.getAllByRole('radio')).toHaveLength(3);
   });
 
-  it('Confirmar is enabled without any selection change', () => {
+  it('shows a note that the default selection will apply automatically unless changed', () => {
     render(<VerificationScreen />);
-    expect(screen.getByRole('button', { name: /confirmar/i })).toBeEnabled();
+    expect(screen.getByText(/se aplicará automáticamente si no realiza ningún cambio/i)).toBeInTheDocument();
   });
 
-  it('confirming with default selection records "all" for the group', () => {
+  it('has no Confirmar button', () => {
     render(<VerificationScreen />);
-    fireEvent.click(screen.getByRole('button', { name: /confirmar/i }));
-    expect(useTasStore.getState().sameDayDoubleResolutions['E1|2026-03-15']).toBe('all');
+    expect(screen.queryByRole('button', { name: /confirmar/i })).not.toBeInTheDocument();
   });
 
-  it('selecting a specific session and confirming records that session id', () => {
+  it('selecting a specific session records that session id', () => {
     render(<VerificationScreen />);
     const radios = screen.getAllByRole('radio');
     fireEvent.click(radios[0]); // first session-specific radio
-    fireEvent.click(screen.getByRole('button', { name: /confirmar/i }));
     expect(useTasStore.getState().sameDayDoubleResolutions['E1|2026-03-15']).toBe(1);
   });
 
-  it('Enviar stays enabled after confirming the group while a non-"all" filter chip is active', () => {
+  it('Enviar stays enabled with default selection while a non-"all" filter chip is active', () => {
     useTasStore.getState().setFlaggedSessions([
       doubleSession({ sessionId: 1, matchedShiftId: 'manana', matchedShiftName: 'Manana' }),
       doubleSession({
@@ -611,8 +606,6 @@ describe('VerificationScreen same-day double group', () => {
 
     render(<VerificationScreen />);
 
-    fireEvent.click(screen.getAllByRole('button', { name: /confirmar/i })[0]);
-    expect(useTasStore.getState().sameDayDoubleResolutions['E1|2026-03-15']).toBe('all');
     expect(screen.getByText('1 por resolver')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: /falta entrada/i }));
@@ -621,12 +614,11 @@ describe('VerificationScreen same-day double group', () => {
     expect(screen.getByRole('button', { name: /enviar/i })).toBeDisabled();
   });
 
-  it('includes employeeId/date/keepSessionId in resolveVerification payload on submit', async () => {
+  it('includes employeeId/date/keepSessionId in resolveVerification payload on submit by default', async () => {
     useTasStore.getState().setUploadToken('tok-1');
     mockResolveVerification.mockResolvedValue(mockResult);
 
     render(<VerificationScreen />);
-    fireEvent.click(screen.getByRole('button', { name: /confirmar/i }));
     fireEvent.click(screen.getByRole('button', { name: /enviar/i }));
 
     await waitFor(() => expect(useTasStore.getState().tasView).toBe('review'));

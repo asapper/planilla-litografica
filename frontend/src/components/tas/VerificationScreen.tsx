@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useTasStore } from '../../tasStore';
 import { resolveVerification } from '../../tasApi';
 import type { TasResolution } from '../../tasApi';
@@ -91,29 +91,15 @@ function sessionMatchesFilter(session: TasSession, filter: FilterChip): boolean 
 interface ShiftMismatchCardProps {
   session: TasSession;
   availableShifts: ShiftOption[];
-  confirmed: boolean;
-  onConfirm: (acceptedShiftId: string) => void;
+  acceptedShiftId: string;
+  onChange: (acceptedShiftId: string) => void;
 }
 
-function ShiftMismatchCard({ session, availableShifts, confirmed, onConfirm }: ShiftMismatchCardProps) {
-  const [selectedShiftId, setSelectedShiftId] = useState(session.matchedShiftId ?? '');
+function ShiftMismatchCard({ session, availableShifts, acceptedShiftId, onChange }: ShiftMismatchCardProps) {
   const [choosingShift, setChoosingShift] = useState(false);
-  const [pendingShiftId, setPendingShiftId] = useState(selectedShiftId);
+  const [pendingShiftId, setPendingShiftId] = useState(acceptedShiftId);
 
-  if (confirmed) {
-    return (
-      <div className="border-l-4 border-green-500 bg-white rounded-shape-md px-4 py-3 mb-3 flex items-center gap-4 shadow-sm">
-        <div className="flex-1">
-          <span className="font-medium text-on-surface">{session.employeeName}</span>
-          <span className="mx-2 text-on-surface-variant">·</span>
-          <span className="text-on-surface-variant text-body-sm">{formatDate(session.date)}</span>
-        </div>
-        <span className="text-green-600 text-body-sm font-medium">Confirmado</span>
-      </div>
-    );
-  }
-
-  const selectedShift = availableShifts.find(s => s.id === selectedShiftId);
+  const selectedShift = availableShifts.find(s => s.id === acceptedShiftId);
   const selectedShiftName = selectedShift?.name ?? session.matchedShiftName ?? '';
   const selectedShiftTimes = selectedShift ? ` (${selectedShift.startTime}–${selectedShift.endTime})` : '';
 
@@ -146,7 +132,7 @@ function ShiftMismatchCard({ session, availableShifts, confirmed, onConfirm }: S
         {!choosingShift && (
           <button
             type="button"
-            onClick={() => { setPendingShiftId(selectedShiftId); setChoosingShift(true); }}
+            onClick={() => { setPendingShiftId(acceptedShiftId); setChoosingShift(true); }}
             className="ml-2 text-primary underline cursor-pointer"
           >
             Elegir otro turno
@@ -169,7 +155,7 @@ function ShiftMismatchCard({ session, availableShifts, confirmed, onConfirm }: S
           </select>
           <button
             type="button"
-            onClick={() => { setSelectedShiftId(pendingShiftId); setChoosingShift(false); }}
+            onClick={() => { onChange(pendingShiftId); setChoosingShift(false); }}
             className="m3-btn-filled"
           >
             Aplicar
@@ -184,43 +170,21 @@ function ShiftMismatchCard({ session, availableShifts, confirmed, onConfirm }: S
         </div>
       )}
 
-      <button
-        disabled={!selectedShiftId}
-        onClick={() => onConfirm(selectedShiftId)}
-        className="m3-btn-filled disabled:opacity-40 disabled:cursor-not-allowed"
-      >
-        Confirmar
-      </button>
+      <p className="text-label-sm text-on-surface-variant">
+        Esta opción se aplicará automáticamente si no realiza ningún cambio.
+      </p>
     </div>
   );
 }
 
 interface SameDayDoubleGroupCardProps {
   sessions: TasSession[];
-  confirmed: boolean;
-  onConfirm: (keepSessionId: number | 'all') => void;
+  choice: number | 'all';
+  onChange: (keepSessionId: number | 'all') => void;
 }
 
-function SameDayDoubleGroupCard({ sessions, confirmed, onConfirm }: SameDayDoubleGroupCardProps) {
-  const [choice, setChoice] = useState<number | 'all'>('all');
+function SameDayDoubleGroupCard({ sessions, choice, onChange }: SameDayDoubleGroupCardProps) {
   const first = sessions[0];
-
-  useEffect(() => {
-    if (!confirmed) setChoice('all');
-  }, [confirmed]);
-
-  if (confirmed) {
-    return (
-      <div className="border-l-4 border-green-500 bg-white rounded-shape-md px-4 py-3 mb-3 flex items-center gap-4 shadow-sm">
-        <div className="flex-1">
-          <span className="font-medium text-on-surface">{first.employeeName}</span>
-          <span className="mx-2 text-on-surface-variant">·</span>
-          <span className="text-on-surface-variant text-body-sm">{formatDate(first.date)}</span>
-        </div>
-        <span className="text-green-600 text-body-sm font-medium">Confirmado</span>
-      </div>
-    );
-  }
 
   return (
     <div className="bg-white rounded-shape-md border border-outline-variant p-4 mb-3 shadow-sm">
@@ -239,7 +203,7 @@ function SameDayDoubleGroupCard({ sessions, confirmed, onConfirm }: SameDayDoubl
               type="radio"
               name={`same-day-double-${first.employeeId}-${first.date}`}
               checked={choice === session.sessionId}
-              onChange={() => setChoice(session.sessionId)}
+              onChange={() => onChange(session.sessionId)}
             />
             {session.matchedShiftName ?? '—'} ({toHHMM(session.effectiveStart)}–{toHHMM(session.lastScan)}) — marcaciones:{' '}
             {session.scans.map(toHHMM).join(', ')}
@@ -250,18 +214,15 @@ function SameDayDoubleGroupCard({ sessions, confirmed, onConfirm }: SameDayDoubl
             type="radio"
             name={`same-day-double-${first.employeeId}-${first.date}`}
             checked={choice === 'all'}
-            onChange={() => setChoice('all')}
+            onChange={() => onChange('all')}
           />
           Mantener todas
         </label>
       </div>
 
-      <button
-        onClick={() => onConfirm(choice)}
-        className="m3-btn-filled"
-      >
-        Confirmar
-      </button>
+      <p className="text-label-sm text-on-surface-variant">
+        Esta opción se aplicará automáticamente si no realiza ningún cambio.
+      </p>
     </div>
   );
 }
@@ -403,11 +364,12 @@ export default function VerificationScreen() {
   );
   const filtered = needsResolutionSessions.filter(s => sessionMatchesFilter(s, activeFilter));
   const sameDayDoubleSessions = needsResolutionSessions.filter(s => s.flags.includes('SAME_DAY_DOUBLE'));
-  const shiftMismatchOnly = filtered.filter(
+  const allShiftMismatchOnly = needsResolutionSessions.filter(
     s => !sameDayDoubleSessions.includes(s) && s.flags.length === 1 && s.flags[0] === 'SHIFT_MISMATCH',
   );
+  const shiftMismatchOnly = filtered.filter(s => allShiftMismatchOnly.includes(s));
   const regular = filtered.filter(
-    s => !sameDayDoubleSessions.includes(s) && !shiftMismatchOnly.includes(s),
+    s => !sameDayDoubleSessions.includes(s) && !allShiftMismatchOnly.includes(s),
   );
 
   const sameDayDoubleGroups = new Map<string, TasSession[]>();
@@ -419,10 +381,8 @@ export default function VerificationScreen() {
   }
 
   const confirmedCount = Object.keys(resolvedSessions).length
-    + Object.keys(shiftAcceptances).length
-    + Array.from(sameDayDoubleGroups.entries())
-        .filter(([groupKey]) => sameDayDoubleResolutions[groupKey] !== undefined)
-        .reduce((sum, [, sessions]) => sum + sessions.length, 0);
+    + allShiftMismatchOnly.length
+    + sameDayDoubleSessions.length;
   const totalToResolve  = needsResolutionSessions.length;
   const pendingCount    = totalToResolve - confirmedCount;
 
@@ -445,13 +405,13 @@ export default function VerificationScreen() {
           resolvedStart: entry.resolvedStart,
           resolvedEnd:   entry.resolvedEnd,
         })),
-        ...Object.entries(shiftAcceptances).map(([id, acceptedShiftId]) => ({
-          sessionId: Number(id),
-          acceptedShiftId,
+        ...allShiftMismatchOnly.map(session => ({
+          sessionId: session.sessionId,
+          acceptedShiftId: shiftAcceptances[session.sessionId] ?? session.matchedShiftId ?? '',
         })),
-        ...Object.entries(sameDayDoubleResolutions).map(([groupKey, keepSessionId]) => {
+        ...Array.from(sameDayDoubleGroups.keys()).map(groupKey => {
           const [employeeId, date] = groupKey.split('|');
-          return { employeeId, date, keepSessionId };
+          return { employeeId, date, keepSessionId: sameDayDoubleResolutions[groupKey] ?? 'all' };
         }),
       ];
       const result = await resolveVerification(uploadToken, resolutions, selectedPeriod);
@@ -549,8 +509,8 @@ export default function VerificationScreen() {
               <SameDayDoubleGroupCard
                 key={groupKey}
                 sessions={groupSessions}
-                confirmed={sameDayDoubleResolutions[groupKey] !== undefined}
-                onConfirm={(keepSessionId) => setSameDayDoubleResolution(groupKey, keepSessionId)}
+                choice={sameDayDoubleResolutions[groupKey] ?? 'all'}
+                onChange={(keepSessionId) => setSameDayDoubleResolution(groupKey, keepSessionId)}
               />
             ))}
 
@@ -570,8 +530,8 @@ export default function VerificationScreen() {
                 key={session.sessionId}
                 session={session}
                 availableShifts={availableShifts}
-                confirmed={shiftAcceptances[session.sessionId] !== undefined}
-                onConfirm={(acceptedShiftId) => setShiftAcceptance(session.sessionId, acceptedShiftId)}
+                acceptedShiftId={shiftAcceptances[session.sessionId] ?? session.matchedShiftId ?? ''}
+                onChange={(acceptedShiftId) => setShiftAcceptance(session.sessionId, acceptedShiftId)}
               />
             ))}
           </>
