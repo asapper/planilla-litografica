@@ -3,6 +3,7 @@ package com.planilla.backend.controller;
 import com.planilla.backend.model.EmployeeRow;
 import com.planilla.backend.model.tas.TasScanRecord;
 import com.planilla.backend.model.tas.TasSession;
+import com.planilla.backend.model.tas.TasFlag;
 import com.planilla.backend.model.tas.TasPeriod;
 import com.planilla.backend.model.tas.TasUploadResult;
 import com.planilla.backend.service.JobService;
@@ -142,6 +143,15 @@ public class TasController {
         List<Map<String, Object>> shifts = shiftConfigService.getAllShifts();
 
         for (Map<String, Object> res : resolutions) {
+            Object employeeIdObj = res.get("employeeId");
+            Object dateObj = res.get("date");
+            Object keepSessionIdObj = res.get("keepSessionId");
+            if (employeeIdObj != null && dateObj != null && keepSessionIdObj != null) {
+                applySameDayDoubleResolution(sessions, (String) employeeIdObj,
+                        java.time.LocalDate.parse((String) dateObj), keepSessionIdObj, shifts);
+                continue;
+            }
+
             Object sessionIdObj = res.get("sessionId");
             if (sessionIdObj == null) continue;
             int sessionId = ((Number) sessionIdObj).intValue();
@@ -150,6 +160,7 @@ public class TasController {
 
             String resolvedStart = (String) res.get("resolvedStart");
             String resolvedEnd   = (String) res.get("resolvedEnd");
+            String acceptedShiftId = (String) res.get("acceptedShiftId");
 
             if (resolvedStart != null && resolvedEnd != null) {
                 LocalDateTime start = LocalDateTime.parse(resolvedStart, dtf);
@@ -166,6 +177,17 @@ public class TasController {
                 session.setWorkedMinutes((int) workedMinutes);
                 session.setWorkedHours(TasHoursCalculator.roundToHalfHour((int) workedMinutes));
                 hoursCalculator.classifyHours(session, shifts);
+            } else if (acceptedShiftId != null) {
+                session.setMatchedShiftId(acceptedShiftId);
+                session.getFlags().removeIf(f -> f == TasFlag.SHIFT_MISMATCH);
+
+                boolean hasBlockingFlags = session.getFlags().stream()
+                        .anyMatch(f -> f != TasFlag.AMBIGUOUS_SHIFT);
+                session.setNeedsResolution(hasBlockingFlags);
+
+                if (!hasBlockingFlags) {
+                    hoursCalculator.recompute(session, shifts);
+                }
             }
         }
         TasPeriod periodFilter = null;
@@ -193,6 +215,7 @@ public class TasController {
         resp.put("flaggedSessions", remainingFlagged);
         resp.put("usedFallbackHolidays", state.isUsedFallbackHolidays());
         resp.put("availablePeriods", reportBuilder.computeAvailablePeriods(sessions));
+        resp.put("availableShifts", mapAvailableShifts(shifts));
         return ResponseEntity.ok(resp);
     }
 
@@ -302,6 +325,63 @@ public class TasController {
         return state;
     }
 
+    private void applySameDayDoubleResolution(
+            List<TasSession> sessions,
+            String employeeId,
+            java.time.LocalDate date,
+            Object keepSessionIdObj,
+            List<Map<String, Object>> shifts) {
+
+        boolean keepAll = "all".equals(keepSessionIdObj);
+        Integer keepSessionId = keepAll ? null : ((Number) keepSessionIdObj).intValue();
+
+        List<TasSession> group = sessions.stream()
+                .filter(s -> employeeId.equals(s.getEmployeeId())
+                        && date.equals(s.getDate())
+                        && s.getFlags() != null
+                        && s.getFlags().contains(TasFlag.SAME_DAY_DOUBLE))
+                .collect(Collectors.toList());
+
+        boolean keepSessionIdInGroup = !keepAll && group.stream()
+                .anyMatch(s -> s.getSessionId() == keepSessionId);
+        if (!keepAll && !keepSessionIdInGroup) {
+            keepAll = true;
+        }
+
+        for (TasSession session : group) {
+            session.getFlags().removeIf(f -> f == TasFlag.SAME_DAY_DOUBLE || f == TasFlag.SHIFT_MISMATCH);
+
+            boolean discard = !keepAll && session.getSessionId() != keepSessionId;
+            if (discard) {
+                session.setWorkedMinutes(0);
+                session.setWorkedHours(0.0);
+                session.setSimplesMinutes(0);
+                session.setDoblesMinutes(0);
+                session.setNeedsResolution(false);
+            } else {
+                boolean hasBlockingFlags = session.getFlags().stream()
+                        .anyMatch(f -> f != TasFlag.AMBIGUOUS_SHIFT);
+                session.setNeedsResolution(hasBlockingFlags);
+                if (!hasBlockingFlags) {
+                    hoursCalculator.recompute(session, shifts);
+                }
+            }
+        }
+    }
+
+    private List<Map<String, Object>> mapAvailableShifts(List<Map<String, Object>> shifts) {
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (Map<String, Object> shift : shifts) {
+            Map<String, Object> dto = new LinkedHashMap<>();
+            dto.put("id", shift.get("id"));
+            dto.put("name", shift.get("name"));
+            dto.put("startTime", shift.get("start_time"));
+            dto.put("endTime", shift.get("end_time"));
+            result.add(dto);
+        }
+        return result;
+    }
+
     private Map<String, Object> buildResponseBody(String token, TasUploadResult result) {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("uploadToken", token);
@@ -321,6 +401,7 @@ public class TasController {
                 : Collections.emptyList());
         body.put("availablePeriods", reportBuilder.computeAvailablePeriods(
                 result.getAllSessions() != null ? result.getAllSessions() : Collections.emptyList()));
+        body.put("availableShifts", mapAvailableShifts(shiftConfigService.getAllShifts()));
         return body;
     }
 }

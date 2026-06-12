@@ -11,6 +11,9 @@ public class TasSession {
     private String employeeName;
     private LocalDate date;
     private String matchedShiftId;
+    private String matchedShiftName;
+    private String assignedShiftId;
+    private String assignedShiftName;
     private List<LocalDateTime> scans;
     private boolean crossMidnight;
     private LocalDateTime effectiveStart;
@@ -39,6 +42,15 @@ public class TasSession {
 
     public String getMatchedShiftId() { return matchedShiftId; }
     public void setMatchedShiftId(String matchedShiftId) { this.matchedShiftId = matchedShiftId; }
+
+    public String getMatchedShiftName() { return matchedShiftName; }
+    public void setMatchedShiftName(String matchedShiftName) { this.matchedShiftName = matchedShiftName; }
+
+    public String getAssignedShiftId() { return assignedShiftId; }
+    public void setAssignedShiftId(String assignedShiftId) { this.assignedShiftId = assignedShiftId; }
+
+    public String getAssignedShiftName() { return assignedShiftName; }
+    public void setAssignedShiftName(String assignedShiftName) { this.assignedShiftName = assignedShiftName; }
 
     public List<LocalDateTime> getScans() { return scans; }
     public void setScans(List<LocalDateTime> scans) { this.scans = scans; }

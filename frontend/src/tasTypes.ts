@@ -8,13 +8,21 @@ export interface TasSession {
   scans: string[]
   matchedShiftId: string | null
   matchedShiftName: string | null
+  assignedShiftId: string | null
+  assignedShiftName: string | null
   effectiveStart: string | null
   lastScan: string | null
   workedMinutes: number
   workedHours: number
   needsResolution: boolean
   flags: TasFlag[]
-  consistentMismatch: boolean
+}
+
+export interface ShiftOption {
+  id: string
+  name: string
+  startTime: string
+  endTime: string
 }
 
 export interface TasPeriod {
@@ -48,6 +56,7 @@ export interface TasUploadResult {
   usedFallbackHolidays: boolean
   warnings: string[]
   availablePeriods?: TasPeriod[]
+  availableShifts: ShiftOption[]
 }
 
 export interface TasResolveResult {
@@ -56,6 +65,7 @@ export interface TasResolveResult {
   flaggedSessions: TasSession[]
   usedFallbackHolidays: boolean
   availablePeriods?: TasPeriod[]
+  availableShifts: ShiftOption[]
 }
 
 export type InactiveDecision = 'reactivate' | 'ignore'

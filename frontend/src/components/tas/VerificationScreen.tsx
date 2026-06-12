@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { useTasStore } from '../../tasStore';
 import { resolveVerification } from '../../tasApi';
+import type { TasResolution } from '../../tasApi';
 import { MONTH_NAMES_ES } from '../../dateNames';
-import type { TasSession, TasFlag, TasPeriod } from '../../tasTypes';
+import type { TasSession, TasFlag, TasPeriod, ShiftOption } from '../../tasTypes';
 
 type FilterChip = 'all' | 'missing_entry' | 'missing_exit' | 'shift_mismatch' | 'cutoff';
 
@@ -24,6 +25,16 @@ const FLAG_COLORS: Record<TasFlag, string> = {
   END_CUTOFF:     'bg-blue-100 text-blue-700',
 };
 
+function flagLabel(flag: TasFlag, session: TasSession): string {
+  if (flag === 'MISSING_ENTRY' && session.lastScan) {
+    return `${FLAG_LABELS[flag]} · Salida ${toHHMM(session.lastScan)}`;
+  }
+  if (flag === 'MISSING_EXIT' && session.effectiveStart) {
+    return `${FLAG_LABELS[flag]} · Entrada ${toHHMM(session.effectiveStart)}`;
+  }
+  return FLAG_LABELS[flag];
+}
+
 function formatDate(dateStr: string): string {
   const months = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
   const [year, month, day] = dateStr.split('-').map(Number);
@@ -32,7 +43,8 @@ function formatDate(dateStr: string): string {
 
 function toHHMM(timeStr: string | null): string {
   if (!timeStr) return '';
-  return timeStr.slice(0, 5);
+  const timePart = timeStr.includes('T') ? timeStr.split('T')[1] : timeStr;
+  return timePart.slice(0, 5);
 }
 
 function calcHours(entry: string, exit: string): string {
@@ -76,16 +88,154 @@ function sessionMatchesFilter(session: TasSession, filter: FilterChip): boolean 
   return false;
 }
 
+interface ShiftMismatchCardProps {
+  session: TasSession;
+  availableShifts: ShiftOption[];
+  acceptedShiftId: string;
+  onChange: (acceptedShiftId: string) => void;
+}
+
+function ShiftMismatchCard({ session, availableShifts, acceptedShiftId, onChange }: ShiftMismatchCardProps) {
+  const [choosingShift, setChoosingShift] = useState(false);
+  const [pendingShiftId, setPendingShiftId] = useState(acceptedShiftId);
+
+  const selectedShift = availableShifts.find(s => s.id === acceptedShiftId);
+  const selectedShiftName = selectedShift?.name ?? session.matchedShiftName ?? '';
+  const selectedShiftTimes = selectedShift ? ` (${selectedShift.startTime}–${selectedShift.endTime})` : '';
+
+  return (
+    <div className="bg-white rounded-shape-md border border-outline-variant p-4 mb-3 shadow-sm">
+      <div className="flex items-center gap-3 mb-2">
+        <span className="font-medium text-on-surface">{session.employeeName}</span>
+        <span className="text-on-surface-variant text-body-sm">{formatDate(session.date)}</span>
+        <div className="flex gap-1 flex-wrap">
+          {session.flags.map(f => (
+            <span key={f} className={`text-label-sm px-2 py-0.5 rounded-full ${FLAG_COLORS[f]}`}>
+              {flagLabel(f, session)}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      {session.scans.length > 0 && (
+        <div className="flex gap-2 mb-3 flex-wrap">
+          {session.scans.map((s, i) => (
+            <span key={i} className="px-2 py-1 rounded-shape-sm bg-surface-container text-body-sm text-on-surface-variant">
+              {toHHMM(s)}
+            </span>
+          ))}
+        </div>
+      )}
+
+      <div className="mb-3 rounded-shape-md border border-green-200 bg-green-50 px-3 py-2 text-body-sm">
+        {`Turno asignado: ${session.assignedShiftName ?? '—'} → se aplicará ${selectedShiftName}${selectedShiftTimes} según las marcaciones.`}
+        {!choosingShift && (
+          <button
+            type="button"
+            onClick={() => { setPendingShiftId(acceptedShiftId); setChoosingShift(true); }}
+            className="ml-2 text-primary underline cursor-pointer"
+          >
+            Elegir otro turno
+          </button>
+        )}
+      </div>
+
+      {choosingShift && (
+        <div className="mb-3 flex items-center gap-2">
+          <select
+            value={pendingShiftId}
+            onChange={e => setPendingShiftId(e.target.value)}
+            className="h-9 px-3 rounded-shape-sm border border-outline bg-white text-body-md focus:outline-none focus:border-primary"
+          >
+            {availableShifts.map(shift => (
+              <option key={shift.id} value={shift.id}>
+                {shift.name} ({shift.startTime}–{shift.endTime})
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            onClick={() => { onChange(pendingShiftId); setChoosingShift(false); }}
+            className="m3-btn-filled"
+          >
+            Aplicar
+          </button>
+          <button
+            type="button"
+            onClick={() => setChoosingShift(false)}
+            className="m3-btn-text"
+          >
+            Cancelar
+          </button>
+        </div>
+      )}
+
+      <p className="text-label-sm text-on-surface-variant">
+        Esta opción se aplicará automáticamente si no realiza ningún cambio.
+      </p>
+    </div>
+  );
+}
+
+interface SameDayDoubleGroupCardProps {
+  sessions: TasSession[];
+  choice: number | 'all';
+  onChange: (keepSessionId: number | 'all') => void;
+}
+
+function SameDayDoubleGroupCard({ sessions, choice, onChange }: SameDayDoubleGroupCardProps) {
+  const first = sessions[0];
+
+  return (
+    <div className="bg-white rounded-shape-md border border-outline-variant p-4 mb-3 shadow-sm">
+      <div className="flex items-center gap-3 mb-2">
+        <span className="font-medium text-on-surface">{first.employeeName}</span>
+        <span className="text-on-surface-variant text-body-sm">{formatDate(first.date)}</span>
+        <span className={`text-label-sm px-2 py-0.5 rounded-full ${FLAG_COLORS.SAME_DAY_DOUBLE}`}>
+          {FLAG_LABELS.SAME_DAY_DOUBLE}
+        </span>
+      </div>
+
+      <div className="flex flex-col gap-2 mb-3">
+        {sessions.map(session => (
+          <label key={session.sessionId} className="flex items-center gap-2 text-body-sm text-on-surface cursor-pointer">
+            <input
+              type="radio"
+              name={`same-day-double-${first.employeeId}-${first.date}`}
+              checked={choice === session.sessionId}
+              onChange={() => onChange(session.sessionId)}
+            />
+            {session.matchedShiftName ?? '—'} ({toHHMM(session.effectiveStart)}–{toHHMM(session.lastScan)}) — marcaciones:{' '}
+            {session.scans.map(toHHMM).join(', ')}
+          </label>
+        ))}
+        <label className="flex items-center gap-2 text-body-sm text-on-surface cursor-pointer">
+          <input
+            type="radio"
+            name={`same-day-double-${first.employeeId}-${first.date}`}
+            checked={choice === 'all'}
+            onChange={() => onChange('all')}
+          />
+          Mantener todas
+        </label>
+      </div>
+
+      <p className="text-label-sm text-on-surface-variant">
+        Esta opción se aplicará automáticamente si no realiza ningún cambio.
+      </p>
+    </div>
+  );
+}
+
 interface SessionCardProps {
   session: TasSession;
   confirmed: boolean;
-  onConfirm: (resolvedStart: string, resolvedEnd: string, mismatchChoice: 'update' | 'keep' | null) => void;
+  onConfirm: (resolvedStart: string, resolvedEnd: string) => void;
 }
 
 function SessionCard({ session, confirmed, onConfirm }: SessionCardProps) {
   const [entry, setEntry] = useState(toHHMM(session.effectiveStart));
   const [exit,  setExit]  = useState(toHHMM(session.lastScan));
-  const [mismatchChoice, setMismatchChoice] = useState<'update' | 'keep' | null>(null);
 
   const needsEntry = session.flags.includes('MISSING_ENTRY');
   const needsExit  = session.flags.includes('MISSING_EXIT');
@@ -117,17 +267,11 @@ function SessionCard({ session, confirmed, onConfirm }: SessionCardProps) {
         <div className="flex gap-1 flex-wrap">
           {session.flags.map(f => (
             <span key={f} className={`text-label-sm px-2 py-0.5 rounded-full ${FLAG_COLORS[f]}`}>
-              {FLAG_LABELS[f]}
+              {flagLabel(f, session)}
             </span>
           ))}
         </div>
       </div>
-
-      {session.matchedShiftName && (
-        <p className="text-body-sm text-on-surface-variant mb-2">
-          Turno asignado: {session.matchedShiftName}
-        </p>
-      )}
 
       {session.scans.length > 0 && (
         <div className="flex gap-2 mb-3 flex-wrap">
@@ -136,37 +280,6 @@ function SessionCard({ session, confirmed, onConfirm }: SessionCardProps) {
               {toHHMM(s)}
             </span>
           ))}
-        </div>
-      )}
-
-      {session.consistentMismatch && (
-        <div className="mb-3 rounded-shape-md border border-amber-300 bg-amber-50 px-3 py-2">
-          <p className="text-body-sm text-amber-800 mb-2">
-            Las marcaciones de {session.employeeName} corresponden al turno {session.matchedShiftName} en toda la quincena.
-            ¿Desea actualizar su turno asignado?
-          </p>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setMismatchChoice('update')}
-              className={`px-3 py-1 text-label-sm rounded-shape-full border transition-colors cursor-pointer ${
-                mismatchChoice === 'update'
-                  ? 'bg-amber-600 text-white border-amber-600'
-                  : 'border-amber-400 text-amber-700 hover:bg-amber-100'
-              }`}
-            >
-              Sí, actualizar turno
-            </button>
-            <button
-              onClick={() => setMismatchChoice('keep')}
-              className={`px-3 py-1 text-label-sm rounded-shape-full border transition-colors cursor-pointer ${
-                mismatchChoice === 'keep'
-                  ? 'bg-surface-container text-on-surface border-outline'
-                  : 'border-outline-variant text-on-surface-variant hover:bg-surface-container-low'
-              }`}
-            >
-              No, mantener
-            </button>
-          </div>
         </div>
       )}
 
@@ -211,7 +324,7 @@ function SessionCard({ session, confirmed, onConfirm }: SessionCardProps) {
 
       <button
         disabled={!canConfirm}
-        onClick={() => onConfirm(entry, exit, mismatchChoice)}
+        onClick={() => onConfirm(entry, exit)}
         className="m3-btn-filled disabled:opacity-40 disabled:cursor-not-allowed"
       >
         Confirmar
@@ -237,17 +350,41 @@ export default function VerificationScreen() {
   const selectedPeriod        = useTasStore(s => s.selectedPeriod);
   const setSelectedPeriod     = useTasStore(s => s.setSelectedPeriod);
   const setAvailablePeriods   = useTasStore(s => s.setAvailablePeriods);
+  const availableShifts    = useTasStore(s => s.availableShifts);
+  const setAvailableShifts  = useTasStore(s => s.setAvailableShifts);
+  const shiftAcceptances    = useTasStore(s => s.shiftAcceptances);
+  const setShiftAcceptance  = useTasStore(s => s.setShiftAcceptance);
+  const sameDayDoubleResolutions    = useTasStore(s => s.sameDayDoubleResolutions);
+  const setSameDayDoubleResolution  = useTasStore(s => s.setSameDayDoubleResolution);
 
   const [activeFilter, setActiveFilter] = useState<FilterChip>('all');
 
   const needsResolutionSessions = flaggedSessions.filter(
     s => s.needsResolution && periodsEqual(getSessionPeriod(s.date), selectedPeriod),
   );
-  const confirmedCount  = Object.keys(resolvedSessions).length;
+  const filtered = needsResolutionSessions.filter(s => sessionMatchesFilter(s, activeFilter));
+  const sameDayDoubleSessions = needsResolutionSessions.filter(s => s.flags.includes('SAME_DAY_DOUBLE'));
+  const allShiftMismatchOnly = needsResolutionSessions.filter(
+    s => !sameDayDoubleSessions.includes(s) && s.flags.length === 1 && s.flags[0] === 'SHIFT_MISMATCH',
+  );
+  const shiftMismatchOnly = filtered.filter(s => allShiftMismatchOnly.includes(s));
+  const regular = filtered.filter(
+    s => !sameDayDoubleSessions.includes(s) && !allShiftMismatchOnly.includes(s),
+  );
+
+  const sameDayDoubleGroups = new Map<string, TasSession[]>();
+  for (const session of sameDayDoubleSessions) {
+    const key = `${session.employeeId}|${session.date}`;
+    const group = sameDayDoubleGroups.get(key) ?? [];
+    group.push(session);
+    sameDayDoubleGroups.set(key, group);
+  }
+
+  const confirmedCount = Object.keys(resolvedSessions).length
+    + allShiftMismatchOnly.length
+    + sameDayDoubleSessions.length;
   const totalToResolve  = needsResolutionSessions.length;
   const pendingCount    = totalToResolve - confirmedCount;
-
-  const filtered = needsResolutionSessions.filter(s => sessionMatchesFilter(s, activeFilter));
 
   const chipCounts = {
     all:           needsResolutionSessions.length,
@@ -262,12 +399,21 @@ export default function VerificationScreen() {
   const handleSubmit = async () => {
     if (!uploadToken) return;
     try {
-      const resolutions = Object.entries(resolvedSessions).map(([id, entry]) => ({
-        sessionId: Number(id),
-        resolvedStart: entry.resolvedStart,
-        resolvedEnd:   entry.resolvedEnd,
-        updateShift:   entry.updateShift,
-      }));
+      const resolutions: TasResolution[] = [
+        ...Object.entries(resolvedSessions).map(([id, entry]) => ({
+          sessionId: Number(id),
+          resolvedStart: entry.resolvedStart,
+          resolvedEnd:   entry.resolvedEnd,
+        })),
+        ...allShiftMismatchOnly.map(session => ({
+          sessionId: session.sessionId,
+          acceptedShiftId: shiftAcceptances[session.sessionId] ?? session.matchedShiftId ?? '',
+        })),
+        ...Array.from(sameDayDoubleGroups.keys()).map(groupKey => {
+          const [employeeId, date] = groupKey.split('|');
+          return { employeeId, date, keepSessionId: sameDayDoubleResolutions[groupKey] ?? 'all' };
+        }),
+      ];
       const result = await resolveVerification(uploadToken, resolutions, selectedPeriod);
       const stillNeedsResolution = result.flaggedSessions.some(
         s => s.needsResolution && periodsEqual(getSessionPeriod(s.date), selectedPeriod),
@@ -277,6 +423,7 @@ export default function VerificationScreen() {
         setFlaggedSessions(result.flaggedSessions);
         setUploadToken(result.uploadToken);
         setAvailablePeriods(result.availablePeriods ?? []);
+        setAvailableShifts(result.availableShifts ?? []);
         return;
       }
       setFlaggedSessions(result.flaggedSessions);
@@ -285,6 +432,7 @@ export default function VerificationScreen() {
       setResolvedRows(result.resolvedRows ?? []);
       setUsedFallbackHolidays(result.usedFallbackHolidays);
       setAvailablePeriods(result.availablePeriods ?? []);
+      setAvailableShifts(result.availableShifts ?? []);
       setTasView('review');
     } catch {
       setTasView('verification');
@@ -357,18 +505,33 @@ export default function VerificationScreen() {
               ))}
             </div>
 
-            {filtered.map(session => (
+            {Array.from(sameDayDoubleGroups.entries()).map(([groupKey, groupSessions]) => (
+              <SameDayDoubleGroupCard
+                key={groupKey}
+                sessions={groupSessions}
+                choice={sameDayDoubleResolutions[groupKey] ?? 'all'}
+                onChange={(keepSessionId) => setSameDayDoubleResolution(groupKey, keepSessionId)}
+              />
+            ))}
+
+            {regular.map(session => (
               <SessionCard
                 key={session.sessionId}
                 session={session}
                 confirmed={!!resolvedSessions[session.sessionId]}
-                onConfirm={(resolvedStart, resolvedEnd, mismatchChoice) =>
-                  setResolvedSession(session.sessionId, {
-                    resolvedStart,
-                    resolvedEnd,
-                    updateShift: mismatchChoice === 'update' ? true : mismatchChoice === 'keep' ? false : undefined,
-                  })
+                onConfirm={(resolvedStart, resolvedEnd) =>
+                  setResolvedSession(session.sessionId, { resolvedStart, resolvedEnd })
                 }
+              />
+            ))}
+
+            {shiftMismatchOnly.map(session => (
+              <ShiftMismatchCard
+                key={session.sessionId}
+                session={session}
+                availableShifts={availableShifts}
+                acceptedShiftId={shiftAcceptances[session.sessionId] ?? session.matchedShiftId ?? ''}
+                onChange={(acceptedShiftId) => setShiftAcceptance(session.sessionId, acceptedShiftId)}
               />
             ))}
           </>

@@ -20,14 +20,14 @@ function makeSession(overrides: Partial<TasSession> = {}): TasSession {
     date: '2026-03-15',
     scans: [],
     matchedShiftId: 'S1',
-    matchedShiftName: 'Turno Mañana',
+    assignedShiftId: 'S1',
+    assignedShiftName: 'Turno Mañana',
     effectiveStart: null,
     lastScan: null,
     workedMinutes: 0,
     workedHours: 0,
     needsResolution: true,
     flags: ['MISSING_ENTRY'],
-    consistentMismatch: false,
     ...overrides,
   };
 }
@@ -45,6 +45,35 @@ const mockResult: TasResolveResult = {
 beforeEach(() => {
   useTasStore.getState().resetTas();
   vi.clearAllMocks();
+});
+
+describe('toHHMM via flagLabel rendering', () => {
+  it('extracts HH:MM from a full ISO datetime string', () => {
+    useTasStore.getState().setFlaggedSessions([
+      makeSession({ flags: ['MISSING_ENTRY'], lastScan: '2026-03-10T15:10:00' }),
+    ]);
+    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
+    render(<VerificationScreen />);
+    expect(screen.getByText(/Salida 15:10/)).toBeInTheDocument();
+  });
+
+  it('extracts HH:MM from a plain HH:MM:SS string', () => {
+    useTasStore.getState().setFlaggedSessions([
+      makeSession({ flags: ['MISSING_ENTRY'], lastScan: '15:10:00' }),
+    ]);
+    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
+    render(<VerificationScreen />);
+    expect(screen.getByText(/Salida 15:10/)).toBeInTheDocument();
+  });
+
+  it('returns empty string for null', () => {
+    useTasStore.getState().setFlaggedSessions([
+      makeSession({ flags: ['MISSING_ENTRY'], lastScan: null }),
+    ]);
+    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
+    render(<VerificationScreen />);
+    expect(screen.getByText('Falta entrada')).toBeInTheDocument();
+  });
 });
 
 describe('VerificationScreen rendering', () => {
@@ -69,18 +98,39 @@ describe('VerificationScreen rendering', () => {
     expect(screen.getByText('15 mar 2026')).toBeInTheDocument();
   });
 
-  it('renders shift name', () => {
-    useTasStore.getState().setFlaggedSessions([makeSession()]);
-    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
-    render(<VerificationScreen />);
-    expect(screen.getByText(/Turno Mañana/)).toBeInTheDocument();
-  });
-
   it('renders flag badge', () => {
     useTasStore.getState().setFlaggedSessions([makeSession()]);
     useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
     render(<VerificationScreen />);
     expect(screen.getByText('Falta entrada')).toBeInTheDocument();
+  });
+
+  it('shows the existing exit time when entry is missing', () => {
+    useTasStore.getState().setFlaggedSessions([makeSession({ flags: ['MISSING_ENTRY'], effectiveStart: null, lastScan: '17:00:00' })]);
+    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
+    render(<VerificationScreen />);
+    expect(screen.getByText('Falta entrada · Salida 17:00')).toBeInTheDocument();
+  });
+
+  it('shows the existing entry time when exit is missing', () => {
+    useTasStore.getState().setFlaggedSessions([makeSession({ flags: ['MISSING_EXIT'], effectiveStart: '08:00:00', lastScan: null })]);
+    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
+    render(<VerificationScreen />);
+    expect(screen.getByText('Falta salida · Entrada 08:00')).toBeInTheDocument();
+  });
+
+  it('shows plain missing-entry label when neither scan is present', () => {
+    useTasStore.getState().setFlaggedSessions([makeSession({ flags: ['MISSING_ENTRY'], effectiveStart: null, lastScan: null })]);
+    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
+    render(<VerificationScreen />);
+    expect(screen.getByText('Falta entrada')).toBeInTheDocument();
+  });
+
+  it('renders unrelated flag labels unchanged', () => {
+    useTasStore.getState().setFlaggedSessions([makeSession({ flags: ['SHIFT_MISMATCH'], effectiveStart: '08:00:00', lastScan: '17:00:00' })]);
+    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
+    render(<VerificationScreen />);
+    expect(screen.getByText('Cambio de turno')).toBeInTheDocument();
   });
 
   it('renders scans as pills', () => {
@@ -190,40 +240,6 @@ describe('VerificationScreen time inputs', () => {
   });
 });
 
-describe('VerificationScreen consistent mismatch banner', () => {
-  it('renders mismatch banner when consistentMismatch is true', () => {
-    useTasStore.getState().setFlaggedSessions([makeSession({ consistentMismatch: true })]);
-    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
-    render(<VerificationScreen />);
-    expect(screen.getByText(/¿Desea actualizar su turno asignado/i)).toBeInTheDocument();
-  });
-
-  it('does not render mismatch banner when consistentMismatch is false', () => {
-    useTasStore.getState().setFlaggedSessions([makeSession({ consistentMismatch: false })]);
-    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
-    render(<VerificationScreen />);
-    expect(screen.queryByText(/¿Desea actualizar su turno asignado/i)).not.toBeInTheDocument();
-  });
-
-  it('stores Sí decision in local component state', () => {
-    useTasStore.getState().setFlaggedSessions([makeSession({ consistentMismatch: true })]);
-    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
-    render(<VerificationScreen />);
-    const yesBtn = screen.getByRole('button', { name: /sí, actualizar turno/i });
-    fireEvent.click(yesBtn);
-    expect(yesBtn).toHaveClass('bg-amber-600');
-  });
-
-  it('stores No decision in local component state', () => {
-    useTasStore.getState().setFlaggedSessions([makeSession({ consistentMismatch: true })]);
-    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
-    render(<VerificationScreen />);
-    const noBtn = screen.getByRole('button', { name: /no, mantener/i });
-    fireEvent.click(noBtn);
-    expect(noBtn).toHaveClass('bg-surface-container');
-  });
-});
-
 describe('VerificationScreen submit', () => {
   it('Enviar button is disabled until all sessions confirmed', () => {
     useTasStore.getState().setFlaggedSessions([makeSession()]);
@@ -273,43 +289,6 @@ describe('VerificationScreen submit', () => {
     expect(mockSubmitTas).not.toHaveBeenCalled();
   });
 
-  it('includes updateShift in resolveVerification payload when mismatchChoice is update', async () => {
-    useTasStore.getState().setUploadToken('tok-1');
-    useTasStore.getState().setFlaggedSessions([
-      makeSession({ sessionId: 1, consistentMismatch: true, effectiveStart: '08:00:00', lastScan: '17:00:00' }),
-    ]);
-    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
-    mockResolveVerification.mockResolvedValue(mockResult);
-
-    render(<VerificationScreen />);
-    fireEvent.click(screen.getByRole('button', { name: /sí, actualizar turno/i }));
-    fireEvent.click(screen.getByRole('button', { name: /confirmar/i }));
-    fireEvent.click(screen.getByRole('button', { name: /enviar/i }));
-
-    await waitFor(() => expect(useTasStore.getState().tasView).toBe('review'));
-
-    const [, payload] = mockResolveVerification.mock.calls[0];
-    expect(payload[0].updateShift).toBe(true);
-  });
-
-  it('includes updateShift false in resolveVerification payload when mismatchChoice is keep', async () => {
-    useTasStore.getState().setUploadToken('tok-1');
-    useTasStore.getState().setFlaggedSessions([
-      makeSession({ sessionId: 1, consistentMismatch: true, effectiveStart: '08:00:00', lastScan: '17:00:00' }),
-    ]);
-    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
-    mockResolveVerification.mockResolvedValue(mockResult);
-
-    render(<VerificationScreen />);
-    fireEvent.click(screen.getByRole('button', { name: /no, mantener/i }));
-    fireEvent.click(screen.getByRole('button', { name: /confirmar/i }));
-    fireEvent.click(screen.getByRole('button', { name: /enviar/i }));
-
-    await waitFor(() => expect(useTasStore.getState().tasView).toBe('review'));
-
-    const [, payload] = mockResolveVerification.mock.calls[0];
-    expect(payload[0].updateShift).toBe(false);
-  });
 });
 
 describe('VerificationScreen period selector', () => {
@@ -395,6 +374,108 @@ describe('VerificationScreen period selector', () => {
   });
 });
 
+describe('VerificationScreen shift mismatch card', () => {
+  function mismatchSession(overrides: Partial<TasSession> = {}): TasSession {
+    return makeSession({
+      flags: ['SHIFT_MISMATCH'],
+      effectiveStart: '2026-03-10T07:03:00',
+      lastScan: '2026-03-10T15:05:00',
+      matchedShiftId: 'tarde',
+      matchedShiftName: 'Tarde',
+      assignedShiftId: 'manana',
+      assignedShiftName: 'Manana',
+      ...overrides,
+    });
+  }
+
+  beforeEach(() => {
+    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
+    useTasStore.getState().setFlaggedSessions([mismatchSession()]);
+  });
+
+  it('shows the assigned and matched shift confirmation message', () => {
+    render(<VerificationScreen />);
+    expect(screen.getByText(/Turno asignado: Manana/)).toBeInTheDocument();
+    expect(screen.getByText(/se aplicará Tarde/)).toBeInTheDocument();
+  });
+
+  it('renders scan pills when scans are present', () => {
+    useTasStore.getState().setFlaggedSessions([mismatchSession({ scans: ['07:03:00', '15:05:00'] })]);
+    render(<VerificationScreen />);
+    expect(screen.getByText('07:03')).toBeInTheDocument();
+    expect(screen.getByText('15:05')).toBeInTheDocument();
+  });
+
+  it('does not render Entrada/Salida inputs or Horas calculadas', () => {
+    render(<VerificationScreen />);
+    expect(screen.queryByLabelText('Entrada')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Salida')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Horas calculadas/)).not.toBeInTheDocument();
+  });
+
+  it('shows a note that the displayed shift will apply automatically unless changed', () => {
+    render(<VerificationScreen />);
+    expect(screen.getByText(/se aplicará automáticamente si no realiza ningún cambio/i)).toBeInTheDocument();
+  });
+
+  it('has no Confirmar button', () => {
+    render(<VerificationScreen />);
+    expect(screen.queryByRole('button', { name: /confirmar/i })).not.toBeInTheDocument();
+  });
+
+  it('falls back to an empty acceptedShiftId when there is no matched shift', () => {
+    useTasStore.getState().setFlaggedSessions([mismatchSession({ matchedShiftId: null, matchedShiftName: null })]);
+    render(<VerificationScreen />);
+    expect(useTasStore.getState().shiftAcceptances[1]).toBeUndefined();
+  });
+
+  it('clicking "Elegir otro turno" reveals a shift select with Aplicar/Cancelar', () => {
+    render(<VerificationScreen />);
+    fireEvent.click(screen.getByRole('button', { name: /elegir otro turno/i }));
+    expect(screen.getByRole('combobox')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /aplicar/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /cancelar/i })).toBeInTheDocument();
+  });
+
+  it('Cancelar collapses the dropdown without changing the displayed shift', () => {
+    render(<VerificationScreen />);
+    fireEvent.click(screen.getByRole('button', { name: /elegir otro turno/i }));
+    fireEvent.click(screen.getByRole('button', { name: /cancelar/i }));
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
+    expect(screen.getByText(/se aplicará Tarde/)).toBeInTheDocument();
+  });
+
+  it('includes the matched shift as acceptedShiftId in resolveVerification payload on submit by default', async () => {
+    useTasStore.getState().setUploadToken('tok-1');
+    useTasStore.getState().setFlaggedSessions([mismatchSession()]);
+    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
+    mockResolveVerification.mockResolvedValue(mockResult);
+
+    render(<VerificationScreen />);
+    fireEvent.click(screen.getByRole('button', { name: /enviar/i }));
+
+    await waitFor(() => expect(useTasStore.getState().tasView).toBe('review'));
+
+    const [, payload] = mockResolveVerification.mock.calls[0];
+    expect(payload[0]).toEqual({ sessionId: 1, acceptedShiftId: 'tarde' });
+  });
+
+  it('Aplicar updates the confirmation message and records the chosen shift', () => {
+    useTasStore.getState().setFlaggedSessions([mismatchSession()]);
+    useTasStore.getState().setAvailableShifts([
+      { id: 'tarde', name: 'Tarde', startTime: '15:00', endTime: '23:00' },
+      { id: 'manana', name: 'Manana', startTime: '07:00', endTime: '15:00' },
+    ]);
+    render(<VerificationScreen />);
+    fireEvent.click(screen.getByRole('button', { name: /elegir otro turno/i }));
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'manana' } });
+    fireEvent.click(screen.getByRole('button', { name: /aplicar/i }));
+    expect(screen.getByText(/se aplicará Manana/)).toBeInTheDocument();
+
+    expect(useTasStore.getState().shiftAcceptances[1]).toBe('manana');
+  });
+});
+
 describe('VerificationScreen empty state for selected period', () => {
   const periods: TasPeriod[] = [
     { anio: 2026, mes: 3, numeroDequincena: 1 },
@@ -445,5 +526,104 @@ describe('VerificationScreen empty state for selected period', () => {
 
     expect(screen.getByText(/Este periodo no presenta inconsistencias/i)).toBeInTheDocument();
     expect(screen.queryByText('Ana López')).not.toBeInTheDocument();
+  });
+});
+
+describe('VerificationScreen same-day double group', () => {
+  function doubleSession(overrides: Partial<TasSession> = {}): TasSession {
+    return makeSession({
+      flags: ['SAME_DAY_DOUBLE'],
+      scans: ['2026-03-15T07:00:00', '2026-03-15T15:00:00'],
+      effectiveStart: '2026-03-15T07:00:00',
+      lastScan: '2026-03-15T15:00:00',
+      matchedShiftId: 'manana',
+      matchedShiftName: 'Manana',
+      assignedShiftId: 'manana',
+      assignedShiftName: 'Manana',
+      ...overrides,
+    });
+  }
+
+  beforeEach(() => {
+    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
+    useTasStore.getState().setFlaggedSessions([
+      doubleSession({ sessionId: 1, matchedShiftId: 'manana', matchedShiftName: 'Manana' }),
+      doubleSession({
+        sessionId: 2,
+        scans: ['2026-03-15T15:02:00', '2026-03-15T23:00:00'],
+        effectiveStart: '2026-03-15T15:02:00',
+        lastScan: '2026-03-15T23:00:00',
+        matchedShiftId: 'tarde',
+        matchedShiftName: 'Tarde',
+      }),
+    ]);
+  });
+
+  it('renders one group card for both sessions on the same employee/date', () => {
+    render(<VerificationScreen />);
+    expect(screen.getAllByText(/Ana López/).length).toBeGreaterThan(0);
+    expect(screen.getByText(/Manana/)).toBeInTheDocument();
+    expect(screen.getByText(/Tarde/)).toBeInTheDocument();
+  });
+
+  it('renders a radio per session plus "Mantener todas", defaulting to "Mantener todas"', () => {
+    render(<VerificationScreen />);
+    const keepAllRadio = screen.getByRole('radio', { name: /mantener todas/i });
+    expect(keepAllRadio).toBeChecked();
+    expect(screen.getAllByRole('radio')).toHaveLength(3);
+  });
+
+  it('shows a note that the default selection will apply automatically unless changed', () => {
+    render(<VerificationScreen />);
+    expect(screen.getByText(/se aplicará automáticamente si no realiza ningún cambio/i)).toBeInTheDocument();
+  });
+
+  it('has no Confirmar button', () => {
+    render(<VerificationScreen />);
+    expect(screen.queryByRole('button', { name: /confirmar/i })).not.toBeInTheDocument();
+  });
+
+  it('selecting a specific session records that session id', () => {
+    render(<VerificationScreen />);
+    const radios = screen.getAllByRole('radio');
+    fireEvent.click(radios[0]); // first session-specific radio
+    expect(useTasStore.getState().sameDayDoubleResolutions['E1|2026-03-15']).toBe(1);
+  });
+
+  it('Enviar stays enabled with default selection while a non-"all" filter chip is active', () => {
+    useTasStore.getState().setFlaggedSessions([
+      doubleSession({ sessionId: 1, matchedShiftId: 'manana', matchedShiftName: 'Manana' }),
+      doubleSession({
+        sessionId: 2,
+        scans: ['2026-03-15T15:02:00', '2026-03-15T23:00:00'],
+        effectiveStart: '2026-03-15T15:02:00',
+        lastScan: '2026-03-15T23:00:00',
+        matchedShiftId: 'tarde',
+        matchedShiftName: 'Tarde',
+      }),
+      makeSession({ sessionId: 3, employeeId: 'E2', employeeName: 'Luis', flags: ['MISSING_ENTRY'], date: '2026-03-14' }),
+    ]);
+
+    render(<VerificationScreen />);
+
+    expect(screen.getByText('1 por resolver')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /falta entrada/i }));
+
+    expect(screen.getByText('1 por resolver')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /enviar/i })).toBeDisabled();
+  });
+
+  it('includes employeeId/date/keepSessionId in resolveVerification payload on submit by default', async () => {
+    useTasStore.getState().setUploadToken('tok-1');
+    mockResolveVerification.mockResolvedValue(mockResult);
+
+    render(<VerificationScreen />);
+    fireEvent.click(screen.getByRole('button', { name: /enviar/i }));
+
+    await waitFor(() => expect(useTasStore.getState().tasView).toBe('review'));
+
+    const [, payload] = mockResolveVerification.mock.calls[0];
+    expect(payload).toContainEqual({ employeeId: 'E1', date: '2026-03-15', keepSessionId: 'all' });
   });
 });
