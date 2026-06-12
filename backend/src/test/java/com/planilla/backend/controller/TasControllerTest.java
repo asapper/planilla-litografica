@@ -18,6 +18,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.*;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -212,6 +213,113 @@ class TasControllerTest {
            .andExpect(jsonPath("$.flaggedSessions.length()").value(0));
 
         verify(hoursCalculator).classifyHours(any(), any());
+    }
+
+    @Test
+    void resolve_acceptedShiftId_updatesMatchedShiftAndRecomputesHours() throws Exception {
+        TasSession flagged = new TasSession();
+        flagged.setSessionId(42);
+        flagged.setEmployeeId("100");
+        flagged.setDate(java.time.LocalDate.of(2026, 3, 10));
+        flagged.setMatchedShiftId("manana");
+        flagged.setMatchedShiftName("Manana");
+        flagged.setAssignedShiftId("manana");
+        flagged.setAssignedShiftName("Manana");
+        flagged.setScans(List.of(
+                java.time.LocalDateTime.of(2026, 3, 10, 15, 3),
+                java.time.LocalDateTime.of(2026, 3, 10, 23, 5)));
+        flagged.setNeedsResolution(true);
+        flagged.setFlags(new ArrayList<>(List.of(com.planilla.backend.model.tas.TasFlag.SHIFT_MISMATCH)));
+
+        TasUploadResult result = emptyResult();
+        result.setFlaggedSessions(List.of(flagged));
+        result.setAllSessions(List.of(flagged));
+        when(parserService.parse(any())).thenReturn(emptyParseResult());
+        when(uploadService.processScans(any(), any(), any())).thenReturn(result);
+
+        MockMultipartFile file = new MockMultipartFile("file", "test.csv", "text/csv", "data".getBytes());
+        String uploadResponse = mvc.perform(multipart("/api/tas/upload").file(file))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        String token = (String) mapper.readValue(uploadResponse, Map.class).get("uploadToken");
+
+        when(shiftConfigService.getAllShifts()).thenReturn(new ArrayList<>());
+        TasReportBuilder.BuildResult buildResult = new TasReportBuilder.BuildResult(new ArrayList<>(), new LinkedHashMap<>());
+        when(reportBuilder.build(any(), any(), any(), any(), any())).thenReturn(buildResult);
+
+        Map<String, Object> resolution = new LinkedHashMap<>();
+        resolution.put("sessionId", 42);
+        resolution.put("acceptedShiftId", "tarde");
+
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("uploadToken", token);
+        body.put("resolutions", List.of(resolution));
+
+        mvc.perform(post("/api/tas/resolve")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(body)))
+           .andExpect(status().isOk())
+           .andExpect(jsonPath("$.flaggedSessions.length()").value(0));
+
+        assertThat(flagged.getMatchedShiftId()).isEqualTo("tarde");
+        assertThat(flagged.getFlags()).doesNotContain(com.planilla.backend.model.tas.TasFlag.SHIFT_MISMATCH);
+        assertThat(flagged.isNeedsResolution()).isFalse();
+        verify(hoursCalculator).recompute(eq(flagged), any());
+    }
+
+    @Test
+    void resolve_acceptedShiftId_withRemainingBlockingFlag_keepsNeedsResolutionTrue() throws Exception {
+        TasSession flagged = new TasSession();
+        flagged.setSessionId(43);
+        flagged.setEmployeeId("100");
+        flagged.setDate(java.time.LocalDate.of(2026, 3, 10));
+        flagged.setMatchedShiftId("manana");
+        flagged.setMatchedShiftName("Manana");
+        flagged.setAssignedShiftId("manana");
+        flagged.setAssignedShiftName("Manana");
+        flagged.setScans(List.of(
+                java.time.LocalDateTime.of(2026, 3, 10, 15, 3),
+                java.time.LocalDateTime.of(2026, 3, 10, 23, 5)));
+        flagged.setNeedsResolution(true);
+        flagged.setFlags(new ArrayList<>(List.of(
+                com.planilla.backend.model.tas.TasFlag.SHIFT_MISMATCH,
+                com.planilla.backend.model.tas.TasFlag.MISSING_ENTRY)));
+
+        TasUploadResult result = emptyResult();
+        result.setFlaggedSessions(List.of(flagged));
+        result.setAllSessions(List.of(flagged));
+        when(parserService.parse(any())).thenReturn(emptyParseResult());
+        when(uploadService.processScans(any(), any(), any())).thenReturn(result);
+
+        MockMultipartFile file = new MockMultipartFile("file", "test.csv", "text/csv", "data".getBytes());
+        String uploadResponse = mvc.perform(multipart("/api/tas/upload").file(file))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        String token = (String) mapper.readValue(uploadResponse, Map.class).get("uploadToken");
+
+        when(shiftConfigService.getAllShifts()).thenReturn(new ArrayList<>());
+        TasReportBuilder.BuildResult buildResult = new TasReportBuilder.BuildResult(new ArrayList<>(), new LinkedHashMap<>());
+        when(reportBuilder.build(any(), any(), any(), any(), any())).thenReturn(buildResult);
+
+        Map<String, Object> resolution = new LinkedHashMap<>();
+        resolution.put("sessionId", 43);
+        resolution.put("acceptedShiftId", "tarde");
+
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("uploadToken", token);
+        body.put("resolutions", List.of(resolution));
+
+        mvc.perform(post("/api/tas/resolve")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(body)))
+           .andExpect(status().isOk())
+           .andExpect(jsonPath("$.flaggedSessions.length()").value(1));
+
+        assertThat(flagged.getMatchedShiftId()).isEqualTo("tarde");
+        assertThat(flagged.getFlags()).doesNotContain(com.planilla.backend.model.tas.TasFlag.SHIFT_MISMATCH);
+        assertThat(flagged.getFlags()).contains(com.planilla.backend.model.tas.TasFlag.MISSING_ENTRY);
+        assertThat(flagged.isNeedsResolution()).isTrue();
+        verify(hoursCalculator, never()).recompute(eq(flagged), any());
     }
 
     @Test

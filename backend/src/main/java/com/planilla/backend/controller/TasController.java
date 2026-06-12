@@ -3,6 +3,7 @@ package com.planilla.backend.controller;
 import com.planilla.backend.model.EmployeeRow;
 import com.planilla.backend.model.tas.TasScanRecord;
 import com.planilla.backend.model.tas.TasSession;
+import com.planilla.backend.model.tas.TasFlag;
 import com.planilla.backend.model.tas.TasPeriod;
 import com.planilla.backend.model.tas.TasUploadResult;
 import com.planilla.backend.service.JobService;
@@ -150,6 +151,7 @@ public class TasController {
 
             String resolvedStart = (String) res.get("resolvedStart");
             String resolvedEnd   = (String) res.get("resolvedEnd");
+            String acceptedShiftId = (String) res.get("acceptedShiftId");
 
             if (resolvedStart != null && resolvedEnd != null) {
                 LocalDateTime start = LocalDateTime.parse(resolvedStart, dtf);
@@ -166,6 +168,17 @@ public class TasController {
                 session.setWorkedMinutes((int) workedMinutes);
                 session.setWorkedHours(TasHoursCalculator.roundToHalfHour((int) workedMinutes));
                 hoursCalculator.classifyHours(session, shifts);
+            } else if (acceptedShiftId != null) {
+                session.setMatchedShiftId(acceptedShiftId);
+                session.getFlags().removeIf(f -> f == TasFlag.SHIFT_MISMATCH);
+
+                boolean hasBlockingFlags = session.getFlags().stream()
+                        .anyMatch(f -> f != TasFlag.AMBIGUOUS_SHIFT);
+                session.setNeedsResolution(hasBlockingFlags);
+
+                if (!hasBlockingFlags) {
+                    hoursCalculator.recompute(session, shifts);
+                }
             }
         }
         TasPeriod periodFilter = null;
