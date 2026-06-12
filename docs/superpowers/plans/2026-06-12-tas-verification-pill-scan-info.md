@@ -102,8 +102,151 @@ git commit -m "Show present scan time in TAS verification flag pills"
 
 ---
 
+### Task 2: Populate `effectiveStart`/`lastScan` for blocked (flagged) sessions
+
+**Background:** `TasSessionGrouper.finalizeSession()` already sets `lastScan` for every
+session (including blocked ones) to `scans.get(scans.size()-1)`. But `effectiveStart`
+is only ever set inside `computeWorkedHours()`, which `TasHoursCalculator.calculate()`
+skips for sessions with blocking flags (`MISSING_ENTRY`/`MISSING_EXIT` are blocking).
+So `effectiveStart` is always `null` for any flagged session — meaning the `MISSING_EXIT`
+pill enrichment from Task 1 (which reads `session.effectiveStart`) never has data.
+
+**Files:**
+- Modify: `backend/src/main/java/com/planilla/backend/service/tas/TasHoursCalculator.java`
+- Test: `backend/src/test/java/com/planilla/backend/service/tas/TasHoursCalculatorTest.java`
+
+- [ ] **Step 1: Write failing tests**
+
+Add these tests to `TasHoursCalculatorTest` (near the existing `calculate_missingExitFlag_setsNeedsResolution` /
+`calculate_missingEntryFlag_setsNeedsResolution` tests, ~line 148-176). They use the
+existing `session(date, scanTimes...)` helper and `mananaShift` (07:00-15:00, set up in
+`@BeforeEach`).
+
+```java
+    @Test
+    void calculate_missingExitFlag_setsEffectiveStartFromFirstScan() {
+        LocalDate date = LocalDate.of(2026, 3, 10);
+        TasSession s = session(date,
+            LocalDateTime.of(2026, 3, 10, 7, 0),
+            LocalDateTime.of(2026, 3, 10, 13, 0)
+        );
+
+        calculator.calculate(List.of(s), REPORT_START, REPORT_END);
+
+        assertThat(s.getFlags()).contains(TasFlag.MISSING_EXIT);
+        assertThat(s.getEffectiveStart()).isEqualTo(LocalDateTime.of(2026, 3, 10, 7, 0));
+        assertThat(s.getLastScan()).isEqualTo(LocalDateTime.of(2026, 3, 10, 13, 0));
+    }
+
+    @Test
+    void calculate_missingEntryWithOnlyExitScan_setsLastScanNoEffectiveStart() {
+        LocalDate date = LocalDate.of(2026, 3, 10);
+        TasSession s = session(date,
+            LocalDateTime.of(2026, 3, 10, 15, 0)
+        );
+
+        calculator.calculate(List.of(s), REPORT_START, REPORT_END);
+
+        assertThat(s.getFlags()).contains(TasFlag.MISSING_ENTRY);
+        assertThat(s.getLastScan()).isEqualTo(LocalDateTime.of(2026, 3, 10, 15, 0));
+        assertThat(s.getEffectiveStart()).isNull();
+    }
+
+    @Test
+    void calculate_missingExitWithOnlyEntryScan_setsEffectiveStartNoLastScan() {
+        LocalDate date = LocalDate.of(2026, 3, 10);
+        TasSession s = session(date,
+            LocalDateTime.of(2026, 3, 10, 7, 0)
+        );
+        s.setLastScan(null);
+
+        calculator.calculate(List.of(s), REPORT_START, REPORT_END);
+
+        assertThat(s.getFlags()).contains(TasFlag.MISSING_EXIT);
+        assertThat(s.getEffectiveStart()).isEqualTo(LocalDateTime.of(2026, 3, 10, 7, 0));
+        assertThat(s.getLastScan()).isNull();
+    }
+```
+
+Note: the `session()` helper pre-sets `lastScan` to the last scan via
+`s.setLastScan(scans.get(scans.size() - 1))`, mirroring what
+`TasSessionGrouper.finalizeSession()` does in production. The third test explicitly
+resets it to `null` to simulate the "only one scan, which is the entry" case before
+`calculate()` runs — `setRawScanBounds` must not need `lastScan` to already be null
+to behave correctly, but this test isolates the `effectiveStart`-only assignment path.
+
+- [ ] **Step 2: Run tests to verify they fail**
+
+Run: `cd backend && ./mvnw test -Dtest=TasHoursCalculatorTest -q`
+Expected: the 3 new tests FAIL (`effectiveStart`/`lastScan` assertions), all other tests in this file still pass.
+
+- [ ] **Step 3: Implement `setRawScanBounds` and call it from the blocked-session branch**
+
+In `backend/src/main/java/com/planilla/backend/service/tas/TasHoursCalculator.java`,
+add this private method (place it near `computeWorkedHours`, e.g. right after it,
+around line 151):
+
+```java
+    private void setRawScanBounds(TasSession session) {
+        List<LocalDateTime> scans = session.getScans();
+        if (scans == null || scans.isEmpty()) return;
+
+        LocalDateTime first = scans.get(0);
+        LocalDateTime last  = scans.get(scans.size() - 1);
+        boolean missingEntry = session.getFlags() != null && session.getFlags().contains(TasFlag.MISSING_ENTRY);
+        boolean missingExit  = session.getFlags() != null && session.getFlags().contains(TasFlag.MISSING_EXIT);
+
+        if (scans.size() == 1) {
+            if (missingEntry && !missingExit) {
+                session.setLastScan(first);
+            } else if (missingExit && !missingEntry) {
+                session.setEffectiveStart(first);
+            } else {
+                session.setEffectiveStart(first);
+                session.setLastScan(first);
+            }
+            return;
+        }
+
+        session.setEffectiveStart(first);
+        session.setLastScan(last);
+    }
+```
+
+Then update the `else` branch of the `hasBlockingFlags` check in `calculate()`
+(currently lines 49-54) to call it:
+
+```java
+            } else {
+                setRawScanBounds(session);
+                session.setWorkedMinutes(0);
+                session.setWorkedHours(0.0);
+                session.setSimplesMinutes(0);
+                session.setDoblesMinutes(0);
+            }
+```
+
+- [ ] **Step 4: Run tests to verify they pass**
+
+Run: `cd backend && ./mvnw test -Dtest=TasHoursCalculatorTest -q`
+Expected: all tests in this file PASS, including the 3 new ones.
+
+- [ ] **Step 5: Run the full backend test suite**
+
+Run: `cd backend && ./mvnw test -q`
+Expected: no failures, no new warnings.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add backend/src/main/java/com/planilla/backend/service/tas/TasHoursCalculator.java backend/src/test/java/com/planilla/backend/service/tas/TasHoursCalculatorTest.java
+git commit -m "Populate effectiveStart/lastScan for flagged TAS sessions"
+```
+
+---
+
 ## Plan Self-Review Notes
 
-- Spec coverage: covers MISSING_ENTRY/MISSING_EXIT enrichment, no-info fallback, and unrelated-flag unchanged behavior — matches the design doc.
-- No backend/type changes needed; `TasSession.effectiveStart`/`lastScan` already exist.
+- Spec coverage: Task 1 covers MISSING_ENTRY/MISSING_EXIT pill enrichment, no-info fallback, and unrelated-flag unchanged behavior. Task 2 covers the backend data gap (effectiveStart always null for blocked sessions) discovered during testing — matches the design doc addendum.
+- Type consistency: Task 1's `flagLabel` reads `session.lastScan`/`session.effectiveStart` (TasSession fields, unchanged); Task 2 populates those same fields on the Java `TasSession` model — names match across frontend/backend by convention (JSON serialization `effectiveStart`/`lastScan`).
 - Out of scope: other review screens, per design doc.
