@@ -155,31 +155,59 @@ public class TasHoursCalculator {
     }
 
     public void classifyHours(TasSession session, List<Map<String, Object>> shifts) {
-        LocalDate sessionDate = session.getDate();
-        boolean isSunday  = sessionDate.getDayOfWeek() == DayOfWeek.SUNDAY;
-        boolean isHoliday = holidayService.isHoliday(sessionDate);
-
         int totalMinutes = session.getWorkedMinutes();
 
-        if (isSunday || isHoliday) {
+        boolean startIsSpecial = isSpecialDay(session.getDate());
+
+        LocalDateTime effectiveStart = session.getEffectiveStart();
+        LocalDateTime lastScan = session.getLastScan();
+        boolean crossesIntoNextDay = effectiveStart != null && lastScan != null
+                && lastScan.toLocalDate().isAfter(effectiveStart.toLocalDate());
+
+        if (crossesIntoNextDay) {
+            LocalDate nextDate = effectiveStart.toLocalDate().plusDays(1);
+            boolean endIsSpecial = isSpecialDay(nextDate);
+
+            if (startIsSpecial != endIsSpecial) {
+                LocalDateTime midnight = LocalDateTime.of(nextDate, LocalTime.MIDNIGHT);
+                long rawBeforeMidnight = Math.max(0, ChronoUnit.MINUTES.between(effectiveStart, midnight));
+                long rawAfterMidnight  = Math.max(0, ChronoUnit.MINUTES.between(midnight, lastScan));
+
+                int specialMinutes = startIsSpecial
+                        ? (int) Math.min(totalMinutes, rawBeforeMidnight)
+                        : (int) Math.min(totalMinutes, rawAfterMidnight);
+                int normalMinutes = totalMinutes - specialMinutes;
+
+                session.setSimplesMinutes(classifyNormalMinutes(normalMinutes, session, shifts));
+                session.setDoblesMinutes(specialMinutes);
+                return;
+            }
+        }
+
+        if (startIsSpecial) {
             session.setSimplesMinutes(0);
             session.setDoblesMinutes(totalMinutes);
             return;
         }
 
+        session.setSimplesMinutes(classifyNormalMinutes(totalMinutes, session, shifts));
+        session.setDoblesMinutes(0);
+    }
+
+    private boolean isSpecialDay(LocalDate date) {
+        return date.getDayOfWeek() == DayOfWeek.SUNDAY || holidayService.isHoliday(date);
+    }
+
+    private int classifyNormalMinutes(int totalMinutes, TasSession session, List<Map<String, Object>> shifts) {
         Map<String, Object> shift = findShiftById(shifts, session.getMatchedShiftId());
         int shiftDurationMinutes = computeShiftDurationMinutes(shift);
 
         int shiftDurationInHalfHours = (int) (Math.floor(shiftDurationMinutes / 30.0));
         int shiftDurationRoundedMinutes = shiftDurationInHalfHours * 30;
 
-        if (totalMinutes <= shiftDurationRoundedMinutes) {
-            session.setSimplesMinutes(totalMinutes);
-            session.setDoblesMinutes(0);
-        } else {
-            session.setSimplesMinutes(shiftDurationRoundedMinutes);
-            session.setDoblesMinutes(totalMinutes - shiftDurationRoundedMinutes);
-        }
+        return totalMinutes > shiftDurationRoundedMinutes
+                ? totalMinutes - shiftDurationRoundedMinutes
+                : 0;
     }
 
     private int computeShiftDurationMinutes(Map<String, Object> shift) {

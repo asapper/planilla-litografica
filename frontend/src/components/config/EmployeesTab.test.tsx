@@ -9,10 +9,11 @@ const mockGetEmployees   = vi.mocked(configApi.getEmployees);
 const mockGetShifts      = vi.mocked(configApi.getShifts);
 const mockUpdateEmployee = vi.mocked(configApi.updateEmployee);
 const mockBulkAssign     = vi.mocked(configApi.bulkAssignShift);
+const mockUpdateAccruesOvertime = vi.mocked(configApi.updateAccruesOvertime);
 
 const shift1 = { id: 'manana', name: 'Diurno', startTime: '08:00', endTime: '17:00', crossMidnight: false };
-const emp1 = { id: 'emp1', code: 'EMP001', name: 'Ana García', shiftId: 'manana', shiftName: 'Diurno', active: true };
-const emp2 = { id: 'emp2', code: 'EMP002', name: 'Carlos López', shiftId: null, shiftName: null, active: false };
+const emp1 = { id: 'emp1', code: 'EMP001', name: 'Ana García', shiftId: 'manana', shiftName: 'Diurno', active: true, accruesOvertime: true };
+const emp2 = { id: 'emp2', code: 'EMP002', name: 'Carlos López', shiftId: null, shiftName: null, active: false, accruesOvertime: false };
 
 const { default: EmployeesTab } = await import('./EmployeesTab');
 
@@ -83,7 +84,7 @@ describe('EmployeesTab table', () => {
     render(<EmployeesTab />);
     await waitFor(() => screen.getByText('EMP001'));
     const toggles = screen.getAllByRole('switch');
-    expect(toggles).toHaveLength(2);
+    expect(toggles).toHaveLength(4);
   });
 });
 
@@ -211,7 +212,7 @@ describe('EmployeesTab active toggle', () => {
   });
 
   it('shows reactivation note when activating employee with no shift', async () => {
-    const empNoShift = { id: 'emp3', code: 'EMP003', name: 'Pedro', shiftId: null, shiftName: null, active: false };
+    const empNoShift = { id: 'emp3', code: 'EMP003', name: 'Pedro', shiftId: null, shiftName: null, active: false, accruesOvertime: false };
     mockGetEmployees.mockResolvedValue([empNoShift]);
     mockUpdateEmployee.mockResolvedValue({ ...empNoShift, active: true });
     render(<EmployeesTab />);
@@ -221,7 +222,7 @@ describe('EmployeesTab active toggle', () => {
   });
 
   it('reactivation note can be dismissed', async () => {
-    const empNoShift = { id: 'emp3', code: 'EMP003', name: 'Pedro', shiftId: null, shiftName: null, active: false };
+    const empNoShift = { id: 'emp3', code: 'EMP003', name: 'Pedro', shiftId: null, shiftName: null, active: false, accruesOvertime: false };
     mockGetEmployees.mockResolvedValue([empNoShift]);
     mockUpdateEmployee.mockResolvedValue({ ...empNoShift, active: true });
     render(<EmployeesTab />);
@@ -230,6 +231,53 @@ describe('EmployeesTab active toggle', () => {
     await waitFor(() => screen.getByText(/turno restablecido/i));
     fireEvent.click(screen.getByLabelText(/descartar nota/i));
     expect(screen.queryByText(/turno restablecido/i)).not.toBeInTheDocument();
+  });
+});
+
+// -----------------------------------------------------------------
+// Accrues overtime toggle
+// -----------------------------------------------------------------
+
+describe('EmployeesTab accrues overtime toggle', () => {
+  it('shows accrues overtime toggle for each employee', async () => {
+    render(<EmployeesTab />);
+    await waitFor(() => screen.getByText('EMP001'));
+    const toggles = screen.getAllByRole('switch');
+    expect(toggles).toHaveLength(4);
+  });
+
+  it('calls updateAccruesOvertime with new state on toggle', async () => {
+    mockUpdateAccruesOvertime.mockResolvedValue({ ...emp1, accruesOvertime: false });
+    render(<EmployeesTab />);
+    await waitFor(() => screen.getByText('EMP001'));
+
+    fireEvent.click(screen.getByLabelText('Desactivar acumulado de horas extra'));
+    await waitFor(() => expect(mockUpdateAccruesOvertime).toHaveBeenCalledWith('emp1', false));
+  });
+
+  it('updates table with returned employee after toggle', async () => {
+    mockUpdateAccruesOvertime.mockResolvedValue({ ...emp1, accruesOvertime: false });
+    render(<EmployeesTab />);
+    await waitFor(() => screen.getByText('EMP001'));
+
+    fireEvent.click(screen.getByLabelText('Desactivar acumulado de horas extra'));
+    await waitFor(() => expect(screen.getByLabelText('Activar acumulado de horas extra')).toBeInTheDocument());
+  });
+
+  it('shows toast after successful accrues overtime toggle', async () => {
+    mockUpdateAccruesOvertime.mockResolvedValue({ ...emp1, accruesOvertime: false });
+    render(<EmployeesTab />);
+    await waitFor(() => screen.getByText('EMP001'));
+    fireEvent.click(screen.getByLabelText('Desactivar acumulado de horas extra'));
+    await waitFor(() => expect(useConfigStore.getState().toastVisible).toBe(true));
+  });
+
+  it('shows error when updateAccruesOvertime fails', async () => {
+    mockUpdateAccruesOvertime.mockRejectedValue(new Error('server error'));
+    render(<EmployeesTab />);
+    await waitFor(() => screen.getByText('EMP001'));
+    fireEvent.click(screen.getByLabelText('Desactivar acumulado de horas extra'));
+    await waitFor(() => expect(screen.getByText(/no se pudo actualizar el acumulado/i)).toBeInTheDocument());
   });
 });
 

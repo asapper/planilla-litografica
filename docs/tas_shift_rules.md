@@ -179,7 +179,7 @@ Examples (45-min allowance, 07:00 entry):
 
 Sessions with `needsResolution = true` get `workedMinutes = 0` and `workedHours = 0.0` until resolved.
 
-**Ambiguous sessions** (`AMBIGUOUS_SHIFT`, `matchedShiftId = null`) are computed normally: `effectiveStart = firstScan` (no grace/tardy adjustment), and the simples/dobles split uses an **8h default shift duration** — the existing fallback when no shift is matched. `AMBIGUOUS_SHIFT` alone does **not** set `needsResolution = true`; only if it co-occurs with another flag (e.g. `SAME_DAY_DOUBLE`) is the session blocked and zeroed as above. **Note**: this 8h default is shared with TASK-33's planned overtime-rules redesign — when TASK-33 changes how shift duration feeds into simples/dobles, this fallback for ambiguous sessions should be revisited too.
+**Ambiguous sessions** (`AMBIGUOUS_SHIFT`, `matchedShiftId = null`) are computed normally: `effectiveStart = firstScan` (no grace/tardy adjustment), and the simples/dobles split uses an **8h default shift duration** — the existing fallback when no shift is matched. `AMBIGUOUS_SHIFT` alone does **not** set `needsResolution = true`; only if it co-occurs with another flag (e.g. `SAME_DAY_DOUBLE`) is the session blocked and zeroed as above.
 
 ---
 
@@ -211,12 +211,29 @@ No blocking dialog, no required action. The Config page link is embedded in the 
 
 ## Weekly Hours: Simples vs. Dobles **[CONFIRMED]**
 
-**SP field naming note**: `horas_extras_simples` and `horas_extras_dobles` are misleadingly named — there is no separate field for regular hours. `horas_extras_simples` receives all regular worked hours; `horas_extras_dobles` receives only the overtime portion.
+Both `horas_extras_simples` and `horas_extras_dobles` are **overtime-only** fields — within-shift (non-overtime) hours worked Mon–Sat are not tracked or reported anywhere.
 
-- **`horas_extras_simples`**: hours worked **within** the employee's assigned shift duration on Mon–Sat (non-holiday).
-- **`horas_extras_dobles`**: hours worked **beyond** the shift duration on any day, plus **all hours worked on Sundays**, plus **all hours worked on public holidays** (always dobles regardless of daily total).
+- **`horas_extras_simples`**: overtime hours worked **Mon–Sat (non-holiday), beyond the employee's assigned shift duration**. Within-shift Mon–Sat hours contribute `0`.
+- **`horas_extras_dobles`**: hours worked on **any other day** — Sundays and public holidays — counted **in full** (the entire session's hours, not just the portion beyond shift duration), regardless of daily total.
 
 The 44h/week cumulative threshold does **not** apply — overtime is determined per-day based on the shift's expected duration, not weekly accumulation.
+
+**Cross-midnight sessions spanning a Sunday/holiday boundary**: when a cross-midnight session starts on a normal day and ends on a Sunday/holiday (or vice versa), the session is split at midnight:
+- The portion of worked minutes that falls on the Sunday/holiday calendar date counts **in full** toward `horas_extras_dobles` (uncapped by shift duration).
+- The remaining portion (on the normal day) follows the normal Mon–Sat overtime-only split above: it contributes to `horas_extras_simples` only if it exceeds the shift duration, otherwise `0`.
+
+---
+
+### Overtime Exemption **[CONFIRMED]**
+
+Each employee has an `accruesOvertime` boolean flag, default **`true`**.
+
+- When `accruesOvertime = false`, both `horas_extras_simples` and `horas_extras_dobles` are forced to **`0`** for that employee, regardless of hours actually worked — including hours worked on Sundays or public holidays.
+- This is intended for employees who are contractually required to work longer shifts but do not accrue overtime pay.
+
+**Where it's configured:**
+- **Config → Empleados tab**: "Acumula horas extra" toggle, alongside each employee's other settings.
+- **Review screen** ("Revisión de registros procesados"): the same toggle is available per employee row. Toggling it triggers a recompute of that upload's resolved rows, applying the new flag to the already-parsed sessions.
 
 ---
 

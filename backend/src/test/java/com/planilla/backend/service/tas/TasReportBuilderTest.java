@@ -22,6 +22,7 @@ import static org.mockito.Mockito.*;
 class TasReportBuilderTest {
 
     @Mock HolidayService holidayService;
+    @Mock EmployeeRegistryService employeeRegistryService;
 
     TasReportBuilder builder;
 
@@ -29,8 +30,9 @@ class TasReportBuilderTest {
 
     @BeforeEach
     void setUp() {
-        builder = new TasReportBuilder(holidayService);
+        builder = new TasReportBuilder(holidayService, employeeRegistryService);
         lenient().when(holidayService.isHoliday(any())).thenReturn(false);
+        lenient().when(employeeRegistryService.getAccruesOvertimeFlags(any())).thenReturn(Map.of());
 
         Map<String, Object> manana = new LinkedHashMap<>();
         manana.put("id", "manana");
@@ -280,6 +282,45 @@ class TasReportBuilderTest {
 
         assertThat(result.rows).hasSize(1);
         assertThat(result.rows.get(0).getNumeroDequincena()).isEqualTo(1);
+    }
+
+    @Test
+    void build_employeeDoesNotAccrueOvertime_zeroesSimplesAndDobles() {
+        LocalDate start = LocalDate.of(2026, 3, 1);
+        LocalDate end   = LocalDate.of(2026, 3, 15);
+
+        when(employeeRegistryService.getAccruesOvertimeFlags(any())).thenReturn(Map.of("100", false));
+
+        List<TasSession> sessions = List.of(
+            resolvedSession("100", LocalDate.of(2026, 3, 5), 480, 60)
+        );
+
+        TasReportBuilder.BuildResult result = builder.build(sessions, start, end, shifts);
+
+        assertThat(result.rows).hasSize(1);
+        EmployeeRow row = result.rows.get(0);
+        assertThat(row.getHorasExtrasSimples()).isEqualTo(0);
+        assertThat(row.getHorasExtrasDobles()).isEqualTo(0);
+        assertThat(row.isAccruesOvertime()).isFalse();
+    }
+
+    @Test
+    void build_employeeAccruesOvertime_keepsComputedHours() {
+        LocalDate start = LocalDate.of(2026, 3, 1);
+        LocalDate end   = LocalDate.of(2026, 3, 15);
+
+        when(employeeRegistryService.getAccruesOvertimeFlags(any())).thenReturn(Map.of("100", true));
+
+        List<TasSession> sessions = List.of(
+            resolvedSession("100", LocalDate.of(2026, 3, 5), 480, 60)
+        );
+
+        TasReportBuilder.BuildResult result = builder.build(sessions, start, end, shifts);
+
+        EmployeeRow row = result.rows.get(0);
+        assertThat(row.getHorasExtrasSimples()).isEqualTo(8);
+        assertThat(row.getHorasExtrasDobles()).isEqualTo(1);
+        assertThat(row.isAccruesOvertime()).isTrue();
     }
 
     @Test

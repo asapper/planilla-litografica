@@ -56,7 +56,7 @@ class TasUploadServiceTest {
     }
 
     @Test
-    void process_inactiveEmployeeFound_returnsEarlyWith409Data() throws Exception {
+    void process_inactiveEmployeeFound_returnsEarly() throws Exception {
         List<TasScanRecord> scans = List.of(scan("100", "2026-03-10T07:00"));
         when(parserService.parse(any())).thenReturn(new TasParserService.ParseResult(scans, List.of()));
 

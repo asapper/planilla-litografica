@@ -94,7 +94,7 @@ export default function ReactivationReviewScreen() {
                         onClick={() => setInactiveDecision(emp.employeeId, 'ignore')}
                         className={`px-3 py-1 text-label-md font-medium transition-colors cursor-pointer ${
                           decision === 'ignore'
-                            ? 'bg-surface-container text-on-surface'
+                            ? 'bg-secondary text-on-secondary'
                             : 'bg-white text-on-surface-variant hover:bg-surface-container-low'
                         }`}
                       >

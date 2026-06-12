@@ -1,5 +1,5 @@
 import axios from 'axios';
-import type { TasUploadResult, TasResolveResult, AbsentEmployee, TasPeriod } from './tasTypes';
+import type { TasUploadResult, TasResolveResult, AbsentEmployee, TasPeriod, ResolvedRow } from './tasTypes';
 
 const client = axios.create({
   baseURL: 'http://localhost:49301/api',
@@ -41,3 +41,6 @@ export const getAbsentReview = (token: string): Promise<{ absentEmployees: Absen
 
 export const setAbsentEmployeesActive = (token: string, employeeIds: string[], active: boolean): Promise<void> =>
   client.post(`/tas/absent-review/${token}/deactivate`, { employeeIds, active }).then(() => undefined);
+
+export const recomputeTas = (token: string): Promise<{ uploadToken: string; resolvedRows: ResolvedRow[] }> =>
+  client.post<{ uploadToken: string; resolvedRows: ResolvedRow[] }>(`/tas/recompute/${token}`).then(r => r.data);

@@ -29,6 +29,7 @@ class TasAmbiguousShiftPipelineTest {
     @Mock AppConfigService appConfigService;
     @Mock HolidayService holidayService;
     @Mock ShiftConfigService shiftConfigService;
+    @Mock EmployeeRegistryService employeeRegistryService;
 
     TasSessionGrouper grouper;
     TasHoursCalculator calculator;
@@ -40,7 +41,8 @@ class TasAmbiguousShiftPipelineTest {
     void setUp() {
         grouper = new TasSessionGrouper();
         calculator = new TasHoursCalculator(appConfigService, holidayService, shiftConfigService);
-        reportBuilder = new TasReportBuilder(holidayService);
+        reportBuilder = new TasReportBuilder(holidayService, employeeRegistryService);
+        lenient().when(employeeRegistryService.getAccruesOvertimeFlags(any())).thenReturn(Map.of());
 
         Map<String, Object> manana = new LinkedHashMap<>();
         manana.put("id", "manana");

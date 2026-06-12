@@ -36,6 +36,7 @@ export interface ResolvedRow {
   anio: number
   numeroDequincena: number | null
   diasTurnoAmbiguo: number
+  accruesOvertime: boolean
 }
 
 export interface TasUploadResult {

@@ -32,6 +32,9 @@ export const bulkAssignShift = (employeeIds: string[], shiftId: string): Promise
 export const deactivateEmployee = (id: string): Promise<void> =>
   client.post(`/config/employees/${id}/deactivate`).then(() => undefined);
 
+export const updateAccruesOvertime = (id: string, accruesOvertime: boolean): Promise<Employee> =>
+  client.patch<Employee>(`/config/employees/${id}/accrues-overtime`, { accruesOvertime }).then(r => r.data);
+
 // Holidays
 export const getHolidays = (year: number): Promise<Holiday[]> =>
   client.get<Holiday[]>('/config/holidays', { params: { year } }).then(r => r.data);

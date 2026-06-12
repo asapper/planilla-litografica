@@ -181,4 +181,45 @@ class EmployeeRegistryControllerTest {
            .andExpect(status().isBadRequest())
            .andExpect(jsonPath("$.code").value("DEACTIVATE_FAILED"));
     }
+
+    @Test
+    void updateAccruesOvertime_returns200WithUpdatedEmployee() throws Exception {
+        when(employeeRegistryService.setAccruesOvertime("emp1", false)).thenReturn(
+            Map.of("id", "emp1", "code", "emp1", "name", "Ana", "shiftId", "manana", "shiftName", "Mañana", "active", true, "accruesOvertime", false)
+        );
+
+        Map<String, Object> body = Map.of("accruesOvertime", false);
+
+        mvc.perform(patch("/api/config/employees/emp1/accrues-overtime")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(body)))
+           .andExpect(status().isOk())
+           .andExpect(jsonPath("$.accruesOvertime").value(false));
+
+        verify(employeeRegistryService).setAccruesOvertime(eq("emp1"), eq(false));
+    }
+
+    @Test
+    void updateAccruesOvertime_returns404WhenEmployeeNotFound() throws Exception {
+        when(employeeRegistryService.setAccruesOvertime("ghost", true)).thenReturn(null);
+
+        Map<String, Object> body = Map.of("accruesOvertime", true);
+
+        mvc.perform(patch("/api/config/employees/ghost/accrues-overtime")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(body)))
+           .andExpect(status().isNotFound())
+           .andExpect(jsonPath("$.code").value("EMPLOYEE_NOT_FOUND"));
+    }
+
+    @Test
+    void updateAccruesOvertime_returns400WhenFieldMissing() throws Exception {
+        mvc.perform(patch("/api/config/employees/emp1/accrues-overtime")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{}"))
+           .andExpect(status().isBadRequest())
+           .andExpect(jsonPath("$.code").value("MISSING_FIELD"));
+
+        verify(employeeRegistryService, never()).setAccruesOvertime(any(), anyBoolean());
+    }
 }

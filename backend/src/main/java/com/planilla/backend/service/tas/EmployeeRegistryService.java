@@ -7,16 +7,19 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 public class EmployeeRegistryService {
 
     private static final String SELECT_BASE =
-        "SELECT r.employee_id, r.name, r.shift_id, r.active, s.name AS shift_name " +
+        "SELECT r.employee_id, r.name, r.shift_id, r.active, r.accrues_overtime, s.name AS shift_name " +
         "FROM employee_registry r LEFT JOIN shift_config s ON r.shift_id = s.id";
 
     private final JdbcTemplate jdbc;
@@ -118,12 +121,38 @@ public class EmployeeRegistryService {
         return getById(employeeId);
     }
 
+    public Map<String, Object> setAccruesOvertime(String employeeId, boolean accruesOvertime) {
+        jdbc.update(
+            "UPDATE employee_registry SET accrues_overtime = ? WHERE employee_id = ?",
+            accruesOvertime, employeeId
+        );
+        return getById(employeeId);
+    }
+
     public boolean isNewEmployee(String employeeId) {
         Integer count = jdbc.queryForObject(
             "SELECT COUNT(*) FROM employee_registry WHERE employee_id = ?",
             Integer.class, employeeId
         );
         return count == null || count == 0;
+    }
+
+    public Map<String, Boolean> getAccruesOvertimeFlags(Collection<String> employeeIds) {
+        if (employeeIds.isEmpty()) return Map.of();
+        Map<String, Boolean> result = new HashMap<>();
+        List<Map<String, Object>> rows = jdbc.queryForList(
+            "SELECT employee_id, accrues_overtime FROM employee_registry WHERE employee_id IN (" +
+                employeeIds.stream().map(id -> "?").collect(Collectors.joining(",")) + ")",
+            employeeIds.toArray()
+        );
+        for (Map<String, Object> row : rows) {
+            Object empId = row.get("EMPLOYEE_ID");
+            if (empId == null) empId = row.get("employee_id");
+            Object value = row.get("ACCRUES_OVERTIME");
+            if (value == null) value = row.get("accrues_overtime");
+            result.put((String) empId, !(value instanceof Boolean) || (Boolean) value);
+        }
+        return result;
     }
 
     public List<TasAbsentEmployee> getAbsentActiveEmployees(Set<String> presentEmployeeIds) {
@@ -183,6 +212,7 @@ public class EmployeeRegistryService {
         dto.put("shiftId", row.get("SHIFT_ID"));
         dto.put("shiftName", row.get("SHIFT_NAME"));
         dto.put("active", row.get("ACTIVE"));
+        dto.put("accruesOvertime", row.get("ACCRUES_OVERTIME"));
         return dto;
     }
 }

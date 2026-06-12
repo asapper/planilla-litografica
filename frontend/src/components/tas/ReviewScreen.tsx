@@ -1,12 +1,18 @@
+import { useState } from 'react';
 import { useTasStore } from '../../tasStore';
-import { submitTas } from '../../tasApi';
+import { submitTas, recomputeTas } from '../../tasApi';
+import { updateAccruesOvertime } from '../../configApi';
+import type { ResolvedRow } from '../../tasTypes';
 
 export default function ReviewScreen() {
   const uploadToken  = useTasStore(s => s.uploadToken);
   const resolvedRows = useTasStore(s => s.resolvedRows);
+  const setResolvedRows = useTasStore(s => s.setResolvedRows);
   const setTasView   = useTasStore(s => s.setTasView);
   const setJobId     = useTasStore(s => s.setJobId);
   const setError     = useTasStore(s => s.setError);
+
+  const [pendingToggleId, setPendingToggleId] = useState<string | null>(null);
 
   const handleSubmit = async () => {
     if (!uploadToken) return;
@@ -18,6 +24,28 @@ export default function ReviewScreen() {
     } catch {
       setTasView('review');
       setError('Ocurrió un error al enviar. Intente nuevamente.');
+    }
+  };
+
+  const handleAccruesOvertimeToggle = async (row: ResolvedRow) => {
+    if (!uploadToken) return;
+    const newAccruesOvertime = !row.accruesOvertime;
+    setPendingToggleId(row.codigoEmpleado);
+    try {
+      try {
+        await updateAccruesOvertime(row.codigoEmpleado, newAccruesOvertime);
+      } catch {
+        setError('No se pudo actualizar el acumulado de horas extra del empleado.');
+        return;
+      }
+      try {
+        const result = await recomputeTas(uploadToken);
+        setResolvedRows(result.resolvedRows);
+      } catch {
+        setError('La sesión de carga expiró. Vuelve a subir el archivo.');
+      }
+    } finally {
+      setPendingToggleId(null);
     }
   };
 
@@ -41,6 +69,7 @@ export default function ReviewScreen() {
               <th className="text-right text-label-lg text-on-surface-variant py-2 px-4">Días no laborados</th>
               <th className="text-right text-label-lg text-on-surface-variant py-2 px-4">Horas extras simples</th>
               <th className="text-right text-label-lg text-on-surface-variant py-2 px-4">Horas extras dobles</th>
+              <th className="text-center text-label-lg text-on-surface-variant py-2 px-4">Acumula horas extra</th>
             </tr>
           </thead>
           <tbody>
@@ -61,6 +90,24 @@ export default function ReviewScreen() {
                 <td className="py-3 px-4 text-body-md text-on-surface-variant text-right">{row.diasNoLaborados}</td>
                 <td className="py-3 px-4 text-body-md text-on-surface-variant text-right">{row.horasExtrasSimples}</td>
                 <td className="py-3 px-4 text-body-md text-on-surface-variant text-right">{row.horasExtrasDobles}</td>
+                <td className="py-3 px-4 text-center">
+                  <button
+                    role="switch"
+                    aria-checked={row.accruesOvertime}
+                    aria-label={row.accruesOvertime ? `Desactivar acumulado de horas extra de ${row.nombreEmpleado}` : `Activar acumulado de horas extra de ${row.nombreEmpleado}`}
+                    onClick={() => handleAccruesOvertimeToggle(row)}
+                    disabled={pendingToggleId !== null}
+                    className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                      row.accruesOvertime ? 'bg-green-500' : 'bg-gray-300'
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                        row.accruesOvertime ? 'translate-x-4' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>

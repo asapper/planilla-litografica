@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useConfigStore } from '../../configStore';
-import { getEmployees, updateEmployee, bulkAssignShift, getShifts } from '../../configApi';
+import { getEmployees, updateEmployee, bulkAssignShift, getShifts, updateAccruesOvertime } from '../../configApi';
 import type { Employee, Shift } from '../../configTypes';
 import Spinner from '../ui/Spinner';
 
@@ -88,6 +88,17 @@ export default function EmployeesTab() {
       showToast('Cambios guardados');
     } catch {
       setEmployeesError('No se pudo actualizar el estado del empleado.');
+    }
+  };
+
+  const handleAccruesOvertimeToggle = async (emp: Employee) => {
+    const newAccruesOvertime = !emp.accruesOvertime;
+    try {
+      const updated = await updateAccruesOvertime(emp.id, newAccruesOvertime);
+      setEmployeesData(employees.map(e => e.id === emp.id ? updated : e));
+      showToast('Cambios guardados');
+    } catch {
+      setEmployeesError('No se pudo actualizar el acumulado de horas extra del empleado.');
     }
   };
 
@@ -209,6 +220,7 @@ export default function EmployeesTab() {
                 <th className="px-4 py-2 font-medium text-gray-700">Nombre</th>
                 <th className="px-4 py-2 font-medium text-gray-700">Turno asignado</th>
                 <th className="px-4 py-2 font-medium text-gray-700">Activo</th>
+                <th className="px-4 py-2 font-medium text-gray-700">Acumula horas extra</th>
               </tr>
             </thead>
             <tbody>
@@ -255,10 +267,27 @@ export default function EmployeesTab() {
                         />
                       </button>
                     </td>
+                    <td className="px-4 py-2">
+                      <button
+                        role="switch"
+                        aria-checked={emp.accruesOvertime}
+                        aria-label={emp.accruesOvertime ? 'Desactivar acumulado de horas extra' : 'Activar acumulado de horas extra'}
+                        onClick={() => handleAccruesOvertimeToggle(emp)}
+                        className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                          emp.accruesOvertime ? 'bg-green-500' : 'bg-gray-300'
+                        }`}
+                      >
+                        <span
+                          className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                            emp.accruesOvertime ? 'translate-x-4' : 'translate-x-1'
+                          }`}
+                        />
+                      </button>
+                    </td>
                   </tr>
                   {reactivationNotes.has(emp.id) && !dismissedNotes.has(emp.id) && (
                     <tr key={`note-${emp.id}`}>
-                      <td colSpan={5} className="px-4 py-1">
+                      <td colSpan={6} className="px-4 py-1">
                         <div className="flex items-center justify-between bg-amber-50 border border-amber-200 rounded px-3 py-1.5 text-sm text-amber-700">
                           <span>Turno restablecido al turno por defecto. Verifique si corresponde.</span>
                           <button
