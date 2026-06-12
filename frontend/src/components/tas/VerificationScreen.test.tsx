@@ -531,3 +531,81 @@ describe('VerificationScreen empty state for selected period', () => {
     expect(screen.queryByText('Ana López')).not.toBeInTheDocument();
   });
 });
+
+describe('VerificationScreen same-day double group', () => {
+  function doubleSession(overrides: Partial<TasSession> = {}): TasSession {
+    return makeSession({
+      flags: ['SAME_DAY_DOUBLE'],
+      scans: ['2026-03-15T07:00:00', '2026-03-15T15:00:00'],
+      effectiveStart: '2026-03-15T07:00:00',
+      lastScan: '2026-03-15T15:00:00',
+      matchedShiftId: 'manana',
+      matchedShiftName: 'Manana',
+      assignedShiftId: 'manana',
+      assignedShiftName: 'Manana',
+      ...overrides,
+    });
+  }
+
+  beforeEach(() => {
+    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
+    useTasStore.getState().setFlaggedSessions([
+      doubleSession({ sessionId: 1, matchedShiftId: 'manana', matchedShiftName: 'Manana' }),
+      doubleSession({
+        sessionId: 2,
+        scans: ['2026-03-15T15:02:00', '2026-03-15T23:00:00'],
+        effectiveStart: '2026-03-15T15:02:00',
+        lastScan: '2026-03-15T23:00:00',
+        matchedShiftId: 'tarde',
+        matchedShiftName: 'Tarde',
+      }),
+    ]);
+  });
+
+  it('renders one group card for both sessions on the same employee/date', () => {
+    render(<VerificationScreen />);
+    expect(screen.getAllByText(/Ana López/).length).toBeGreaterThan(0);
+    expect(screen.getByText(/Manana/)).toBeInTheDocument();
+    expect(screen.getByText(/Tarde/)).toBeInTheDocument();
+  });
+
+  it('renders a radio per session plus "Mantener todas", defaulting to "Mantener todas"', () => {
+    render(<VerificationScreen />);
+    const keepAllRadio = screen.getByRole('radio', { name: /mantener todas/i });
+    expect(keepAllRadio).toBeChecked();
+    expect(screen.getAllByRole('radio')).toHaveLength(3);
+  });
+
+  it('Confirmar is enabled without any selection change', () => {
+    render(<VerificationScreen />);
+    expect(screen.getByRole('button', { name: /confirmar/i })).toBeEnabled();
+  });
+
+  it('confirming with default selection records "all" for the group', () => {
+    render(<VerificationScreen />);
+    fireEvent.click(screen.getByRole('button', { name: /confirmar/i }));
+    expect(useTasStore.getState().sameDayDoubleResolutions['E1|2026-03-15']).toBe('all');
+  });
+
+  it('selecting a specific session and confirming records that session id', () => {
+    render(<VerificationScreen />);
+    const radios = screen.getAllByRole('radio');
+    fireEvent.click(radios[0]); // first session-specific radio
+    fireEvent.click(screen.getByRole('button', { name: /confirmar/i }));
+    expect(useTasStore.getState().sameDayDoubleResolutions['E1|2026-03-15']).toBe(1);
+  });
+
+  it('includes employeeId/date/keepSessionId in resolveVerification payload on submit', async () => {
+    useTasStore.getState().setUploadToken('tok-1');
+    mockResolveVerification.mockResolvedValue(mockResult);
+
+    render(<VerificationScreen />);
+    fireEvent.click(screen.getByRole('button', { name: /confirmar/i }));
+    fireEvent.click(screen.getByRole('button', { name: /enviar/i }));
+
+    await waitFor(() => expect(useTasStore.getState().tasView).toBe('review'));
+
+    const [, payload] = mockResolveVerification.mock.calls[0];
+    expect(payload).toContainEqual({ employeeId: 'E1', date: '2026-03-15', keepSessionId: 'all' });
+  });
+});

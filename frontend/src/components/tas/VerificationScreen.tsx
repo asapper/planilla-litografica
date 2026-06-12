@@ -195,6 +195,73 @@ function ShiftMismatchCard({ session, availableShifts, confirmed, onConfirm }: S
   );
 }
 
+interface SameDayDoubleGroupCardProps {
+  sessions: TasSession[];
+  confirmed: boolean;
+  onConfirm: (keepSessionId: number | 'all') => void;
+}
+
+function SameDayDoubleGroupCard({ sessions, confirmed, onConfirm }: SameDayDoubleGroupCardProps) {
+  const [choice, setChoice] = useState<number | 'all'>('all');
+  const first = sessions[0];
+
+  if (confirmed) {
+    return (
+      <div className="border-l-4 border-green-500 bg-white rounded-shape-md px-4 py-3 mb-3 flex items-center gap-4 shadow-sm">
+        <div className="flex-1">
+          <span className="font-medium text-on-surface">{first.employeeName}</span>
+          <span className="mx-2 text-on-surface-variant">·</span>
+          <span className="text-on-surface-variant text-body-sm">{formatDate(first.date)}</span>
+        </div>
+        <span className="text-green-600 text-body-sm font-medium">Confirmado</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-white rounded-shape-md border border-outline-variant p-4 mb-3 shadow-sm">
+      <div className="flex items-center gap-3 mb-2">
+        <span className="font-medium text-on-surface">{first.employeeName}</span>
+        <span className="text-on-surface-variant text-body-sm">{formatDate(first.date)}</span>
+        <span className={`text-label-sm px-2 py-0.5 rounded-full ${FLAG_COLORS.SAME_DAY_DOUBLE}`}>
+          {FLAG_LABELS.SAME_DAY_DOUBLE}
+        </span>
+      </div>
+
+      <div className="flex flex-col gap-2 mb-3">
+        {sessions.map(session => (
+          <label key={session.sessionId} className="flex items-center gap-2 text-body-sm text-on-surface cursor-pointer">
+            <input
+              type="radio"
+              name={`same-day-double-${first.employeeId}-${first.date}`}
+              checked={choice === session.sessionId}
+              onChange={() => setChoice(session.sessionId)}
+            />
+            {session.matchedShiftName ?? '—'} ({toHHMM(session.effectiveStart)}–{toHHMM(session.lastScan)}) — marcaciones:{' '}
+            {session.scans.map(toHHMM).join(', ')}
+          </label>
+        ))}
+        <label className="flex items-center gap-2 text-body-sm text-on-surface cursor-pointer">
+          <input
+            type="radio"
+            name={`same-day-double-${first.employeeId}-${first.date}`}
+            checked={choice === 'all'}
+            onChange={() => setChoice('all')}
+          />
+          Mantener todas
+        </label>
+      </div>
+
+      <button
+        onClick={() => onConfirm(choice)}
+        className="m3-btn-filled"
+      >
+        Confirmar
+      </button>
+    </div>
+  );
+}
+
 interface SessionCardProps {
   session: TasSession;
   confirmed: boolean;
@@ -322,19 +389,38 @@ export default function VerificationScreen() {
   const setAvailableShifts  = useTasStore(s => s.setAvailableShifts);
   const shiftAcceptances    = useTasStore(s => s.shiftAcceptances);
   const setShiftAcceptance  = useTasStore(s => s.setShiftAcceptance);
+  const sameDayDoubleResolutions    = useTasStore(s => s.sameDayDoubleResolutions);
+  const setSameDayDoubleResolution  = useTasStore(s => s.setSameDayDoubleResolution);
 
   const [activeFilter, setActiveFilter] = useState<FilterChip>('all');
 
   const needsResolutionSessions = flaggedSessions.filter(
     s => s.needsResolution && periodsEqual(getSessionPeriod(s.date), selectedPeriod),
   );
-  const confirmedCount  = Object.keys(resolvedSessions).length + Object.keys(shiftAcceptances).length;
+  const filtered = needsResolutionSessions.filter(s => sessionMatchesFilter(s, activeFilter));
+  const sameDayDoubleSessions = filtered.filter(s => s.flags.includes('SAME_DAY_DOUBLE'));
+  const shiftMismatchOnly = filtered.filter(
+    s => !sameDayDoubleSessions.includes(s) && s.flags.length === 1 && s.flags[0] === 'SHIFT_MISMATCH',
+  );
+  const regular = filtered.filter(
+    s => !sameDayDoubleSessions.includes(s) && !shiftMismatchOnly.includes(s),
+  );
+
+  const sameDayDoubleGroups = new Map<string, TasSession[]>();
+  for (const session of sameDayDoubleSessions) {
+    const key = `${session.employeeId}|${session.date}`;
+    const group = sameDayDoubleGroups.get(key) ?? [];
+    group.push(session);
+    sameDayDoubleGroups.set(key, group);
+  }
+
+  const confirmedCount = Object.keys(resolvedSessions).length
+    + Object.keys(shiftAcceptances).length
+    + Array.from(sameDayDoubleGroups.entries())
+        .filter(([groupKey]) => sameDayDoubleResolutions[groupKey] !== undefined)
+        .reduce((sum, [, sessions]) => sum + sessions.length, 0);
   const totalToResolve  = needsResolutionSessions.length;
   const pendingCount    = totalToResolve - confirmedCount;
-
-  const filtered = needsResolutionSessions.filter(s => sessionMatchesFilter(s, activeFilter));
-  const shiftMismatchOnly = filtered.filter(s => s.flags.length === 1 && s.flags[0] === 'SHIFT_MISMATCH');
-  const regular = filtered.filter(s => !shiftMismatchOnly.includes(s));
 
   const chipCounts = {
     all:           needsResolutionSessions.length,
@@ -359,6 +445,10 @@ export default function VerificationScreen() {
           sessionId: Number(id),
           acceptedShiftId,
         })),
+        ...Object.entries(sameDayDoubleResolutions).map(([groupKey, keepSessionId]) => {
+          const [employeeId, date] = groupKey.split('|');
+          return { employeeId, date, keepSessionId };
+        }),
       ];
       const result = await resolveVerification(uploadToken, resolutions, selectedPeriod);
       const stillNeedsResolution = result.flaggedSessions.some(
@@ -450,6 +540,15 @@ export default function VerificationScreen() {
                 ) : null
               ))}
             </div>
+
+            {Array.from(sameDayDoubleGroups.entries()).map(([groupKey, groupSessions]) => (
+              <SameDayDoubleGroupCard
+                key={groupKey}
+                sessions={groupSessions}
+                confirmed={sameDayDoubleResolutions[groupKey] !== undefined}
+                onConfirm={(keepSessionId) => setSameDayDoubleResolution(groupKey, keepSessionId)}
+              />
+            ))}
 
             {regular.map(session => (
               <SessionCard
