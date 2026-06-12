@@ -83,6 +83,34 @@ describe('VerificationScreen rendering', () => {
     expect(screen.getByText('Falta entrada')).toBeInTheDocument();
   });
 
+  it('shows the existing exit time when entry is missing', () => {
+    useTasStore.getState().setFlaggedSessions([makeSession({ flags: ['MISSING_ENTRY'], effectiveStart: null, lastScan: '17:00:00' })]);
+    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
+    render(<VerificationScreen />);
+    expect(screen.getByText('Falta entrada · Salida 17:00')).toBeInTheDocument();
+  });
+
+  it('shows the existing entry time when exit is missing', () => {
+    useTasStore.getState().setFlaggedSessions([makeSession({ flags: ['MISSING_EXIT'], effectiveStart: '08:00:00', lastScan: null })]);
+    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
+    render(<VerificationScreen />);
+    expect(screen.getByText('Falta salida · Entrada 08:00')).toBeInTheDocument();
+  });
+
+  it('shows plain missing-entry label when neither scan is present', () => {
+    useTasStore.getState().setFlaggedSessions([makeSession({ flags: ['MISSING_ENTRY'], effectiveStart: null, lastScan: null })]);
+    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
+    render(<VerificationScreen />);
+    expect(screen.getByText('Falta entrada')).toBeInTheDocument();
+  });
+
+  it('renders unrelated flag labels unchanged', () => {
+    useTasStore.getState().setFlaggedSessions([makeSession({ flags: ['SHIFT_MISMATCH'], effectiveStart: '08:00:00', lastScan: '17:00:00' })]);
+    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
+    render(<VerificationScreen />);
+    expect(screen.getByText('Cambio de turno')).toBeInTheDocument();
+  });
+
   it('renders scans as pills', () => {
     useTasStore.getState().setFlaggedSessions([makeSession({ scans: ['08:00:00', '17:00:00'] })]);
     useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);

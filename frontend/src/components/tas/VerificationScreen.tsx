@@ -24,6 +24,16 @@ const FLAG_COLORS: Record<TasFlag, string> = {
   END_CUTOFF:     'bg-blue-100 text-blue-700',
 };
 
+function flagLabel(flag: TasFlag, session: TasSession): string {
+  if (flag === 'MISSING_ENTRY' && session.lastScan) {
+    return `${FLAG_LABELS[flag]} · Salida ${toHHMM(session.lastScan)}`;
+  }
+  if (flag === 'MISSING_EXIT' && session.effectiveStart) {
+    return `${FLAG_LABELS[flag]} · Entrada ${toHHMM(session.effectiveStart)}`;
+  }
+  return FLAG_LABELS[flag];
+}
+
 function formatDate(dateStr: string): string {
   const months = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
   const [year, month, day] = dateStr.split('-').map(Number);
@@ -117,7 +127,7 @@ function SessionCard({ session, confirmed, onConfirm }: SessionCardProps) {
         <div className="flex gap-1 flex-wrap">
           {session.flags.map(f => (
             <span key={f} className={`text-label-sm px-2 py-0.5 rounded-full ${FLAG_COLORS[f]}`}>
-              {FLAG_LABELS[f]}
+              {flagLabel(f, session)}
             </span>
           ))}
         </div>
