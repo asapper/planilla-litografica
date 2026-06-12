@@ -143,6 +143,15 @@ public class TasController {
         List<Map<String, Object>> shifts = shiftConfigService.getAllShifts();
 
         for (Map<String, Object> res : resolutions) {
+            Object employeeIdObj = res.get("employeeId");
+            Object dateObj = res.get("date");
+            Object keepSessionIdObj = res.get("keepSessionId");
+            if (employeeIdObj != null && dateObj != null && keepSessionIdObj != null) {
+                applySameDayDoubleResolution(sessions, (String) employeeIdObj,
+                        java.time.LocalDate.parse((String) dateObj), keepSessionIdObj, shifts);
+                continue;
+            }
+
             Object sessionIdObj = res.get("sessionId");
             if (sessionIdObj == null) continue;
             int sessionId = ((Number) sessionIdObj).intValue();
@@ -314,6 +323,50 @@ public class TasController {
         state.setReportStart(result.getReportStart());
         state.setReportEnd(result.getReportEnd());
         return state;
+    }
+
+    private void applySameDayDoubleResolution(
+            List<TasSession> sessions,
+            String employeeId,
+            java.time.LocalDate date,
+            Object keepSessionIdObj,
+            List<Map<String, Object>> shifts) {
+
+        boolean keepAll = "all".equals(keepSessionIdObj);
+        Integer keepSessionId = keepAll ? null : ((Number) keepSessionIdObj).intValue();
+
+        List<TasSession> group = sessions.stream()
+                .filter(s -> employeeId.equals(s.getEmployeeId())
+                        && date.equals(s.getDate())
+                        && s.getFlags() != null
+                        && s.getFlags().contains(TasFlag.SAME_DAY_DOUBLE))
+                .collect(Collectors.toList());
+
+        boolean keepSessionIdInGroup = !keepAll && group.stream()
+                .anyMatch(s -> s.getSessionId() == keepSessionId);
+        if (!keepAll && !keepSessionIdInGroup) {
+            keepAll = true;
+        }
+
+        for (TasSession session : group) {
+            session.getFlags().removeIf(f -> f == TasFlag.SAME_DAY_DOUBLE || f == TasFlag.SHIFT_MISMATCH);
+
+            boolean discard = !keepAll && session.getSessionId() != keepSessionId;
+            if (discard) {
+                session.setWorkedMinutes(0);
+                session.setWorkedHours(0.0);
+                session.setSimplesMinutes(0);
+                session.setDoblesMinutes(0);
+                session.setNeedsResolution(false);
+            } else {
+                boolean hasBlockingFlags = session.getFlags().stream()
+                        .anyMatch(f -> f != TasFlag.AMBIGUOUS_SHIFT);
+                session.setNeedsResolution(hasBlockingFlags);
+                if (!hasBlockingFlags) {
+                    hoursCalculator.recompute(session, shifts);
+                }
+            }
+        }
     }
 
     private List<Map<String, Object>> mapAvailableShifts(List<Map<String, Object>> shifts) {

@@ -579,4 +579,157 @@ class TasControllerTest {
 
         verify(reportBuilder).build(eq(Collections.emptyList()), any(), any(), any(), isNull());
     }
+
+    private TasSession sameDayDoubleSession(int sessionId, String shiftId, String shiftName) {
+        TasSession s = new TasSession();
+        s.setSessionId(sessionId);
+        s.setEmployeeId("100");
+        s.setDate(java.time.LocalDate.of(2026, 3, 10));
+        s.setMatchedShiftId(shiftId);
+        s.setMatchedShiftName(shiftName);
+        s.setAssignedShiftId(shiftId);
+        s.setAssignedShiftName(shiftName);
+        s.setScans(List.of(
+                java.time.LocalDateTime.of(2026, 3, 10, 7, 0),
+                java.time.LocalDateTime.of(2026, 3, 10, 15, 0)));
+        s.setNeedsResolution(true);
+        s.setFlags(new ArrayList<>(List.of(com.planilla.backend.model.tas.TasFlag.SAME_DAY_DOUBLE)));
+        return s;
+    }
+
+    @Test
+    void resolve_keepSessionIdAll_clearsFlagAndRecomputesAllSessions() throws Exception {
+        TasSession a = sameDayDoubleSession(10, "manana", "Manana");
+        TasSession b = sameDayDoubleSession(11, "tarde", "Tarde");
+
+        TasUploadResult result = emptyResult();
+        result.setFlaggedSessions(List.of(a, b));
+        result.setAllSessions(List.of(a, b));
+        when(parserService.parse(any())).thenReturn(emptyParseResult());
+        when(uploadService.processScans(any(), any(), any())).thenReturn(result);
+
+        MockMultipartFile file = new MockMultipartFile("file", "test.csv", "text/csv", "data".getBytes());
+        String uploadResponse = mvc.perform(multipart("/api/tas/upload").file(file))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        String token = (String) mapper.readValue(uploadResponse, Map.class).get("uploadToken");
+
+        when(shiftConfigService.getAllShifts()).thenReturn(new ArrayList<>());
+        when(reportBuilder.build(any(), any(), any(), any(), any()))
+                .thenReturn(new TasReportBuilder.BuildResult(new ArrayList<>(), new LinkedHashMap<>()));
+
+        Map<String, Object> resolution = new LinkedHashMap<>();
+        resolution.put("employeeId", "100");
+        resolution.put("date", "2026-03-10");
+        resolution.put("keepSessionId", "all");
+
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("uploadToken", token);
+        body.put("resolutions", List.of(resolution));
+
+        mvc.perform(post("/api/tas/resolve")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(body)))
+           .andExpect(status().isOk())
+           .andExpect(jsonPath("$.flaggedSessions.length()").value(0));
+
+        assertThat(a.getFlags()).doesNotContain(com.planilla.backend.model.tas.TasFlag.SAME_DAY_DOUBLE);
+        assertThat(b.getFlags()).doesNotContain(com.planilla.backend.model.tas.TasFlag.SAME_DAY_DOUBLE);
+        assertThat(a.isNeedsResolution()).isFalse();
+        assertThat(b.isNeedsResolution()).isFalse();
+        verify(hoursCalculator, times(2)).recompute(any(), any());
+    }
+
+    @Test
+    void resolve_keepSessionIdNotInGroup_fallsBackToKeepAll() throws Exception {
+        TasSession a = sameDayDoubleSession(10, "manana", "Manana");
+        TasSession b = sameDayDoubleSession(11, "tarde", "Tarde");
+
+        TasUploadResult result = emptyResult();
+        result.setFlaggedSessions(List.of(a, b));
+        result.setAllSessions(List.of(a, b));
+        when(parserService.parse(any())).thenReturn(emptyParseResult());
+        when(uploadService.processScans(any(), any(), any())).thenReturn(result);
+
+        MockMultipartFile file = new MockMultipartFile("file", "test.csv", "text/csv", "data".getBytes());
+        String uploadResponse = mvc.perform(multipart("/api/tas/upload").file(file))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        String token = (String) mapper.readValue(uploadResponse, Map.class).get("uploadToken");
+
+        when(shiftConfigService.getAllShifts()).thenReturn(new ArrayList<>());
+        when(reportBuilder.build(any(), any(), any(), any(), any()))
+                .thenReturn(new TasReportBuilder.BuildResult(new ArrayList<>(), new LinkedHashMap<>()));
+
+        Map<String, Object> resolution = new LinkedHashMap<>();
+        resolution.put("employeeId", "100");
+        resolution.put("date", "2026-03-10");
+        resolution.put("keepSessionId", 999);
+
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("uploadToken", token);
+        body.put("resolutions", List.of(resolution));
+
+        mvc.perform(post("/api/tas/resolve")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(body)))
+           .andExpect(status().isOk())
+           .andExpect(jsonPath("$.flaggedSessions.length()").value(0));
+
+        assertThat(a.getFlags()).doesNotContain(com.planilla.backend.model.tas.TasFlag.SAME_DAY_DOUBLE);
+        assertThat(b.getFlags()).doesNotContain(com.planilla.backend.model.tas.TasFlag.SAME_DAY_DOUBLE);
+        assertThat(a.isNeedsResolution()).isFalse();
+        assertThat(b.isNeedsResolution()).isFalse();
+        verify(hoursCalculator, times(2)).recompute(any(), any());
+    }
+
+    @Test
+    void resolve_keepSessionIdSpecific_zeroesOutDiscardedSession() throws Exception {
+        TasSession a = sameDayDoubleSession(10, "manana", "Manana");
+        TasSession b = sameDayDoubleSession(11, "tarde", "Tarde");
+
+        TasUploadResult result = emptyResult();
+        result.setFlaggedSessions(List.of(a, b));
+        result.setAllSessions(List.of(a, b));
+        when(parserService.parse(any())).thenReturn(emptyParseResult());
+        when(uploadService.processScans(any(), any(), any())).thenReturn(result);
+
+        MockMultipartFile file = new MockMultipartFile("file", "test.csv", "text/csv", "data".getBytes());
+        String uploadResponse = mvc.perform(multipart("/api/tas/upload").file(file))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        String token = (String) mapper.readValue(uploadResponse, Map.class).get("uploadToken");
+
+        when(shiftConfigService.getAllShifts()).thenReturn(new ArrayList<>());
+        when(reportBuilder.build(any(), any(), any(), any(), any()))
+                .thenReturn(new TasReportBuilder.BuildResult(new ArrayList<>(), new LinkedHashMap<>()));
+
+        Map<String, Object> resolution = new LinkedHashMap<>();
+        resolution.put("employeeId", "100");
+        resolution.put("date", "2026-03-10");
+        resolution.put("keepSessionId", 10);
+
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("uploadToken", token);
+        body.put("resolutions", List.of(resolution));
+
+        mvc.perform(post("/api/tas/resolve")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(body)))
+           .andExpect(status().isOk())
+           .andExpect(jsonPath("$.flaggedSessions.length()").value(0));
+
+        assertThat(a.getFlags()).doesNotContain(com.planilla.backend.model.tas.TasFlag.SAME_DAY_DOUBLE);
+        assertThat(a.isNeedsResolution()).isFalse();
+
+        assertThat(b.getFlags()).doesNotContain(com.planilla.backend.model.tas.TasFlag.SAME_DAY_DOUBLE);
+        assertThat(b.isNeedsResolution()).isFalse();
+        assertThat(b.getWorkedMinutes()).isEqualTo(0);
+        assertThat(b.getWorkedHours()).isEqualTo(0.0);
+        assertThat(b.getSimplesMinutes()).isEqualTo(0);
+        assertThat(b.getDoblesMinutes()).isEqualTo(0);
+
+        verify(hoursCalculator, times(1)).recompute(eq(a), any());
+        verify(hoursCalculator, never()).recompute(eq(b), any());
+    }
 }
