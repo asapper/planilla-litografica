@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { useTasStore } from '../../tasStore';
 import { resolveVerification } from '../../tasApi';
+import type { TasResolution } from '../../tasApi';
 import { MONTH_NAMES_ES } from '../../dateNames';
-import type { TasSession, TasFlag, TasPeriod } from '../../tasTypes';
+import type { TasSession, TasFlag, TasPeriod, ShiftOption } from '../../tasTypes';
 
 type FilterChip = 'all' | 'missing_entry' | 'missing_exit' | 'shift_mismatch' | 'cutoff';
 
@@ -87,16 +88,121 @@ function sessionMatchesFilter(session: TasSession, filter: FilterChip): boolean 
   return false;
 }
 
+interface ShiftMismatchCardProps {
+  session: TasSession;
+  availableShifts: ShiftOption[];
+  confirmed: boolean;
+  onConfirm: (acceptedShiftId: string) => void;
+}
+
+function ShiftMismatchCard({ session, availableShifts, confirmed, onConfirm }: ShiftMismatchCardProps) {
+  const [selectedShiftId, setSelectedShiftId] = useState(session.matchedShiftId ?? '');
+  const [choosingShift, setChoosingShift] = useState(false);
+  const [pendingShiftId, setPendingShiftId] = useState(selectedShiftId);
+
+  if (confirmed) {
+    return (
+      <div className="border-l-4 border-green-500 bg-white rounded-shape-md px-4 py-3 mb-3 flex items-center gap-4 shadow-sm">
+        <div className="flex-1">
+          <span className="font-medium text-on-surface">{session.employeeName}</span>
+          <span className="mx-2 text-on-surface-variant">·</span>
+          <span className="text-on-surface-variant text-body-sm">{formatDate(session.date)}</span>
+        </div>
+        <span className="text-green-600 text-body-sm font-medium">Confirmado</span>
+      </div>
+    );
+  }
+
+  const selectedShift = availableShifts.find(s => s.id === selectedShiftId);
+  const selectedShiftName = selectedShift?.name ?? session.matchedShiftName ?? '';
+  const selectedShiftTimes = selectedShift ? ` (${selectedShift.startTime}–${selectedShift.endTime})` : '';
+
+  return (
+    <div className="bg-white rounded-shape-md border border-outline-variant p-4 mb-3 shadow-sm">
+      <div className="flex items-center gap-3 mb-2">
+        <span className="font-medium text-on-surface">{session.employeeName}</span>
+        <span className="text-on-surface-variant text-body-sm">{formatDate(session.date)}</span>
+        <div className="flex gap-1 flex-wrap">
+          {session.flags.map(f => (
+            <span key={f} className={`text-label-sm px-2 py-0.5 rounded-full ${FLAG_COLORS[f]}`}>
+              {flagLabel(f, session)}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      {session.scans.length > 0 && (
+        <div className="flex gap-2 mb-3 flex-wrap">
+          {session.scans.map((s, i) => (
+            <span key={i} className="px-2 py-1 rounded-shape-sm bg-surface-container text-body-sm text-on-surface-variant">
+              {toHHMM(s)}
+            </span>
+          ))}
+        </div>
+      )}
+
+      <div className="mb-3 rounded-shape-md border border-green-200 bg-green-50 px-3 py-2 text-body-sm">
+        {`Turno asignado: ${session.assignedShiftName ?? '—'} → se aplicará ${selectedShiftName}${selectedShiftTimes} según las marcaciones.`}
+        {!choosingShift && (
+          <button
+            type="button"
+            onClick={() => { setPendingShiftId(selectedShiftId); setChoosingShift(true); }}
+            className="ml-2 text-primary underline cursor-pointer"
+          >
+            Elegir otro turno
+          </button>
+        )}
+      </div>
+
+      {choosingShift && (
+        <div className="mb-3 flex items-center gap-2">
+          <select
+            value={pendingShiftId}
+            onChange={e => setPendingShiftId(e.target.value)}
+            className="h-9 px-3 rounded-shape-sm border border-outline bg-white text-body-md focus:outline-none focus:border-primary"
+          >
+            {availableShifts.map(shift => (
+              <option key={shift.id} value={shift.id}>
+                {shift.name} ({shift.startTime}–{shift.endTime})
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            onClick={() => { setSelectedShiftId(pendingShiftId); setChoosingShift(false); }}
+            className="m3-btn-filled"
+          >
+            Aplicar
+          </button>
+          <button
+            type="button"
+            onClick={() => setChoosingShift(false)}
+            className="m3-btn-text"
+          >
+            Cancelar
+          </button>
+        </div>
+      )}
+
+      <button
+        onClick={() => onConfirm(selectedShiftId)}
+        className="m3-btn-filled"
+      >
+        Confirmar
+      </button>
+    </div>
+  );
+}
+
 interface SessionCardProps {
   session: TasSession;
   confirmed: boolean;
-  onConfirm: (resolvedStart: string, resolvedEnd: string, mismatchChoice: 'update' | 'keep' | null) => void;
+  onConfirm: (resolvedStart: string, resolvedEnd: string) => void;
 }
 
 function SessionCard({ session, confirmed, onConfirm }: SessionCardProps) {
   const [entry, setEntry] = useState(toHHMM(session.effectiveStart));
   const [exit,  setExit]  = useState(toHHMM(session.lastScan));
-  const [mismatchChoice, setMismatchChoice] = useState<'update' | 'keep' | null>(null);
 
   const needsEntry = session.flags.includes('MISSING_ENTRY');
   const needsExit  = session.flags.includes('MISSING_EXIT');
@@ -134,12 +240,6 @@ function SessionCard({ session, confirmed, onConfirm }: SessionCardProps) {
         </div>
       </div>
 
-      {session.matchedShiftName && (
-        <p className="text-body-sm text-on-surface-variant mb-2">
-          Turno asignado: {session.matchedShiftName}
-        </p>
-      )}
-
       {session.scans.length > 0 && (
         <div className="flex gap-2 mb-3 flex-wrap">
           {session.scans.map((s, i) => (
@@ -147,37 +247,6 @@ function SessionCard({ session, confirmed, onConfirm }: SessionCardProps) {
               {toHHMM(s)}
             </span>
           ))}
-        </div>
-      )}
-
-      {session.consistentMismatch && (
-        <div className="mb-3 rounded-shape-md border border-amber-300 bg-amber-50 px-3 py-2">
-          <p className="text-body-sm text-amber-800 mb-2">
-            Las marcaciones de {session.employeeName} corresponden al turno {session.matchedShiftName} en toda la quincena.
-            ¿Desea actualizar su turno asignado?
-          </p>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setMismatchChoice('update')}
-              className={`px-3 py-1 text-label-sm rounded-shape-full border transition-colors cursor-pointer ${
-                mismatchChoice === 'update'
-                  ? 'bg-amber-600 text-white border-amber-600'
-                  : 'border-amber-400 text-amber-700 hover:bg-amber-100'
-              }`}
-            >
-              Sí, actualizar turno
-            </button>
-            <button
-              onClick={() => setMismatchChoice('keep')}
-              className={`px-3 py-1 text-label-sm rounded-shape-full border transition-colors cursor-pointer ${
-                mismatchChoice === 'keep'
-                  ? 'bg-surface-container text-on-surface border-outline'
-                  : 'border-outline-variant text-on-surface-variant hover:bg-surface-container-low'
-              }`}
-            >
-              No, mantener
-            </button>
-          </div>
         </div>
       )}
 
@@ -222,7 +291,7 @@ function SessionCard({ session, confirmed, onConfirm }: SessionCardProps) {
 
       <button
         disabled={!canConfirm}
-        onClick={() => onConfirm(entry, exit, mismatchChoice)}
+        onClick={() => onConfirm(entry, exit)}
         className="m3-btn-filled disabled:opacity-40 disabled:cursor-not-allowed"
       >
         Confirmar
@@ -248,17 +317,23 @@ export default function VerificationScreen() {
   const selectedPeriod        = useTasStore(s => s.selectedPeriod);
   const setSelectedPeriod     = useTasStore(s => s.setSelectedPeriod);
   const setAvailablePeriods   = useTasStore(s => s.setAvailablePeriods);
+  const availableShifts    = useTasStore(s => s.availableShifts);
+  const setAvailableShifts  = useTasStore(s => s.setAvailableShifts);
+  const shiftAcceptances    = useTasStore(s => s.shiftAcceptances);
+  const setShiftAcceptance  = useTasStore(s => s.setShiftAcceptance);
 
   const [activeFilter, setActiveFilter] = useState<FilterChip>('all');
 
   const needsResolutionSessions = flaggedSessions.filter(
     s => s.needsResolution && periodsEqual(getSessionPeriod(s.date), selectedPeriod),
   );
-  const confirmedCount  = Object.keys(resolvedSessions).length;
+  const confirmedCount  = Object.keys(resolvedSessions).length + Object.keys(shiftAcceptances).length;
   const totalToResolve  = needsResolutionSessions.length;
   const pendingCount    = totalToResolve - confirmedCount;
 
   const filtered = needsResolutionSessions.filter(s => sessionMatchesFilter(s, activeFilter));
+  const shiftMismatchOnly = filtered.filter(s => s.flags.length === 1 && s.flags[0] === 'SHIFT_MISMATCH');
+  const regular = filtered.filter(s => !shiftMismatchOnly.includes(s));
 
   const chipCounts = {
     all:           needsResolutionSessions.length,
@@ -273,12 +348,17 @@ export default function VerificationScreen() {
   const handleSubmit = async () => {
     if (!uploadToken) return;
     try {
-      const resolutions = Object.entries(resolvedSessions).map(([id, entry]) => ({
-        sessionId: Number(id),
-        resolvedStart: entry.resolvedStart,
-        resolvedEnd:   entry.resolvedEnd,
-        updateShift:   entry.updateShift,
-      }));
+      const resolutions: TasResolution[] = [
+        ...Object.entries(resolvedSessions).map(([id, entry]) => ({
+          sessionId: Number(id),
+          resolvedStart: entry.resolvedStart,
+          resolvedEnd:   entry.resolvedEnd,
+        })),
+        ...Object.entries(shiftAcceptances).map(([id, acceptedShiftId]) => ({
+          sessionId: Number(id),
+          acceptedShiftId,
+        })),
+      ];
       const result = await resolveVerification(uploadToken, resolutions, selectedPeriod);
       const stillNeedsResolution = result.flaggedSessions.some(
         s => s.needsResolution && periodsEqual(getSessionPeriod(s.date), selectedPeriod),
@@ -288,6 +368,7 @@ export default function VerificationScreen() {
         setFlaggedSessions(result.flaggedSessions);
         setUploadToken(result.uploadToken);
         setAvailablePeriods(result.availablePeriods ?? []);
+        setAvailableShifts(result.availableShifts ?? []);
         return;
       }
       setFlaggedSessions(result.flaggedSessions);
@@ -296,6 +377,7 @@ export default function VerificationScreen() {
       setResolvedRows(result.resolvedRows ?? []);
       setUsedFallbackHolidays(result.usedFallbackHolidays);
       setAvailablePeriods(result.availablePeriods ?? []);
+      setAvailableShifts(result.availableShifts ?? []);
       setTasView('review');
     } catch {
       setTasView('verification');
@@ -368,18 +450,24 @@ export default function VerificationScreen() {
               ))}
             </div>
 
-            {filtered.map(session => (
+            {regular.map(session => (
               <SessionCard
                 key={session.sessionId}
                 session={session}
                 confirmed={!!resolvedSessions[session.sessionId]}
-                onConfirm={(resolvedStart, resolvedEnd, mismatchChoice) =>
-                  setResolvedSession(session.sessionId, {
-                    resolvedStart,
-                    resolvedEnd,
-                    updateShift: mismatchChoice === 'update' ? true : mismatchChoice === 'keep' ? false : undefined,
-                  })
+                onConfirm={(resolvedStart, resolvedEnd) =>
+                  setResolvedSession(session.sessionId, { resolvedStart, resolvedEnd })
                 }
+              />
+            ))}
+
+            {shiftMismatchOnly.map(session => (
+              <ShiftMismatchCard
+                key={session.sessionId}
+                session={session}
+                availableShifts={availableShifts}
+                confirmed={shiftAcceptances[session.sessionId] !== undefined}
+                onConfirm={(acceptedShiftId) => setShiftAcceptance(session.sessionId, acceptedShiftId)}
               />
             ))}
           </>

@@ -14,6 +14,7 @@ export default function ReactivationReviewScreen() {
   const setAbsentEmployees = useTasStore(s => s.setAbsentEmployees);
   const setUsedFallbackHolidays = useTasStore(s => s.setUsedFallbackHolidays);
   const setAvailablePeriods = useTasStore(s => s.setAvailablePeriods);
+  const setAvailableShifts = useTasStore(s => s.setAvailableShifts);
   const setResolvedRowCount = useTasStore(s => s.setResolvedRowCount);
   const setResolvedRows    = useTasStore(s => s.setResolvedRows);
   const setError           = useTasStore(s => s.setError);
@@ -39,6 +40,7 @@ export default function ReactivationReviewScreen() {
       setAbsentEmployees(result.absentActiveEmployees);
       setUsedFallbackHolidays(result.usedFallbackHolidays);
       setAvailablePeriods(result.availablePeriods ?? []);
+      setAvailableShifts(result.availableShifts ?? []);
 
       setResolvedRows(result.resolvedRows ?? []);
       const hasNeedsResolution = result.flaggedSessions.some(s => s.needsResolution);

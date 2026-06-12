@@ -20,14 +20,14 @@ function makeSession(overrides: Partial<TasSession> = {}): TasSession {
     date: '2026-03-15',
     scans: [],
     matchedShiftId: 'S1',
-    matchedShiftName: 'Turno Mañana',
+    assignedShiftId: 'S1',
+    assignedShiftName: 'Turno Mañana',
     effectiveStart: null,
     lastScan: null,
     workedMinutes: 0,
     workedHours: 0,
     needsResolution: true,
     flags: ['MISSING_ENTRY'],
-    consistentMismatch: false,
     ...overrides,
   };
 }
@@ -96,13 +96,6 @@ describe('VerificationScreen rendering', () => {
     useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
     render(<VerificationScreen />);
     expect(screen.getByText('15 mar 2026')).toBeInTheDocument();
-  });
-
-  it('renders shift name', () => {
-    useTasStore.getState().setFlaggedSessions([makeSession()]);
-    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
-    render(<VerificationScreen />);
-    expect(screen.getByText(/Turno Mañana/)).toBeInTheDocument();
   });
 
   it('renders flag badge', () => {
@@ -247,40 +240,6 @@ describe('VerificationScreen time inputs', () => {
   });
 });
 
-describe('VerificationScreen consistent mismatch banner', () => {
-  it('renders mismatch banner when consistentMismatch is true', () => {
-    useTasStore.getState().setFlaggedSessions([makeSession({ consistentMismatch: true })]);
-    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
-    render(<VerificationScreen />);
-    expect(screen.getByText(/¿Desea actualizar su turno asignado/i)).toBeInTheDocument();
-  });
-
-  it('does not render mismatch banner when consistentMismatch is false', () => {
-    useTasStore.getState().setFlaggedSessions([makeSession({ consistentMismatch: false })]);
-    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
-    render(<VerificationScreen />);
-    expect(screen.queryByText(/¿Desea actualizar su turno asignado/i)).not.toBeInTheDocument();
-  });
-
-  it('stores Sí decision in local component state', () => {
-    useTasStore.getState().setFlaggedSessions([makeSession({ consistentMismatch: true })]);
-    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
-    render(<VerificationScreen />);
-    const yesBtn = screen.getByRole('button', { name: /sí, actualizar turno/i });
-    fireEvent.click(yesBtn);
-    expect(yesBtn).toHaveClass('bg-amber-600');
-  });
-
-  it('stores No decision in local component state', () => {
-    useTasStore.getState().setFlaggedSessions([makeSession({ consistentMismatch: true })]);
-    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
-    render(<VerificationScreen />);
-    const noBtn = screen.getByRole('button', { name: /no, mantener/i });
-    fireEvent.click(noBtn);
-    expect(noBtn).toHaveClass('bg-surface-container');
-  });
-});
-
 describe('VerificationScreen submit', () => {
   it('Enviar button is disabled until all sessions confirmed', () => {
     useTasStore.getState().setFlaggedSessions([makeSession()]);
@@ -330,43 +289,6 @@ describe('VerificationScreen submit', () => {
     expect(mockSubmitTas).not.toHaveBeenCalled();
   });
 
-  it('includes updateShift in resolveVerification payload when mismatchChoice is update', async () => {
-    useTasStore.getState().setUploadToken('tok-1');
-    useTasStore.getState().setFlaggedSessions([
-      makeSession({ sessionId: 1, consistentMismatch: true, effectiveStart: '08:00:00', lastScan: '17:00:00' }),
-    ]);
-    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
-    mockResolveVerification.mockResolvedValue(mockResult);
-
-    render(<VerificationScreen />);
-    fireEvent.click(screen.getByRole('button', { name: /sí, actualizar turno/i }));
-    fireEvent.click(screen.getByRole('button', { name: /confirmar/i }));
-    fireEvent.click(screen.getByRole('button', { name: /enviar/i }));
-
-    await waitFor(() => expect(useTasStore.getState().tasView).toBe('review'));
-
-    const [, payload] = mockResolveVerification.mock.calls[0];
-    expect(payload[0].updateShift).toBe(true);
-  });
-
-  it('includes updateShift false in resolveVerification payload when mismatchChoice is keep', async () => {
-    useTasStore.getState().setUploadToken('tok-1');
-    useTasStore.getState().setFlaggedSessions([
-      makeSession({ sessionId: 1, consistentMismatch: true, effectiveStart: '08:00:00', lastScan: '17:00:00' }),
-    ]);
-    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
-    mockResolveVerification.mockResolvedValue(mockResult);
-
-    render(<VerificationScreen />);
-    fireEvent.click(screen.getByRole('button', { name: /no, mantener/i }));
-    fireEvent.click(screen.getByRole('button', { name: /confirmar/i }));
-    fireEvent.click(screen.getByRole('button', { name: /enviar/i }));
-
-    await waitFor(() => expect(useTasStore.getState().tasView).toBe('review'));
-
-    const [, payload] = mockResolveVerification.mock.calls[0];
-    expect(payload[0].updateShift).toBe(false);
-  });
 });
 
 describe('VerificationScreen period selector', () => {
@@ -449,6 +371,105 @@ describe('VerificationScreen period selector', () => {
     await waitFor(() => {
       expect(mockResolveVerification).toHaveBeenCalledWith('tok-1', expect.any(Array), p1);
     });
+  });
+});
+
+describe('VerificationScreen shift mismatch card', () => {
+  function mismatchSession(overrides: Partial<TasSession> = {}): TasSession {
+    return makeSession({
+      flags: ['SHIFT_MISMATCH'],
+      effectiveStart: '2026-03-10T07:03:00',
+      lastScan: '2026-03-10T15:05:00',
+      matchedShiftId: 'tarde',
+      matchedShiftName: 'Tarde',
+      assignedShiftId: 'manana',
+      assignedShiftName: 'Manana',
+      ...overrides,
+    });
+  }
+
+  beforeEach(() => {
+    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
+    useTasStore.getState().setFlaggedSessions([mismatchSession()]);
+  });
+
+  it('shows the assigned and matched shift confirmation message', () => {
+    render(<VerificationScreen />);
+    expect(screen.getByText(/Turno asignado: Manana/)).toBeInTheDocument();
+    expect(screen.getByText(/se aplicará Tarde/)).toBeInTheDocument();
+  });
+
+  it('renders scan pills when scans are present', () => {
+    useTasStore.getState().setFlaggedSessions([mismatchSession({ scans: ['07:03:00', '15:05:00'] })]);
+    render(<VerificationScreen />);
+    expect(screen.getByText('07:03')).toBeInTheDocument();
+    expect(screen.getByText('15:05')).toBeInTheDocument();
+  });
+
+  it('does not render Entrada/Salida inputs or Horas calculadas', () => {
+    render(<VerificationScreen />);
+    expect(screen.queryByLabelText('Entrada')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Salida')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Horas calculadas/)).not.toBeInTheDocument();
+  });
+
+  it('Confirmar is enabled by default', () => {
+    render(<VerificationScreen />);
+    expect(screen.getByRole('button', { name: /confirmar/i })).toBeEnabled();
+  });
+
+  it('confirming without choosing a different shift records the matched shift as accepted', () => {
+    render(<VerificationScreen />);
+    fireEvent.click(screen.getByRole('button', { name: /confirmar/i }));
+    expect(useTasStore.getState().shiftAcceptances[1]).toBe('tarde');
+  });
+
+  it('clicking "Elegir otro turno" reveals a shift select with Aplicar/Cancelar', () => {
+    render(<VerificationScreen />);
+    fireEvent.click(screen.getByRole('button', { name: /elegir otro turno/i }));
+    expect(screen.getByRole('combobox')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /aplicar/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /cancelar/i })).toBeInTheDocument();
+  });
+
+  it('Cancelar collapses the dropdown without changing the displayed shift', () => {
+    render(<VerificationScreen />);
+    fireEvent.click(screen.getByRole('button', { name: /elegir otro turno/i }));
+    fireEvent.click(screen.getByRole('button', { name: /cancelar/i }));
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
+    expect(screen.getByText(/se aplicará Tarde/)).toBeInTheDocument();
+  });
+
+  it('includes acceptedShiftId in resolveVerification payload on submit', async () => {
+    useTasStore.getState().setUploadToken('tok-1');
+    useTasStore.getState().setFlaggedSessions([mismatchSession()]);
+    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
+    mockResolveVerification.mockResolvedValue(mockResult);
+
+    render(<VerificationScreen />);
+    fireEvent.click(screen.getByRole('button', { name: /confirmar/i }));
+    fireEvent.click(screen.getByRole('button', { name: /enviar/i }));
+
+    await waitFor(() => expect(useTasStore.getState().tasView).toBe('review'));
+
+    const [, payload] = mockResolveVerification.mock.calls[0];
+    expect(payload[0]).toEqual({ sessionId: 1, acceptedShiftId: 'tarde' });
+  });
+
+  it('Aplicar updates the confirmation message and records the chosen shift on confirm', () => {
+    useTasStore.getState().setFlaggedSessions([mismatchSession()]);
+    useTasStore.getState().setAvailableShifts([
+      { id: 'tarde', name: 'Tarde', startTime: '15:00', endTime: '23:00' },
+      { id: 'manana', name: 'Manana', startTime: '07:00', endTime: '15:00' },
+    ]);
+    render(<VerificationScreen />);
+    fireEvent.click(screen.getByRole('button', { name: /elegir otro turno/i }));
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'manana' } });
+    fireEvent.click(screen.getByRole('button', { name: /aplicar/i }));
+    expect(screen.getByText(/se aplicará Manana/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /confirmar/i }));
+    expect(useTasStore.getState().shiftAcceptances[1]).toBe('manana');
   });
 });
 
