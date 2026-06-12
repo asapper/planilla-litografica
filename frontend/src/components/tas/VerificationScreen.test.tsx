@@ -595,6 +595,32 @@ describe('VerificationScreen same-day double group', () => {
     expect(useTasStore.getState().sameDayDoubleResolutions['E1|2026-03-15']).toBe(1);
   });
 
+  it('Enviar stays enabled after confirming the group while a non-"all" filter chip is active', () => {
+    useTasStore.getState().setFlaggedSessions([
+      doubleSession({ sessionId: 1, matchedShiftId: 'manana', matchedShiftName: 'Manana' }),
+      doubleSession({
+        sessionId: 2,
+        scans: ['2026-03-15T15:02:00', '2026-03-15T23:00:00'],
+        effectiveStart: '2026-03-15T15:02:00',
+        lastScan: '2026-03-15T23:00:00',
+        matchedShiftId: 'tarde',
+        matchedShiftName: 'Tarde',
+      }),
+      makeSession({ sessionId: 3, employeeId: 'E2', employeeName: 'Luis', flags: ['MISSING_ENTRY'], date: '2026-03-14' }),
+    ]);
+
+    render(<VerificationScreen />);
+
+    fireEvent.click(screen.getAllByRole('button', { name: /confirmar/i })[0]);
+    expect(useTasStore.getState().sameDayDoubleResolutions['E1|2026-03-15']).toBe('all');
+    expect(screen.getByText('1 por resolver')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /falta entrada/i }));
+
+    expect(screen.getByText('1 por resolver')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /enviar/i })).toBeDisabled();
+  });
+
   it('includes employeeId/date/keepSessionId in resolveVerification payload on submit', async () => {
     useTasStore.getState().setUploadToken('tok-1');
     mockResolveVerification.mockResolvedValue(mockResult);

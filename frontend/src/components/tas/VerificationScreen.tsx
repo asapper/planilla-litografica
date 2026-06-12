@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTasStore } from '../../tasStore';
 import { resolveVerification } from '../../tasApi';
 import type { TasResolution } from '../../tasApi';
@@ -205,6 +205,10 @@ function SameDayDoubleGroupCard({ sessions, confirmed, onConfirm }: SameDayDoubl
   const [choice, setChoice] = useState<number | 'all'>('all');
   const first = sessions[0];
 
+  useEffect(() => {
+    if (!confirmed) setChoice('all');
+  }, [confirmed]);
+
   if (confirmed) {
     return (
       <div className="border-l-4 border-green-500 bg-white rounded-shape-md px-4 py-3 mb-3 flex items-center gap-4 shadow-sm">
@@ -398,7 +402,7 @@ export default function VerificationScreen() {
     s => s.needsResolution && periodsEqual(getSessionPeriod(s.date), selectedPeriod),
   );
   const filtered = needsResolutionSessions.filter(s => sessionMatchesFilter(s, activeFilter));
-  const sameDayDoubleSessions = filtered.filter(s => s.flags.includes('SAME_DAY_DOUBLE'));
+  const sameDayDoubleSessions = needsResolutionSessions.filter(s => s.flags.includes('SAME_DAY_DOUBLE'));
   const shiftMismatchOnly = filtered.filter(
     s => !sameDayDoubleSessions.includes(s) && s.flags.length === 1 && s.flags[0] === 'SHIFT_MISMATCH',
   );
