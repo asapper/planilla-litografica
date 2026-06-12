@@ -178,6 +178,28 @@ describe('ReviewScreen accruesOvertime toggle', () => {
     expect(useTasStore.getState().resolvedRows).toEqual(rows);
   });
 
+  it('disables switches while a toggle request is in flight, then re-enables', async () => {
+    let resolveRecompute: (value: { uploadToken: string; resolvedRows: ResolvedRow[] }) => void;
+    mockUpdateAccruesOvertime.mockResolvedValue({
+      id: 'E1', code: 'E1', name: 'Ana López', shiftId: null, shiftName: null, active: true, accruesOvertime: false,
+    });
+    mockRecomputeTas.mockImplementation(() => new Promise(resolve => {
+      resolveRecompute = resolve;
+    }));
+
+    render(<ReviewScreen />);
+    const switches = screen.getAllByRole('switch');
+    fireEvent.click(switches[0]);
+
+    await waitFor(() => expect(switches[0]).toBeDisabled());
+    expect(switches[1]).toBeDisabled();
+
+    resolveRecompute!({ uploadToken: 'tok-1', resolvedRows: rows });
+
+    await waitFor(() => expect(switches[0]).not.toBeDisabled());
+    expect(switches[1]).not.toBeDisabled();
+  });
+
   it('shows session-expired messaging when recompute fails due to expired uploadToken', async () => {
     mockUpdateAccruesOvertime.mockResolvedValue({
       id: 'E1', code: 'E1', name: 'Ana López', shiftId: null, shiftName: null, active: true, accruesOvertime: false,

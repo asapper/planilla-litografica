@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useTasStore } from '../../tasStore';
 import { submitTas, recomputeTas } from '../../tasApi';
 import { updateAccruesOvertime } from '../../configApi';
@@ -10,6 +11,8 @@ export default function ReviewScreen() {
   const setTasView   = useTasStore(s => s.setTasView);
   const setJobId     = useTasStore(s => s.setJobId);
   const setError     = useTasStore(s => s.setError);
+
+  const [pendingToggleId, setPendingToggleId] = useState<string | null>(null);
 
   const handleSubmit = async () => {
     if (!uploadToken) return;
@@ -27,17 +30,22 @@ export default function ReviewScreen() {
   const handleAccruesOvertimeToggle = async (row: ResolvedRow) => {
     if (!uploadToken) return;
     const newAccruesOvertime = !row.accruesOvertime;
+    setPendingToggleId(row.codigoEmpleado);
     try {
-      await updateAccruesOvertime(row.codigoEmpleado, newAccruesOvertime);
-    } catch {
-      setError('No se pudo actualizar el acumulado de horas extra del empleado.');
-      return;
-    }
-    try {
-      const result = await recomputeTas(uploadToken);
-      setResolvedRows(result.resolvedRows);
-    } catch {
-      setError('La sesión de carga expiró. Vuelve a subir el archivo.');
+      try {
+        await updateAccruesOvertime(row.codigoEmpleado, newAccruesOvertime);
+      } catch {
+        setError('No se pudo actualizar el acumulado de horas extra del empleado.');
+        return;
+      }
+      try {
+        const result = await recomputeTas(uploadToken);
+        setResolvedRows(result.resolvedRows);
+      } catch {
+        setError('La sesión de carga expiró. Vuelve a subir el archivo.');
+      }
+    } finally {
+      setPendingToggleId(null);
     }
   };
 
@@ -88,7 +96,8 @@ export default function ReviewScreen() {
                     aria-checked={row.accruesOvertime}
                     aria-label={row.accruesOvertime ? `Desactivar acumulado de horas extra de ${row.nombreEmpleado}` : `Activar acumulado de horas extra de ${row.nombreEmpleado}`}
                     onClick={() => handleAccruesOvertimeToggle(row)}
-                    className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                    disabled={pendingToggleId !== null}
+                    className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                       row.accruesOvertime ? 'bg-green-500' : 'bg-gray-300'
                     }`}
                   >
