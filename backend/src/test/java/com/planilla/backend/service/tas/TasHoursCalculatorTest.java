@@ -182,12 +182,28 @@ class TasHoursCalculatorTest {
         TasSession s = session(date,
             LocalDateTime.of(2026, 3, 10, 15, 0)
         );
+        s.setLastScan(null);
 
         calculator.calculate(List.of(s), REPORT_START, REPORT_END);
 
         assertThat(s.getFlags()).contains(TasFlag.MISSING_ENTRY);
         assertThat(s.getLastScan()).isEqualTo(LocalDateTime.of(2026, 3, 10, 15, 0));
         assertThat(s.getEffectiveStart()).isNull();
+    }
+
+    @Test
+    void calculate_singleScanWithShiftMismatch_setsEffectiveStartAndLastScanToSameScan() {
+        LocalDate date = LocalDate.of(2026, 3, 10);
+        TasSession s = session(date,
+            LocalDateTime.of(2026, 3, 10, 10, 0)
+        );
+        s.setFlags(new ArrayList<>(List.of(TasFlag.SHIFT_MISMATCH)));
+
+        calculator.calculate(List.of(s), REPORT_START, REPORT_END);
+
+        assertThat(s.isNeedsResolution()).isTrue();
+        assertThat(s.getEffectiveStart()).isEqualTo(LocalDateTime.of(2026, 3, 10, 10, 0));
+        assertThat(s.getLastScan()).isEqualTo(LocalDateTime.of(2026, 3, 10, 10, 0));
     }
 
     @Test
