@@ -193,6 +193,7 @@ public class TasController {
         resp.put("flaggedSessions", remainingFlagged);
         resp.put("usedFallbackHolidays", state.isUsedFallbackHolidays());
         resp.put("availablePeriods", reportBuilder.computeAvailablePeriods(sessions));
+        resp.put("availableShifts", mapAvailableShifts(shifts));
         return ResponseEntity.ok(resp);
     }
 
@@ -302,6 +303,19 @@ public class TasController {
         return state;
     }
 
+    private List<Map<String, Object>> mapAvailableShifts(List<Map<String, Object>> shifts) {
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (Map<String, Object> shift : shifts) {
+            Map<String, Object> dto = new LinkedHashMap<>();
+            dto.put("id", shift.get("id"));
+            dto.put("name", shift.get("name"));
+            dto.put("startTime", shift.get("start_time"));
+            dto.put("endTime", shift.get("end_time"));
+            result.add(dto);
+        }
+        return result;
+    }
+
     private Map<String, Object> buildResponseBody(String token, TasUploadResult result) {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("uploadToken", token);
@@ -321,6 +335,7 @@ public class TasController {
                 : Collections.emptyList());
         body.put("availablePeriods", reportBuilder.computeAvailablePeriods(
                 result.getAllSessions() != null ? result.getAllSessions() : Collections.emptyList()));
+        body.put("availableShifts", mapAvailableShifts(shiftConfigService.getAllShifts()));
         return body;
     }
 }

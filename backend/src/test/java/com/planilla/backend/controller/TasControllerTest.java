@@ -103,6 +103,60 @@ class TasControllerTest {
            .andExpect(jsonPath("$.code").value("UPLOAD_FAILED"));
     }
 
+    @Test
+    void upload_includesAvailableShiftsField() throws Exception {
+        when(parserService.parse(any())).thenReturn(emptyParseResult());
+        when(uploadService.processScans(any(), any(), any())).thenReturn(emptyResult());
+
+        Map<String, Object> manana = new LinkedHashMap<>();
+        manana.put("id", "manana");
+        manana.put("name", "Manana");
+        manana.put("start_time", "07:00");
+        manana.put("end_time", "15:00");
+        when(shiftConfigService.getAllShifts()).thenReturn(List.of(manana));
+
+        MockMultipartFile file = new MockMultipartFile("file", "test.csv", "text/csv", "data".getBytes());
+
+        mvc.perform(multipart("/api/tas/upload").file(file))
+           .andExpect(status().isOk())
+           .andExpect(jsonPath("$.availableShifts[0].id").value("manana"))
+           .andExpect(jsonPath("$.availableShifts[0].name").value("Manana"))
+           .andExpect(jsonPath("$.availableShifts[0].startTime").value("07:00"))
+           .andExpect(jsonPath("$.availableShifts[0].endTime").value("15:00"));
+    }
+
+    @Test
+    void resolve_includesAvailableShiftsField() throws Exception {
+        when(parserService.parse(any())).thenReturn(emptyParseResult());
+        when(uploadService.processScans(any(), any(), any())).thenReturn(emptyResult());
+
+        MockMultipartFile file = new MockMultipartFile("file", "test.csv", "text/csv", "data".getBytes());
+        String uploadResponse = mvc.perform(multipart("/api/tas/upload").file(file))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        String token = (String) mapper.readValue(uploadResponse, Map.class).get("uploadToken");
+
+        Map<String, Object> manana = new LinkedHashMap<>();
+        manana.put("id", "manana");
+        manana.put("name", "Manana");
+        manana.put("start_time", "07:00");
+        manana.put("end_time", "15:00");
+        when(shiftConfigService.getAllShifts()).thenReturn(List.of(manana));
+        when(reportBuilder.build(any(), any(), any(), any(), any()))
+                .thenReturn(new TasReportBuilder.BuildResult(new ArrayList<>(), new LinkedHashMap<>()));
+
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("uploadToken", token);
+        body.put("resolutions", List.of());
+
+        mvc.perform(post("/api/tas/resolve")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(body)))
+           .andExpect(status().isOk())
+           .andExpect(jsonPath("$.availableShifts[0].id").value("manana"))
+           .andExpect(jsonPath("$.availableShifts[0].name").value("Manana"));
+    }
+
     // ── POST /api/tas/resolve ─────────────────────────────────────────────────
 
     @Test
