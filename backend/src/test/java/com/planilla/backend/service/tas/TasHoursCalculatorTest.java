@@ -458,6 +458,23 @@ class TasHoursCalculatorTest {
     }
 
     @Test
+    void recompute_computesWorkedHoursAndClassification() {
+        TasSession s = session(LocalDate.of(2026, 3, 10),
+            LocalDateTime.of(2026, 3, 10, 7, 3),
+            LocalDateTime.of(2026, 3, 10, 15, 5)
+        );
+
+        calculator.recompute(s, shiftConfigService.getAllShifts());
+
+        assertThat(s.getEffectiveStart()).isEqualTo(LocalDateTime.of(2026, 3, 10, 7, 0));
+        assertThat(s.getWorkedMinutes()).isEqualTo(485);
+        assertThat(s.getWorkedHours()).isEqualTo(8.0);
+        assertThat(s.getSimplesMinutes()).isEqualTo(5);
+        assertThat(s.getDoblesMinutes()).isEqualTo(0);
+        assertThat(s.getLastScan()).isEqualTo(LocalDateTime.of(2026, 3, 10, 15, 5));
+    }
+
+    @Test
     void calculate_crossMidnight_startsFriday_endsSaturday_noSpecialDay_normalSplit() {
         // Friday 2026-03-06 19:00 -> Saturday 2026-03-07 09:00 (noche shift, 14h worked, no break)
         LocalDate friday = LocalDate.of(2026, 3, 6);

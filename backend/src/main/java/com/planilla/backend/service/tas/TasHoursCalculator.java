@@ -56,6 +56,12 @@ public class TasHoursCalculator {
         }
     }
 
+    public void recompute(TasSession session, List<Map<String, Object>> shifts) {
+        int legalBreakAllowance = appConfigService.getLegalBreakAllowanceMinutes();
+        computeWorkedHours(session, shifts, legalBreakAllowance);
+        classifyHours(session, shifts);
+    }
+
     private void detectCutoffFlags(TasSession session, LocalDate reportStart, LocalDate reportEnd) {
         LocalDate sessionDate = session.getDate();
 
