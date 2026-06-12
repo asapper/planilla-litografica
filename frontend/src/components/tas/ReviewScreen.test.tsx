@@ -10,8 +10,8 @@ vi.mock('../../tasApi');
 const mockSubmitTas = vi.mocked(tasApi.submitTas);
 
 const rows: ResolvedRow[] = [
-  { codigoEmpleado: 'E1', nombreEmpleado: 'Ana López', diasNoLaborados: 0, horasExtrasSimples: 2, horasExtrasDobles: 0, mes: 3, anio: 2026, numeroDequincena: 1, diasTurnoAmbiguo: 0 },
-  { codigoEmpleado: 'E2', nombreEmpleado: 'Luis García', diasNoLaborados: 1, horasExtrasSimples: 0, horasExtrasDobles: 1, mes: 3, anio: 2026, numeroDequincena: 1, diasTurnoAmbiguo: 0 },
+  { codigoEmpleado: 'E1', nombreEmpleado: 'Ana López', diasNoLaborados: 0, horasExtrasSimples: 2, horasExtrasDobles: 0, mes: 3, anio: 2026, numeroDequincena: 1, diasTurnoAmbiguo: 0, accruesOvertime: true },
+  { codigoEmpleado: 'E2', nombreEmpleado: 'Luis García', diasNoLaborados: 1, horasExtrasSimples: 0, horasExtrasDobles: 1, mes: 3, anio: 2026, numeroDequincena: 1, diasTurnoAmbiguo: 0, accruesOvertime: true },
 ];
 
 beforeEach(() => {
@@ -40,7 +40,7 @@ describe('ReviewScreen rendering', () => {
 
   it('shows the ambiguous-shift badge when diasTurnoAmbiguo > 0', () => {
     useTasStore.getState().setResolvedRows([
-      { ...rows[0], diasTurnoAmbiguo: 2 },
+      { ...rows[0], diasTurnoAmbiguo: 2, accruesOvertime: true },
       rows[1],
     ]);
     render(<ReviewScreen />);

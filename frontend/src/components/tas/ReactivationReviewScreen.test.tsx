@@ -124,7 +124,7 @@ describe('ReactivationReviewScreen continue', () => {
   it('advances to review when no sessions need resolution', async () => {
     setup();
     mockSubmitInactiveReview.mockResolvedValue({ ...mockResult, resolvedRows: [
-      { codigoEmpleado: 'E1', nombreEmpleado: 'Ana', diasNoLaborados: 0, horasExtrasSimples: 0, horasExtrasDobles: 0, mes: 3, anio: 2026, numeroDequincena: 1, diasTurnoAmbiguo: 0 },
+      { codigoEmpleado: 'E1', nombreEmpleado: 'Ana', diasNoLaborados: 0, horasExtrasSimples: 0, horasExtrasDobles: 0, mes: 3, anio: 2026, numeroDequincena: 1, diasTurnoAmbiguo: 0, accruesOvertime: true },
     ] });
     render(<ReactivationReviewScreen />);
     fireEvent.click(screen.getByRole('button', { name: /continuar/i }));

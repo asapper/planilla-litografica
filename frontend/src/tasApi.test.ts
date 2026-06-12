@@ -1,5 +1,5 @@
 import { vi, describe, it, expect, beforeEach } from 'vitest';
-import type { TasUploadResult, AbsentEmployee, TasPeriod } from './tasTypes';
+import type { TasUploadResult, AbsentEmployee, TasPeriod, ResolvedRow } from './tasTypes';
 
 const mockPost = vi.hoisted(() => vi.fn());
 const mockGet  = vi.hoisted(() => vi.fn());
@@ -17,6 +17,7 @@ const {
   submitTas,
   getAbsentReview,
   setAbsentEmployeesActive,
+  recomputeTas,
 } = await import('./tasApi');
 
 const mockResult: TasUploadResult = {
@@ -184,5 +185,26 @@ describe('setAbsentEmployeesActive', () => {
   it('propagates errors', async () => {
     mockPost.mockRejectedValue(new Error('forbidden'));
     await expect(setAbsentEmployeesActive('tok', [], false)).rejects.toThrow('forbidden');
+  });
+});
+
+// -----------------------------------------------------------------
+// recomputeTas
+// -----------------------------------------------------------------
+
+describe('recomputeTas', () => {
+  it('posts to /tas/recompute/:token and returns resolvedRows', async () => {
+    const resolvedRows: ResolvedRow[] = [
+      { codigoEmpleado: 'E1', nombreEmpleado: 'Ana', diasNoLaborados: 0, horasExtrasSimples: 2, horasExtrasDobles: 0, mes: 3, anio: 2026, numeroDequincena: 1, diasTurnoAmbiguo: 0, accruesOvertime: true },
+    ];
+    mockPost.mockResolvedValue({ data: { uploadToken: 'tok-abc', resolvedRows } });
+    const result = await recomputeTas('tok-abc');
+    expect(mockPost).toHaveBeenCalledWith('/tas/recompute/tok-abc');
+    expect(result).toEqual({ uploadToken: 'tok-abc', resolvedRows });
+  });
+
+  it('propagates errors', async () => {
+    mockPost.mockRejectedValue(new Error('invalid token'));
+    await expect(recomputeTas('tok')).rejects.toThrow('invalid token');
   });
 });

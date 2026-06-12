@@ -309,7 +309,7 @@ describe('setResolvedRows', () => {
 
   it('stores the rows', () => {
     const rows = [
-      { codigoEmpleado: 'E1', nombreEmpleado: 'Ana', diasNoLaborados: 0, horasExtrasSimples: 2, horasExtrasDobles: 0, mes: 3, anio: 2026, numeroDequincena: 1, diasTurnoAmbiguo: 0 },
+      { codigoEmpleado: 'E1', nombreEmpleado: 'Ana', diasNoLaborados: 0, horasExtrasSimples: 2, horasExtrasDobles: 0, mes: 3, anio: 2026, numeroDequincena: 1, diasTurnoAmbiguo: 0, accruesOvertime: true },
     ];
     useTasStore.getState().setResolvedRows(rows);
     expect(useTasStore.getState().resolvedRows).toEqual(rows);
@@ -398,7 +398,7 @@ describe('resetTas', () => {
     useTasStore.getState().setError('err');
     useTasStore.getState().setResolvedSession(1, { resolvedStart: '08:00', resolvedEnd: '17:00' });
     useTasStore.getState().setResolvedRows([
-      { codigoEmpleado: 'E1', nombreEmpleado: 'Ana', diasNoLaborados: 0, horasExtrasSimples: 0, horasExtrasDobles: 0, mes: 3, anio: 2026, numeroDequincena: 1, diasTurnoAmbiguo: 0 },
+      { codigoEmpleado: 'E1', nombreEmpleado: 'Ana', diasNoLaborados: 0, horasExtrasSimples: 0, horasExtrasDobles: 0, mes: 3, anio: 2026, numeroDequincena: 1, diasTurnoAmbiguo: 0, accruesOvertime: true },
     ]);
     useTasStore.getState().setAvailablePeriods([{ anio: 2026, mes: 4, numeroDequincena: 1 }]);
 
