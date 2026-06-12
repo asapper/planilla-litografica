@@ -418,6 +418,12 @@ describe('VerificationScreen shift mismatch card', () => {
     expect(screen.getByRole('button', { name: /confirmar/i })).toBeEnabled();
   });
 
+  it('disables Confirmar when there is no matched shift and no shifts available', () => {
+    useTasStore.getState().setFlaggedSessions([mismatchSession({ matchedShiftId: null, matchedShiftName: null })]);
+    render(<VerificationScreen />);
+    expect(screen.getByRole('button', { name: /confirmar/i })).toBeDisabled();
+  });
+
   it('confirming without choosing a different shift records the matched shift as accepted', () => {
     render(<VerificationScreen />);
     fireEvent.click(screen.getByRole('button', { name: /confirmar/i }));

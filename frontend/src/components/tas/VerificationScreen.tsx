@@ -185,8 +185,9 @@ function ShiftMismatchCard({ session, availableShifts, confirmed, onConfirm }: S
       )}
 
       <button
+        disabled={!selectedShiftId}
         onClick={() => onConfirm(selectedShiftId)}
-        className="m3-btn-filled"
+        className="m3-btn-filled disabled:opacity-40 disabled:cursor-not-allowed"
       >
         Confirmar
       </button>
