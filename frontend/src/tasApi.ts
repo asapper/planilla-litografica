@@ -1,6 +1,11 @@
 import axios from 'axios';
 import type { TasUploadResult, TasResolveResult, AbsentEmployee, TasPeriod, ResolvedRow } from './tasTypes';
 
+export type TasResolution =
+  | { sessionId: number; resolvedStart: string; resolvedEnd: string }
+  | { sessionId: number; acceptedShiftId: string }
+  | { employeeId: string; date: string; keepSessionId: number | 'all' };
+
 const client = axios.create({
   baseURL: 'http://localhost:49301/api',
   timeout: 30_000,
@@ -21,7 +26,7 @@ export const submitInactiveReview = (
 
 export const resolveVerification = (
   token: string,
-  resolutions: { sessionId: number; resolvedStart: string; resolvedEnd: string; updateShift?: boolean }[],
+  resolutions: TasResolution[],
   period?: TasPeriod | null,
 ): Promise<TasResolveResult> => {
   const body: Record<string, unknown> = { uploadToken: token, resolutions };

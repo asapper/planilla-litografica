@@ -12,6 +12,7 @@ const mockSubmitTas = vi.mocked(tasApi.submitTas);
 
 const mockResult: TasUploadResult = {
   uploadToken: 'tok-2',
+  availableShifts: [],
   flaggedSessions: [],
   inactiveEmployeesFound: [],
   absentActiveEmployees: [],
@@ -111,8 +112,9 @@ describe('ReactivationReviewScreen continue', () => {
         {
           sessionId: 1, employeeId: 'E1', employeeName: 'Ana', date: '2026-03-01',
           scans: [], matchedShiftId: null, matchedShiftName: null,
+          assignedShiftId: null, assignedShiftName: null,
           effectiveStart: null, lastScan: null, workedMinutes: 0, workedHours: 0,
-          needsResolution: true, flags: ['MISSING_ENTRY'], consistentMismatch: false,
+          needsResolution: true, flags: ['MISSING_ENTRY'],
         },
       ],
     });

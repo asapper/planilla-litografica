@@ -11,13 +11,14 @@ function makeSession(id: number): TasSession {
     scans: [],
     matchedShiftId: null,
     matchedShiftName: null,
+    assignedShiftId: null,
+    assignedShiftName: null,
     effectiveStart: null,
     lastScan: null,
     workedMinutes: 0,
     workedHours: 0,
     needsResolution: true,
     flags: ['MISSING_ENTRY'],
-    consistentMismatch: false,
   };
 }
 
@@ -166,9 +167,23 @@ describe('setResolvedSession', () => {
     expect(useTasStore.getState().resolvedSessions[1].resolvedStart).toBe('09:00');
   });
 
-  it('stores updateShift flag when provided', () => {
-    useTasStore.getState().setResolvedSession(3, { resolvedStart: '08:00', resolvedEnd: '17:00', updateShift: true });
-    expect(useTasStore.getState().resolvedSessions[3].updateShift).toBe(true);
+});
+
+// -----------------------------------------------------------------
+// setShiftAcceptance / setSameDayDoubleResolution
+// -----------------------------------------------------------------
+
+describe('setShiftAcceptance', () => {
+  it('stores the chosen shift id by session id', () => {
+    useTasStore.getState().setShiftAcceptance(7, 'tarde');
+    expect(useTasStore.getState().shiftAcceptances[7]).toBe('tarde');
+  });
+});
+
+describe('setSameDayDoubleResolution', () => {
+  it('stores the keep choice by group key', () => {
+    useTasStore.getState().setSameDayDoubleResolution('100|2026-03-10', 'all');
+    expect(useTasStore.getState().sameDayDoubleResolutions['100|2026-03-10']).toBe('all');
   });
 });
 
@@ -187,6 +202,14 @@ describe('clearResolvedSessions', () => {
   it('is idempotent when already empty', () => {
     useTasStore.getState().clearResolvedSessions();
     expect(useTasStore.getState().resolvedSessions).toEqual({});
+  });
+
+  it('clears shiftAcceptances and sameDayDoubleResolutions too', () => {
+    useTasStore.getState().setShiftAcceptance(7, 'tarde');
+    useTasStore.getState().setSameDayDoubleResolution('100|2026-03-10', 'all');
+    useTasStore.getState().clearResolvedSessions();
+    expect(useTasStore.getState().shiftAcceptances).toEqual({});
+    expect(useTasStore.getState().sameDayDoubleResolutions).toEqual({});
   });
 });
 

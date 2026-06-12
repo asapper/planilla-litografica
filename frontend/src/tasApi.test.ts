@@ -22,6 +22,7 @@ const {
 
 const mockResult: TasUploadResult = {
   uploadToken: 'tok-abc',
+  availableShifts: [],
   flaggedSessions: [],
   inactiveEmployeesFound: [],
   absentActiveEmployees: [],

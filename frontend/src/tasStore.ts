@@ -1,10 +1,9 @@
 import { create } from 'zustand';
-import type { TasView, TasSession, InactiveEmployee, InactiveDecision, AbsentEmployee, ResolvedRow, TasPeriod } from './tasTypes';
+import type { TasView, TasSession, InactiveEmployee, InactiveDecision, AbsentEmployee, ResolvedRow, TasPeriod, ShiftOption } from './tasTypes';
 
 export interface ResolvedSessionEntry {
   resolvedStart: string;
   resolvedEnd: string;
-  updateShift?: boolean;
 }
 
 interface TasStore {
@@ -13,6 +12,8 @@ interface TasStore {
   processingMessage: string;
   flaggedSessions: TasSession[];
   resolvedSessions: Record<number, ResolvedSessionEntry>;
+  shiftAcceptances: Record<number, string>;
+  sameDayDoubleResolutions: Record<string, number | 'all'>;
   resolvedRowCount: number;
   resolvedRows: ResolvedRow[];
   availablePeriods: TasPeriod[];
@@ -31,8 +32,12 @@ interface TasStore {
   setFlaggedSessions: (sessions: TasSession[]) => void;
   setResolvedSession: (id: number, entry: ResolvedSessionEntry) => void;
   clearResolvedSessions: () => void;
+  setShiftAcceptance: (sessionId: number, acceptedShiftId: string) => void;
+  setSameDayDoubleResolution: (groupKey: string, keepSessionId: number | 'all') => void;
   setResolvedRowCount: (count: number) => void;
   setResolvedRows: (rows: ResolvedRow[]) => void;
+  availableShifts: ShiftOption[];
+  setAvailableShifts: (shifts: ShiftOption[]) => void;
   setAvailablePeriods: (periods: TasPeriod[]) => void;
   setSelectedPeriod: (period: TasPeriod | null) => void;
   setInactiveEmployees: (employees: InactiveEmployee[]) => void;
@@ -51,8 +56,11 @@ const initialState = {
   processingMessage: '',
   flaggedSessions: [],
   resolvedSessions: {},
+  shiftAcceptances: {} as Record<number, string>,
+  sameDayDoubleResolutions: {} as Record<string, number | 'all'>,
   resolvedRowCount: 0,
   resolvedRows: [] as ResolvedRow[],
+  availableShifts: [] as ShiftOption[],
   availablePeriods: [] as TasPeriod[],
   selectedPeriod: null as TasPeriod | null,
   inactiveEmployees: [],
@@ -74,9 +82,16 @@ export const useTasStore = create<TasStore>(set => ({
   setResolvedSession: (id, entry) => set(s => ({
     resolvedSessions: { ...s.resolvedSessions, [id]: entry },
   })),
-  clearResolvedSessions: () => set({ resolvedSessions: {} }),
+  clearResolvedSessions: () => set({ resolvedSessions: {}, shiftAcceptances: {}, sameDayDoubleResolutions: {} }),
+  setShiftAcceptance: (sessionId, acceptedShiftId) => set(s => ({
+    shiftAcceptances: { ...s.shiftAcceptances, [sessionId]: acceptedShiftId },
+  })),
+  setSameDayDoubleResolution: (groupKey, keepSessionId) => set(s => ({
+    sameDayDoubleResolutions: { ...s.sameDayDoubleResolutions, [groupKey]: keepSessionId },
+  })),
   setResolvedRowCount: (count) => set({ resolvedRowCount: count }),
   setResolvedRows: (rows) => set({ resolvedRows: rows }),
+  setAvailableShifts: (shifts) => set({ availableShifts: shifts }),
   setAvailablePeriods: (periods) => set(s => {
     const stillValid = s.selectedPeriod !== null && periods.some(
       p => p.anio === s.selectedPeriod!.anio
