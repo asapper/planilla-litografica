@@ -347,4 +347,41 @@ class TasSessionGrouperTest {
         assertThat(sessions.get(1).getScans()).containsExactly(LocalDateTime.of(2026, 3, 11, 1, 0));
         assertThat(sessions.get(1).getFlags()).contains(TasFlag.AMBIGUOUS_SHIFT);
     }
+
+    @Test
+    void openSession_setsAssignedAndMatchedShiftNames() {
+        // Employee assigned to Manana, but scans at 15:00 match Tarde -> SHIFT_MISMATCH
+        List<TasScanRecord> scans = List.of(
+                scan("E1", LocalDateTime.of(2026, 3, 10, 15, 3)),
+                scan("E1", LocalDateTime.of(2026, 3, 10, 23, 5))
+        );
+
+        List<TasSession> sessions = grouper.group(scans, shifts, assignManana("E1"));
+
+        assertThat(sessions).hasSize(1);
+        TasSession session = sessions.get(0);
+        assertThat(session.getFlags()).contains(TasFlag.SHIFT_MISMATCH);
+        assertThat(session.getAssignedShiftId()).isEqualTo(MANANA_ID);
+        assertThat(session.getAssignedShiftName()).isEqualTo("Manana");
+        assertThat(session.getMatchedShiftId()).isEqualTo(TARDE_ID);
+        assertThat(session.getMatchedShiftName()).isEqualTo("Tarde");
+    }
+
+    @Test
+    void openSession_noMismatch_assignedAndMatchedShiftNamesMatch() {
+        List<TasScanRecord> scans = List.of(
+                scan("E1", LocalDateTime.of(2026, 3, 10, 7, 3)),
+                scan("E1", LocalDateTime.of(2026, 3, 10, 14, 55))
+        );
+
+        List<TasSession> sessions = grouper.group(scans, shifts, assignManana("E1"));
+
+        assertThat(sessions).hasSize(1);
+        TasSession session = sessions.get(0);
+        assertThat(session.getFlags()).doesNotContain(TasFlag.SHIFT_MISMATCH);
+        assertThat(session.getAssignedShiftId()).isEqualTo(MANANA_ID);
+        assertThat(session.getAssignedShiftName()).isEqualTo("Manana");
+        assertThat(session.getMatchedShiftId()).isEqualTo(MANANA_ID);
+        assertThat(session.getMatchedShiftName()).isEqualTo("Manana");
+    }
 }

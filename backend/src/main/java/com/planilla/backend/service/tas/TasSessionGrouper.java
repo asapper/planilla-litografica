@@ -223,6 +223,9 @@ public class TasSessionGrouper {
 
         String openerShiftId = getShiftId(openerShift);
         session.setMatchedShiftId(openerShiftId);
+        session.setMatchedShiftName(openerShift != null ? (String) openerShift.get("name") : null);
+        session.setAssignedShiftId(getShiftId(assignedShift));
+        session.setAssignedShiftName(assignedShift != null ? (String) assignedShift.get("name") : null);
 
         if (!openerShift.equals(assignedShift)) {
             session.getFlags().add(TasFlag.SHIFT_MISMATCH);
