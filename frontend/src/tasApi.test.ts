@@ -7,6 +7,7 @@ const mockGet  = vi.hoisted(() => vi.fn());
 vi.mock('axios', () => ({
   default: {
     create: vi.fn(() => ({ post: mockPost, get: mockGet })),
+    isAxiosError: (err: unknown): boolean => !!(err as { isAxiosError?: boolean })?.isAxiosError,
   },
 }));
 
@@ -55,6 +56,26 @@ describe('uploadTasFile', () => {
     const file = new File([''], 'bad.csv');
     await expect(uploadTasFile(file)).rejects.toThrow('network error');
   });
+
+  it('resolves with inactive employees data on 409 response', async () => {
+    const inactiveEmployeesFound = [{ employeeId: 'E1', employeeName: 'Juan Perez' }];
+    mockPost.mockRejectedValue({
+      isAxiosError: true,
+      response: { status: 409, data: { uploadToken: 'tok-409', inactiveEmployeesFound, warnings: ['w1'] } },
+    });
+    const file = new File([''], 'tas.csv');
+    const result = await uploadTasFile(file);
+    expect(result).toEqual({
+      uploadToken: 'tok-409',
+      resolvedRows: [],
+      flaggedSessions: [],
+      inactiveEmployeesFound,
+      absentActiveEmployees: [],
+      usedFallbackHolidays: false,
+      warnings: ['w1'],
+      availablePeriods: [],
+    });
+  });
 });
 
 // -----------------------------------------------------------------
@@ -76,6 +97,27 @@ describe('submitInactiveReview', () => {
   it('propagates errors', async () => {
     mockPost.mockRejectedValue(new Error('timeout'));
     await expect(submitInactiveReview('tok', [], [])).rejects.toThrow('timeout');
+  });
+
+  it('resolves with inactive employees data on 409 response', async () => {
+    const inactiveEmployeesFound = [{ employeeId: 'E2', employeeName: 'Maria Lopez' }];
+    mockPost.mockRejectedValue({
+      isAxiosError: true,
+      response: { status: 409, data: { uploadToken: 'tok-abc', inactiveEmployeesFound, warnings: [] } },
+    });
+    const result = await submitInactiveReview('tok-abc', [], []);
+    expect(result.inactiveEmployeesFound).toEqual(inactiveEmployeesFound);
+    expect(result.uploadToken).toBe('tok-abc');
+  });
+
+  it('defaults warnings to empty array when omitted from 409 response', async () => {
+    const inactiveEmployeesFound = [{ employeeId: 'E2', employeeName: 'Maria Lopez' }];
+    mockPost.mockRejectedValue({
+      isAxiosError: true,
+      response: { status: 409, data: { uploadToken: 'tok-abc', inactiveEmployeesFound } },
+    });
+    const result = await submitInactiveReview('tok-abc', [], []);
+    expect(result.warnings).toEqual([]);
   });
 });
 
