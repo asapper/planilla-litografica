@@ -47,6 +47,7 @@ public class TasHoursCalculator {
                 computeWorkedHours(session, shifts, legalBreakAllowance);
                 classifyHours(session, shifts);
             } else {
+                setRawScanBounds(session);
                 session.setWorkedMinutes(0);
                 session.setWorkedHours(0.0);
                 session.setSimplesMinutes(0);
@@ -148,6 +149,31 @@ public class TasHoursCalculator {
         session.setWorkedMinutes((int) workedMinutes);
         session.setWorkedHours(roundToHalfHour((int) workedMinutes));
         session.setLastScan(lastScanDt);
+    }
+
+    private void setRawScanBounds(TasSession session) {
+        List<LocalDateTime> scans = session.getScans();
+        if (scans == null || scans.isEmpty()) return;
+
+        LocalDateTime first = scans.get(0);
+        LocalDateTime last  = scans.get(scans.size() - 1);
+        boolean missingEntry = session.getFlags() != null && session.getFlags().contains(TasFlag.MISSING_ENTRY);
+        boolean missingExit  = session.getFlags() != null && session.getFlags().contains(TasFlag.MISSING_EXIT);
+
+        if (scans.size() == 1) {
+            if (missingEntry && !missingExit) {
+                session.setLastScan(first);
+            } else if (missingExit && !missingEntry) {
+                session.setEffectiveStart(first);
+            } else {
+                session.setEffectiveStart(first);
+                session.setLastScan(first);
+            }
+            return;
+        }
+
+        session.setEffectiveStart(first);
+        session.setLastScan(last);
     }
 
     public static double roundToHalfHour(int minutes) {

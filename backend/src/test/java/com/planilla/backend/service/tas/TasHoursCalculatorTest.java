@@ -162,6 +162,50 @@ class TasHoursCalculatorTest {
     }
 
     @Test
+    void calculate_missingExitFlag_setsEffectiveStartFromFirstScan() {
+        LocalDate date = LocalDate.of(2026, 3, 10);
+        TasSession s = session(date,
+            LocalDateTime.of(2026, 3, 10, 7, 0),
+            LocalDateTime.of(2026, 3, 10, 13, 0)
+        );
+
+        calculator.calculate(List.of(s), REPORT_START, REPORT_END);
+
+        assertThat(s.getFlags()).contains(TasFlag.MISSING_EXIT);
+        assertThat(s.getEffectiveStart()).isEqualTo(LocalDateTime.of(2026, 3, 10, 7, 0));
+        assertThat(s.getLastScan()).isEqualTo(LocalDateTime.of(2026, 3, 10, 13, 0));
+    }
+
+    @Test
+    void calculate_missingEntryWithOnlyExitScan_setsLastScanNoEffectiveStart() {
+        LocalDate date = LocalDate.of(2026, 3, 10);
+        TasSession s = session(date,
+            LocalDateTime.of(2026, 3, 10, 15, 0)
+        );
+
+        calculator.calculate(List.of(s), REPORT_START, REPORT_END);
+
+        assertThat(s.getFlags()).contains(TasFlag.MISSING_ENTRY);
+        assertThat(s.getLastScan()).isEqualTo(LocalDateTime.of(2026, 3, 10, 15, 0));
+        assertThat(s.getEffectiveStart()).isNull();
+    }
+
+    @Test
+    void calculate_missingExitWithOnlyEntryScan_setsEffectiveStartNoLastScan() {
+        LocalDate date = LocalDate.of(2026, 3, 10);
+        TasSession s = session(date,
+            LocalDateTime.of(2026, 3, 10, 7, 0)
+        );
+        s.setLastScan(null);
+
+        calculator.calculate(List.of(s), REPORT_START, REPORT_END);
+
+        assertThat(s.getFlags()).contains(TasFlag.MISSING_EXIT);
+        assertThat(s.getEffectiveStart()).isEqualTo(LocalDateTime.of(2026, 3, 10, 7, 0));
+        assertThat(s.getLastScan()).isNull();
+    }
+
+    @Test
     void calculate_missingEntryFlag_setsNeedsResolution() {
         LocalDate date = LocalDate.of(2026, 3, 10);
         TasSession s = session(date,
