@@ -47,6 +47,35 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
+describe('toHHMM via flagLabel rendering', () => {
+  it('extracts HH:MM from a full ISO datetime string', () => {
+    useTasStore.getState().setFlaggedSessions([
+      makeSession({ flags: ['MISSING_ENTRY'], lastScan: '2026-03-10T15:10:00' }),
+    ]);
+    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
+    render(<VerificationScreen />);
+    expect(screen.getByText(/Salida 15:10/)).toBeInTheDocument();
+  });
+
+  it('extracts HH:MM from a plain HH:MM:SS string', () => {
+    useTasStore.getState().setFlaggedSessions([
+      makeSession({ flags: ['MISSING_ENTRY'], lastScan: '15:10:00' }),
+    ]);
+    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
+    render(<VerificationScreen />);
+    expect(screen.getByText(/Salida 15:10/)).toBeInTheDocument();
+  });
+
+  it('returns empty string for null', () => {
+    useTasStore.getState().setFlaggedSessions([
+      makeSession({ flags: ['MISSING_ENTRY'], lastScan: null }),
+    ]);
+    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
+    render(<VerificationScreen />);
+    expect(screen.getByText('Falta entrada')).toBeInTheDocument();
+  });
+});
+
 describe('VerificationScreen rendering', () => {
   it('renders the heading', () => {
     useTasStore.getState().setFlaggedSessions([makeSession()]);
