@@ -6,27 +6,10 @@ const client = axios.create({
   timeout: 30_000,
 });
 
-const withInactiveEmployeesFallback = (err: unknown): TasUploadResult => {
-  if (axios.isAxiosError(err) && err.response?.status === 409) {
-    const data = err.response.data;
-    return {
-      uploadToken: data.uploadToken,
-      resolvedRows: [],
-      flaggedSessions: [],
-      inactiveEmployeesFound: data.inactiveEmployeesFound,
-      absentActiveEmployees: [],
-      usedFallbackHolidays: false,
-      warnings: data.warnings ?? [],
-      availablePeriods: [],
-    };
-  }
-  throw err;
-};
-
 export const uploadTasFile = (file: File): Promise<TasUploadResult> => {
   const form = new FormData();
   form.append('file', file);
-  return client.post<TasUploadResult>('/tas/upload', form).then(r => r.data).catch(withInactiveEmployeesFallback);
+  return client.post<TasUploadResult>('/tas/upload', form).then(r => r.data);
 };
 
 export const submitInactiveReview = (
@@ -34,9 +17,7 @@ export const submitInactiveReview = (
   reactivate: string[],
   ignore: string[],
 ): Promise<TasUploadResult> =>
-  client.post<TasUploadResult>('/tas/inactive-review', { uploadToken: token, reactivate, ignore })
-    .then(r => r.data)
-    .catch(withInactiveEmployeesFallback);
+  client.post<TasUploadResult>('/tas/inactive-review', { uploadToken: token, reactivate, ignore }).then(r => r.data);
 
 export const resolveVerification = (
   token: string,

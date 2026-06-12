@@ -65,11 +65,7 @@ public class TasController {
                 state.setIgnoredEmployeeIds(new HashSet<>());
                 stateStore.put(token, state);
 
-                Map<String, Object> body = new LinkedHashMap<>();
-                body.put("uploadToken", token);
-                body.put("inactiveEmployeesFound", result.getInactiveEmployeesFound());
-                body.put("warnings", result.getWarnings());
-                return ResponseEntity.status(409).body(body);
+                return ResponseEntity.ok(buildResponseBody(token, result));
             }
 
             TasUploadState state = buildState(token, result, parseResult.scans, Collections.emptySet());
@@ -114,11 +110,7 @@ public class TasController {
 
         if (result.getInactiveEmployeesFound() != null && !result.getInactiveEmployeesFound().isEmpty()) {
             existing.setIgnoredEmployeeIds(ignoredIds);
-            Map<String, Object> resp = new LinkedHashMap<>();
-            resp.put("uploadToken", token);
-            resp.put("inactiveEmployeesFound", result.getInactiveEmployeesFound());
-            resp.put("warnings", result.getWarnings());
-            return ResponseEntity.status(409).body(resp);
+            return ResponseEntity.ok(buildResponseBody(token, result));
         }
 
         TasUploadState newState = buildState(token, result, allScans, ignoredIds);
@@ -313,14 +305,20 @@ public class TasController {
     private Map<String, Object> buildResponseBody(String token, TasUploadResult result) {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("uploadToken", token);
-        body.put("resolvedRows", result.getResolvedRows());
-        body.put("flaggedSessions", result.getFlaggedSessions());
+        body.put("resolvedRows", result.getResolvedRows() != null
+                ? result.getResolvedRows()
+                : Collections.emptyList());
+        body.put("flaggedSessions", result.getFlaggedSessions() != null
+                ? result.getFlaggedSessions()
+                : Collections.emptyList());
         body.put("inactiveEmployeesFound", result.getInactiveEmployeesFound() != null
                 ? result.getInactiveEmployeesFound()
                 : Collections.emptyList());
         body.put("warnings", result.getWarnings());
         body.put("usedFallbackHolidays", result.isUsedFallbackHolidays());
-        body.put("absentActiveEmployees", result.getAbsentActiveEmployees());
+        body.put("absentActiveEmployees", result.getAbsentActiveEmployees() != null
+                ? result.getAbsentActiveEmployees()
+                : Collections.emptyList());
         body.put("availablePeriods", reportBuilder.computeAvailablePeriods(
                 result.getAllSessions() != null ? result.getAllSessions() : Collections.emptyList()));
         return body;

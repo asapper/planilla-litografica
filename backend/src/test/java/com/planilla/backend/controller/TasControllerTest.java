@@ -72,7 +72,7 @@ class TasControllerTest {
     }
 
     @Test
-    void upload_inactiveEmployeesFound_returns409() throws Exception {
+    void upload_inactiveEmployeesFound_returns200WithInactiveEmployees() throws Exception {
         TasUploadResult result = new TasUploadResult();
         com.planilla.backend.model.tas.TasInactiveEmployee inactive = new com.planilla.backend.model.tas.TasInactiveEmployee();
         inactive.setEmployeeId("100");
@@ -86,8 +86,9 @@ class TasControllerTest {
         MockMultipartFile file = new MockMultipartFile("file", "test.csv", "text/csv", "data".getBytes());
 
         mvc.perform(multipart("/api/tas/upload").file(file))
-           .andExpect(status().isConflict())
+           .andExpect(status().isOk())
            .andExpect(jsonPath("$.inactiveEmployeesFound").isArray())
+           .andExpect(jsonPath("$.inactiveEmployeesFound").isNotEmpty())
            .andExpect(jsonPath("$.uploadToken").isNotEmpty());
     }
 
