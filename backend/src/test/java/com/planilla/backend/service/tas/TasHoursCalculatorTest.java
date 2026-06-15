@@ -40,9 +40,9 @@ class TasHoursCalculatorTest {
         mananaShift = new LinkedHashMap<>();
         mananaShift.put("id", "manana");
         mananaShift.put("name", "Manana");
-        mananaShift.put("start_time", "07:00");
-        mananaShift.put("end_time", "15:00");
-        mananaShift.put("cross_midnight", false);
+        mananaShift.put("startTime", "07:00");
+        mananaShift.put("endTime", "15:00");
+        mananaShift.put("crossMidnight", false);
 
         when(appConfigService.getLegalBreakAllowanceMinutes()).thenReturn(45);
         when(shiftConfigService.getAllShifts()).thenReturn(List.of(mananaShift));
@@ -247,9 +247,9 @@ class TasHoursCalculatorTest {
         Map<String, Object> nocheShift = new LinkedHashMap<>();
         nocheShift.put("id", "noche");
         nocheShift.put("name", "Noche");
-        nocheShift.put("start_time", "19:00");
-        nocheShift.put("end_time", "07:00");
-        nocheShift.put("cross_midnight", true);
+        nocheShift.put("startTime", "19:00");
+        nocheShift.put("endTime", "07:00");
+        nocheShift.put("crossMidnight", true);
         s.setMatchedShiftId("noche");
 
         when(shiftConfigService.getAllShifts()).thenReturn(List.of(nocheShift));
@@ -273,9 +273,9 @@ class TasHoursCalculatorTest {
         Map<String, Object> nocheShift = new LinkedHashMap<>();
         nocheShift.put("id", "noche");
         nocheShift.put("name", "Noche");
-        nocheShift.put("start_time", "19:00");
-        nocheShift.put("end_time", "07:00");
-        nocheShift.put("cross_midnight", true);
+        nocheShift.put("startTime", "19:00");
+        nocheShift.put("endTime", "07:00");
+        nocheShift.put("crossMidnight", true);
         when(shiftConfigService.getAllShifts()).thenReturn(List.of(nocheShift));
 
         calculator.calculate(List.of(s), REPORT_START, REPORT_END);
@@ -434,9 +434,9 @@ class TasHoursCalculatorTest {
         Map<String, Object> nocheShift = new LinkedHashMap<>();
         nocheShift.put("id", "noche");
         nocheShift.put("name", "Noche");
-        nocheShift.put("start_time", "19:00");
-        nocheShift.put("end_time", "07:00");
-        nocheShift.put("cross_midnight", true);
+        nocheShift.put("startTime", "19:00");
+        nocheShift.put("endTime", "07:00");
+        nocheShift.put("crossMidnight", true);
         when(shiftConfigService.getAllShifts()).thenReturn(List.of(nocheShift));
 
         calculator.calculate(List.of(s), REPORT_START, REPORT_END);
@@ -462,9 +462,9 @@ class TasHoursCalculatorTest {
         Map<String, Object> nocheShift = new LinkedHashMap<>();
         nocheShift.put("id", "noche");
         nocheShift.put("name", "Noche");
-        nocheShift.put("start_time", "19:00");
-        nocheShift.put("end_time", "07:00");
-        nocheShift.put("cross_midnight", true);
+        nocheShift.put("startTime", "19:00");
+        nocheShift.put("endTime", "07:00");
+        nocheShift.put("crossMidnight", true);
         when(shiftConfigService.getAllShifts()).thenReturn(List.of(nocheShift));
 
         calculator.calculate(List.of(s), REPORT_START, REPORT_END);
@@ -507,9 +507,9 @@ class TasHoursCalculatorTest {
         Map<String, Object> nocheShift = new LinkedHashMap<>();
         nocheShift.put("id", "noche");
         nocheShift.put("name", "Noche");
-        nocheShift.put("start_time", "19:00");
-        nocheShift.put("end_time", "07:00");
-        nocheShift.put("cross_midnight", true);
+        nocheShift.put("startTime", "19:00");
+        nocheShift.put("endTime", "07:00");
+        nocheShift.put("crossMidnight", true);
         when(shiftConfigService.getAllShifts()).thenReturn(List.of(nocheShift));
 
         calculator.calculate(List.of(s), REPORT_START, REPORT_END);
