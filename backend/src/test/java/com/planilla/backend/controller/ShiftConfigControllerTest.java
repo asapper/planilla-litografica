@@ -73,6 +73,21 @@ class ShiftConfigControllerTest {
     }
 
     @Test
+    void create_passesDetectionWindowValuesThrough() throws Exception {
+        Map<String, Object> body = Map.of("name", "Tarde", "startTime", "15:00", "endTime", "23:00", "crossMidnight", false,
+                "detectionBeforeMinutes", 90, "detectionAfterMinutes", 15);
+        Map<String, Object> created = Map.of("id", "tarde", "name", "Tarde", "startTime", "15:00", "endTime", "23:00", "crossMidnight", false);
+        when(shiftConfigService.createShift("Tarde", "15:00", "23:00", false, 90, 15)).thenReturn(created);
+
+        mvc.perform(post("/api/config/shifts")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(body)))
+           .andExpect(status().isOk());
+
+        verify(shiftConfigService).createShift(eq("Tarde"), eq("15:00"), eq("23:00"), eq(false), eq(90), eq(15));
+    }
+
+    @Test
     void create_returns400OnException() throws Exception {
         doThrow(new RuntimeException("Duplicate key")).when(shiftConfigService)
             .createShift(any(), any(), any(), anyBoolean(), any(), any());
