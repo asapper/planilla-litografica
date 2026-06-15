@@ -21,26 +21,29 @@ class TasSessionGrouperTest {
     private static final String NOCHE_ID     = "noche";
 
     private List<Map<String, Object>> shifts;
+    private Map<String, Object> manana;
+    private Map<String, Object> tarde;
+    private Map<String, Object> noche;
 
     @BeforeEach
     void setUp() {
         grouper = new TasSessionGrouper();
 
-        Map<String, Object> manana = new LinkedHashMap<>();
+        manana = new LinkedHashMap<>();
         manana.put("id", MANANA_ID);
         manana.put("name", "Manana");
         manana.put("startTime", "07:00");
         manana.put("endTime", "15:00");
         manana.put("crossMidnight", false);
 
-        Map<String, Object> tarde = new LinkedHashMap<>();
+        tarde = new LinkedHashMap<>();
         tarde.put("id", TARDE_ID);
         tarde.put("name", "Tarde");
         tarde.put("startTime", "15:00");
         tarde.put("endTime", "23:00");
         tarde.put("crossMidnight", false);
 
-        Map<String, Object> noche = new LinkedHashMap<>();
+        noche = new LinkedHashMap<>();
         noche.put("id", NOCHE_ID);
         noche.put("name", "Noche");
         noche.put("startTime", "19:00");
@@ -370,6 +373,25 @@ class TasSessionGrouperTest {
         assertThat(session.getAssignedShiftName()).isEqualTo("Manana");
         assertThat(session.getMatchedShiftId()).isEqualTo(TARDE_ID);
         assertThat(session.getMatchedShiftName()).isEqualTo("Tarde");
+    }
+
+    @Test
+    void group_nocheShiftWithWiderAfterWindow_matchesLateEntryAsOpener() {
+        Map<String, Object> nocheWide = new HashMap<>(noche);
+        nocheWide.put("detectionAfterMinutes", 50);
+
+        List<Map<String, Object>> shiftsWithWideNoche = List.of(manana, tarde, nocheWide);
+
+        List<TasScanRecord> scans = List.of(
+            scan("EMP1", LocalDateTime.of(2026, 3, 26, 19, 19))
+        );
+
+        List<TasSession> sessions = grouper.group(scans, shiftsWithWideNoche, assignNoche("EMP1"));
+
+        assertThat(sessions).hasSize(1);
+        TasSession session = sessions.get(0);
+        assertThat(session.getMatchedShiftId()).isEqualTo(NOCHE_ID);
+        assertThat(session.getFlags()).doesNotContain(TasFlag.AMBIGUOUS_SHIFT);
     }
 
     @Test
