@@ -277,6 +277,11 @@ public class TasSessionGrouper {
                 }
             }
 
+            // A "double" requires evidence of two distinct shifts: either two sessions
+            // matched different shift configs, or an ambiguous session alongside one
+            // that did match a shift. Two ambiguous sessions alone (matchedShiftId ==
+            // null for both) can't be distinguished from a single shift that got split,
+            // so they're not flagged.
             boolean isDouble = matchedShiftIds.size() >= 2 || (hasAmbiguous && !matchedShiftIds.isEmpty());
             if (!isDouble) continue;
 
