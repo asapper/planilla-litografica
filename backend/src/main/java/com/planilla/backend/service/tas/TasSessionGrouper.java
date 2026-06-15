@@ -40,7 +40,7 @@ public class TasSessionGrouper {
 
             String assignedShiftId = employeeShiftAssignments.get(employeeId);
             Map<String, Object> assignedShift = findShiftById(shifts, assignedShiftId);
-            boolean isCrossMidnight = assignedShift != null && Boolean.TRUE.equals(assignedShift.get("cross_midnight"));
+            boolean isCrossMidnight = assignedShift != null && Boolean.TRUE.equals(assignedShift.get("crossMidnight"));
 
             List<TasSession> empSessions = groupEmployeeSessions(
                     employeeId, empScans, shifts, assignedShift, isCrossMidnight);
@@ -140,7 +140,7 @@ public class TasSessionGrouper {
         if (currentSession.isCrossMidnight()) return true;
         Map<String, Object> matchedShift = findShiftById(shifts, currentSession.getMatchedShiftId());
         if (matchedShift == null) return true;
-        LocalTime endTime = parseTime(matchedShift.get("end_time"));
+        LocalTime endTime = parseTime(matchedShift.get("endTime"));
         LocalDateTime shiftEnd = LocalDateTime.of(currentSession.getDate(), endTime);
         return scanTime.isAfter(shiftEnd);
     }
@@ -170,7 +170,7 @@ public class TasSessionGrouper {
     }
 
     private boolean isInDetectionWindow(LocalDateTime timestamp, Map<String, Object> shift) {
-        LocalTime shiftStart = parseTime(shift.get("start_time"));
+        LocalTime shiftStart = parseTime(shift.get("startTime"));
         LocalDate scanDate   = timestamp.toLocalDate();
 
         LocalDateTime anchor = LocalDateTime.of(scanDate, shiftStart);
