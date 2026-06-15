@@ -348,7 +348,10 @@ export default function VerificationScreen() {
   const sameDayDoubleResolutions    = useTasStore(s => s.sameDayDoubleResolutions);
   const setSameDayDoubleResolution  = useTasStore(s => s.setSameDayDoubleResolution);
 
-  const [manuallyToggled, setManuallyToggled] = useState<Set<string>>(new Set());
+  // Inverts the computed default expansion for an employeeId (not an absolute
+  // expanded/collapsed state), so a manual toggle doesn't permanently "stick"
+  // once the underlying default changes (e.g. a group auto-collapses on resolve).
+  const [expansionOverrides, setExpansionOverrides] = useState<Set<string>>(new Set());
 
   const needsResolutionSessions = flaggedSessions.filter(
     s => s.needsResolution && periodsEqual(getSessionPeriod(s.date), selectedPeriod),
@@ -376,7 +379,7 @@ export default function VerificationScreen() {
   const allConfirmed   = pendingCount === 0;
 
   const toggleGroup = (employeeId: string) => {
-    setManuallyToggled(prev => {
+    setExpansionOverrides(prev => {
       const next = new Set(prev);
       if (next.has(employeeId)) next.delete(employeeId);
       else next.add(employeeId);
@@ -468,7 +471,7 @@ export default function VerificationScreen() {
         ) : (
           employeeGroups.map(group => {
             const defaultExpanded = group.pendingCount > 0 || group.items.some(item => item.type !== 'session');
-            const expanded = manuallyToggled.has(group.employeeId) ? !defaultExpanded : defaultExpanded;
+            const expanded = expansionOverrides.has(group.employeeId) ? !defaultExpanded : defaultExpanded;
             return (
               <EmployeeGroup
                 key={group.employeeId}
