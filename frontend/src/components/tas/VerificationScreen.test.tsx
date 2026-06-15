@@ -88,7 +88,7 @@ describe('VerificationScreen rendering', () => {
     useTasStore.getState().setFlaggedSessions([makeSession()]);
     useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
     render(<VerificationScreen />);
-    expect(screen.getByText('Ana López')).toBeInTheDocument();
+    expect(screen.getAllByText('Ana López').length).toBeGreaterThan(0);
   });
 
   it('renders formatted date', () => {
@@ -157,34 +157,6 @@ describe('VerificationScreen rendering', () => {
   });
 });
 
-describe('VerificationScreen filter chips', () => {
-  it('renders Todos filter chip', () => {
-    useTasStore.getState().setFlaggedSessions([makeSession()]);
-    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
-    render(<VerificationScreen />);
-    expect(screen.getByRole('button', { name: /todos/i })).toBeInTheDocument();
-  });
-
-  it('renders Falta entrada chip when relevant sessions exist', () => {
-    useTasStore.getState().setFlaggedSessions([makeSession({ flags: ['MISSING_ENTRY'] })]);
-    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
-    render(<VerificationScreen />);
-    expect(screen.getByRole('button', { name: /falta entrada/i })).toBeInTheDocument();
-  });
-
-  it('filters sessions by chip click', () => {
-    useTasStore.getState().setFlaggedSessions([
-      makeSession({ sessionId: 1, flags: ['MISSING_ENTRY'], employeeName: 'Ana' }),
-      makeSession({ sessionId: 2, flags: ['MISSING_EXIT'], employeeName: 'Luis', employeeId: 'E2' }),
-    ]);
-    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
-    render(<VerificationScreen />);
-    fireEvent.click(screen.getByRole('button', { name: /falta entrada/i }));
-    expect(screen.getByText('Ana')).toBeInTheDocument();
-    expect(screen.queryByText('Luis')).not.toBeInTheDocument();
-  });
-});
-
 describe('VerificationScreen time inputs', () => {
   it('disables Confirmar when required entry is empty', () => {
     useTasStore.getState().setFlaggedSessions([makeSession({ flags: ['MISSING_ENTRY'], effectiveStart: null })]);
@@ -204,12 +176,13 @@ describe('VerificationScreen time inputs', () => {
     expect(confirm).not.toBeDisabled();
   });
 
-  it('collapses session card to summary row on confirm', () => {
+  it('collapses the employee group once its only session is confirmed', () => {
     useTasStore.getState().setFlaggedSessions([makeSession({ effectiveStart: '08:00:00', lastScan: '17:00:00' })]);
     useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
     render(<VerificationScreen />);
     fireEvent.click(screen.getByRole('button', { name: /confirmar/i }));
-    expect(screen.getByText('Confirmado')).toBeInTheDocument();
+    expect(screen.getByText('✓ Resuelto')).toBeInTheDocument();
+    expect(screen.queryByText('Confirmado')).not.toBeInTheDocument();
   });
 
   it('shows hours preview when both fields are filled', () => {
@@ -322,7 +295,7 @@ describe('VerificationScreen period selector', () => {
     ]);
     useTasStore.getState().setAvailablePeriods([p1, p2]);
     render(<VerificationScreen />);
-    expect(screen.getByText('Ana López')).toBeInTheDocument();
+    expect(screen.getAllByText('Ana López').length).toBeGreaterThan(0);
     expect(screen.queryByText('Luis Soto')).not.toBeInTheDocument();
   });
 
@@ -335,7 +308,7 @@ describe('VerificationScreen period selector', () => {
     render(<VerificationScreen />);
     fireEvent.change(screen.getByLabelText('Periodo'), { target: { value: '2026-3-2' } });
     expect(screen.queryByText('Ana López')).not.toBeInTheDocument();
-    expect(screen.getByText('Luis Soto')).toBeInTheDocument();
+    expect(screen.getAllByText('Luis Soto').length).toBeGreaterThan(0);
   });
 
   it('always shows the single-period submission note', () => {
@@ -482,7 +455,7 @@ describe('VerificationScreen empty state for selected period', () => {
     { anio: 2026, mes: 3, numeroDequincena: 2 },
   ];
 
-  it('shows an empty-state message and hides chips/sessions when the selected period has nothing to resolve', () => {
+  it('shows an empty-state message and hides the session list when the selected period has nothing to resolve', () => {
     useTasStore.getState().setFlaggedSessions([
       makeSession({ sessionId: 1, employeeName: 'Ana', date: '2026-03-20' }),
     ]);
@@ -492,12 +465,11 @@ describe('VerificationScreen empty state for selected period', () => {
     render(<VerificationScreen />);
 
     expect(screen.getByText(/Este periodo no presenta inconsistencias/i)).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /todos/i })).not.toBeInTheDocument();
     expect(screen.queryByText('Ana')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /enviar/i })).not.toBeDisabled();
   });
 
-  it('hides the empty-state message and shows chips/sessions when the selected period has sessions to resolve', () => {
+  it('hides the empty-state message and shows the employee group when the selected period has sessions to resolve', () => {
     useTasStore.getState().setFlaggedSessions([
       makeSession({ sessionId: 1, date: '2026-03-05' }),
     ]);
@@ -507,8 +479,7 @@ describe('VerificationScreen empty state for selected period', () => {
     render(<VerificationScreen />);
 
     expect(screen.queryByText(/Este periodo no presenta inconsistencias/i)).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /todos/i })).toBeInTheDocument();
-    expect(screen.getByText('Ana López')).toBeInTheDocument();
+    expect(screen.getAllByText('Ana López').length).toBeGreaterThan(0);
   });
 
   it('toggles between empty state and session list when switching periods', () => {
@@ -590,7 +561,7 @@ describe('VerificationScreen same-day double group', () => {
     expect(useTasStore.getState().sameDayDoubleResolutions['E1|2026-03-15']).toBe(1);
   });
 
-  it('Enviar stays enabled with default selection while a non-"all" filter chip is active', () => {
+  it('Enviar stays enabled with the default same-day-double selection', () => {
     useTasStore.getState().setFlaggedSessions([
       doubleSession({ sessionId: 1, matchedShiftId: 'manana', matchedShiftName: 'Manana' }),
       doubleSession({
@@ -601,17 +572,11 @@ describe('VerificationScreen same-day double group', () => {
         matchedShiftId: 'tarde',
         matchedShiftName: 'Tarde',
       }),
-      makeSession({ sessionId: 3, employeeId: 'E2', employeeName: 'Luis', flags: ['MISSING_ENTRY'], date: '2026-03-14' }),
     ]);
 
     render(<VerificationScreen />);
 
-    expect(screen.getByText('1 por resolver')).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole('button', { name: /falta entrada/i }));
-
-    expect(screen.getByText('1 por resolver')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /enviar/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /enviar/i })).not.toBeDisabled();
   });
 
   it('includes employeeId/date/keepSessionId in resolveVerification payload on submit by default', async () => {
@@ -625,5 +590,102 @@ describe('VerificationScreen same-day double group', () => {
 
     const [, payload] = mockResolveVerification.mock.calls[0];
     expect(payload).toContainEqual({ employeeId: 'E1', date: '2026-03-15', keepSessionId: 'all' });
+  });
+});
+
+describe('VerificationScreen employee grouping', () => {
+  it('renders one collapsible group per employee', () => {
+    useTasStore.getState().setFlaggedSessions([
+      makeSession({ sessionId: 1, employeeId: 'E1', employeeName: 'Ana López' }),
+      makeSession({ sessionId: 2, employeeId: 'E2', employeeName: 'Luis Soto' }),
+    ]);
+    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
+    render(<VerificationScreen />);
+    expect(screen.getByRole('button', { name: /Ana López/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Luis Soto/ })).toBeInTheDocument();
+  });
+
+  it('expands a group with pending sessions by default', () => {
+    useTasStore.getState().setFlaggedSessions([
+      makeSession({ sessionId: 1, employeeId: 'E1', employeeName: 'Ana López' }),
+    ]);
+    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
+    render(<VerificationScreen />);
+    expect(screen.getByRole('button', { name: /Ana López/ })).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByRole('button', { name: /confirmar/i })).toBeInTheDocument();
+  });
+
+  it('collapses a group once its only session is confirmed', () => {
+    useTasStore.getState().setFlaggedSessions([
+      makeSession({ sessionId: 1, employeeId: 'E1', employeeName: 'Ana López', effectiveStart: '08:00:00', lastScan: '17:00:00' }),
+    ]);
+    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
+    render(<VerificationScreen />);
+    fireEvent.click(screen.getByRole('button', { name: /confirmar/i }));
+    const groupHeader = screen.getByRole('button', { name: /Ana López/ });
+    expect(groupHeader).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.getByText(/Resuelto/)).toBeInTheDocument();
+  });
+
+  it('clicking a collapsed resolved group header expands it again', () => {
+    useTasStore.getState().setFlaggedSessions([
+      makeSession({ sessionId: 1, employeeId: 'E1', employeeName: 'Ana López', effectiveStart: '08:00:00', lastScan: '17:00:00' }),
+    ]);
+    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
+    render(<VerificationScreen />);
+    fireEvent.click(screen.getByRole('button', { name: /confirmar/i }));
+    const groupHeader = screen.getByRole('button', { name: /Ana López/ });
+    expect(groupHeader).toHaveAttribute('aria-expanded', 'false');
+    fireEvent.click(groupHeader);
+    expect(groupHeader).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByText('Confirmado')).toBeInTheDocument();
+  });
+
+  it('orders groups with pending sessions before fully resolved groups', () => {
+    useTasStore.getState().setFlaggedSessions([
+      makeSession({ sessionId: 1, employeeId: 'E1', employeeName: 'Zoe Vargas' }),
+      makeSession({ sessionId: 2, employeeId: 'E2', employeeName: 'Beto Cruz' }),
+    ]);
+    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
+    useTasStore.getState().setResolvedSession(1, { resolvedStart: '08:00', resolvedEnd: '17:00' });
+    render(<VerificationScreen />);
+    const headers = screen.getAllByRole('button', { name: /Vargas|Cruz/ });
+    expect(headers[0]).toHaveTextContent('Beto Cruz');
+    expect(headers[1]).toHaveTextContent('Zoe Vargas');
+  });
+
+  it('expands a group by default when it contains only a shift-mismatch session', () => {
+    useTasStore.getState().setFlaggedSessions([
+      makeSession({
+        sessionId: 1, employeeId: 'E1', employeeName: 'Ana López', date: '2026-03-10',
+        flags: ['SHIFT_MISMATCH'],
+        effectiveStart: '2026-03-10T07:03:00', lastScan: '2026-03-10T15:05:00',
+        matchedShiftId: 'tarde', matchedShiftName: 'Tarde',
+        assignedShiftId: 'manana', assignedShiftName: 'Manana',
+      }),
+    ]);
+    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
+    render(<VerificationScreen />);
+    const header = screen.getByRole('button', { name: /Ana López/ });
+    expect(header).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByText('✓ Resuelto')).toBeInTheDocument();
+    expect(screen.getByText(/Turno asignado: Manana/)).toBeInTheDocument();
+  });
+
+  it('groups a regular session and a shift-mismatch session for the same employee under one header', () => {
+    useTasStore.getState().setFlaggedSessions([
+      makeSession({ sessionId: 1, employeeId: 'E1', employeeName: 'Ana López', date: '2026-03-05', flags: ['MISSING_ENTRY'] }),
+      makeSession({
+        sessionId: 2, employeeId: 'E1', employeeName: 'Ana López', date: '2026-03-10',
+        flags: ['SHIFT_MISMATCH'],
+        effectiveStart: '2026-03-10T07:03:00', lastScan: '2026-03-10T15:05:00',
+        matchedShiftId: 'tarde', matchedShiftName: 'Tarde',
+        assignedShiftId: 'manana', assignedShiftName: 'Manana',
+      }),
+    ]);
+    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
+    render(<VerificationScreen />);
+    expect(screen.getAllByRole('button', { name: /Ana López/ })).toHaveLength(1);
+    expect(screen.getByText(/Turno asignado: Manana/)).toBeInTheDocument();
   });
 });
