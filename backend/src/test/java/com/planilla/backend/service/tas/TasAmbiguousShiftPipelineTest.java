@@ -47,23 +47,23 @@ class TasAmbiguousShiftPipelineTest {
         Map<String, Object> manana = new LinkedHashMap<>();
         manana.put("id", "manana");
         manana.put("name", "Manana");
-        manana.put("start_time", "07:00");
-        manana.put("end_time", "15:00");
-        manana.put("cross_midnight", false);
+        manana.put("startTime", "07:00");
+        manana.put("endTime", "15:00");
+        manana.put("crossMidnight", false);
 
         Map<String, Object> tarde = new LinkedHashMap<>();
         tarde.put("id", "tarde");
         tarde.put("name", "Tarde");
-        tarde.put("start_time", "15:00");
-        tarde.put("end_time", "23:00");
-        tarde.put("cross_midnight", false);
+        tarde.put("startTime", "15:00");
+        tarde.put("endTime", "23:00");
+        tarde.put("crossMidnight", false);
 
         Map<String, Object> noche = new LinkedHashMap<>();
         noche.put("id", "noche");
         noche.put("name", "Noche");
-        noche.put("start_time", "19:00");
-        noche.put("end_time", "07:00");
-        noche.put("cross_midnight", true);
+        noche.put("startTime", "19:00");
+        noche.put("endTime", "07:00");
+        noche.put("crossMidnight", true);
 
         shifts = List.of(manana, tarde, noche);
 

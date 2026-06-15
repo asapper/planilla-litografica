@@ -375,8 +375,8 @@ public class TasController {
             Map<String, Object> dto = new LinkedHashMap<>();
             dto.put("id", shift.get("id"));
             dto.put("name", shift.get("name"));
-            dto.put("startTime", shift.get("start_time"));
-            dto.put("endTime", shift.get("end_time"));
+            dto.put("startTime", shift.get("startTime"));
+            dto.put("endTime", shift.get("endTime"));
             result.add(dto);
         }
         return result;
