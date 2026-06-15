@@ -395,6 +395,49 @@ class TasSessionGrouperTest {
     }
 
     @Test
+    void group_mananaShiftWithWiderBeforeWindow_matchesEarlyEntryAsOpener() {
+        Map<String, Object> mananaWide = new HashMap<>(manana);
+        mananaWide.put("detectionBeforeMinutes", 90);
+
+        List<Map<String, Object>> shiftsWithWideManana = List.of(mananaWide, tarde, noche);
+
+        // 05:45 is outside the default 60-min before window (06:00-07:10)
+        // but within the widened 90-min window (05:30-07:10).
+        List<TasScanRecord> scans = List.of(
+            scan("EMP1", LocalDateTime.of(2026, 3, 10, 5, 45))
+        );
+
+        List<TasSession> sessions = grouper.group(scans, shiftsWithWideManana, assignManana("EMP1"));
+
+        assertThat(sessions).hasSize(1);
+        TasSession session = sessions.get(0);
+        assertThat(session.getMatchedShiftId()).isEqualTo(MANANA_ID);
+        assertThat(session.getFlags()).doesNotContain(TasFlag.AMBIGUOUS_SHIFT);
+    }
+
+    @Test
+    void group_detectionAfterMinutesAsNonNumber_fallsBackToDefault() {
+        Map<String, Object> nocheNonNumber = new HashMap<>(noche);
+        nocheNonNumber.put("detectionAfterMinutes", "50");
+
+        List<Map<String, Object>> shiftsWithNonNumberNoche = List.of(manana, tarde, nocheNonNumber);
+
+        // 19:19 would be within a 50-min after window (19:00-19:50) if the String
+        // were honored, but falls outside the default 10-min window (19:00-19:10),
+        // so the fallback constant should apply and leave this session ambiguous.
+        List<TasScanRecord> scans = List.of(
+            scan("EMP1", LocalDateTime.of(2026, 3, 26, 19, 19))
+        );
+
+        List<TasSession> sessions = grouper.group(scans, shiftsWithNonNumberNoche, assignNoche("EMP1"));
+
+        assertThat(sessions).hasSize(1);
+        TasSession session = sessions.get(0);
+        assertThat(session.getMatchedShiftId()).isNull();
+        assertThat(session.getFlags()).contains(TasFlag.AMBIGUOUS_SHIFT);
+    }
+
+    @Test
     void openSession_noMismatch_assignedAndMatchedShiftNamesMatch() {
         List<TasScanRecord> scans = List.of(
                 scan("E1", LocalDateTime.of(2026, 3, 10, 7, 3)),
