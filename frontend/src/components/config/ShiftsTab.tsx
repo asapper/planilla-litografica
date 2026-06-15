@@ -66,7 +66,7 @@ function ShiftRow({ shift, onUpdate, onDetectionChange, onDelete, deleteError }:
             min={0}
             onChange={e => {
               const parsed = Number(e.target.value);
-              onDetectionChange(shift.id, 'detectionBeforeMinutes', Number.isNaN(parsed) ? 0 : parsed);
+              onDetectionChange(shift.id, 'detectionBeforeMinutes', Number.isNaN(parsed) ? 0 : Math.max(0, parsed));
             }}
             aria-label="Detección antes (min)"
           />
@@ -79,7 +79,7 @@ function ShiftRow({ shift, onUpdate, onDetectionChange, onDelete, deleteError }:
             min={0}
             onChange={e => {
               const parsed = Number(e.target.value);
-              onDetectionChange(shift.id, 'detectionAfterMinutes', Number.isNaN(parsed) ? 0 : parsed);
+              onDetectionChange(shift.id, 'detectionAfterMinutes', Number.isNaN(parsed) ? 0 : Math.max(0, parsed));
             }}
             aria-label="Detección después (min)"
           />
@@ -177,7 +177,7 @@ function AddShiftRow({ onAdd }: AddRowProps) {
           min={0}
           onChange={e => {
             const parsed = Number(e.target.value);
-            setDetectionBeforeMinutes(Number.isNaN(parsed) ? 0 : parsed);
+            setDetectionBeforeMinutes(Number.isNaN(parsed) ? 0 : Math.max(0, parsed));
           }}
           aria-label="Detección antes (min) del nuevo turno"
         />
@@ -190,7 +190,7 @@ function AddShiftRow({ onAdd }: AddRowProps) {
           min={0}
           onChange={e => {
             const parsed = Number(e.target.value);
-            setDetectionAfterMinutes(Number.isNaN(parsed) ? 0 : parsed);
+            setDetectionAfterMinutes(Number.isNaN(parsed) ? 0 : Math.max(0, parsed));
           }}
           aria-label="Detección después (min) del nuevo turno"
         />
