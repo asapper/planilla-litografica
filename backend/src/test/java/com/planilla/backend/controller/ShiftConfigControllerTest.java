@@ -60,7 +60,7 @@ class ShiftConfigControllerTest {
     void create_returns200OnSuccess() throws Exception {
         Map<String, Object> body = Map.of("name", "Tarde", "startTime", "15:00", "endTime", "23:00", "crossMidnight", false);
         Map<String, Object> created = Map.of("id", "tarde", "name", "Tarde", "startTime", "15:00", "endTime", "23:00", "crossMidnight", false);
-        when(shiftConfigService.createShift("Tarde", "15:00", "23:00", false)).thenReturn(created);
+        when(shiftConfigService.createShift("Tarde", "15:00", "23:00", false, null, null)).thenReturn(created);
 
         mvc.perform(post("/api/config/shifts")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -69,13 +69,28 @@ class ShiftConfigControllerTest {
            .andExpect(jsonPath("$.id").value("tarde"))
            .andExpect(jsonPath("$.name").value("Tarde"));
 
-        verify(shiftConfigService).createShift(eq("Tarde"), eq("15:00"), eq("23:00"), eq(false));
+        verify(shiftConfigService).createShift(eq("Tarde"), eq("15:00"), eq("23:00"), eq(false), isNull(), isNull());
+    }
+
+    @Test
+    void create_passesDetectionWindowValuesThrough() throws Exception {
+        Map<String, Object> body = Map.of("name", "Tarde", "startTime", "15:00", "endTime", "23:00", "crossMidnight", false,
+                "detectionBeforeMinutes", 90, "detectionAfterMinutes", 15);
+        Map<String, Object> created = Map.of("id", "tarde", "name", "Tarde", "startTime", "15:00", "endTime", "23:00", "crossMidnight", false);
+        when(shiftConfigService.createShift("Tarde", "15:00", "23:00", false, 90, 15)).thenReturn(created);
+
+        mvc.perform(post("/api/config/shifts")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(body)))
+           .andExpect(status().isOk());
+
+        verify(shiftConfigService).createShift(eq("Tarde"), eq("15:00"), eq("23:00"), eq(false), eq(90), eq(15));
     }
 
     @Test
     void create_returns400OnException() throws Exception {
         doThrow(new RuntimeException("Duplicate key")).when(shiftConfigService)
-            .createShift(any(), any(), any(), anyBoolean());
+            .createShift(any(), any(), any(), anyBoolean(), any(), any());
 
         Map<String, Object> body = Map.of("name", "Dup", "startTime", "15:00", "endTime", "23:00");
 
@@ -88,7 +103,7 @@ class ShiftConfigControllerTest {
 
     @Test
     void create_returns500WhenServiceReturnsNull() throws Exception {
-        when(shiftConfigService.createShift(any(), any(), any(), anyBoolean())).thenReturn(null);
+        when(shiftConfigService.createShift(any(), any(), any(), anyBoolean(), any(), any())).thenReturn(null);
 
         Map<String, Object> body = Map.of("name", "Tarde", "startTime", "15:00", "endTime", "23:00", "crossMidnight", false);
 
@@ -103,21 +118,21 @@ class ShiftConfigControllerTest {
     void update_returns200OnSuccess() throws Exception {
         Map<String, Object> body = Map.of("name", "Tarde Updated", "startTime", "15:00", "endTime", "23:00", "crossMidnight", false);
         Map<String, Object> updated = Map.of("id", "tarde", "name", "Tarde Updated", "startTime", "15:00", "endTime", "23:00", "crossMidnight", false);
-        when(shiftConfigService.updateShift("tarde", "Tarde Updated", "15:00", "23:00", false)).thenReturn(updated);
+        when(shiftConfigService.updateShift("tarde", "Tarde Updated", "15:00", "23:00", false, null, null)).thenReturn(updated);
 
         mvc.perform(put("/api/config/shifts/tarde")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(mapper.writeValueAsString(body)))
            .andExpect(status().isOk());
 
-        verify(shiftConfigService).updateShift(eq("tarde"), eq("Tarde Updated"), eq("15:00"), eq("23:00"), eq(false));
+        verify(shiftConfigService).updateShift(eq("tarde"), eq("Tarde Updated"), eq("15:00"), eq("23:00"), eq(false), isNull(), isNull());
     }
 
     @Test
     void update_returns200WithUpdatedShift() throws Exception {
         Map<String, Object> body = Map.of("name", "Tarde", "startTime", "15:00", "endTime", "23:00", "crossMidnight", false);
         Map<String, Object> updated = Map.of("id", "tarde", "name", "Tarde", "startTime", "15:00", "endTime", "23:00", "crossMidnight", false);
-        when(shiftConfigService.updateShift("tarde", "Tarde", "15:00", "23:00", false)).thenReturn(updated);
+        when(shiftConfigService.updateShift("tarde", "Tarde", "15:00", "23:00", false, null, null)).thenReturn(updated);
 
         mvc.perform(put("/api/config/shifts/tarde")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -130,7 +145,7 @@ class ShiftConfigControllerTest {
     @Test
     void update_returns404WhenShiftNotFound() throws Exception {
         doThrow(new IllegalArgumentException("SHIFT_NOT_FOUND")).when(shiftConfigService)
-            .updateShift(any(), any(), any(), any(), anyBoolean());
+            .updateShift(any(), any(), any(), any(), anyBoolean(), any(), any());
 
         Map<String, Object> body = Map.of("name", "Ghost", "startTime", "00:00", "endTime", "08:00");
 
@@ -143,7 +158,7 @@ class ShiftConfigControllerTest {
 
     @Test
     void update_returns500WhenServiceReturnsNull() throws Exception {
-        when(shiftConfigService.updateShift(any(), any(), any(), any(), anyBoolean())).thenReturn(null);
+        when(shiftConfigService.updateShift(any(), any(), any(), any(), anyBoolean(), any(), any())).thenReturn(null);
 
         Map<String, Object> body = Map.of("name", "Tarde", "startTime", "15:00", "endTime", "23:00", "crossMidnight", false);
 
@@ -194,7 +209,7 @@ class ShiftConfigControllerTest {
     @Test
     void update_returns400OnGenericException() throws Exception {
         doThrow(new RuntimeException("db error")).when(shiftConfigService)
-            .updateShift(any(), any(), any(), any(), anyBoolean());
+            .updateShift(any(), any(), any(), any(), anyBoolean(), any(), any());
 
         Map<String, Object> body = Map.of("name", "X", "startTime", "00:00", "endTime", "08:00");
 
@@ -208,7 +223,7 @@ class ShiftConfigControllerTest {
     @Test
     void create_withNoCrossMidnightField_defaultsToFalse() throws Exception {
         Map<String, Object> body = Map.of("name", "X", "startTime", "06:00", "endTime", "14:00");
-        when(shiftConfigService.createShift("X", "06:00", "14:00", false))
+        when(shiftConfigService.createShift("X", "06:00", "14:00", false, null, null))
             .thenReturn(Map.of("id", "x", "name", "X", "startTime", "06:00", "endTime", "14:00", "crossMidnight", false));
 
         mvc.perform(post("/api/config/shifts")
@@ -216,6 +231,6 @@ class ShiftConfigControllerTest {
                 .content(mapper.writeValueAsString(body)))
            .andExpect(status().isOk());
 
-        verify(shiftConfigService).createShift(eq("X"), eq("06:00"), eq("14:00"), eq(false));
+        verify(shiftConfigService).createShift(eq("X"), eq("06:00"), eq("14:00"), eq(false), isNull(), isNull());
     }
 }

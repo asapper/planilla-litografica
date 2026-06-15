@@ -37,9 +37,9 @@ class TasReportBuilderTest {
         Map<String, Object> manana = new LinkedHashMap<>();
         manana.put("id", "manana");
         manana.put("name", "Manana");
-        manana.put("start_time", "07:00");
-        manana.put("end_time", "15:00");
-        manana.put("cross_midnight", false);
+        manana.put("startTime", "07:00");
+        manana.put("endTime", "15:00");
+        manana.put("crossMidnight", false);
         shifts = List.of(manana);
     }
 

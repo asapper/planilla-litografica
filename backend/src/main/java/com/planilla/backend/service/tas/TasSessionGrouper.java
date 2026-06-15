@@ -40,7 +40,7 @@ public class TasSessionGrouper {
 
             String assignedShiftId = employeeShiftAssignments.get(employeeId);
             Map<String, Object> assignedShift = findShiftById(shifts, assignedShiftId);
-            boolean isCrossMidnight = assignedShift != null && Boolean.TRUE.equals(assignedShift.get("cross_midnight"));
+            boolean isCrossMidnight = assignedShift != null && Boolean.TRUE.equals(assignedShift.get("crossMidnight"));
 
             List<TasSession> empSessions = groupEmployeeSessions(
                     employeeId, empScans, shifts, assignedShift, isCrossMidnight);
@@ -140,7 +140,7 @@ public class TasSessionGrouper {
         if (currentSession.isCrossMidnight()) return true;
         Map<String, Object> matchedShift = findShiftById(shifts, currentSession.getMatchedShiftId());
         if (matchedShift == null) return true;
-        LocalTime endTime = parseTime(matchedShift.get("end_time"));
+        LocalTime endTime = parseTime(matchedShift.get("endTime"));
         LocalDateTime shiftEnd = LocalDateTime.of(currentSession.getDate(), endTime);
         return scanTime.isAfter(shiftEnd);
     }
@@ -170,14 +170,22 @@ public class TasSessionGrouper {
     }
 
     private boolean isInDetectionWindow(LocalDateTime timestamp, Map<String, Object> shift) {
-        LocalTime shiftStart = parseTime(shift.get("start_time"));
+        LocalTime shiftStart = parseTime(shift.get("startTime"));
         LocalDate scanDate   = timestamp.toLocalDate();
 
+        int before = detectionMinutes(shift, "detectionBeforeMinutes", DETECTION_BEFORE_MINUTES);
+        int after  = detectionMinutes(shift, "detectionAfterMinutes", DETECTION_AFTER_MINUTES);
+
         LocalDateTime anchor = LocalDateTime.of(scanDate, shiftStart);
-        LocalDateTime windowStart = anchor.minusMinutes(DETECTION_BEFORE_MINUTES);
-        LocalDateTime windowEnd   = anchor.plusMinutes(DETECTION_AFTER_MINUTES);
+        LocalDateTime windowStart = anchor.minusMinutes(before);
+        LocalDateTime windowEnd   = anchor.plusMinutes(after);
 
         return !timestamp.isBefore(windowStart) && !timestamp.isAfter(windowEnd);
+    }
+
+    private int detectionMinutes(Map<String, Object> shift, String key, int defaultValue) {
+        Object value = shift.get(key);
+        return value instanceof Number ? ((Number) value).intValue() : defaultValue;
     }
 
     private boolean isNextShiftExitScan(

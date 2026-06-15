@@ -112,8 +112,8 @@ class TasControllerTest {
         Map<String, Object> manana = new LinkedHashMap<>();
         manana.put("id", "manana");
         manana.put("name", "Manana");
-        manana.put("start_time", "07:00");
-        manana.put("end_time", "15:00");
+        manana.put("startTime", "07:00");
+        manana.put("endTime", "15:00");
         when(shiftConfigService.getAllShifts()).thenReturn(List.of(manana));
 
         MockMultipartFile file = new MockMultipartFile("file", "test.csv", "text/csv", "data".getBytes());
@@ -140,8 +140,8 @@ class TasControllerTest {
         Map<String, Object> manana = new LinkedHashMap<>();
         manana.put("id", "manana");
         manana.put("name", "Manana");
-        manana.put("start_time", "07:00");
-        manana.put("end_time", "15:00");
+        manana.put("startTime", "07:00");
+        manana.put("endTime", "15:00");
         when(shiftConfigService.getAllShifts()).thenReturn(List.of(manana));
         when(reportBuilder.build(any(), any(), any(), any(), any()))
                 .thenReturn(new TasReportBuilder.BuildResult(new ArrayList<>(), new LinkedHashMap<>()));

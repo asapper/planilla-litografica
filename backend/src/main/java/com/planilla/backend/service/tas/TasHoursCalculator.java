@@ -85,8 +85,8 @@ public class TasHoursCalculator {
         Map<String, Object> shift = findShiftById(shifts, session.getMatchedShiftId());
         if (shift == null) return;
 
-        LocalTime shiftStart = parseTime(shift.get("start_time"));
-        LocalTime shiftEnd   = parseTime(shift.get("end_time"));
+        LocalTime shiftStart = parseTime(shift.get("startTime"));
+        LocalTime shiftEnd   = parseTime(shift.get("endTime"));
 
         LocalDateTime firstScan = scans.get(0);
         LocalDateTime lastScan  = scans.get(scans.size() - 1);
@@ -101,7 +101,7 @@ public class TasHoursCalculator {
         }
 
         LocalDateTime expectedEnd;
-        if (Boolean.TRUE.equals(shift.get("cross_midnight"))) {
+        if (Boolean.TRUE.equals(shift.get("crossMidnight"))) {
             expectedEnd = LocalDateTime.of(sessionDate.plusDays(1), shiftEnd);
         } else {
             expectedEnd = LocalDateTime.of(sessionDate, shiftEnd);
@@ -126,7 +126,7 @@ public class TasHoursCalculator {
         }
 
         Map<String, Object> shift = findShiftById(shifts, session.getMatchedShiftId());
-        LocalTime shiftStart = shift != null ? parseTime(shift.get("start_time")) : null;
+        LocalTime shiftStart = shift != null ? parseTime(shift.get("startTime")) : null;
 
         LocalDateTime firstScan = scans.get(0);
         LocalDateTime lastScanDt = scans.get(scans.size() - 1);
@@ -244,9 +244,9 @@ public class TasHoursCalculator {
 
     private int computeShiftDurationMinutes(Map<String, Object> shift) {
         if (shift == null) return 480;
-        LocalTime start = parseTime(shift.get("start_time"));
-        LocalTime end   = parseTime(shift.get("end_time"));
-        boolean crossMidnight = Boolean.TRUE.equals(shift.get("cross_midnight"));
+        LocalTime start = parseTime(shift.get("startTime"));
+        LocalTime end   = parseTime(shift.get("endTime"));
+        boolean crossMidnight = Boolean.TRUE.equals(shift.get("crossMidnight"));
 
         int startMinutes = start.getHour() * 60 + start.getMinute();
         int endMinutes   = end.getHour()   * 60 + end.getMinute();

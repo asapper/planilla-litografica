@@ -34,7 +34,7 @@ public class ShiftConfigService {
 
     public List<Map<String, Object>> getAllShifts() {
         List<Map<String, Object>> rows = jdbc.queryForList(
-            "SELECT id, name, start_time, end_time, cross_midnight FROM shift_config ORDER BY name"
+            "SELECT id, name, start_time, end_time, cross_midnight, detection_before_minutes, detection_after_minutes FROM shift_config ORDER BY name"
         );
         List<Map<String, Object>> result = new ArrayList<>();
         for (Map<String, Object> row : rows) {
@@ -43,19 +43,25 @@ public class ShiftConfigService {
         return result;
     }
 
-    public Map<String, Object> createShift(String name, String startTime, String endTime, boolean crossMidnight) {
+    public Map<String, Object> createShift(String name, String startTime, String endTime, boolean crossMidnight,
+                                             Integer detectionBeforeMinutes, Integer detectionAfterMinutes) {
         String id = generateShiftId(name);
+        int before = detectionBeforeMinutes != null ? detectionBeforeMinutes : 60;
+        int after = detectionAfterMinutes != null ? detectionAfterMinutes : 10;
         jdbc.update(
-            "INSERT INTO shift_config (id, name, start_time, end_time, cross_midnight) VALUES (?, ?, ?, ?, ?)",
-            id, name, startTime, endTime, crossMidnight
+            "INSERT INTO shift_config (id, name, start_time, end_time, cross_midnight, detection_before_minutes, detection_after_minutes) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            id, name, startTime, endTime, crossMidnight, before, after
         );
         return getShiftById(id);
     }
 
-    public Map<String, Object> updateShift(String id, String name, String startTime, String endTime, boolean crossMidnight) {
+    public Map<String, Object> updateShift(String id, String name, String startTime, String endTime, boolean crossMidnight,
+                                             Integer detectionBeforeMinutes, Integer detectionAfterMinutes) {
+        int before = detectionBeforeMinutes != null ? detectionBeforeMinutes : 60;
+        int after = detectionAfterMinutes != null ? detectionAfterMinutes : 10;
         int updated = jdbc.update(
-            "UPDATE shift_config SET name = ?, start_time = ?, end_time = ?, cross_midnight = ? WHERE id = ?",
-            name, startTime, endTime, crossMidnight, id
+            "UPDATE shift_config SET name = ?, start_time = ?, end_time = ?, cross_midnight = ?, detection_before_minutes = ?, detection_after_minutes = ? WHERE id = ?",
+            name, startTime, endTime, crossMidnight, before, after, id
         );
         if (updated == 0) {
             throw new IllegalArgumentException("SHIFT_NOT_FOUND");
@@ -80,7 +86,7 @@ public class ShiftConfigService {
 
     private Map<String, Object> getShiftById(String id) {
         List<Map<String, Object>> rows = jdbc.queryForList(
-            "SELECT id, name, start_time, end_time, cross_midnight FROM shift_config WHERE id = ?", id
+            "SELECT id, name, start_time, end_time, cross_midnight, detection_before_minutes, detection_after_minutes FROM shift_config WHERE id = ?", id
         );
         return rows.isEmpty() ? null : toShiftDto(rows.get(0));
     }
@@ -92,6 +98,8 @@ public class ShiftConfigService {
         dto.put("startTime", formatTime(row.get("START_TIME")));
         dto.put("endTime", formatTime(row.get("END_TIME")));
         dto.put("crossMidnight", row.get("CROSS_MIDNIGHT"));
+        dto.put("detectionBeforeMinutes", row.get("DETECTION_BEFORE_MINUTES"));
+        dto.put("detectionAfterMinutes", row.get("DETECTION_AFTER_MINUTES"));
         return dto;
     }
 

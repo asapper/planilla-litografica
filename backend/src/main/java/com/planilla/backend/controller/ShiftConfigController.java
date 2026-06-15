@@ -35,7 +35,8 @@ public class ShiftConfigController {
         Boolean crossMidnight = body.containsKey("crossMidnight") ? (Boolean) body.get("crossMidnight") : false;
 
         try {
-            Map<String, Object> created = shiftConfigService.createShift(name, startTime, endTime, crossMidnight != null && crossMidnight);
+            Map<String, Object> created = shiftConfigService.createShift(name, startTime, endTime, crossMidnight != null && crossMidnight,
+                    extractMinutes(body, "detectionBeforeMinutes"), extractMinutes(body, "detectionAfterMinutes"));
             if (created == null) {
                 return ResponseEntity.internalServerError().body(error(500, "NOT_FOUND_AFTER_WRITE", "Shift created but could not be retrieved"));
             }
@@ -53,7 +54,8 @@ public class ShiftConfigController {
         Boolean crossMidnight = body.containsKey("crossMidnight") ? (Boolean) body.get("crossMidnight") : false;
 
         try {
-            Map<String, Object> updated = shiftConfigService.updateShift(id, name, startTime, endTime, crossMidnight != null && crossMidnight);
+            Map<String, Object> updated = shiftConfigService.updateShift(id, name, startTime, endTime, crossMidnight != null && crossMidnight,
+                    extractMinutes(body, "detectionBeforeMinutes"), extractMinutes(body, "detectionAfterMinutes"));
             if (updated == null) {
                 return ResponseEntity.internalServerError().body(error(500, "NOT_FOUND_AFTER_WRITE", "Shift updated but could not be retrieved"));
             }
@@ -89,6 +91,11 @@ public class ShiftConfigController {
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(error(400, "DELETE_FAILED", e.getMessage()));
         }
+    }
+
+    private Integer extractMinutes(Map<String, Object> body, String key) {
+        Object value = body.get(key);
+        return value != null ? ((Number) value).intValue() : null;
     }
 
     private Map<String, Object> error(int status, String code, String message) {

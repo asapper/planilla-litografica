@@ -44,7 +44,7 @@ class TasUploadServiceTest {
                 "dummy".getBytes(StandardCharsets.UTF_8));
 
         shifts = List.of(Map.of("id", "manana", "name", "Manana",
-                "start_time", "07:00", "end_time", "15:00", "cross_midnight", false));
+                "startTime", "07:00", "endTime", "15:00", "crossMidnight", false));
     }
 
     private TasScanRecord scan(String empId, String ts) {

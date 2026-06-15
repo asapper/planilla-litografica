@@ -21,31 +21,34 @@ class TasSessionGrouperTest {
     private static final String NOCHE_ID     = "noche";
 
     private List<Map<String, Object>> shifts;
+    private Map<String, Object> manana;
+    private Map<String, Object> tarde;
+    private Map<String, Object> noche;
 
     @BeforeEach
     void setUp() {
         grouper = new TasSessionGrouper();
 
-        Map<String, Object> manana = new LinkedHashMap<>();
+        manana = new LinkedHashMap<>();
         manana.put("id", MANANA_ID);
         manana.put("name", "Manana");
-        manana.put("start_time", "07:00");
-        manana.put("end_time", "15:00");
-        manana.put("cross_midnight", false);
+        manana.put("startTime", "07:00");
+        manana.put("endTime", "15:00");
+        manana.put("crossMidnight", false);
 
-        Map<String, Object> tarde = new LinkedHashMap<>();
+        tarde = new LinkedHashMap<>();
         tarde.put("id", TARDE_ID);
         tarde.put("name", "Tarde");
-        tarde.put("start_time", "15:00");
-        tarde.put("end_time", "23:00");
-        tarde.put("cross_midnight", false);
+        tarde.put("startTime", "15:00");
+        tarde.put("endTime", "23:00");
+        tarde.put("crossMidnight", false);
 
-        Map<String, Object> noche = new LinkedHashMap<>();
+        noche = new LinkedHashMap<>();
         noche.put("id", NOCHE_ID);
         noche.put("name", "Noche");
-        noche.put("start_time", "19:00");
-        noche.put("end_time", "07:00");
-        noche.put("cross_midnight", true);
+        noche.put("startTime", "19:00");
+        noche.put("endTime", "07:00");
+        noche.put("crossMidnight", true);
 
         shifts = List.of(manana, tarde, noche);
     }
@@ -370,6 +373,68 @@ class TasSessionGrouperTest {
         assertThat(session.getAssignedShiftName()).isEqualTo("Manana");
         assertThat(session.getMatchedShiftId()).isEqualTo(TARDE_ID);
         assertThat(session.getMatchedShiftName()).isEqualTo("Tarde");
+    }
+
+    @Test
+    void group_nocheShiftWithWiderAfterWindow_matchesLateEntryAsOpener() {
+        Map<String, Object> nocheWide = new HashMap<>(noche);
+        nocheWide.put("detectionAfterMinutes", 50);
+
+        List<Map<String, Object>> shiftsWithWideNoche = List.of(manana, tarde, nocheWide);
+
+        List<TasScanRecord> scans = List.of(
+            scan("EMP1", LocalDateTime.of(2026, 3, 26, 19, 19))
+        );
+
+        List<TasSession> sessions = grouper.group(scans, shiftsWithWideNoche, assignNoche("EMP1"));
+
+        assertThat(sessions).hasSize(1);
+        TasSession session = sessions.get(0);
+        assertThat(session.getMatchedShiftId()).isEqualTo(NOCHE_ID);
+        assertThat(session.getFlags()).doesNotContain(TasFlag.AMBIGUOUS_SHIFT);
+    }
+
+    @Test
+    void group_mananaShiftWithWiderBeforeWindow_matchesEarlyEntryAsOpener() {
+        Map<String, Object> mananaWide = new HashMap<>(manana);
+        mananaWide.put("detectionBeforeMinutes", 90);
+
+        List<Map<String, Object>> shiftsWithWideManana = List.of(mananaWide, tarde, noche);
+
+        // 05:45 is outside the default 60-min before window (06:00-07:10)
+        // but within the widened 90-min window (05:30-07:10).
+        List<TasScanRecord> scans = List.of(
+            scan("EMP1", LocalDateTime.of(2026, 3, 10, 5, 45))
+        );
+
+        List<TasSession> sessions = grouper.group(scans, shiftsWithWideManana, assignManana("EMP1"));
+
+        assertThat(sessions).hasSize(1);
+        TasSession session = sessions.get(0);
+        assertThat(session.getMatchedShiftId()).isEqualTo(MANANA_ID);
+        assertThat(session.getFlags()).doesNotContain(TasFlag.AMBIGUOUS_SHIFT);
+    }
+
+    @Test
+    void group_detectionAfterMinutesAsNonNumber_fallsBackToDefault() {
+        Map<String, Object> nocheNonNumber = new HashMap<>(noche);
+        nocheNonNumber.put("detectionAfterMinutes", "50");
+
+        List<Map<String, Object>> shiftsWithNonNumberNoche = List.of(manana, tarde, nocheNonNumber);
+
+        // 19:19 would be within a 50-min after window (19:00-19:50) if the String
+        // were honored, but falls outside the default 10-min window (19:00-19:10),
+        // so the fallback constant should apply and leave this session ambiguous.
+        List<TasScanRecord> scans = List.of(
+            scan("EMP1", LocalDateTime.of(2026, 3, 26, 19, 19))
+        );
+
+        List<TasSession> sessions = grouper.group(scans, shiftsWithNonNumberNoche, assignNoche("EMP1"));
+
+        assertThat(sessions).hasSize(1);
+        TasSession session = sessions.get(0);
+        assertThat(session.getMatchedShiftId()).isNull();
+        assertThat(session.getFlags()).contains(TasFlag.AMBIGUOUS_SHIFT);
     }
 
     @Test

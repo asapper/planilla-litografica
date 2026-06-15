@@ -9,11 +9,13 @@ CREATE TABLE IF NOT EXISTS carga_log (
 );
 
 CREATE TABLE IF NOT EXISTS shift_config (
-    id              VARCHAR(36)   PRIMARY KEY,
-    name            VARCHAR(100)  NOT NULL,
-    start_time      TIME          NOT NULL,
-    end_time        TIME          NOT NULL,
-    cross_midnight  BOOLEAN       NOT NULL DEFAULT FALSE,
+    id                       VARCHAR(36)   PRIMARY KEY,
+    name                     VARCHAR(100)  NOT NULL,
+    start_time               TIME          NOT NULL,
+    end_time                 TIME          NOT NULL,
+    cross_midnight           BOOLEAN       NOT NULL DEFAULT FALSE,
+    detection_before_minutes INTEGER       NOT NULL DEFAULT 60,
+    detection_after_minutes  INTEGER       NOT NULL DEFAULT 10,
     CONSTRAINT uq_shift_name UNIQUE (name)
 );
 

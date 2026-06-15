@@ -34,6 +34,8 @@ class ShiftConfigServiceTest {
         row.put("START_TIME", java.sql.Time.valueOf("07:00:00"));
         row.put("END_TIME", java.sql.Time.valueOf("15:00:00"));
         row.put("CROSS_MIDNIGHT", false);
+        row.put("DETECTION_BEFORE_MINUTES", 60);
+        row.put("DETECTION_AFTER_MINUTES", 10);
         when(jdbc.queryForList(anyString())).thenReturn(List.of(row));
 
         List<Map<String, Object>> result = service.getAllShifts();
@@ -45,6 +47,8 @@ class ShiftConfigServiceTest {
         assertThat(dto.get("startTime")).isEqualTo("07:00");
         assertThat(dto.get("endTime")).isEqualTo("15:00");
         assertThat(dto.get("crossMidnight")).isEqualTo(false);
+        assertThat(dto.get("detectionBeforeMinutes")).isEqualTo(60);
+        assertThat(dto.get("detectionAfterMinutes")).isEqualTo(10);
     }
 
     @Test
@@ -57,13 +61,15 @@ class ShiftConfigServiceTest {
         row.put("START_TIME", java.sql.Time.valueOf("15:00:00"));
         row.put("END_TIME", java.sql.Time.valueOf("23:00:00"));
         row.put("CROSS_MIDNIGHT", false);
+        row.put("DETECTION_BEFORE_MINUTES", 60);
+        row.put("DETECTION_AFTER_MINUTES", 10);
         when(jdbc.queryForList(anyString(), eq("tarde"))).thenReturn(List.of(row));
 
-        Map<String, Object> created = service.createShift("Tarde", "15:00", "23:00", false);
+        Map<String, Object> created = service.createShift("Tarde", "15:00", "23:00", false, 60, 10);
 
         assertThat(created.get("id")).isEqualTo("tarde");
         assertThat(created.get("name")).isEqualTo("Tarde");
-        verify(jdbc).update(contains("INSERT INTO shift_config"), eq("tarde"), eq("Tarde"), eq("15:00"), eq("23:00"), eq(false));
+        verify(jdbc).update(contains("INSERT INTO shift_config"), eq("tarde"), eq("Tarde"), eq("15:00"), eq("23:00"), eq(false), eq(60), eq(10));
     }
 
     @Test
@@ -78,26 +84,30 @@ class ShiftConfigServiceTest {
         row.put("START_TIME", java.sql.Time.valueOf("15:00:00"));
         row.put("END_TIME", java.sql.Time.valueOf("23:00:00"));
         row.put("CROSS_MIDNIGHT", false);
+        row.put("DETECTION_BEFORE_MINUTES", 60);
+        row.put("DETECTION_AFTER_MINUTES", 10);
         when(jdbc.queryForList(anyString(), eq("tarde-2"))).thenReturn(List.of(row));
 
-        Map<String, Object> created = service.createShift("Tarde", "15:00", "23:00", false);
+        Map<String, Object> created = service.createShift("Tarde", "15:00", "23:00", false, 60, 10);
 
         assertThat(created.get("id")).isEqualTo("tarde-2");
-        verify(jdbc).update(contains("INSERT INTO shift_config"), eq("tarde-2"), eq("Tarde"), eq("15:00"), eq("23:00"), eq(false));
+        verify(jdbc).update(contains("INSERT INTO shift_config"), eq("tarde-2"), eq("Tarde"), eq("15:00"), eq("23:00"), eq(false), eq(60), eq(10));
     }
 
     @Test
     void updateShift_successReturnsUpdatedDto() {
-        when(jdbc.update(anyString(), any(), any(), any(), any(), any())).thenReturn(1);
+        when(jdbc.update(anyString(), any(), any(), any(), any(), any(), any(), any())).thenReturn(1);
         Map<String, Object> row = new java.util.HashMap<>();
         row.put("ID", "tarde");
         row.put("NAME", "Tarde");
         row.put("START_TIME", java.sql.Time.valueOf("15:00:00"));
         row.put("END_TIME", java.sql.Time.valueOf("23:00:00"));
         row.put("CROSS_MIDNIGHT", false);
+        row.put("DETECTION_BEFORE_MINUTES", 60);
+        row.put("DETECTION_AFTER_MINUTES", 10);
         when(jdbc.queryForList(anyString(), eq("tarde"))).thenReturn(List.of(row));
 
-        Map<String, Object> updated = service.updateShift("tarde", "Tarde", "15:00", "23:00", false);
+        Map<String, Object> updated = service.updateShift("tarde", "Tarde", "15:00", "23:00", false, 60, 10);
 
         assertThat(updated.get("id")).isEqualTo("tarde");
         assertThat(updated.get("startTime")).isEqualTo("15:00");
@@ -105,9 +115,9 @@ class ShiftConfigServiceTest {
 
     @Test
     void updateShift_throwsWhenNoRowsAffected() {
-        when(jdbc.update(anyString(), any(), any(), any(), any(), any())).thenReturn(0);
+        when(jdbc.update(anyString(), any(), any(), any(), any(), any(), any(), any())).thenReturn(0);
 
-        assertThatThrownBy(() -> service.updateShift("ghost", "Ghost", "00:00", "08:00", false))
+        assertThatThrownBy(() -> service.updateShift("ghost", "Ghost", "00:00", "08:00", false, 60, 10))
             .isInstanceOf(IllegalArgumentException.class)
             .hasMessage("SHIFT_NOT_FOUND");
     }

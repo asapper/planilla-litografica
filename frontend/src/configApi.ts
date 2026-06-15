@@ -10,10 +10,10 @@ const client = axios.create({
 export const getShifts = (): Promise<Shift[]> =>
   client.get<Shift[]>('/config/shifts').then(r => r.data);
 
-export const createShift = (body: { name: string; startTime: string; endTime: string; crossMidnight: boolean }): Promise<Shift> =>
+export const createShift = (body: { name: string; startTime: string; endTime: string; crossMidnight: boolean; detectionBeforeMinutes: number; detectionAfterMinutes: number }): Promise<Shift> =>
   client.post<Shift>('/config/shifts', body).then(r => r.data);
 
-export const updateShift = (id: string, body: Partial<{ name: string; startTime: string; endTime: string; crossMidnight: boolean }>): Promise<Shift> =>
+export const updateShift = (id: string, body: Partial<{ name: string; startTime: string; endTime: string; crossMidnight: boolean; detectionBeforeMinutes: number; detectionAfterMinutes: number }>): Promise<Shift> =>
   client.put<Shift>(`/config/shifts/${id}`, body).then(r => r.data);
 
 export const deleteShift = (id: string): Promise<void> =>
