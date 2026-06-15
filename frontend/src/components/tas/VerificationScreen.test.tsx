@@ -654,6 +654,24 @@ describe('VerificationScreen employee grouping', () => {
     expect(headers[1]).toHaveTextContent('Zoe Vargas');
   });
 
+  it('expands a group by default when it contains only a shift-mismatch session', () => {
+    useTasStore.getState().setFlaggedSessions([
+      makeSession({
+        sessionId: 1, employeeId: 'E1', employeeName: 'Ana López', date: '2026-03-10',
+        flags: ['SHIFT_MISMATCH'],
+        effectiveStart: '2026-03-10T07:03:00', lastScan: '2026-03-10T15:05:00',
+        matchedShiftId: 'tarde', matchedShiftName: 'Tarde',
+        assignedShiftId: 'manana', assignedShiftName: 'Manana',
+      }),
+    ]);
+    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
+    render(<VerificationScreen />);
+    const header = screen.getByRole('button', { name: /Ana López/ });
+    expect(header).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByText('✓ Resuelto')).toBeInTheDocument();
+    expect(screen.getByText(/Turno asignado: Manana/)).toBeInTheDocument();
+  });
+
   it('groups a regular session and a shift-mismatch session for the same employee under one header', () => {
     useTasStore.getState().setFlaggedSessions([
       makeSession({ sessionId: 1, employeeId: 'E1', employeeName: 'Ana López', date: '2026-03-05', flags: ['MISSING_ENTRY'] }),
