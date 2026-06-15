@@ -12,11 +12,12 @@ function isCrossMidnight(start: string, end: string): boolean {
 interface RowProps {
   shift: Shift;
   onUpdate: (id: string, field: keyof Pick<Shift, 'name' | 'startTime' | 'endTime'>, value: string) => void;
+  onDetectionChange: (id: string, field: 'detectionBeforeMinutes' | 'detectionAfterMinutes', value: number) => void;
   onDelete: (id: string) => void;
   deleteError: string | null;
 }
 
-function ShiftRow({ shift, onUpdate, onDelete, deleteError }: RowProps) {
+function ShiftRow({ shift, onUpdate, onDetectionChange, onDelete, deleteError }: RowProps) {
   const cross = isCrossMidnight(shift.startTime, shift.endTime);
 
   return (
@@ -57,6 +58,24 @@ function ShiftRow({ shift, onUpdate, onDelete, deleteError }: RowProps) {
             </span>
           )}
         </td>
+        <td className="px-4 py-2">
+          <input
+            type="number"
+            className="w-20 border border-gray-200 rounded px-2 py-1 text-sm focus:outline-none focus:border-blue-500"
+            value={shift.detectionBeforeMinutes}
+            onChange={e => onDetectionChange(shift.id, 'detectionBeforeMinutes', Number(e.target.value))}
+            aria-label="Detección antes (min)"
+          />
+        </td>
+        <td className="px-4 py-2">
+          <input
+            type="number"
+            className="w-20 border border-gray-200 rounded px-2 py-1 text-sm focus:outline-none focus:border-blue-500"
+            value={shift.detectionAfterMinutes}
+            onChange={e => onDetectionChange(shift.id, 'detectionAfterMinutes', Number(e.target.value))}
+            aria-label="Detección después (min)"
+          />
+        </td>
         <td className="px-4 py-2 text-center">
           <button
             onClick={() => onDelete(shift.id)}
@@ -71,7 +90,7 @@ function ShiftRow({ shift, onUpdate, onDelete, deleteError }: RowProps) {
       </tr>
       {deleteError && (
         <tr>
-          <td colSpan={5} className="px-4 py-1">
+          <td colSpan={7} className="px-4 py-1">
             <p className="text-sm text-red-600 bg-red-50 rounded px-2 py-1">{deleteError}</p>
           </td>
         </tr>
@@ -81,23 +100,27 @@ function ShiftRow({ shift, onUpdate, onDelete, deleteError }: RowProps) {
 }
 
 interface AddRowProps {
-  onAdd: (name: string, startTime: string, endTime: string) => void;
+  onAdd: (name: string, startTime: string, endTime: string, detectionBeforeMinutes: number, detectionAfterMinutes: number) => void;
 }
 
 function AddShiftRow({ onAdd }: AddRowProps) {
   const [name, setName] = useState('');
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
+  const [detectionBeforeMinutes, setDetectionBeforeMinutes] = useState(60);
+  const [detectionAfterMinutes, setDetectionAfterMinutes] = useState(10);
 
   const canAdd = name.trim() !== '' && startTime !== '' && endTime !== '';
   const cross = isCrossMidnight(startTime, endTime);
 
   const handleAdd = () => {
     if (!canAdd) return;
-    onAdd(name.trim(), startTime, endTime);
+    onAdd(name.trim(), startTime, endTime, detectionBeforeMinutes, detectionAfterMinutes);
     setName('');
     setStartTime('');
     setEndTime('');
+    setDetectionBeforeMinutes(60);
+    setDetectionAfterMinutes(10);
   };
 
   return (
@@ -137,6 +160,24 @@ function AddShiftRow({ onAdd }: AddRowProps) {
             </svg>
           </span>
         )}
+      </td>
+      <td className="px-4 py-2">
+        <input
+          type="number"
+          className="w-20 border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:border-blue-500"
+          value={detectionBeforeMinutes}
+          onChange={e => setDetectionBeforeMinutes(Number(e.target.value))}
+          aria-label="Detección antes (min) del nuevo turno"
+        />
+      </td>
+      <td className="px-4 py-2">
+        <input
+          type="number"
+          className="w-20 border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:border-blue-500"
+          value={detectionAfterMinutes}
+          onChange={e => setDetectionAfterMinutes(Number(e.target.value))}
+          aria-label="Detección después (min) del nuevo turno"
+        />
       </td>
       <td className="px-4 py-2 text-center">
         <button
@@ -189,6 +230,11 @@ export default function ShiftsTab() {
     setShiftsDirty(true);
   };
 
+  const handleDetectionChange = (id: string, field: 'detectionBeforeMinutes' | 'detectionAfterMinutes', value: number) => {
+    setLocalShifts(prev => prev.map(s => (s.id === id ? { ...s, [field]: value } : s)));
+    setShiftsDirty(true);
+  };
+
   const handleSave = async () => {
     setShiftsLoading(true);
     setShiftsError(null);
@@ -200,6 +246,8 @@ export default function ShiftsTab() {
             startTime: s.startTime,
             endTime: s.endTime,
             crossMidnight: s.crossMidnight,
+            detectionBeforeMinutes: s.detectionBeforeMinutes,
+            detectionAfterMinutes: s.detectionAfterMinutes,
           })
         )
       );
@@ -243,10 +291,10 @@ export default function ShiftsTab() {
     }
   };
 
-  const handleAdd = async (name: string, startTime: string, endTime: string) => {
+  const handleAdd = async (name: string, startTime: string, endTime: string, detectionBeforeMinutes: number, detectionAfterMinutes: number) => {
     const crossMidnight = isCrossMidnight(startTime, endTime);
     try {
-      const created = await createShift({ name, startTime, endTime, crossMidnight });
+      const created = await createShift({ name, startTime, endTime, crossMidnight, detectionBeforeMinutes, detectionAfterMinutes });
       const newData = [...localShifts, created];
       setLocalShifts(newData);
       setShiftsData(newData);
@@ -278,6 +326,8 @@ export default function ShiftsTab() {
               <th className="px-4 py-2 font-medium text-gray-700">Inicio (HH:MM)</th>
               <th className="px-4 py-2 font-medium text-gray-700">Fin (HH:MM)</th>
               <th className="px-4 py-2 font-medium text-gray-700 text-center w-12"></th>
+              <th className="px-4 py-2 font-medium text-gray-700">Detección antes (min)</th>
+              <th className="px-4 py-2 font-medium text-gray-700">Detección después (min)</th>
               <th className="px-4 py-2 font-medium text-gray-700 text-center w-32"></th>
             </tr>
           </thead>
@@ -287,6 +337,7 @@ export default function ShiftsTab() {
                 key={shift.id}
                 shift={shift}
                 onUpdate={handleUpdate}
+                onDetectionChange={handleDetectionChange}
                 onDelete={handleDelete}
                 deleteError={deleteErrors[shift.id] ?? null}
               />

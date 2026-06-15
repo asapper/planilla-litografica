@@ -10,8 +10,8 @@ const mockCreateShift = vi.mocked(configApi.createShift);
 const mockUpdateShift = vi.mocked(configApi.updateShift);
 const mockDeleteShift = vi.mocked(configApi.deleteShift);
 
-const shift1 = { id: 'manana', name: 'Diurno', startTime: '08:00', endTime: '17:00', crossMidnight: false };
-const shift2 = { id: 'nocturno', name: 'Nocturno', startTime: '22:00', endTime: '06:00', crossMidnight: true };
+const shift1 = { id: 'manana', name: 'Diurno', startTime: '08:00', endTime: '17:00', crossMidnight: false, detectionBeforeMinutes: 60, detectionAfterMinutes: 10 };
+const shift2 = { id: 'nocturno', name: 'Nocturno', startTime: '22:00', endTime: '06:00', crossMidnight: true, detectionBeforeMinutes: 60, detectionAfterMinutes: 50 };
 
 const { default: ShiftsTab } = await import('./ShiftsTab');
 
@@ -82,6 +82,13 @@ describe('ShiftsTab table', () => {
     render(<ShiftsTab />);
     await waitFor(() => expect(screen.queryByLabelText('Turno de madrugada')).not.toBeInTheDocument());
   });
+
+  it('shows detection window inputs with shift values', async () => {
+    render(<ShiftsTab />);
+    await waitFor(() => screen.getByDisplayValue('Diurno'));
+    expect(screen.getByLabelText('Detección antes (min)')).toHaveValue(60);
+    expect(screen.getByLabelText('Detección después (min)')).toHaveValue(10);
+  });
 });
 
 // -----------------------------------------------------------------
@@ -101,6 +108,22 @@ describe('ShiftsTab inline editing', () => {
     await waitFor(() => screen.getByDisplayValue('17:00'));
     fireEvent.change(screen.getByLabelText('Hora de fin'), { target: { value: '06:00' } });
     await waitFor(() => expect(screen.getByLabelText('Turno de madrugada')).toBeInTheDocument());
+  });
+
+  it('marks tab as dirty when detection before minutes is edited', async () => {
+    render(<ShiftsTab />);
+    await waitFor(() => screen.getByDisplayValue('Diurno'));
+    fireEvent.change(screen.getByLabelText('Detección antes (min)'), { target: { value: '45' } });
+    expect(useConfigStore.getState().shifts.dirty).toBe(true);
+    expect(screen.getByLabelText('Detección antes (min)')).toHaveValue(45);
+  });
+
+  it('marks tab as dirty when detection after minutes is edited', async () => {
+    render(<ShiftsTab />);
+    await waitFor(() => screen.getByDisplayValue('Diurno'));
+    fireEvent.change(screen.getByLabelText('Detección después (min)'), { target: { value: '15' } });
+    expect(useConfigStore.getState().shifts.dirty).toBe(true);
+    expect(screen.getByLabelText('Detección después (min)')).toHaveValue(15);
   });
 });
 
@@ -129,6 +152,18 @@ describe('ShiftsTab save', () => {
     fireEvent.change(screen.getByLabelText('Nombre del turno'), { target: { value: 'Nuevo Nombre' } });
     fireEvent.click(screen.getByRole('button', { name: /guardar cambios/i }));
     await waitFor(() => expect(mockUpdateShift).toHaveBeenCalledOnce());
+  });
+
+  it('includes detection window values in updateShift body on save', async () => {
+    mockUpdateShift.mockResolvedValue(shift1);
+    render(<ShiftsTab />);
+    await waitFor(() => screen.getByDisplayValue('Diurno'));
+    fireEvent.change(screen.getByLabelText('Detección antes (min)'), { target: { value: '45' } });
+    fireEvent.change(screen.getByLabelText('Detección después (min)'), { target: { value: '15' } });
+    fireEvent.click(screen.getByRole('button', { name: /guardar cambios/i }));
+    await waitFor(() => expect(mockUpdateShift).toHaveBeenCalledWith('manana', expect.objectContaining({
+      detectionBeforeMinutes: 45, detectionAfterMinutes: 15,
+    })));
   });
 
   it('shows toast after successful save', async () => {
@@ -219,7 +254,7 @@ describe('ShiftsTab add shift', () => {
   });
 
   it('calls createShift when form is filled and add button clicked', async () => {
-    mockCreateShift.mockResolvedValue({ id: 'tarde', name: 'Tarde', startTime: '14:00', endTime: '22:00', crossMidnight: false });
+    mockCreateShift.mockResolvedValue({ id: 'tarde', name: 'Tarde', startTime: '14:00', endTime: '22:00', crossMidnight: false, detectionBeforeMinutes: 60, detectionAfterMinutes: 10 });
     render(<ShiftsTab />);
     await waitFor(() => screen.getByDisplayValue('Diurno'));
 
@@ -230,11 +265,44 @@ describe('ShiftsTab add shift', () => {
 
     await waitFor(() => expect(mockCreateShift).toHaveBeenCalledWith({
       name: 'Tarde', startTime: '14:00', endTime: '22:00', crossMidnight: false,
+      detectionBeforeMinutes: 60, detectionAfterMinutes: 10,
     }));
   });
 
+  it('uses default detection window values (60/10) when adding a shift without changing them', async () => {
+    mockCreateShift.mockResolvedValue({ id: 'tarde', name: 'Tarde', startTime: '14:00', endTime: '22:00', crossMidnight: false, detectionBeforeMinutes: 60, detectionAfterMinutes: 10 });
+    render(<ShiftsTab />);
+    await waitFor(() => screen.getByDisplayValue('Diurno'));
+
+    fireEvent.change(screen.getByLabelText(/nombre del nuevo turno/i), { target: { value: 'Tarde' } });
+    fireEvent.change(screen.getByLabelText(/hora de inicio del nuevo turno/i), { target: { value: '14:00' } });
+    fireEvent.change(screen.getByLabelText(/hora de fin del nuevo turno/i), { target: { value: '22:00' } });
+    fireEvent.click(screen.getByRole('button', { name: /\+ agregar turno/i }));
+
+    await waitFor(() => expect(mockCreateShift).toHaveBeenCalledWith(
+      expect.objectContaining({ detectionBeforeMinutes: 60, detectionAfterMinutes: 10 })
+    ));
+  });
+
+  it('allows editing detection window values for a new shift before adding', async () => {
+    mockCreateShift.mockResolvedValue({ id: 'tarde', name: 'Tarde', startTime: '14:00', endTime: '22:00', crossMidnight: false, detectionBeforeMinutes: 90, detectionAfterMinutes: 30 });
+    render(<ShiftsTab />);
+    await waitFor(() => screen.getByDisplayValue('Diurno'));
+
+    fireEvent.change(screen.getByLabelText(/nombre del nuevo turno/i), { target: { value: 'Tarde' } });
+    fireEvent.change(screen.getByLabelText(/hora de inicio del nuevo turno/i), { target: { value: '14:00' } });
+    fireEvent.change(screen.getByLabelText(/hora de fin del nuevo turno/i), { target: { value: '22:00' } });
+    fireEvent.change(screen.getByLabelText(/detección antes \(min\) del nuevo turno/i), { target: { value: '90' } });
+    fireEvent.change(screen.getByLabelText(/detección después \(min\) del nuevo turno/i), { target: { value: '30' } });
+    fireEvent.click(screen.getByRole('button', { name: /\+ agregar turno/i }));
+
+    await waitFor(() => expect(mockCreateShift).toHaveBeenCalledWith(
+      expect.objectContaining({ detectionBeforeMinutes: 90, detectionAfterMinutes: 30 })
+    ));
+  });
+
   it('shows new shift in table after successful add', async () => {
-    mockCreateShift.mockResolvedValue({ id: 'tarde', name: 'Tarde', startTime: '14:00', endTime: '22:00', crossMidnight: false });
+    mockCreateShift.mockResolvedValue({ id: 'tarde', name: 'Tarde', startTime: '14:00', endTime: '22:00', crossMidnight: false, detectionBeforeMinutes: 60, detectionAfterMinutes: 10 });
     render(<ShiftsTab />);
     await waitFor(() => screen.getByDisplayValue('Diurno'));
 

@@ -26,7 +26,7 @@ const {
   getGeneralConfig, updateGeneralConfig,
 } = await import('./configApi');
 
-const shift: Shift = { id: 'manana', name: 'Diurno', startTime: '08:00', endTime: '17:00', crossMidnight: false };
+const shift: Shift = { id: 'manana', name: 'Diurno', startTime: '08:00', endTime: '17:00', crossMidnight: false, detectionBeforeMinutes: 60, detectionAfterMinutes: 10 };
 const employee: Employee = { id: 'emp1', code: 'EMP001', name: 'Ana García', shiftId: 'manana', shiftName: 'Diurno', active: true, accruesOvertime: true };
 const holiday: Holiday = { id: 1, date: '2026-01-01', name: 'Año Nuevo', source: 'API' };
 const generalConfig: GeneralConfig = { legalBreakAllowanceMinutes: 45 };
@@ -60,7 +60,7 @@ describe('getShifts', () => {
 describe('createShift', () => {
   it('posts to /config/shifts with body and returns new shift', async () => {
     mockPost.mockResolvedValue({ data: shift });
-    const body = { name: 'Diurno', startTime: '08:00', endTime: '17:00', crossMidnight: false };
+    const body = { name: 'Diurno', startTime: '08:00', endTime: '17:00', crossMidnight: false, detectionBeforeMinutes: 60, detectionAfterMinutes: 10 };
     const result = await createShift(body);
     expect(mockPost).toHaveBeenCalledWith('/config/shifts', body);
     expect(result).toEqual(shift);
@@ -68,7 +68,7 @@ describe('createShift', () => {
 
   it('propagates errors', async () => {
     mockPost.mockRejectedValue(new Error('conflict'));
-    await expect(createShift({ name: 'X', startTime: '00:00', endTime: '01:00', crossMidnight: false })).rejects.toThrow('conflict');
+    await expect(createShift({ name: 'X', startTime: '00:00', endTime: '01:00', crossMidnight: false, detectionBeforeMinutes: 60, detectionAfterMinutes: 10 })).rejects.toThrow('conflict');
   });
 });
 

@@ -11,7 +11,7 @@ const mockUpdateEmployee = vi.mocked(configApi.updateEmployee);
 const mockBulkAssign     = vi.mocked(configApi.bulkAssignShift);
 const mockUpdateAccruesOvertime = vi.mocked(configApi.updateAccruesOvertime);
 
-const shift1 = { id: 'manana', name: 'Diurno', startTime: '08:00', endTime: '17:00', crossMidnight: false };
+const shift1 = { id: 'manana', name: 'Diurno', startTime: '08:00', endTime: '17:00', crossMidnight: false, detectionBeforeMinutes: 60, detectionAfterMinutes: 10 };
 const emp1 = { id: 'emp1', code: 'EMP001', name: 'Ana García', shiftId: 'manana', shiftName: 'Diurno', active: true, accruesOvertime: true };
 const emp2 = { id: 'emp2', code: 'EMP002', name: 'Carlos López', shiftId: null, shiftName: null, active: false, accruesOvertime: false };
 

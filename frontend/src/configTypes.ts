@@ -4,6 +4,8 @@ export interface Shift {
   startTime: string;
   endTime: string;
   crossMidnight: boolean;
+  detectionBeforeMinutes: number;
+  detectionAfterMinutes: number;
 }
 
 export interface Employee {
