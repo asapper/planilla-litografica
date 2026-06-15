@@ -4,8 +4,8 @@ import { resolveVerification } from '../../tasApi';
 import type { TasResolution } from '../../tasApi';
 import { MONTH_NAMES_ES } from '../../dateNames';
 import type { TasSession, TasFlag, TasPeriod, ShiftOption } from '../../tasTypes';
-
-type FilterChip = 'all' | 'missing_entry' | 'missing_exit' | 'shift_mismatch' | 'cutoff';
+import EmployeeGroup from './EmployeeGroup';
+import { buildEmployeeGroups } from './verificationGrouping';
 
 const FLAG_LABELS: Record<TasFlag, string> = {
   MISSING_ENTRY:  'Falta entrada',
@@ -77,15 +77,6 @@ function periodLabel(p: TasPeriod): string {
 
 function periodKey(p: TasPeriod): string {
   return `${p.anio}-${p.mes}-${p.numeroDequincena}`;
-}
-
-function sessionMatchesFilter(session: TasSession, filter: FilterChip): boolean {
-  if (filter === 'all') return true;
-  if (filter === 'missing_entry')  return session.flags.includes('MISSING_ENTRY');
-  if (filter === 'missing_exit')   return session.flags.includes('MISSING_EXIT');
-  if (filter === 'shift_mismatch') return session.flags.includes('SHIFT_MISMATCH');
-  if (filter === 'cutoff')         return session.flags.includes('START_CUTOFF') || session.flags.includes('END_CUTOFF');
-  return false;
 }
 
 interface ShiftMismatchCardProps {
@@ -357,18 +348,16 @@ export default function VerificationScreen() {
   const sameDayDoubleResolutions    = useTasStore(s => s.sameDayDoubleResolutions);
   const setSameDayDoubleResolution  = useTasStore(s => s.setSameDayDoubleResolution);
 
-  const [activeFilter, setActiveFilter] = useState<FilterChip>('all');
+  const [manuallyToggled, setManuallyToggled] = useState<Set<string>>(new Set());
 
   const needsResolutionSessions = flaggedSessions.filter(
     s => s.needsResolution && periodsEqual(getSessionPeriod(s.date), selectedPeriod),
   );
-  const filtered = needsResolutionSessions.filter(s => sessionMatchesFilter(s, activeFilter));
   const sameDayDoubleSessions = needsResolutionSessions.filter(s => s.flags.includes('SAME_DAY_DOUBLE'));
   const allShiftMismatchOnly = needsResolutionSessions.filter(
     s => !sameDayDoubleSessions.includes(s) && s.flags.length === 1 && s.flags[0] === 'SHIFT_MISMATCH',
   );
-  const shiftMismatchOnly = filtered.filter(s => allShiftMismatchOnly.includes(s));
-  const regular = filtered.filter(
+  const regular = needsResolutionSessions.filter(
     s => !sameDayDoubleSessions.includes(s) && !allShiftMismatchOnly.includes(s),
   );
 
@@ -380,21 +369,20 @@ export default function VerificationScreen() {
     sameDayDoubleGroups.set(key, group);
   }
 
-  const confirmedCount = Object.keys(resolvedSessions).length
-    + allShiftMismatchOnly.length
-    + sameDayDoubleSessions.length;
-  const totalToResolve  = needsResolutionSessions.length;
-  const pendingCount    = totalToResolve - confirmedCount;
+  const employeeGroups = buildEmployeeGroups(regular, allShiftMismatchOnly, sameDayDoubleGroups, resolvedSessions);
 
-  const chipCounts = {
-    all:           needsResolutionSessions.length,
-    missing_entry: needsResolutionSessions.filter(s => s.flags.includes('MISSING_ENTRY')).length,
-    missing_exit:  needsResolutionSessions.filter(s => s.flags.includes('MISSING_EXIT')).length,
-    shift_mismatch: needsResolutionSessions.filter(s => s.flags.includes('SHIFT_MISMATCH')).length,
-    cutoff:        needsResolutionSessions.filter(s => s.flags.includes('START_CUTOFF') || s.flags.includes('END_CUTOFF')).length,
+  const totalToResolve = needsResolutionSessions.length;
+  const pendingCount   = employeeGroups.reduce((sum, g) => sum + g.pendingCount, 0);
+  const allConfirmed   = pendingCount === 0;
+
+  const toggleGroup = (employeeId: string) => {
+    setManuallyToggled(prev => {
+      const next = new Set(prev);
+      if (next.has(employeeId)) next.delete(employeeId);
+      else next.add(employeeId);
+      return next;
+    });
   };
-
-  const allConfirmed = pendingCount === 0;
 
   const handleSubmit = async () => {
     if (!uploadToken) return;
@@ -440,14 +428,6 @@ export default function VerificationScreen() {
     }
   };
 
-  const chips: { key: FilterChip; label: string }[] = [
-    { key: 'all',           label: 'Todos' },
-    { key: 'missing_entry', label: 'Falta entrada' },
-    { key: 'missing_exit',  label: 'Falta salida' },
-    { key: 'shift_mismatch', label: 'Cambio de turno' },
-    { key: 'cutoff',        label: 'Corte de período' },
-  ];
-
   return (
     <div className="fixed inset-0 flex flex-col bg-surface-container-lowest" style={{ paddingTop: 64 }}>
       <div className="flex-1 overflow-auto px-6 py-6">
@@ -486,55 +466,54 @@ export default function VerificationScreen() {
             </p>
           </div>
         ) : (
-          <>
-            <div className="flex gap-2 flex-wrap mb-6">
-              {chips.map(chip => (
-                chipCounts[chip.key] > 0 || chip.key === 'all' ? (
-                  <button
-                    key={chip.key}
-                    onClick={() => setActiveFilter(chip.key)}
-                    className={`px-3 py-1 rounded-full text-label-md font-medium border transition-colors cursor-pointer ${
-                      activeFilter === chip.key
-                        ? 'bg-primary text-white border-primary'
-                        : 'bg-white text-on-surface-variant border-outline-variant hover:bg-surface-container-low'
-                    }`}
-                  >
-                    {chip.label} {chipCounts[chip.key] > 0 ? `(${chipCounts[chip.key]})` : ''}
-                  </button>
-                ) : null
-              ))}
-            </div>
-
-            {Array.from(sameDayDoubleGroups.entries()).map(([groupKey, groupSessions]) => (
-              <SameDayDoubleGroupCard
-                key={groupKey}
-                sessions={groupSessions}
-                choice={sameDayDoubleResolutions[groupKey] ?? 'all'}
-                onChange={(keepSessionId) => setSameDayDoubleResolution(groupKey, keepSessionId)}
-              />
-            ))}
-
-            {regular.map(session => (
-              <SessionCard
-                key={session.sessionId}
-                session={session}
-                confirmed={!!resolvedSessions[session.sessionId]}
-                onConfirm={(resolvedStart, resolvedEnd) =>
-                  setResolvedSession(session.sessionId, { resolvedStart, resolvedEnd })
-                }
-              />
-            ))}
-
-            {shiftMismatchOnly.map(session => (
-              <ShiftMismatchCard
-                key={session.sessionId}
-                session={session}
-                availableShifts={availableShifts}
-                acceptedShiftId={shiftAcceptances[session.sessionId] ?? session.matchedShiftId ?? ''}
-                onChange={(acceptedShiftId) => setShiftAcceptance(session.sessionId, acceptedShiftId)}
-              />
-            ))}
-          </>
+          employeeGroups.map(group => {
+            const defaultExpanded = group.pendingCount > 0 || group.items.some(item => item.type !== 'session');
+            const expanded = manuallyToggled.has(group.employeeId) ? !defaultExpanded : defaultExpanded;
+            return (
+              <EmployeeGroup
+                key={group.employeeId}
+                employeeName={group.employeeName}
+                pendingCount={group.pendingCount}
+                expanded={expanded}
+                onToggle={() => toggleGroup(group.employeeId)}
+              >
+                {group.items.map(item => {
+                  switch (item.type) {
+                    case 'session':
+                      return (
+                        <SessionCard
+                          key={item.session.sessionId}
+                          session={item.session}
+                          confirmed={!!resolvedSessions[item.session.sessionId]}
+                          onConfirm={(resolvedStart, resolvedEnd) =>
+                            setResolvedSession(item.session.sessionId, { resolvedStart, resolvedEnd })
+                          }
+                        />
+                      );
+                    case 'shift_mismatch':
+                      return (
+                        <ShiftMismatchCard
+                          key={item.session.sessionId}
+                          session={item.session}
+                          availableShifts={availableShifts}
+                          acceptedShiftId={shiftAcceptances[item.session.sessionId] ?? item.session.matchedShiftId ?? ''}
+                          onChange={(acceptedShiftId) => setShiftAcceptance(item.session.sessionId, acceptedShiftId)}
+                        />
+                      );
+                    case 'same_day_double':
+                      return (
+                        <SameDayDoubleGroupCard
+                          key={item.groupKey}
+                          sessions={item.sessions}
+                          choice={sameDayDoubleResolutions[item.groupKey] ?? 'all'}
+                          onChange={(keepSessionId) => setSameDayDoubleResolution(item.groupKey, keepSessionId)}
+                        />
+                      );
+                  }
+                })}
+              </EmployeeGroup>
+            );
+          })
         )}
       </div>
 
