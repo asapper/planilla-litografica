@@ -63,7 +63,11 @@ function ShiftRow({ shift, onUpdate, onDetectionChange, onDelete, deleteError }:
             type="number"
             className="w-20 border border-gray-200 rounded px-2 py-1 text-sm focus:outline-none focus:border-blue-500"
             value={shift.detectionBeforeMinutes}
-            onChange={e => onDetectionChange(shift.id, 'detectionBeforeMinutes', Number(e.target.value))}
+            min={0}
+            onChange={e => {
+              const parsed = Number(e.target.value);
+              onDetectionChange(shift.id, 'detectionBeforeMinutes', Number.isNaN(parsed) ? 0 : parsed);
+            }}
             aria-label="Detección antes (min)"
           />
         </td>
@@ -72,7 +76,11 @@ function ShiftRow({ shift, onUpdate, onDetectionChange, onDelete, deleteError }:
             type="number"
             className="w-20 border border-gray-200 rounded px-2 py-1 text-sm focus:outline-none focus:border-blue-500"
             value={shift.detectionAfterMinutes}
-            onChange={e => onDetectionChange(shift.id, 'detectionAfterMinutes', Number(e.target.value))}
+            min={0}
+            onChange={e => {
+              const parsed = Number(e.target.value);
+              onDetectionChange(shift.id, 'detectionAfterMinutes', Number.isNaN(parsed) ? 0 : parsed);
+            }}
             aria-label="Detección después (min)"
           />
         </td>
@@ -166,7 +174,11 @@ function AddShiftRow({ onAdd }: AddRowProps) {
           type="number"
           className="w-20 border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:border-blue-500"
           value={detectionBeforeMinutes}
-          onChange={e => setDetectionBeforeMinutes(Number(e.target.value))}
+          min={0}
+          onChange={e => {
+            const parsed = Number(e.target.value);
+            setDetectionBeforeMinutes(Number.isNaN(parsed) ? 0 : parsed);
+          }}
           aria-label="Detección antes (min) del nuevo turno"
         />
       </td>
@@ -175,7 +187,11 @@ function AddShiftRow({ onAdd }: AddRowProps) {
           type="number"
           className="w-20 border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:border-blue-500"
           value={detectionAfterMinutes}
-          onChange={e => setDetectionAfterMinutes(Number(e.target.value))}
+          min={0}
+          onChange={e => {
+            const parsed = Number(e.target.value);
+            setDetectionAfterMinutes(Number.isNaN(parsed) ? 0 : parsed);
+          }}
           aria-label="Detección después (min) del nuevo turno"
         />
       </td>

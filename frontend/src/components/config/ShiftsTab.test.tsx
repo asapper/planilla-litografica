@@ -125,6 +125,20 @@ describe('ShiftsTab inline editing', () => {
     expect(useConfigStore.getState().shifts.dirty).toBe(true);
     expect(screen.getByLabelText('Detección después (min)')).toHaveValue(15);
   });
+
+  it('clearing detection before minutes stores 0, not NaN', async () => {
+    render(<ShiftsTab />);
+    await waitFor(() => screen.getByDisplayValue('Diurno'));
+    fireEvent.change(screen.getByLabelText('Detección antes (min)'), { target: { value: '' } });
+    expect(screen.getByLabelText('Detección antes (min)')).toHaveValue(0);
+  });
+
+  it('clearing detection after minutes stores 0, not NaN', async () => {
+    render(<ShiftsTab />);
+    await waitFor(() => screen.getByDisplayValue('Diurno'));
+    fireEvent.change(screen.getByLabelText('Detección después (min)'), { target: { value: '' } });
+    expect(screen.getByLabelText('Detección después (min)')).toHaveValue(0);
+  });
 });
 
 // -----------------------------------------------------------------
@@ -298,6 +312,23 @@ describe('ShiftsTab add shift', () => {
 
     await waitFor(() => expect(mockCreateShift).toHaveBeenCalledWith(
       expect.objectContaining({ detectionBeforeMinutes: 90, detectionAfterMinutes: 30 })
+    ));
+  });
+
+  it('clearing detection window fields for a new shift sends 0, not NaN', async () => {
+    mockCreateShift.mockResolvedValue({ id: 'tarde', name: 'Tarde', startTime: '14:00', endTime: '22:00', crossMidnight: false, detectionBeforeMinutes: 0, detectionAfterMinutes: 0 });
+    render(<ShiftsTab />);
+    await waitFor(() => screen.getByDisplayValue('Diurno'));
+
+    fireEvent.change(screen.getByLabelText(/nombre del nuevo turno/i), { target: { value: 'Tarde' } });
+    fireEvent.change(screen.getByLabelText(/hora de inicio del nuevo turno/i), { target: { value: '14:00' } });
+    fireEvent.change(screen.getByLabelText(/hora de fin del nuevo turno/i), { target: { value: '22:00' } });
+    fireEvent.change(screen.getByLabelText(/detección antes \(min\) del nuevo turno/i), { target: { value: '' } });
+    fireEvent.change(screen.getByLabelText(/detección después \(min\) del nuevo turno/i), { target: { value: '' } });
+    fireEvent.click(screen.getByRole('button', { name: /\+ agregar turno/i }));
+
+    await waitFor(() => expect(mockCreateShift).toHaveBeenCalledWith(
+      expect.objectContaining({ detectionBeforeMinutes: 0, detectionAfterMinutes: 0 })
     ));
   });
 
