@@ -383,6 +383,25 @@ class TasHoursCalculatorTest {
     }
 
     @Test
+    void calculate_ambiguousShiftSingleScan_noLongerSameDayDouble_doesNotBlockHoursComputation() {
+        // Regression for TASK-39: a single-scan AMBIGUOUS_SHIFT session (e.g. one half
+        // of a shift split across the 12h ambiguous-session span) that is no longer
+        // flagged SAME_DAY_DOUBLE must still compute (zero) hours without blowing up.
+        LocalDate date = LocalDate.of(2026, 3, 10);
+        TasSession s = session(date, LocalDateTime.of(2026, 3, 10, 9, 7));
+        s.setMatchedShiftId(null);
+        s.setFlags(new ArrayList<>(List.of(TasFlag.AMBIGUOUS_SHIFT)));
+
+        calculator.calculate(List.of(s), REPORT_START, REPORT_END);
+
+        assertThat(s.isNeedsResolution()).isFalse();
+        assertThat(s.getWorkedMinutes()).isEqualTo(0);
+        assertThat(s.getWorkedHours()).isEqualTo(0.0);
+        assertThat(s.getSimplesMinutes()).isEqualTo(0);
+        assertThat(s.getDoblesMinutes()).isEqualTo(0);
+    }
+
+    @Test
     void calculate_ambiguousShiftWithOtherFlag_stillNeedsResolution() {
         LocalDate date = LocalDate.of(2026, 3, 10);
         TasSession s = session(date,

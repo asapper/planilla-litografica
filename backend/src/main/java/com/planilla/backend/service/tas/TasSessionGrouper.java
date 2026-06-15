@@ -266,14 +266,25 @@ public class TasSessionGrouper {
         }
         for (List<TasSession> daySessions : byDate.values()) {
             if (daySessions.size() < 2) continue;
-            Set<String> shiftIds = new HashSet<>();
+
+            Set<String> matchedShiftIds = new HashSet<>();
+            boolean hasAmbiguous = false;
             for (TasSession s : daySessions) {
-                String key = s.getFlags().contains(TasFlag.AMBIGUOUS_SHIFT)
-                        ? "ambiguous-" + System.identityHashCode(s)
-                        : s.getMatchedShiftId();
-                shiftIds.add(key);
+                if (s.getFlags().contains(TasFlag.AMBIGUOUS_SHIFT)) {
+                    hasAmbiguous = true;
+                } else {
+                    matchedShiftIds.add(s.getMatchedShiftId());
+                }
             }
-            if (shiftIds.size() < 2) continue;
+
+            // A "double" requires evidence of two distinct shifts: either two sessions
+            // matched different shift configs, or an ambiguous session alongside one
+            // that did match a shift. Two ambiguous sessions alone (matchedShiftId ==
+            // null for both) can't be distinguished from a single shift that got split,
+            // so they're not flagged.
+            boolean isDouble = matchedShiftIds.size() >= 2 || (hasAmbiguous && !matchedShiftIds.isEmpty());
+            if (!isDouble) continue;
+
             for (TasSession s : daySessions) {
                 if (!s.getFlags().contains(TasFlag.SAME_DAY_DOUBLE)) {
                     s.getFlags().add(TasFlag.SAME_DAY_DOUBLE);

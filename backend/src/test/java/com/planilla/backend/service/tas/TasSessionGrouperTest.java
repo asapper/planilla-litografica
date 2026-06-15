@@ -182,7 +182,10 @@ class TasSessionGrouperTest {
     }
 
     @Test
-    void group_sameDayDouble_twoAmbiguousSessionsSameDay() {
+    void group_twoAmbiguousSessionsSameDay_notFlaggedSameDayDouble() {
+        // Both sessions are AMBIGUOUS_SHIFT (no matched shift), so there's no way to
+        // tell they represent distinct shifts - likely a single shift split by the
+        // ambiguous-session span/day-boundary rules. Should not be flagged as a double.
         List<TasScanRecord> scans = List.of(
             scan("100", LocalDateTime.of(2026, 3, 10, 0, 0)),
             scan("100", LocalDateTime.of(2026, 3, 10, 12, 30))
@@ -191,8 +194,10 @@ class TasSessionGrouperTest {
         List<TasSession> sessions = grouper.group(scans, shifts, assignManana("100"));
 
         assertThat(sessions).hasSize(2);
-        assertThat(sessions.get(0).getFlags()).contains(TasFlag.AMBIGUOUS_SHIFT, TasFlag.SAME_DAY_DOUBLE);
-        assertThat(sessions.get(1).getFlags()).contains(TasFlag.AMBIGUOUS_SHIFT, TasFlag.SAME_DAY_DOUBLE);
+        assertThat(sessions.get(0).getFlags()).contains(TasFlag.AMBIGUOUS_SHIFT);
+        assertThat(sessions.get(0).getFlags()).doesNotContain(TasFlag.SAME_DAY_DOUBLE);
+        assertThat(sessions.get(1).getFlags()).contains(TasFlag.AMBIGUOUS_SHIFT);
+        assertThat(sessions.get(1).getFlags()).doesNotContain(TasFlag.SAME_DAY_DOUBLE);
         assertThat(sessions.get(1).getMatchedShiftId()).isNull();
     }
 
