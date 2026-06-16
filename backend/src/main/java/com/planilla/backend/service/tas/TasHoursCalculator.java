@@ -110,11 +110,14 @@ public class TasHoursCalculator {
         LocalDateTime missingExitThreshold = expectedEnd.minusMinutes(MISSING_SCAN_THRESHOLD_MINUTES);
 
         if (lastScan.isBefore(missingExitThreshold)) {
-            if (scans.size() % 2 == 0) {
+            boolean hasShiftMismatch = session.getFlags() != null
+                    && session.getFlags().contains(TasFlag.SHIFT_MISMATCH);
+            if (!hasShiftMismatch && scans.size() % 2 == 0) {
                 addFlag(session, TasFlag.SHORT_DAY);
-            } else {
+            } else if (scans.size() % 2 != 0) {
                 addFlag(session, TasFlag.MISSING_EXIT);
             }
+            // even scans + SHIFT_MISMATCH: exit exists but threshold based on wrong shift — emit nothing
         }
     }
 

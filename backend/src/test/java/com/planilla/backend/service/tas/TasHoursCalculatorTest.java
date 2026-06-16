@@ -548,6 +548,39 @@ class TasHoursCalculatorTest {
     }
 
     @Test
+    void calculate_evenScans_shiftMismatchAndEarlyExit_doesNotEmitShortDay() {
+        LocalDate date = LocalDate.of(2026, 3, 10);
+        TasSession s = session(date,
+            LocalDateTime.of(2026, 3, 10, 7, 0),
+            LocalDateTime.of(2026, 3, 10, 11, 0)
+        );
+        // Simulate SHIFT_MISMATCH already set by TasSessionGrouper
+        s.getFlags().add(TasFlag.SHIFT_MISMATCH);
+
+        calculator.calculate(List.of(s), REPORT_START, REPORT_END);
+
+        assertThat(s.getFlags()).doesNotContain(TasFlag.SHORT_DAY);
+        assertThat(s.getFlags()).doesNotContain(TasFlag.MISSING_EXIT);
+        assertThat(s.getFlags()).contains(TasFlag.SHIFT_MISMATCH);
+        assertThat(s.isNeedsResolution()).isTrue();
+    }
+
+    @Test
+    void calculate_oddScans_shiftMismatchAndEarlyExit_stillEmitsMissingExit() {
+        LocalDate date = LocalDate.of(2026, 3, 10);
+        TasSession s = session(date,
+            LocalDateTime.of(2026, 3, 10, 7, 0)
+        );
+        s.getFlags().add(TasFlag.SHIFT_MISMATCH);
+
+        calculator.calculate(List.of(s), REPORT_START, REPORT_END);
+
+        assertThat(s.getFlags()).contains(TasFlag.MISSING_EXIT);
+        assertThat(s.getFlags()).doesNotContain(TasFlag.SHORT_DAY);
+        assertThat(s.isNeedsResolution()).isTrue();
+    }
+
+    @Test
     void calculate_crossMidnight_startsFriday_endsSaturday_noSpecialDay_normalSplit() {
         // Friday 2026-03-06 19:00 -> Saturday 2026-03-07 09:00 (noche shift, 14h worked, no break)
         LocalDate friday = LocalDate.of(2026, 3, 6);
