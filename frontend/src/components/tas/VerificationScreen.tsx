@@ -237,8 +237,8 @@ function ShortDayCard({ session, onSaveOverride }: ShortDayCardProps) {
       <div className="flex items-center gap-3 mb-2">
         <span className="font-medium text-on-surface">{session.employeeName}</span>
         <span className="text-on-surface-variant text-body-sm">{formatDate(session.date)}</span>
-        <span className="text-label-sm px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">
-          Jornada corta
+        <span className={`text-label-sm px-2 py-0.5 rounded-full ${FLAG_COLORS['SHORT_DAY']}`}>
+          {FLAG_LABELS['SHORT_DAY']}
         </span>
       </div>
 

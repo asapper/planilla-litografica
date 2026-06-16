@@ -800,6 +800,27 @@ describe('SHORT_DAY sessions', () => {
     fireEvent.change(screen.getByLabelText('Salida'), { target: { value: '13:00' } });
     expect(screen.getByRole('button', { name: 'Registrar corrección' })).toBeInTheDocument();
   });
+
+  it('does not show Jornadas cortas section when there are no SHORT_DAY sessions', () => {
+    useTasStore.getState().setFlaggedSessions([
+      makeSession({ flags: ['MISSING_ENTRY'], needsResolution: true }),
+    ]);
+    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
+    render(<VerificationScreen />);
+    expect(screen.queryByText('Jornadas cortas')).not.toBeInTheDocument();
+  });
+
+  it('clicking Registrar corrección saves the override to the store', () => {
+    useTasStore.getState().setFlaggedSessions([makeShortDaySession()]);
+    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
+    render(<VerificationScreen />);
+
+    fireEvent.change(screen.getByLabelText('Salida'), { target: { value: '13:00' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Registrar corrección' }));
+
+    const resolved = useTasStore.getState().resolvedSessions[99];
+    expect(resolved).toEqual({ resolvedStart: '07:00', resolvedEnd: '13:00' });
+  });
 });
 
 describe('VerificationScreen completion state', () => {
