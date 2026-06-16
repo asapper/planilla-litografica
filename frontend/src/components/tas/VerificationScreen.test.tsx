@@ -754,6 +754,54 @@ describe('VerificationScreen employee grouping', () => {
   });
 });
 
+describe('SHORT_DAY sessions', () => {
+  function makeShortDaySession(overrides: Partial<TasSession> = {}): TasSession {
+    return {
+      sessionId: 99,
+      employeeId: 'E9',
+      employeeName: 'Carlos Díaz',
+      date: '2026-03-10',
+      scans: ['2026-03-10T07:00:00', '2026-03-10T11:00:00'],
+      matchedShiftId: 'S1',
+      assignedShiftId: 'S1',
+      assignedShiftName: 'Turno Mañana',
+      effectiveStart: '2026-03-10T07:00:00',
+      lastScan: '2026-03-10T11:00:00',
+      workedMinutes: 240,
+      workedHours: 4.0,
+      needsResolution: false,
+      flags: ['SHORT_DAY'],
+      ...overrides,
+    };
+  }
+
+  it('shows Jornada corta badge for SHORT_DAY sessions', () => {
+    useTasStore.getState().setFlaggedSessions([makeShortDaySession()]);
+    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
+    render(<VerificationScreen />);
+    expect(screen.getByText('Jornada corta')).toBeInTheDocument();
+  });
+
+  it('exit time input is editable for SHORT_DAY sessions', () => {
+    useTasStore.getState().setFlaggedSessions([makeShortDaySession()]);
+    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
+    render(<VerificationScreen />);
+    const exitInput = screen.getByLabelText('Salida');
+    expect(exitInput).not.toHaveAttribute('readonly');
+    expect(exitInput).not.toHaveAttribute('readOnly');
+  });
+
+  it('Registrar corrección button appears only when exit is changed', () => {
+    useTasStore.getState().setFlaggedSessions([makeShortDaySession()]);
+    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
+    render(<VerificationScreen />);
+    expect(screen.queryByRole('button', { name: 'Registrar corrección' })).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText('Salida'), { target: { value: '13:00' } });
+    expect(screen.getByRole('button', { name: 'Registrar corrección' })).toBeInTheDocument();
+  });
+});
+
 describe('VerificationScreen completion state', () => {
   it('shows green banner and enables green Enviar button when all sessions are confirmed', () => {
     useTasStore.getState().setFlaggedSessions([

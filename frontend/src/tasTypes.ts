@@ -1,4 +1,4 @@
-export type TasFlag = 'MISSING_ENTRY' | 'MISSING_EXIT' | 'SHIFT_MISMATCH' | 'SAME_DAY_DOUBLE' | 'START_CUTOFF' | 'END_CUTOFF' | 'AMBIGUOUS_SHIFT'
+export type TasFlag = 'MISSING_ENTRY' | 'MISSING_EXIT' | 'SHIFT_MISMATCH' | 'SAME_DAY_DOUBLE' | 'START_CUTOFF' | 'END_CUTOFF' | 'AMBIGUOUS_SHIFT' | 'SHORT_DAY'
 
 export interface TasSession {
   sessionId: number
