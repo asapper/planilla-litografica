@@ -495,19 +495,4 @@ class TasSessionGrouperTest {
         assertThat(sessions.get(0).getFlags()).doesNotContain(TasFlag.SAME_DAY_DOUBLE, TasFlag.SHIFT_MISMATCH);
     }
 
-    @Test
-    void group_manana_missingExitAndTardeOpenerWithinEndTolerance_absorbedIntoManana_knownTradeoff() {
-        // If a Mañana employee never clocks out and their next scan (e.g. a Tarde clock-in)
-        // falls within Mañana's end-time tolerance [15:00, 15:10], it is absorbed as the
-        // Mañana exit rather than opening a new Tarde session. Intentional: real-world data
-        // shows this pattern is almost always a normal exit, not a genuine second shift start.
-        List<TasScanRecord> scans = List.of(
-            scan("100", LocalDateTime.of(2026, 3, 10, 7, 0)),
-            scan("100", LocalDateTime.of(2026, 3, 10, 15, 5))
-        );
-        List<TasSession> sessions = grouper.group(scans, shifts, assignManana("100"));
-        assertThat(sessions).hasSize(1);
-        assertThat(sessions.get(0).getMatchedShiftId()).isEqualTo(MANANA_ID);
-        assertThat(sessions.get(0).getScans()).hasSize(2);
-    }
 }

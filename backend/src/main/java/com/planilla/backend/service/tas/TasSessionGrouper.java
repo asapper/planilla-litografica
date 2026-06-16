@@ -152,7 +152,7 @@ public class TasSessionGrouper {
         if (matchedShift == null) return false;
         LocalTime endTime = parseTime(matchedShift.get("endTime"));
         int afterMinutes = detectionMinutes(matchedShift, "detectionAfterMinutes", DETECTION_AFTER_MINUTES);
-        LocalDateTime shiftEnd = LocalDateTime.of(currentSession.getDate(), endTime); // plusMinutes below handles midnight rollover correctly
+        LocalDateTime shiftEnd = LocalDateTime.of(currentSession.getDate(), endTime);
         return !scanTime.isBefore(shiftEnd) && !scanTime.isAfter(shiftEnd.plusMinutes(afterMinutes));
     }
 
