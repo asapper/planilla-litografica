@@ -199,6 +199,7 @@ public class TasController {
                     ((Number) anioObj).intValue(),
                     ((Number) mesObj).intValue(),
                     ((Number) numeroDequincenaObj).intValue());
+            state.setResolvedPeriod(periodFilter);
         }
 
         TasReportBuilder.BuildResult buildResult = reportBuilder.build(
@@ -266,7 +267,7 @@ public class TasController {
         List<Map<String, Object>> shifts = shiftConfigService.getAllShifts();
 
         TasReportBuilder.BuildResult buildResult = reportBuilder.build(
-                sessions, state.getReportStart(), state.getReportEnd(), shifts, null);
+                sessions, state.getReportStart(), state.getReportEnd(), shifts, state.getResolvedPeriod());
         state.setResolvedRows(buildResult.rows);
 
         Map<String, Object> resp = new LinkedHashMap<>();
