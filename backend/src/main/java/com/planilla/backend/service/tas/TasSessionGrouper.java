@@ -116,6 +116,7 @@ public class TasSessionGrouper {
 
                 Map<String, Object> openerShift = currentSession.getScans().size() == 1
                         && isScanAfterCurrentShiftEnd(scan.getTimestamp(), currentSession, shifts)
+                        && !isWithinShiftEndTolerance(scan.getTimestamp(), currentSession, shifts)
                         ? findOpenerShift(scan.getTimestamp(), shifts, assignedShift, isCrossMidnight)
                         : null;
                 if (openerShift != null) {
@@ -143,6 +144,16 @@ public class TasSessionGrouper {
         LocalTime endTime = parseTime(matchedShift.get("endTime"));
         LocalDateTime shiftEnd = LocalDateTime.of(currentSession.getDate(), endTime);
         return scanTime.isAfter(shiftEnd);
+    }
+
+    private boolean isWithinShiftEndTolerance(LocalDateTime scanTime, TasSession currentSession, List<Map<String, Object>> shifts) {
+        if (currentSession.isCrossMidnight()) return false;
+        Map<String, Object> matchedShift = findShiftById(shifts, currentSession.getMatchedShiftId());
+        if (matchedShift == null) return false;
+        LocalTime endTime = parseTime(matchedShift.get("endTime"));
+        int afterMinutes = detectionMinutes(matchedShift, "detectionAfterMinutes", DETECTION_AFTER_MINUTES);
+        LocalDateTime shiftEnd = LocalDateTime.of(currentSession.getDate(), endTime);
+        return !scanTime.isBefore(shiftEnd) && !scanTime.isAfter(shiftEnd.plusMinutes(afterMinutes));
     }
 
     private Map<String, Object> findOpenerShift(
