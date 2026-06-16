@@ -64,4 +64,21 @@ class AppConfigServiceTest {
 
         verify(jdbc).update(anyString(), eq("45"));
     }
+
+    @Test
+    void getMaxSessionSpanMinutes_returnsDefaultWhenNotSet() {
+        when(jdbc.queryForObject(anyString(), eq(String.class))).thenThrow(new RuntimeException("no row"));
+
+        assertThat(service.getMaxSessionSpanMinutes()).isEqualTo(780);
+    }
+
+    @Test
+    void setAndGetMaxSessionSpanMinutes_roundTrips() {
+        when(jdbc.queryForObject(anyString(), eq(String.class))).thenReturn("960");
+
+        service.setMaxSessionSpanMinutes(960);
+        assertThat(service.getMaxSessionSpanMinutes()).isEqualTo(960);
+
+        verify(jdbc).update(contains("MERGE INTO app_config"), eq("960"));
+    }
 }

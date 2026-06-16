@@ -4,6 +4,7 @@ import { getGeneralConfig, updateGeneralConfig } from '../../configApi';
 import Spinner from '../ui/Spinner';
 
 const DEFAULT_BREAK = 45;
+const DEFAULT_MAX_SPAN_HOURS = 13;
 
 export default function GeneralTab() {
   const generalData = useConfigStore(s => s.general.data);
@@ -17,6 +18,7 @@ export default function GeneralTab() {
   const showToast = useConfigStore(s => s.showToast);
 
   const [breakMinutes, setBreakMinutes] = useState(DEFAULT_BREAK);
+  const [maxSpanHours, setMaxSpanHours] = useState(DEFAULT_MAX_SPAN_HOURS);
 
   useEffect(() => {
     setGeneralLoading(true);
@@ -24,21 +26,20 @@ export default function GeneralTab() {
       .then(data => {
         setGeneralData(data);
         setBreakMinutes(data.legalBreakAllowanceMinutes);
+        setMaxSpanHours(Math.round(data.maxSessionSpanMinutes / 60));
       })
       .catch(() => setGeneralError('No se pudo cargar la configuración general.'))
       .finally(() => setGeneralLoading(false));
   }, [setGeneralLoading, setGeneralData, setGeneralError]);
 
-  const handleChange = (val: number) => {
-    setBreakMinutes(val);
-    setGeneralDirty(true);
-  };
-
   const handleSave = async () => {
     setGeneralLoading(true);
     setGeneralError(null);
     try {
-      const updated = await updateGeneralConfig({ legalBreakAllowanceMinutes: breakMinutes });
+      const updated = await updateGeneralConfig({
+        legalBreakAllowanceMinutes: breakMinutes,
+        maxSessionSpanMinutes: maxSpanHours * 60,
+      });
       setGeneralData(updated);
       setGeneralDirty(false);
       showToast('Cambios guardados');
@@ -50,7 +51,10 @@ export default function GeneralTab() {
   };
 
   const handleDiscard = () => {
-    if (generalData) setBreakMinutes(generalData.legalBreakAllowanceMinutes);
+    if (generalData) {
+      setBreakMinutes(generalData.legalBreakAllowanceMinutes);
+      setMaxSpanHours(Math.round(generalData.maxSessionSpanMinutes / 60));
+    }
     setGeneralDirty(false);
   };
 
@@ -79,7 +83,7 @@ export default function GeneralTab() {
             type="number"
             min={0}
             value={breakMinutes}
-            onChange={e => handleChange(Number(e.target.value))}
+            onChange={e => { setBreakMinutes(Number(e.target.value)); setGeneralDirty(true); }}
             className="w-24 border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:border-blue-500"
             aria-label="Tiempo de descanso no deducible en minutos"
           />
@@ -87,6 +91,30 @@ export default function GeneralTab() {
         </div>
         <p className="mt-1.5 text-xs text-gray-500">
           Tiempo de descanso diario que no se descuenta de las horas trabajadas. Mandato legal: 15 min refacción + 30 min almuerzo.
+        </p>
+        <p className="mt-2 text-xs text-amber-600">
+          Los cambios aplican a partir del próximo archivo subido.
+        </p>
+      </div>
+
+      <div className="max-w-md mt-6">
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          Duración máxima de jornada
+        </label>
+        <div className="flex items-center gap-2">
+          <input
+            type="number"
+            min={1}
+            max={24}
+            value={maxSpanHours}
+            onChange={e => { setMaxSpanHours(Number(e.target.value)); setGeneralDirty(true); }}
+            className="w-24 border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:border-blue-500"
+            aria-label="Duración máxima de jornada en horas"
+          />
+          <span className="text-sm text-gray-600">horas</span>
+        </div>
+        <p className="mt-1.5 text-xs text-gray-500">
+          Tiempo máximo entre entrada y salida que se considera una sola jornada. Scans con mayor separación se tratarán como sesiones distintas.
         </p>
         <p className="mt-2 text-xs text-amber-600">
           Los cambios aplican a partir del próximo archivo subido.

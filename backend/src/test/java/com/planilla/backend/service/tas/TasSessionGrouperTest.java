@@ -5,14 +5,23 @@ import com.planilla.backend.model.tas.TasScanRecord;
 import com.planilla.backend.model.tas.TasSession;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.*;
 
+import static org.mockito.Mockito.*;
+
 import static org.assertj.core.api.Assertions.*;
 
+@ExtendWith(MockitoExtension.class)
 class TasSessionGrouperTest {
+
+    @Mock
+    private AppConfigService appConfigService;
 
     private TasSessionGrouper grouper;
 
@@ -27,7 +36,8 @@ class TasSessionGrouperTest {
 
     @BeforeEach
     void setUp() {
-        grouper = new TasSessionGrouper();
+        when(appConfigService.getMaxSessionSpanMinutes()).thenReturn(780);
+        grouper = new TasSessionGrouper(appConfigService);
 
         manana = new LinkedHashMap<>();
         manana.put("id", MANANA_ID);
@@ -607,6 +617,63 @@ class TasSessionGrouperTest {
         assertThat(sessions.get(0).getScans()).hasSize(2);
         assertThat(sessions.get(1).getDate()).isEqualTo(LocalDate.of(2026, 3, 4));
         assertThat(sessions.get(1).getScans()).hasSize(2);
+    }
+
+    @Test
+    void group_longSessionWithinSpan_absorbsExitInsteadOfSplitting() {
+        // Repro: 12-hour shift employee. Entry 07:00 (matched Mañana), exit 19:00 (span=720 min)
+        // falls inside a custom non-cross-midnight "evening" shift's opener window [18:00-19:10].
+        // With default maxSessionSpanMinutes=780, 720 ≤ 780 so the span guard blocks the split.
+        // Result: 1 session with 2 scans, no SAME_DAY_DOUBLE.
+        Map<String, Object> evening = new LinkedHashMap<>();
+        evening.put("id", "evening");
+        evening.put("name", "Evening");
+        evening.put("startTime", "19:00");
+        evening.put("endTime", "03:00");
+        evening.put("crossMidnight", false); // non-cross-midnight so excludeCrossMidnight won't skip it
+
+        List<Map<String, Object>> shiftsWithEvening = List.of(manana, tarde, noche, evening);
+
+        List<TasScanRecord> scans = List.of(
+            scan("100", LocalDateTime.of(2026, 3, 10, 7, 0)),
+            scan("100", LocalDateTime.of(2026, 3, 10, 19, 0))
+        );
+
+        List<TasSession> sessions = grouper.group(scans, shiftsWithEvening, assignManana("100"));
+
+        assertThat(sessions).hasSize(1);
+        TasSession s = sessions.get(0);
+        assertThat(s.getMatchedShiftId()).isEqualTo(MANANA_ID);
+        assertThat(s.getScans()).hasSize(2);
+        assertThat(s.getFlags()).doesNotContain(TasFlag.SAME_DAY_DOUBLE);
+    }
+
+    @Test
+    void group_spanExceedsMax_splitsIntoTwoSessions() {
+        // Same setup as above but maxSessionSpanMinutes set to 600 (10h).
+        // Span of 720 min exceeds 600, so the exit scan opens a new evening session.
+        when(appConfigService.getMaxSessionSpanMinutes()).thenReturn(600);
+        grouper = new TasSessionGrouper(appConfigService);
+
+        Map<String, Object> evening = new LinkedHashMap<>();
+        evening.put("id", "evening");
+        evening.put("name", "Evening");
+        evening.put("startTime", "19:00");
+        evening.put("endTime", "03:00");
+        evening.put("crossMidnight", false);
+
+        List<Map<String, Object>> shiftsWithEvening = List.of(manana, tarde, noche, evening);
+
+        List<TasScanRecord> scans = List.of(
+            scan("100", LocalDateTime.of(2026, 3, 10, 7, 0)),
+            scan("100", LocalDateTime.of(2026, 3, 10, 19, 0))
+        );
+
+        List<TasSession> sessions = grouper.group(scans, shiftsWithEvening, assignManana("100"));
+
+        assertThat(sessions).hasSize(2);
+        assertThat(sessions.get(0).getScans()).hasSize(1);
+        assertThat(sessions.get(1).getScans()).hasSize(1);
     }
 
 }

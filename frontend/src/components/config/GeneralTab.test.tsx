@@ -8,7 +8,7 @@ vi.mock('../../configApi');
 const mockGetGeneralConfig    = vi.mocked(configApi.getGeneralConfig);
 const mockUpdateGeneralConfig = vi.mocked(configApi.updateGeneralConfig);
 
-const generalConfig = { legalBreakAllowanceMinutes: 45 };
+const generalConfig = { legalBreakAllowanceMinutes: 45, maxSessionSpanMinutes: 780 };
 
 const { default: GeneralTab } = await import('./GeneralTab');
 
@@ -70,7 +70,7 @@ describe('GeneralTab rendering', () => {
   it('shows the note about next upload', async () => {
     render(<GeneralTab />);
     await waitFor(() => screen.getByDisplayValue('45'));
-    expect(screen.getByText(/próximo archivo subido/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/próximo archivo subido/i).length).toBeGreaterThanOrEqual(1);
   });
 
   it('shows the loaded value in the input', async () => {
@@ -114,7 +114,7 @@ describe('GeneralTab editing', () => {
 
 describe('GeneralTab save', () => {
   it('calls updateGeneralConfig with new value on save', async () => {
-    mockUpdateGeneralConfig.mockResolvedValue({ legalBreakAllowanceMinutes: 60 });
+    mockUpdateGeneralConfig.mockResolvedValue({ legalBreakAllowanceMinutes: 60, maxSessionSpanMinutes: 780 });
     render(<GeneralTab />);
     await waitFor(() => screen.getByDisplayValue('45'));
 
@@ -123,11 +123,12 @@ describe('GeneralTab save', () => {
 
     await waitFor(() => expect(mockUpdateGeneralConfig).toHaveBeenCalledWith({
       legalBreakAllowanceMinutes: 60,
+      maxSessionSpanMinutes: 780,
     }));
   });
 
   it('shows toast after successful save', async () => {
-    mockUpdateGeneralConfig.mockResolvedValue({ legalBreakAllowanceMinutes: 60 });
+    mockUpdateGeneralConfig.mockResolvedValue({ legalBreakAllowanceMinutes: 60, maxSessionSpanMinutes: 780 });
     render(<GeneralTab />);
     await waitFor(() => screen.getByDisplayValue('45'));
 
@@ -139,7 +140,7 @@ describe('GeneralTab save', () => {
   });
 
   it('clears dirty flag after successful save', async () => {
-    mockUpdateGeneralConfig.mockResolvedValue({ legalBreakAllowanceMinutes: 60 });
+    mockUpdateGeneralConfig.mockResolvedValue({ legalBreakAllowanceMinutes: 60, maxSessionSpanMinutes: 780 });
     render(<GeneralTab />);
     await waitFor(() => screen.getByDisplayValue('45'));
 
@@ -196,5 +197,45 @@ describe('GeneralTab errors', () => {
     mockGetGeneralConfig.mockRejectedValue(new Error('network'));
     render(<GeneralTab />);
     await waitFor(() => expect(screen.getByText(/no se pudo cargar/i)).toBeInTheDocument());
+  });
+});
+
+// -----------------------------------------------------------------
+// Max session span
+// -----------------------------------------------------------------
+
+describe('GeneralTab maxSessionSpanMinutes', () => {
+  it('renders maxSessionSpanMinutes field in hours', async () => {
+    mockGetGeneralConfig.mockResolvedValue({ legalBreakAllowanceMinutes: 45, maxSessionSpanMinutes: 780 });
+    render(<GeneralTab />);
+    await waitFor(() => {
+      const input = screen.getByLabelText(/duración máxima de jornada/i) as HTMLInputElement;
+      expect(input.value).toBe('13');
+    });
+  });
+
+  it('save sends maxSessionSpanMinutes in minutes', async () => {
+    mockUpdateGeneralConfig.mockResolvedValue({ legalBreakAllowanceMinutes: 45, maxSessionSpanMinutes: 720 });
+    render(<GeneralTab />);
+    await waitFor(() => screen.getByLabelText(/duración máxima de jornada/i));
+
+    fireEvent.change(screen.getByLabelText(/duración máxima de jornada/i), { target: { value: '12' } });
+    fireEvent.click(screen.getByRole('button', { name: /guardar cambios/i }));
+
+    await waitFor(() => expect(mockUpdateGeneralConfig).toHaveBeenCalledWith(
+      expect.objectContaining({ legalBreakAllowanceMinutes: 45, maxSessionSpanMinutes: 720 })
+    ));
+  });
+
+  it('discard resets maxSpanHours to original value', async () => {
+    render(<GeneralTab />);
+    await waitFor(() => screen.getByLabelText(/duración máxima de jornada/i));
+
+    fireEvent.change(screen.getByLabelText(/duración máxima de jornada/i), { target: { value: '10' } });
+    expect((screen.getByLabelText(/duración máxima de jornada/i) as HTMLInputElement).value).toBe('10');
+
+    fireEvent.click(screen.getByRole('button', { name: /descartar/i }));
+
+    expect((screen.getByLabelText(/duración máxima de jornada/i) as HTMLInputElement).value).toBe('13');
   });
 });

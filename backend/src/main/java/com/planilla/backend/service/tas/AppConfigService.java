@@ -31,4 +31,23 @@ public class AppConfigService {
             String.valueOf(minutes)
         );
     }
+
+    public int getMaxSessionSpanMinutes() {
+        try {
+            String value = jdbc.queryForObject(
+                "SELECT config_value FROM app_config WHERE config_key = 'maxSessionSpanMinutes'",
+                String.class
+            );
+            return value != null ? Integer.parseInt(value) : 780;
+        } catch (Exception e) {
+            return 780;
+        }
+    }
+
+    public void setMaxSessionSpanMinutes(int minutes) {
+        jdbc.update(
+            "MERGE INTO app_config (config_key, config_value) KEY(config_key) VALUES ('maxSessionSpanMinutes', ?)",
+            String.valueOf(minutes)
+        );
+    }
 }

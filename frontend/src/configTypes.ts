@@ -27,6 +27,7 @@ export interface Holiday {
 
 export interface GeneralConfig {
   legalBreakAllowanceMinutes: number;
+  maxSessionSpanMinutes: number;
 }
 
 export type ConfigTab = 'shifts' | 'employees' | 'holidays' | 'general';
