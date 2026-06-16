@@ -153,7 +153,9 @@ class TasSessionGrouperTest {
     }
 
     @Test
-    void group_sameDayDouble_flaggedWhenTwoWindowHitsOnSameDay() {
+    void group_manana_exitJustAfterShiftEnd_producesOneSession() {
+        // 15:05 is after Mañana ends (15:00) but within the end-time tolerance [15:00, 15:10].
+        // Previously this incorrectly opened a new Tarde session. Corrected behavior: one session.
         List<TasScanRecord> scans = List.of(
             scan("100", LocalDateTime.of(2026, 3, 10, 7, 0)),
             scan("100", LocalDateTime.of(2026, 3, 10, 15, 5))
@@ -164,9 +166,10 @@ class TasSessionGrouperTest {
 
         List<TasSession> sessions = grouper.group(scans, shifts, assignments);
 
-        assertThat(sessions).hasSize(2);
-        assertThat(sessions.get(0).getFlags()).contains(TasFlag.SAME_DAY_DOUBLE);
-        assertThat(sessions.get(1).getFlags()).contains(TasFlag.SAME_DAY_DOUBLE);
+        assertThat(sessions).hasSize(1);
+        assertThat(sessions.get(0).getMatchedShiftId()).isEqualTo(MANANA_ID);
+        assertThat(sessions.get(0).getScans()).hasSize(2);
+        assertThat(sessions.get(0).getFlags()).doesNotContain(TasFlag.SAME_DAY_DOUBLE, TasFlag.SHIFT_MISMATCH);
     }
 
     @Test
@@ -453,5 +456,41 @@ class TasSessionGrouperTest {
         assertThat(session.getAssignedShiftName()).isEqualTo("Manana");
         assertThat(session.getMatchedShiftId()).isEqualTo(MANANA_ID);
         assertThat(session.getMatchedShiftName()).isEqualTo("Manana");
+    }
+
+    @Test
+    void group_manana_normalExitWithinEndTolerance_producesOneCleanSession() {
+        // Repro: employee 242 (Donis Reyes), Mar 3 2026 — 06:58 in, 15:05 out.
+        // 15:05 falls inside Tarde's detection window [14:00, 15:10] which previously
+        // caused a false Tarde opener. After the fix, 15:05 is within Mañana's own
+        // end-time tolerance [15:00, 15:10] and must be treated as the exit scan.
+        List<TasScanRecord> scans = List.of(
+            scan("242", LocalDateTime.of(2026, 3, 3, 6, 58)),
+            scan("242", LocalDateTime.of(2026, 3, 3, 15, 5))
+        );
+
+        List<TasSession> sessions = grouper.group(scans, shifts, assignManana("242"));
+
+        assertThat(sessions).hasSize(1);
+        TasSession s = sessions.get(0);
+        assertThat(s.getMatchedShiftId()).isEqualTo(MANANA_ID);
+        assertThat(s.getScans()).hasSize(2);
+        assertThat(s.getFlags()).doesNotContain(TasFlag.SAME_DAY_DOUBLE, TasFlag.SHIFT_MISMATCH);
+    }
+
+    @Test
+    void group_manana_exitAtExactEndTolerance_producesOneSession() {
+        // 15:10 is the last second of Mañana's end-time tolerance (detectionAfterMinutes=10).
+        // Must be treated as exit, not new opener.
+        List<TasScanRecord> scans = List.of(
+            scan("100", LocalDateTime.of(2026, 3, 10, 7, 0)),
+            scan("100", LocalDateTime.of(2026, 3, 10, 15, 10))
+        );
+
+        List<TasSession> sessions = grouper.group(scans, shifts, assignManana("100"));
+
+        assertThat(sessions).hasSize(1);
+        assertThat(sessions.get(0).getScans()).hasSize(2);
+        assertThat(sessions.get(0).getFlags()).doesNotContain(TasFlag.SAME_DAY_DOUBLE, TasFlag.SHIFT_MISMATCH);
     }
 }
