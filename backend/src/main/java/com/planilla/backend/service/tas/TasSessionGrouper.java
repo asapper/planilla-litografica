@@ -182,6 +182,7 @@ public class TasSessionGrouper {
 
         for (Map<String, Object> shift : shifts) {
             if (shift.equals(assignedShift)) continue;
+            if (!isCrossMidnight && Boolean.TRUE.equals(shift.get("crossMidnight"))) continue;
             if (isInDetectionWindow(timestamp, shift)) {
                 return shift;
             }

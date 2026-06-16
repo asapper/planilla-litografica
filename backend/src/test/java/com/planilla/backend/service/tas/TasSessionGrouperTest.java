@@ -536,6 +536,25 @@ class TasSessionGrouperTest {
     }
 
     @Test
+    void group_manana_overtimeExitInNocheWindow_producesOneSession() {
+        // Repro: Ajuchan Yos Francisco Daniel (291), Mar 4 2026 — 06:24 in, 19:06 out.
+        // 19:06 falls in Noche's detection window [18:00, 19:50]. A day-shift employee's
+        // overtime exit must not open a cross-midnight shift session.
+        List<TasScanRecord> scans = List.of(
+            scan("291", LocalDateTime.of(2026, 3, 4, 6, 24)),
+            scan("291", LocalDateTime.of(2026, 3, 4, 19, 6))
+        );
+
+        List<TasSession> sessions = grouper.group(scans, shifts, assignManana("291"));
+
+        assertThat(sessions).hasSize(1);
+        TasSession s = sessions.get(0);
+        assertThat(s.getMatchedShiftId()).isEqualTo(MANANA_ID);
+        assertThat(s.getScans()).hasSize(2);
+        assertThat(s.getFlags()).doesNotContain(TasFlag.SAME_DAY_DOUBLE, TasFlag.SHIFT_MISMATCH);
+    }
+
+    @Test
     void group_manana_exitWithinTolerance_nextDayStartsNewSession() {
         // Regression: once a session has entry+exit (size>1), subsequent scans from the
         // next day were absorbed because the size==1 gate was false and no other day-boundary
