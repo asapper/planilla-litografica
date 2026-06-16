@@ -49,6 +49,7 @@ class TasSessionGrouperTest {
         noche.put("startTime", "19:00");
         noche.put("endTime", "07:00");
         noche.put("crossMidnight", true);
+        noche.put("detectionAfterMinutes", 50);
 
         shifts = List.of(manana, tarde, noche);
     }
@@ -137,6 +138,29 @@ class TasSessionGrouperTest {
         assertThat(sessions).hasSize(2);
         assertThat(sessions.get(0).getScans()).hasSize(2);
         assertThat(sessions.get(1).getScans()).hasSize(1);
+    }
+
+    @Test
+    void group_noche_exitJustOutsideMananaWindow_closesSessionAndStartsNext() {
+        // Repro: Francisco Daniel (291), Mar 2→3 2026.
+        // Noche endTime=07:00 with detectionAfterMinutes=50 → tolerance [07:00, 07:50].
+        // A 07:11 exit falls 1 minute outside Mañana's window [06:00, 07:10], so
+        // isNextShiftExitScan's "other shift" loop misses it. The new end-time-tolerance
+        // branch must catch it and close the Noche session so the 19:15 scan opens a fresh one.
+        List<TasScanRecord> scans = List.of(
+            scan("300", LocalDateTime.of(2026, 3, 2, 19, 24)),
+            scan("300", LocalDateTime.of(2026, 3, 3, 7, 11)),
+            scan("300", LocalDateTime.of(2026, 3, 3, 19, 15)),
+            scan("300", LocalDateTime.of(2026, 3, 4, 6, 24))
+        );
+
+        List<TasSession> sessions = grouper.group(scans, shifts, assignNoche("300"));
+
+        assertThat(sessions).hasSize(2);
+        assertThat(sessions.get(0).getDate()).isEqualTo(LocalDate.of(2026, 3, 2));
+        assertThat(sessions.get(0).getScans()).hasSize(2);
+        assertThat(sessions.get(1).getDate()).isEqualTo(LocalDate.of(2026, 3, 3));
+        assertThat(sessions.get(1).getScans()).hasSize(2);
     }
 
     @Test

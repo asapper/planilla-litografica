@@ -228,6 +228,20 @@ public class TasSessionGrouper {
                 return true;
             }
         }
+
+        // Also treat as exit when the scan falls within the matched shift's own end-time
+        // tolerance on the next day (e.g. Noche ends 07:00 with 50-min tolerance: a 07:11
+        // exit falls outside Mañana's opener window but is still a valid Noche exit).
+        Map<String, Object> matchedShift = findShiftById(shifts, currentSession.getMatchedShiftId());
+        if (matchedShift != null) {
+            LocalTime endTime = parseTime(matchedShift.get("endTime"));
+            int afterMinutes = detectionMinutes(matchedShift, "detectionAfterMinutes", DETECTION_AFTER_MINUTES);
+            LocalDateTime shiftEnd = LocalDateTime.of(scanDate, endTime);
+            if (!timestamp.isBefore(shiftEnd) && !timestamp.isAfter(shiftEnd.plusMinutes(afterMinutes))) {
+                return true;
+            }
+        }
+
         return false;
     }
 
