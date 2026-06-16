@@ -555,6 +555,40 @@ class TasSessionGrouperTest {
     }
 
     @Test
+    void group_manana_firstScanInNocheWindow_matchesNocheAsSubstitution() {
+        // A Mañana employee whose only scan of the day falls in Noche's opener window
+        // is genuinely substituting on Noche — the opener call must still match Noche
+        // and produce SHIFT_MISMATCH (not AMBIGUOUS_SHIFT). Only the split-mode call
+        // excludes cross-midnight shifts, not the initial opener call.
+        List<TasScanRecord> scans = List.of(
+            scan("291", LocalDateTime.of(2026, 3, 4, 19, 6))
+        );
+
+        List<TasSession> sessions = grouper.group(scans, shifts, assignManana("291"));
+
+        assertThat(sessions).hasSize(1);
+        TasSession s = sessions.get(0);
+        assertThat(s.getMatchedShiftId()).isEqualTo(NOCHE_ID);
+        assertThat(s.getFlags()).contains(TasFlag.SHIFT_MISMATCH);
+        assertThat(s.getFlags()).doesNotContain(TasFlag.AMBIGUOUS_SHIFT);
+    }
+
+    @Test
+    void group_unassignedEmployee_firstScanInNocheWindow_matchesNoche() {
+        // An employee with no shift assignment scanning at 19:06 should still be
+        // matched to Noche by window detection (opener call, excludeCrossMidnight=false).
+        List<TasScanRecord> scans = List.of(
+            scan("999", LocalDateTime.of(2026, 3, 4, 19, 6))
+        );
+
+        List<TasSession> sessions = grouper.group(scans, shifts, Map.of());
+
+        assertThat(sessions).hasSize(1);
+        assertThat(sessions.get(0).getMatchedShiftId()).isEqualTo(NOCHE_ID);
+        assertThat(sessions.get(0).getFlags()).doesNotContain(TasFlag.AMBIGUOUS_SHIFT);
+    }
+
+    @Test
     void group_manana_exitWithinTolerance_nextDayStartsNewSession() {
         // Regression: once a session has entry+exit (size>1), subsequent scans from the
         // next day were absorbed because the size==1 gate was false and no other day-boundary
