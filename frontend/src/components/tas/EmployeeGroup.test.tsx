@@ -60,4 +60,20 @@ describe('EmployeeGroup', () => {
     fireEvent.click(screen.getByRole('button', { name: /Ana López/ }));
     expect(onToggle).toHaveBeenCalledOnce();
   });
+
+  it('shows a collapse chevron (▾) when expanded and an expand chevron (▸) when collapsed', () => {
+    const { rerender } = render(
+      <EmployeeGroup employeeName="Ana López" pendingCount={1} expanded={true} onToggle={() => {}}>
+        <div>child</div>
+      </EmployeeGroup>,
+    );
+    expect(screen.getByRole('button', { name: /Ana López/ })).toHaveTextContent('▾');
+
+    rerender(
+      <EmployeeGroup employeeName="Ana López" pendingCount={1} expanded={false} onToggle={() => {}}>
+        <div>child</div>
+      </EmployeeGroup>,
+    );
+    expect(screen.getByRole('button', { name: /Ana López/ })).toHaveTextContent('▸');
+  });
 });
