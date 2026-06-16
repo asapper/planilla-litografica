@@ -539,7 +539,7 @@ export default function VerificationScreen() {
           onClick={handleSubmit}
           className={
             allConfirmed && totalToResolve > 0
-              ? 'm3-btn bg-green-700 text-white'
+              ? 'm3-btn-filled !bg-green-700 !text-white'
               : 'm3-btn-filled disabled:opacity-40 disabled:cursor-not-allowed'
           }
         >
