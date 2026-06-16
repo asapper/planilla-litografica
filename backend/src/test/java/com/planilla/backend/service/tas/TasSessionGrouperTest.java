@@ -480,7 +480,7 @@ class TasSessionGrouperTest {
 
     @Test
     void group_manana_exitAtExactEndTolerance_producesOneSession() {
-        // 15:10 is the last second of Mañana's end-time tolerance (detectionAfterMinutes=10).
+        // 15:10 is the last minute of Mañana's end-time tolerance (detectionAfterMinutes=10).
         // Must be treated as exit, not new opener.
         List<TasScanRecord> scans = List.of(
             scan("100", LocalDateTime.of(2026, 3, 10, 7, 0)),
@@ -490,6 +490,7 @@ class TasSessionGrouperTest {
         List<TasSession> sessions = grouper.group(scans, shifts, assignManana("100"));
 
         assertThat(sessions).hasSize(1);
+        assertThat(sessions.get(0).getMatchedShiftId()).isEqualTo(MANANA_ID);
         assertThat(sessions.get(0).getScans()).hasSize(2);
         assertThat(sessions.get(0).getFlags()).doesNotContain(TasFlag.SAME_DAY_DOUBLE, TasFlag.SHIFT_MISMATCH);
     }
