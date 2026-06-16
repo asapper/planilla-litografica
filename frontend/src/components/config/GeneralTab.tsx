@@ -4,7 +4,7 @@ import { getGeneralConfig, updateGeneralConfig } from '../../configApi';
 import Spinner from '../ui/Spinner';
 
 const DEFAULT_BREAK = 45;
-const DEFAULT_MAX_SPAN_HOURS = 13;
+const DEFAULT_MAX_SPAN_HOURS = 14;
 
 export default function GeneralTab() {
   const generalData = useConfigStore(s => s.general.data);

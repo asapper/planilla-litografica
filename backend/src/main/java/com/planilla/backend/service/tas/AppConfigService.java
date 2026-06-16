@@ -38,9 +38,9 @@ public class AppConfigService {
                 "SELECT config_value FROM app_config WHERE config_key = 'maxSessionSpanMinutes'",
                 String.class
             );
-            return value != null ? Integer.parseInt(value) : 780;
+            return value != null ? Integer.parseInt(value) : 840;
         } catch (Exception e) {
-            return 780;
+            return 840;
         }
     }
 

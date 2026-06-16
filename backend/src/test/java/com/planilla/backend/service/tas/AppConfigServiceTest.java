@@ -69,7 +69,7 @@ class AppConfigServiceTest {
     void getMaxSessionSpanMinutes_returnsDefaultWhenNotSet() {
         when(jdbc.queryForObject(anyString(), eq(String.class))).thenThrow(new RuntimeException("no row"));
 
-        assertThat(service.getMaxSessionSpanMinutes()).isEqualTo(780);
+        assertThat(service.getMaxSessionSpanMinutes()).isEqualTo(840);
     }
 
     @Test

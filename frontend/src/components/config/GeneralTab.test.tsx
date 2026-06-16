@@ -8,7 +8,7 @@ vi.mock('../../configApi');
 const mockGetGeneralConfig    = vi.mocked(configApi.getGeneralConfig);
 const mockUpdateGeneralConfig = vi.mocked(configApi.updateGeneralConfig);
 
-const generalConfig = { legalBreakAllowanceMinutes: 45, maxSessionSpanMinutes: 780 };
+const generalConfig = { legalBreakAllowanceMinutes: 45, maxSessionSpanMinutes: 840 };
 
 const { default: GeneralTab } = await import('./GeneralTab');
 
@@ -114,7 +114,7 @@ describe('GeneralTab editing', () => {
 
 describe('GeneralTab save', () => {
   it('calls updateGeneralConfig with new value on save', async () => {
-    mockUpdateGeneralConfig.mockResolvedValue({ legalBreakAllowanceMinutes: 60, maxSessionSpanMinutes: 780 });
+    mockUpdateGeneralConfig.mockResolvedValue({ legalBreakAllowanceMinutes: 60, maxSessionSpanMinutes: 840 });
     render(<GeneralTab />);
     await waitFor(() => screen.getByDisplayValue('45'));
 
@@ -123,12 +123,12 @@ describe('GeneralTab save', () => {
 
     await waitFor(() => expect(mockUpdateGeneralConfig).toHaveBeenCalledWith({
       legalBreakAllowanceMinutes: 60,
-      maxSessionSpanMinutes: 780,
+      maxSessionSpanMinutes: 840,
     }));
   });
 
   it('shows toast after successful save', async () => {
-    mockUpdateGeneralConfig.mockResolvedValue({ legalBreakAllowanceMinutes: 60, maxSessionSpanMinutes: 780 });
+    mockUpdateGeneralConfig.mockResolvedValue({ legalBreakAllowanceMinutes: 60, maxSessionSpanMinutes: 840 });
     render(<GeneralTab />);
     await waitFor(() => screen.getByDisplayValue('45'));
 
@@ -140,7 +140,7 @@ describe('GeneralTab save', () => {
   });
 
   it('clears dirty flag after successful save', async () => {
-    mockUpdateGeneralConfig.mockResolvedValue({ legalBreakAllowanceMinutes: 60, maxSessionSpanMinutes: 780 });
+    mockUpdateGeneralConfig.mockResolvedValue({ legalBreakAllowanceMinutes: 60, maxSessionSpanMinutes: 840 });
     render(<GeneralTab />);
     await waitFor(() => screen.getByDisplayValue('45'));
 
@@ -206,11 +206,11 @@ describe('GeneralTab errors', () => {
 
 describe('GeneralTab maxSessionSpanMinutes', () => {
   it('renders maxSessionSpanMinutes field in hours', async () => {
-    mockGetGeneralConfig.mockResolvedValue({ legalBreakAllowanceMinutes: 45, maxSessionSpanMinutes: 780 });
+    mockGetGeneralConfig.mockResolvedValue({ legalBreakAllowanceMinutes: 45, maxSessionSpanMinutes: 840 });
     render(<GeneralTab />);
     await waitFor(() => {
       const input = screen.getByLabelText(/duración máxima de jornada/i) as HTMLInputElement;
-      expect(input.value).toBe('13');
+      expect(input.value).toBe('14');
     });
   });
 
@@ -236,6 +236,6 @@ describe('GeneralTab maxSessionSpanMinutes', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /descartar/i }));
 
-    expect((screen.getByLabelText(/duración máxima de jornada/i) as HTMLInputElement).value).toBe('13');
+    expect((screen.getByLabelText(/duración máxima de jornada/i) as HTMLInputElement).value).toBe('14');
   });
 });
