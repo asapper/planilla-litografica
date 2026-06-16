@@ -470,7 +470,7 @@ export default function VerificationScreen() {
           </div>
         ) : (
           employeeGroups.map(group => {
-            const defaultExpanded = group.pendingCount > 0 || group.items.some(item => item.type !== 'session');
+            const defaultExpanded = group.pendingCount > 0;
             const expanded = expansionOverrides.has(group.employeeId) ? !defaultExpanded : defaultExpanded;
             return (
               <EmployeeGroup

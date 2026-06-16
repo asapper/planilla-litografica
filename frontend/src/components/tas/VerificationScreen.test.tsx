@@ -130,6 +130,7 @@ describe('VerificationScreen rendering', () => {
     useTasStore.getState().setFlaggedSessions([makeSession({ flags: ['SHIFT_MISMATCH'], effectiveStart: '08:00:00', lastScan: '17:00:00' })]);
     useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
     render(<VerificationScreen />);
+    fireEvent.click(screen.getByRole('button', { name: /Ana López/ }));
     expect(screen.getByText('Cambio de turno')).toBeInTheDocument();
   });
 
@@ -368,6 +369,7 @@ describe('VerificationScreen shift mismatch card', () => {
 
   it('shows the assigned and matched shift confirmation message', () => {
     render(<VerificationScreen />);
+    fireEvent.click(screen.getByRole('button', { name: /Ana López/ }));
     expect(screen.getByText(/Turno asignado: Manana/)).toBeInTheDocument();
     expect(screen.getByText(/se aplicará Tarde/)).toBeInTheDocument();
   });
@@ -375,6 +377,7 @@ describe('VerificationScreen shift mismatch card', () => {
   it('renders scan pills when scans are present', () => {
     useTasStore.getState().setFlaggedSessions([mismatchSession({ scans: ['07:03:00', '15:05:00'] })]);
     render(<VerificationScreen />);
+    fireEvent.click(screen.getByRole('button', { name: /Ana López/ }));
     expect(screen.getByText('07:03')).toBeInTheDocument();
     expect(screen.getByText('15:05')).toBeInTheDocument();
   });
@@ -388,6 +391,7 @@ describe('VerificationScreen shift mismatch card', () => {
 
   it('shows a note that the displayed shift will apply automatically unless changed', () => {
     render(<VerificationScreen />);
+    fireEvent.click(screen.getByRole('button', { name: /Ana López/ }));
     expect(screen.getByText(/se aplicará automáticamente si no realiza ningún cambio/i)).toBeInTheDocument();
   });
 
@@ -404,6 +408,7 @@ describe('VerificationScreen shift mismatch card', () => {
 
   it('clicking "Elegir otro turno" reveals a shift select with Aplicar/Cancelar', () => {
     render(<VerificationScreen />);
+    fireEvent.click(screen.getByRole('button', { name: /Ana López/ }));
     fireEvent.click(screen.getByRole('button', { name: /elegir otro turno/i }));
     expect(screen.getByRole('combobox')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /aplicar/i })).toBeInTheDocument();
@@ -412,6 +417,7 @@ describe('VerificationScreen shift mismatch card', () => {
 
   it('Cancelar collapses the dropdown without changing the displayed shift', () => {
     render(<VerificationScreen />);
+    fireEvent.click(screen.getByRole('button', { name: /Ana López/ }));
     fireEvent.click(screen.getByRole('button', { name: /elegir otro turno/i }));
     fireEvent.click(screen.getByRole('button', { name: /cancelar/i }));
     expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
@@ -440,6 +446,7 @@ describe('VerificationScreen shift mismatch card', () => {
       { id: 'manana', name: 'Manana', startTime: '07:00', endTime: '15:00' },
     ]);
     render(<VerificationScreen />);
+    fireEvent.click(screen.getByRole('button', { name: /Ana López/ }));
     fireEvent.click(screen.getByRole('button', { name: /elegir otro turno/i }));
     fireEvent.change(screen.getByRole('combobox'), { target: { value: 'manana' } });
     fireEvent.click(screen.getByRole('button', { name: /aplicar/i }));
@@ -532,6 +539,7 @@ describe('VerificationScreen same-day double group', () => {
 
   it('renders one group card for both sessions on the same employee/date', () => {
     render(<VerificationScreen />);
+    fireEvent.click(screen.getByRole('button', { name: /Ana López/ }));
     expect(screen.getAllByText(/Ana López/).length).toBeGreaterThan(0);
     expect(screen.getByText(/Manana/)).toBeInTheDocument();
     expect(screen.getByText(/Tarde/)).toBeInTheDocument();
@@ -539,6 +547,7 @@ describe('VerificationScreen same-day double group', () => {
 
   it('renders a radio per session plus "Mantener todas", defaulting to "Mantener todas"', () => {
     render(<VerificationScreen />);
+    fireEvent.click(screen.getByRole('button', { name: /Ana López/ }));
     const keepAllRadio = screen.getByRole('radio', { name: /mantener todas/i });
     expect(keepAllRadio).toBeChecked();
     expect(screen.getAllByRole('radio')).toHaveLength(3);
@@ -546,6 +555,7 @@ describe('VerificationScreen same-day double group', () => {
 
   it('shows a note that the default selection will apply automatically unless changed', () => {
     render(<VerificationScreen />);
+    fireEvent.click(screen.getByRole('button', { name: /Ana López/ }));
     expect(screen.getByText(/se aplicará automáticamente si no realiza ningún cambio/i)).toBeInTheDocument();
   });
 
@@ -556,6 +566,7 @@ describe('VerificationScreen same-day double group', () => {
 
   it('selecting a specific session records that session id', () => {
     render(<VerificationScreen />);
+    fireEvent.click(screen.getByRole('button', { name: /Ana López/ }));
     const radios = screen.getAllByRole('radio');
     fireEvent.click(radios[0]); // first session-specific radio
     expect(useTasStore.getState().sameDayDoubleResolutions['E1|2026-03-15']).toBe(1);
@@ -654,7 +665,7 @@ describe('VerificationScreen employee grouping', () => {
     expect(headers[1]).toHaveTextContent('Zoe Vargas');
   });
 
-  it('expands a group by default when it contains only a shift-mismatch session', () => {
+  it('collapses a group by default when it contains only a shift-mismatch session', () => {
     useTasStore.getState().setFlaggedSessions([
       makeSession({
         sessionId: 1, employeeId: 'E1', employeeName: 'Ana López', date: '2026-03-10',
@@ -667,9 +678,9 @@ describe('VerificationScreen employee grouping', () => {
     useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
     render(<VerificationScreen />);
     const header = screen.getByRole('button', { name: /Ana López/ });
-    expect(header).toHaveAttribute('aria-expanded', 'true');
+    expect(header).toHaveAttribute('aria-expanded', 'false');
     expect(screen.getByText('✓ Resuelto')).toBeInTheDocument();
-    expect(screen.getByText(/Turno asignado: Manana/)).toBeInTheDocument();
+    expect(screen.queryByText(/Turno asignado: Manana/)).not.toBeInTheDocument();
   });
 
   it('groups a regular session and a shift-mismatch session for the same employee under one header', () => {
