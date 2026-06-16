@@ -340,7 +340,7 @@ describe('VerificationScreen period selector', () => {
 
     render(<VerificationScreen />);
     fireEvent.click(screen.getByRole('button', { name: /confirmar/i }));
-    fireEvent.click(screen.getByRole('button', { name: 'Enviar' }));
+    fireEvent.click(screen.getByRole('button', { name: /enviar/i }));
 
     await waitFor(() => {
       expect(mockResolveVerification).toHaveBeenCalledWith('tok-1', expect.any(Array), p1);
@@ -698,5 +698,45 @@ describe('VerificationScreen employee grouping', () => {
     render(<VerificationScreen />);
     expect(screen.getAllByRole('button', { name: /Ana López/ })).toHaveLength(1);
     expect(screen.getByText(/Turno asignado: Manana/)).toBeInTheDocument();
+  });
+});
+
+describe('VerificationScreen completion state', () => {
+  it('shows green banner and enables green Enviar button when all sessions are confirmed', () => {
+    useTasStore.getState().setFlaggedSessions([
+      makeSession({ sessionId: 1, effectiveStart: '08:00:00', lastScan: '17:00:00' }),
+    ]);
+    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
+    render(<VerificationScreen />);
+
+    fireEvent.click(screen.getByRole('button', { name: /confirmar/i }));
+
+    expect(screen.getByText(/Todos los grupos están resueltos/)).toBeInTheDocument();
+    const enviar = screen.getByRole('button', { name: /enviar/i });
+    expect(enviar).not.toBeDisabled();
+    expect(enviar).toHaveTextContent('✓ Enviar');
+  });
+
+  it('does not show green banner when there are still pending sessions', () => {
+    useTasStore.getState().setFlaggedSessions([
+      makeSession({ sessionId: 1 }),
+    ]);
+    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
+    render(<VerificationScreen />);
+
+    expect(screen.queryByText(/Todos los grupos están resueltos/)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /enviar/i })).toBeDisabled();
+  });
+
+  it('does not show green banner when totalToResolve is 0 (empty state — no inconsistencies)', () => {
+    useTasStore.getState().setFlaggedSessions([]);
+    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
+    render(<VerificationScreen />);
+
+    expect(screen.queryByText(/Todos los grupos están resueltos/)).not.toBeInTheDocument();
+    const enviar = screen.getByRole('button', { name: /enviar/i });
+    expect(enviar).not.toBeDisabled();
+    expect(enviar).toHaveTextContent('Enviar');
+    expect(enviar).not.toHaveTextContent('✓ Enviar');
   });
 });
