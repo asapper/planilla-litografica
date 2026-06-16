@@ -375,8 +375,15 @@ export default function VerificationScreen() {
   const rawGroups = buildEmployeeGroups(regular, allShiftMismatchOnly, sameDayDoubleGroups, resolvedSessions, sameDayDoubleResolutions);
 
   // Freeze the initial sort order so that resolving an employee's items doesn't
-  // move their group to the bottom of the list mid-session.
+  // move their group to the bottom of the list mid-session. Reset when the
+  // selected period changes so each period gets its own clean initial order.
   const groupOrderRef = useRef<string[]>([]);
+  const activePeriodRef = useRef<string | null>(null);
+  const currentPeriodKey = selectedPeriod ? periodKey(selectedPeriod) : null;
+  if (activePeriodRef.current !== currentPeriodKey) {
+    activePeriodRef.current = currentPeriodKey;
+    groupOrderRef.current = [];
+  }
   if (groupOrderRef.current.length === 0 && rawGroups.length > 0) {
     groupOrderRef.current = rawGroups.map(g => g.employeeId);
   } else {

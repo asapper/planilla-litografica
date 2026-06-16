@@ -675,6 +675,36 @@ describe('VerificationScreen employee grouping', () => {
     expect(headers[0]).toHaveAttribute('aria-expanded', 'false');
   });
 
+  it('resets group order when switching periods so each period starts with its own initial sort', () => {
+    const p1: TasPeriod = { anio: 2026, mes: 3, numeroDequincena: 1 };
+    const p2: TasPeriod = { anio: 2026, mes: 3, numeroDequincena: 2 };
+    useTasStore.getState().setFlaggedSessions([
+      // P1 employees (dates 1–15): Zoe first alphabetically is wrong — Beto < Zoe
+      makeSession({ sessionId: 1, employeeId: 'E1', employeeName: 'Zoe Vargas', date: '2026-03-05' }),
+      makeSession({ sessionId: 2, employeeId: 'E2', employeeName: 'Beto Cruz', date: '2026-03-05' }),
+      // P2 employees (dates 16–31)
+      makeSession({ sessionId: 3, employeeId: 'E3', employeeName: 'Marta Ríos', date: '2026-03-20' }),
+      makeSession({ sessionId: 4, employeeId: 'E4', employeeName: 'Ana López', date: '2026-03-20' }),
+    ]);
+    useTasStore.getState().setAvailablePeriods([p1, p2]);
+    useTasStore.getState().setSelectedPeriod(p1);
+
+    render(<VerificationScreen />);
+
+    // P1: Beto Cruz before Zoe Vargas (alphabetical, both pending)
+    let headers = screen.getAllByRole('button', { name: /Beto Cruz|Zoe Vargas/ });
+    expect(headers[0]).toHaveTextContent('Beto Cruz');
+    expect(headers[1]).toHaveTextContent('Zoe Vargas');
+
+    // Switch to P2
+    fireEvent.change(screen.getByLabelText('Periodo'), { target: { value: '2026-3-2' } });
+
+    // P2: Ana López before Marta Ríos (alphabetical, both pending) — not influenced by P1 order
+    headers = screen.getAllByRole('button', { name: /Ana López|Marta Ríos/ });
+    expect(headers[0]).toHaveTextContent('Ana López');
+    expect(headers[1]).toHaveTextContent('Marta Ríos');
+  });
+
   it('orders groups with pending sessions before fully resolved groups', () => {
     useTasStore.getState().setFlaggedSessions([
       makeSession({ sessionId: 1, employeeId: 'E1', employeeName: 'Zoe Vargas' }),
