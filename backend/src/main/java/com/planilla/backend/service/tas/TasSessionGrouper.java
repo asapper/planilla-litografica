@@ -147,12 +147,12 @@ public class TasSessionGrouper {
     }
 
     private boolean isWithinShiftEndTolerance(LocalDateTime scanTime, TasSession currentSession, List<Map<String, Object>> shifts) {
-        if (currentSession.isCrossMidnight()) return false;
+        if (currentSession.isCrossMidnight()) return false; // findOpenerShift already returns null for cross-midnight sessions
         Map<String, Object> matchedShift = findShiftById(shifts, currentSession.getMatchedShiftId());
         if (matchedShift == null) return false;
         LocalTime endTime = parseTime(matchedShift.get("endTime"));
         int afterMinutes = detectionMinutes(matchedShift, "detectionAfterMinutes", DETECTION_AFTER_MINUTES);
-        LocalDateTime shiftEnd = LocalDateTime.of(currentSession.getDate(), endTime);
+        LocalDateTime shiftEnd = LocalDateTime.of(currentSession.getDate(), endTime); // plusMinutes below handles midnight rollover correctly
         return !scanTime.isBefore(shiftEnd) && !scanTime.isAfter(shiftEnd.plusMinutes(afterMinutes));
     }
 
