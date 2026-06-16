@@ -49,7 +49,7 @@ class TasSessionGrouperTest {
         noche.put("startTime", "19:00");
         noche.put("endTime", "07:00");
         noche.put("crossMidnight", true);
-        noche.put("detectionAfterMinutes", 50);
+        noche.put("detectionAfterMinutes", 50); // matches production seed-shifts.sql
 
         shifts = List.of(manana, tarde, noche);
     }
@@ -161,6 +161,22 @@ class TasSessionGrouperTest {
         assertThat(sessions.get(0).getScans()).hasSize(2);
         assertThat(sessions.get(1).getDate()).isEqualTo(LocalDate.of(2026, 3, 3));
         assertThat(sessions.get(1).getScans()).hasSize(2);
+    }
+
+    @Test
+    void group_noche_exitAtExactEndTolerance_closesSession() {
+        // 07:50 is the last minute of Noche's end-time tolerance (07:00 + 50 min).
+        // Must be treated as an exit, closing the session with 2 scans.
+        List<TasScanRecord> scans = List.of(
+            scan("300", LocalDateTime.of(2026, 3, 2, 19, 0)),
+            scan("300", LocalDateTime.of(2026, 3, 3, 7, 50))
+        );
+
+        List<TasSession> sessions = grouper.group(scans, shifts, assignNoche("300"));
+
+        assertThat(sessions).hasSize(1);
+        assertThat(sessions.get(0).getScans()).hasSize(2);
+        assertThat(sessions.get(0).getLastScan()).isEqualTo(LocalDateTime.of(2026, 3, 3, 7, 50));
     }
 
     @Test

@@ -236,6 +236,7 @@ public class TasSessionGrouper {
         if (matchedShift != null) {
             LocalTime endTime = parseTime(matchedShift.get("endTime"));
             int afterMinutes = detectionMinutes(matchedShift, "detectionAfterMinutes", DETECTION_AFTER_MINUTES);
+            // scanDate is already the next calendar day (gate at line above ensures scanDate > sessionDate)
             LocalDateTime shiftEnd = LocalDateTime.of(scanDate, endTime);
             if (!timestamp.isBefore(shiftEnd) && !timestamp.isAfter(shiftEnd.plusMinutes(afterMinutes))) {
                 return true;
