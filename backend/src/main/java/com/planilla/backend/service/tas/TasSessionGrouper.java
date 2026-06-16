@@ -114,16 +114,27 @@ public class TasSessionGrouper {
                     continue;
                 }
 
-                Map<String, Object> openerShift = currentSession.getScans().size() == 1
-                        && isScanAfterCurrentShiftEnd(scan.getTimestamp(), currentSession, shifts)
-                        ? findOpenerShift(scan.getTimestamp(), shifts, assignedShift, isCrossMidnight)
-                        : null;
-                if (openerShift != null) {
+                boolean onDifferentDay = !scan.getTimestamp().toLocalDate().equals(currentSession.getDate());
+                if (!currentSession.isCrossMidnight() && onDifferentDay && currentSession.getScans().size() > 1) {
+                    Map<String, Object> openerShift = findOpenerShift(scan.getTimestamp(), shifts, assignedShift, isCrossMidnight);
                     finalizeSession(currentSession);
                     sessions.add(currentSession);
-                    currentSession = openSession(employeeId, scan, openerShift, assignedShift, isCrossMidnight);
+                    currentSession = openerShift != null
+                            ? openSession(employeeId, scan, openerShift, assignedShift, isCrossMidnight)
+                            : openAmbiguousSession(employeeId, scan);
                 } else {
-                    currentSession.getScans().add(scan.getTimestamp());
+                    Map<String, Object> openerShift = currentSession.getScans().size() == 1
+                            && isScanAfterCurrentShiftEnd(scan.getTimestamp(), currentSession, shifts)
+                            && !isWithinShiftEndTolerance(scan.getTimestamp(), currentSession, shifts)
+                            ? findOpenerShift(scan.getTimestamp(), shifts, assignedShift, isCrossMidnight)
+                            : null;
+                    if (openerShift != null) {
+                        finalizeSession(currentSession);
+                        sessions.add(currentSession);
+                        currentSession = openSession(employeeId, scan, openerShift, assignedShift, isCrossMidnight);
+                    } else {
+                        currentSession.getScans().add(scan.getTimestamp());
+                    }
                 }
             }
         }
@@ -143,6 +154,16 @@ public class TasSessionGrouper {
         LocalTime endTime = parseTime(matchedShift.get("endTime"));
         LocalDateTime shiftEnd = LocalDateTime.of(currentSession.getDate(), endTime);
         return scanTime.isAfter(shiftEnd);
+    }
+
+    private boolean isWithinShiftEndTolerance(LocalDateTime scanTime, TasSession currentSession, List<Map<String, Object>> shifts) {
+        if (currentSession.isCrossMidnight()) return false; // findOpenerShift already returns null for cross-midnight sessions
+        Map<String, Object> matchedShift = findShiftById(shifts, currentSession.getMatchedShiftId());
+        if (matchedShift == null) return false;
+        LocalTime endTime = parseTime(matchedShift.get("endTime"));
+        int afterMinutes = detectionMinutes(matchedShift, "detectionAfterMinutes", DETECTION_AFTER_MINUTES);
+        LocalDateTime shiftEnd = LocalDateTime.of(currentSession.getDate(), endTime);
+        return !scanTime.isBefore(shiftEnd) && !scanTime.isAfter(shiftEnd.plusMinutes(afterMinutes));
     }
 
     private Map<String, Object> findOpenerShift(
@@ -207,6 +228,21 @@ public class TasSessionGrouper {
                 return true;
             }
         }
+
+        // Also treat as exit when the scan falls within the matched shift's own end-time
+        // tolerance on the next day (e.g. Noche ends 07:00 with 50-min tolerance: a 07:11
+        // exit falls outside Mañana's opener window but is still a valid Noche exit).
+        Map<String, Object> matchedShift = findShiftById(shifts, currentSession.getMatchedShiftId());
+        if (matchedShift != null) {
+            LocalTime endTime = parseTime(matchedShift.get("endTime"));
+            int afterMinutes = detectionMinutes(matchedShift, "detectionAfterMinutes", DETECTION_AFTER_MINUTES);
+            // scanDate is already the next calendar day (gate at line above ensures scanDate > sessionDate)
+            LocalDateTime shiftEnd = LocalDateTime.of(scanDate, endTime);
+            if (!timestamp.isBefore(shiftEnd) && !timestamp.isAfter(shiftEnd.plusMinutes(afterMinutes))) {
+                return true;
+            }
+        }
+
         return false;
     }
 

@@ -49,6 +49,7 @@ class TasSessionGrouperTest {
         noche.put("startTime", "19:00");
         noche.put("endTime", "07:00");
         noche.put("crossMidnight", true);
+        noche.put("detectionAfterMinutes", 50); // matches production seed-shifts.sql
 
         shifts = List.of(manana, tarde, noche);
     }
@@ -140,6 +141,45 @@ class TasSessionGrouperTest {
     }
 
     @Test
+    void group_noche_exitJustOutsideMananaWindow_closesSessionAndStartsNext() {
+        // Repro: Francisco Daniel (291), Mar 2→3 2026.
+        // Noche endTime=07:00 with detectionAfterMinutes=50 → tolerance [07:00, 07:50].
+        // A 07:11 exit falls 1 minute outside Mañana's window [06:00, 07:10], so
+        // isNextShiftExitScan's "other shift" loop misses it. The new end-time-tolerance
+        // branch must catch it and close the Noche session so the 19:15 scan opens a fresh one.
+        List<TasScanRecord> scans = List.of(
+            scan("300", LocalDateTime.of(2026, 3, 2, 19, 24)),
+            scan("300", LocalDateTime.of(2026, 3, 3, 7, 11)),
+            scan("300", LocalDateTime.of(2026, 3, 3, 19, 15)),
+            scan("300", LocalDateTime.of(2026, 3, 4, 6, 24))
+        );
+
+        List<TasSession> sessions = grouper.group(scans, shifts, assignNoche("300"));
+
+        assertThat(sessions).hasSize(2);
+        assertThat(sessions.get(0).getDate()).isEqualTo(LocalDate.of(2026, 3, 2));
+        assertThat(sessions.get(0).getScans()).hasSize(2);
+        assertThat(sessions.get(1).getDate()).isEqualTo(LocalDate.of(2026, 3, 3));
+        assertThat(sessions.get(1).getScans()).hasSize(2);
+    }
+
+    @Test
+    void group_noche_exitAtExactEndTolerance_closesSession() {
+        // 07:50 is the last minute of Noche's end-time tolerance (07:00 + 50 min).
+        // Must be treated as an exit, closing the session with 2 scans.
+        List<TasScanRecord> scans = List.of(
+            scan("300", LocalDateTime.of(2026, 3, 2, 19, 0)),
+            scan("300", LocalDateTime.of(2026, 3, 3, 7, 50))
+        );
+
+        List<TasSession> sessions = grouper.group(scans, shifts, assignNoche("300"));
+
+        assertThat(sessions).hasSize(1);
+        assertThat(sessions.get(0).getScans()).hasSize(2);
+        assertThat(sessions.get(0).getLastScan()).isEqualTo(LocalDateTime.of(2026, 3, 3, 7, 50));
+    }
+
+    @Test
     void group_shiftMismatch_flaggedWhenScanNotInAssignedWindow() {
         List<TasScanRecord> scans = List.of(
             scan("100", LocalDateTime.of(2026, 3, 10, 15, 5))
@@ -153,7 +193,9 @@ class TasSessionGrouperTest {
     }
 
     @Test
-    void group_sameDayDouble_flaggedWhenTwoWindowHitsOnSameDay() {
+    void group_manana_exitJustAfterShiftEnd_producesOneSession() {
+        // 15:05 is after Mañana ends (15:00) but within the end-time tolerance [15:00, 15:10].
+        // Previously this incorrectly opened a new Tarde session. Corrected behavior: one session.
         List<TasScanRecord> scans = List.of(
             scan("100", LocalDateTime.of(2026, 3, 10, 7, 0)),
             scan("100", LocalDateTime.of(2026, 3, 10, 15, 5))
@@ -164,9 +206,10 @@ class TasSessionGrouperTest {
 
         List<TasSession> sessions = grouper.group(scans, shifts, assignments);
 
-        assertThat(sessions).hasSize(2);
-        assertThat(sessions.get(0).getFlags()).contains(TasFlag.SAME_DAY_DOUBLE);
-        assertThat(sessions.get(1).getFlags()).contains(TasFlag.SAME_DAY_DOUBLE);
+        assertThat(sessions).hasSize(1);
+        assertThat(sessions.get(0).getMatchedShiftId()).isEqualTo(MANANA_ID);
+        assertThat(sessions.get(0).getScans()).hasSize(2);
+        assertThat(sessions.get(0).getFlags()).doesNotContain(TasFlag.SAME_DAY_DOUBLE, TasFlag.SHIFT_MISMATCH);
     }
 
     @Test
@@ -454,4 +497,63 @@ class TasSessionGrouperTest {
         assertThat(session.getMatchedShiftId()).isEqualTo(MANANA_ID);
         assertThat(session.getMatchedShiftName()).isEqualTo("Manana");
     }
+
+    @Test
+    void group_manana_normalExitWithinEndTolerance_producesOneCleanSession() {
+        // Repro: employee 242 (Donis Reyes), Mar 3 2026 — 06:58 in, 15:05 out.
+        // 15:05 falls inside Tarde's detection window [14:00, 15:10] which previously
+        // caused a false Tarde opener. After the fix, 15:05 is within Mañana's own
+        // end-time tolerance [15:00, 15:10] and must be treated as the exit scan.
+        List<TasScanRecord> scans = List.of(
+            scan("242", LocalDateTime.of(2026, 3, 3, 6, 58)),
+            scan("242", LocalDateTime.of(2026, 3, 3, 15, 5))
+        );
+
+        List<TasSession> sessions = grouper.group(scans, shifts, assignManana("242"));
+
+        assertThat(sessions).hasSize(1);
+        TasSession s = sessions.get(0);
+        assertThat(s.getMatchedShiftId()).isEqualTo(MANANA_ID);
+        assertThat(s.getScans()).hasSize(2);
+        assertThat(s.getFlags()).doesNotContain(TasFlag.SAME_DAY_DOUBLE, TasFlag.SHIFT_MISMATCH);
+    }
+
+    @Test
+    void group_manana_exitAtExactEndTolerance_producesOneSession() {
+        // 15:10 is the last minute of Mañana's end-time tolerance (detectionAfterMinutes=10).
+        // Must be treated as exit, not new opener.
+        List<TasScanRecord> scans = List.of(
+            scan("100", LocalDateTime.of(2026, 3, 10, 7, 0)),
+            scan("100", LocalDateTime.of(2026, 3, 10, 15, 10))
+        );
+
+        List<TasSession> sessions = grouper.group(scans, shifts, assignManana("100"));
+
+        assertThat(sessions).hasSize(1);
+        assertThat(sessions.get(0).getMatchedShiftId()).isEqualTo(MANANA_ID);
+        assertThat(sessions.get(0).getScans()).hasSize(2);
+        assertThat(sessions.get(0).getFlags()).doesNotContain(TasFlag.SAME_DAY_DOUBLE, TasFlag.SHIFT_MISMATCH);
+    }
+
+    @Test
+    void group_manana_exitWithinTolerance_nextDayStartsNewSession() {
+        // Regression: once a session has entry+exit (size>1), subsequent scans from the
+        // next day were absorbed because the size==1 gate was false and no other day-boundary
+        // check existed for matched sessions. All of March ended up in the March 3rd session.
+        List<TasScanRecord> scans = List.of(
+            scan("100", LocalDateTime.of(2026, 3, 3, 6, 58)),
+            scan("100", LocalDateTime.of(2026, 3, 3, 15, 5)),
+            scan("100", LocalDateTime.of(2026, 3, 4, 6, 44)),
+            scan("100", LocalDateTime.of(2026, 3, 4, 15, 2))
+        );
+
+        List<TasSession> sessions = grouper.group(scans, shifts, assignManana("100"));
+
+        assertThat(sessions).hasSize(2);
+        assertThat(sessions.get(0).getDate()).isEqualTo(LocalDate.of(2026, 3, 3));
+        assertThat(sessions.get(0).getScans()).hasSize(2);
+        assertThat(sessions.get(1).getDate()).isEqualTo(LocalDate.of(2026, 3, 4));
+        assertThat(sessions.get(1).getScans()).hasSize(2);
+    }
+
 }
