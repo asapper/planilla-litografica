@@ -495,4 +495,25 @@ class TasSessionGrouperTest {
         assertThat(sessions.get(0).getFlags()).doesNotContain(TasFlag.SAME_DAY_DOUBLE, TasFlag.SHIFT_MISMATCH);
     }
 
+    @Test
+    void group_manana_exitWithinTolerance_nextDayStartsNewSession() {
+        // Regression: once a session has entry+exit (size>1), subsequent scans from the
+        // next day were absorbed because the size==1 gate was false and no other day-boundary
+        // check existed for matched sessions. All of March ended up in the March 3rd session.
+        List<TasScanRecord> scans = List.of(
+            scan("100", LocalDateTime.of(2026, 3, 3, 6, 58)),
+            scan("100", LocalDateTime.of(2026, 3, 3, 15, 5)),
+            scan("100", LocalDateTime.of(2026, 3, 4, 6, 44)),
+            scan("100", LocalDateTime.of(2026, 3, 4, 15, 2))
+        );
+
+        List<TasSession> sessions = grouper.group(scans, shifts, assignManana("100"));
+
+        assertThat(sessions).hasSize(2);
+        assertThat(sessions.get(0).getDate()).isEqualTo(LocalDate.of(2026, 3, 3));
+        assertThat(sessions.get(0).getScans()).hasSize(2);
+        assertThat(sessions.get(1).getDate()).isEqualTo(LocalDate.of(2026, 3, 4));
+        assertThat(sessions.get(1).getScans()).hasSize(2);
+    }
+
 }

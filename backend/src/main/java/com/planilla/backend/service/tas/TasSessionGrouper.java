@@ -114,17 +114,27 @@ public class TasSessionGrouper {
                     continue;
                 }
 
-                Map<String, Object> openerShift = currentSession.getScans().size() == 1
-                        && isScanAfterCurrentShiftEnd(scan.getTimestamp(), currentSession, shifts)
-                        && !isWithinShiftEndTolerance(scan.getTimestamp(), currentSession, shifts)
-                        ? findOpenerShift(scan.getTimestamp(), shifts, assignedShift, isCrossMidnight)
-                        : null;
-                if (openerShift != null) {
+                boolean onDifferentDay = !scan.getTimestamp().toLocalDate().equals(currentSession.getDate());
+                if (!currentSession.isCrossMidnight() && onDifferentDay && currentSession.getScans().size() > 1) {
+                    Map<String, Object> openerShift = findOpenerShift(scan.getTimestamp(), shifts, assignedShift, isCrossMidnight);
                     finalizeSession(currentSession);
                     sessions.add(currentSession);
-                    currentSession = openSession(employeeId, scan, openerShift, assignedShift, isCrossMidnight);
+                    currentSession = openerShift != null
+                            ? openSession(employeeId, scan, openerShift, assignedShift, isCrossMidnight)
+                            : openAmbiguousSession(employeeId, scan);
                 } else {
-                    currentSession.getScans().add(scan.getTimestamp());
+                    Map<String, Object> openerShift = currentSession.getScans().size() == 1
+                            && isScanAfterCurrentShiftEnd(scan.getTimestamp(), currentSession, shifts)
+                            && !isWithinShiftEndTolerance(scan.getTimestamp(), currentSession, shifts)
+                            ? findOpenerShift(scan.getTimestamp(), shifts, assignedShift, isCrossMidnight)
+                            : null;
+                    if (openerShift != null) {
+                        finalizeSession(currentSession);
+                        sessions.add(currentSession);
+                        currentSession = openSession(employeeId, scan, openerShift, assignedShift, isCrossMidnight);
+                    } else {
+                        currentSession.getScans().add(scan.getTimestamp());
+                    }
                 }
             }
         }
