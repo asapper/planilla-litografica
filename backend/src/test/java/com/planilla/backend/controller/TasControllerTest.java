@@ -579,7 +579,61 @@ class TasControllerTest {
 
         clearInvocations(reportBuilder);
 
+        EmployeeRow recomputedRow = new EmployeeRow();
+        recomputedRow.setCodigoEmpleado("E1");
+        when(reportBuilder.build(any(), any(), any(), any(), eq(new TasPeriod(2026, 3, 1))))
+                .thenReturn(new TasReportBuilder.BuildResult(List.of(recomputedRow), new LinkedHashMap<>()));
+
         // /recompute must pass the stored period filter, not null
+        mvc.perform(post("/api/tas/recompute/" + token))
+           .andExpect(status().isOk())
+           .andExpect(jsonPath("$.resolvedRows[0].codigoEmpleado").value("E1"));
+
+        verify(reportBuilder).build(
+                any(), any(), any(), any(), eq(new TasPeriod(2026, 3, 1)));
+    }
+
+    @Test
+    void recompute_afterResolveWithPeriod_thenResolveWithoutPeriod_keepsPeriodFilter() throws Exception {
+        TasUploadResult result = emptyResult();
+        result.setAllSessions(new ArrayList<>());
+        when(parserService.parse(any())).thenReturn(emptyParseResult());
+        when(uploadService.processScans(any(), any(), any())).thenReturn(result);
+
+        MockMultipartFile file = new MockMultipartFile("file", "test.csv", "text/csv", "data".getBytes());
+        String uploadResponse = mvc.perform(multipart("/api/tas/upload").file(file))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        String token = (String) mapper.readValue(uploadResponse, Map.class).get("uploadToken");
+
+        when(shiftConfigService.getAllShifts()).thenReturn(new ArrayList<>());
+        when(reportBuilder.build(any(), any(), any(), any(), any()))
+                .thenReturn(new TasReportBuilder.BuildResult(new ArrayList<>(), new LinkedHashMap<>()));
+
+        // First /resolve: with period
+        Map<String, Object> resolveWithPeriod = new LinkedHashMap<>();
+        resolveWithPeriod.put("uploadToken", token);
+        resolveWithPeriod.put("resolutions", List.of());
+        resolveWithPeriod.put("anio", 2026);
+        resolveWithPeriod.put("mes", 3);
+        resolveWithPeriod.put("numeroDequincena", 1);
+        mvc.perform(post("/api/tas/resolve")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(resolveWithPeriod)))
+           .andExpect(status().isOk());
+
+        // Second /resolve: without period params (e.g. re-resolving a re-flagged session)
+        Map<String, Object> resolveWithoutPeriod = new LinkedHashMap<>();
+        resolveWithoutPeriod.put("uploadToken", token);
+        resolveWithoutPeriod.put("resolutions", List.of());
+        mvc.perform(post("/api/tas/resolve")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(resolveWithoutPeriod)))
+           .andExpect(status().isOk());
+
+        clearInvocations(reportBuilder);
+
+        // /recompute must still use the period from the first /resolve call
         mvc.perform(post("/api/tas/recompute/" + token))
            .andExpect(status().isOk());
 

@@ -199,12 +199,12 @@ public class TasController {
                     ((Number) anioObj).intValue(),
                     ((Number) mesObj).intValue(),
                     ((Number) numeroDequincenaObj).intValue());
+            state.setResolvedPeriod(periodFilter);
         }
 
         TasReportBuilder.BuildResult buildResult = reportBuilder.build(
                 sessions, state.getReportStart(), state.getReportEnd(), shifts, periodFilter);
         state.setResolvedRows(buildResult.rows);
-        state.setResolvedPeriod(periodFilter);
 
         List<TasSession> remainingFlagged = sessions.stream()
                 .filter(TasSession::isNeedsResolution)
