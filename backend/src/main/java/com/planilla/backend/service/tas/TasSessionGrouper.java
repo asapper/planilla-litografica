@@ -83,7 +83,7 @@ public class TasSessionGrouper {
 
         for (TasScanRecord scan : scans) {
             if (currentSession == null) {
-                Map<String, Object> openerShift = findOpenerShift(scan.getTimestamp(), shifts, assignedShift, isCrossMidnight);
+                Map<String, Object> openerShift = findOpenerShift(scan.getTimestamp(), shifts, assignedShift, isCrossMidnight, false);
                 currentSession = openerShift != null
                         ? openSession(employeeId, scan, openerShift, assignedShift, isCrossMidnight)
                         : openAmbiguousSession(employeeId, scan);
@@ -104,7 +104,7 @@ public class TasSessionGrouper {
                     if (differentDay || exceedsSpan) {
                         finalizeSession(currentSession);
                         sessions.add(currentSession);
-                        Map<String, Object> openerShift = findOpenerShift(scan.getTimestamp(), shifts, assignedShift, isCrossMidnight);
+                        Map<String, Object> openerShift = findOpenerShift(scan.getTimestamp(), shifts, assignedShift, isCrossMidnight, false);
                         currentSession = openerShift != null
                                 ? openSession(employeeId, scan, openerShift, assignedShift, isCrossMidnight)
                                 : openAmbiguousSession(employeeId, scan);
@@ -116,7 +116,7 @@ public class TasSessionGrouper {
 
                 boolean onDifferentDay = !scan.getTimestamp().toLocalDate().equals(currentSession.getDate());
                 if (!currentSession.isCrossMidnight() && onDifferentDay && currentSession.getScans().size() > 1) {
-                    Map<String, Object> openerShift = findOpenerShift(scan.getTimestamp(), shifts, assignedShift, isCrossMidnight);
+                    Map<String, Object> openerShift = findOpenerShift(scan.getTimestamp(), shifts, assignedShift, isCrossMidnight, false);
                     finalizeSession(currentSession);
                     sessions.add(currentSession);
                     currentSession = openerShift != null
@@ -126,7 +126,7 @@ public class TasSessionGrouper {
                     Map<String, Object> openerShift = currentSession.getScans().size() == 1
                             && isScanAfterCurrentShiftEnd(scan.getTimestamp(), currentSession, shifts)
                             && !isWithinShiftEndTolerance(scan.getTimestamp(), currentSession, shifts)
-                            ? findOpenerShift(scan.getTimestamp(), shifts, assignedShift, isCrossMidnight)
+                            ? findOpenerShift(scan.getTimestamp(), shifts, assignedShift, isCrossMidnight, true)
                             : null;
                     if (openerShift != null) {
                         finalizeSession(currentSession);
@@ -170,7 +170,8 @@ public class TasSessionGrouper {
             LocalDateTime timestamp,
             List<Map<String, Object>> shifts,
             Map<String, Object> assignedShift,
-            boolean isCrossMidnight) {
+            boolean isCrossMidnight,
+            boolean excludeCrossMidnight) {
 
         if (assignedShift != null && isInDetectionWindow(timestamp, assignedShift)) {
             return assignedShift;
@@ -182,6 +183,7 @@ public class TasSessionGrouper {
 
         for (Map<String, Object> shift : shifts) {
             if (shift.equals(assignedShift)) continue;
+            if (excludeCrossMidnight && Boolean.TRUE.equals(shift.get("crossMidnight"))) continue;
             if (isInDetectionWindow(timestamp, shift)) {
                 return shift;
             }
