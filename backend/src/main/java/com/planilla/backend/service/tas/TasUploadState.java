@@ -2,6 +2,7 @@ package com.planilla.backend.service.tas;
 
 import com.planilla.backend.model.EmployeeRow;
 import com.planilla.backend.model.tas.TasAbsentEmployee;
+import com.planilla.backend.model.tas.TasPeriod;
 import com.planilla.backend.model.tas.TasScanRecord;
 import com.planilla.backend.model.tas.TasSession;
 
@@ -20,6 +21,7 @@ public class TasUploadState {
     private Set<String> ignoredEmployeeIds;
     private LocalDate reportStart;
     private LocalDate reportEnd;
+    private TasPeriod resolvedPeriod;
 
     public TasUploadState() {}
 
@@ -49,4 +51,7 @@ public class TasUploadState {
 
     public LocalDate getReportEnd() { return reportEnd; }
     public void setReportEnd(LocalDate reportEnd) { this.reportEnd = reportEnd; }
+
+    public TasPeriod getResolvedPeriod() { return resolvedPeriod; }
+    public void setResolvedPeriod(TasPeriod resolvedPeriod) { this.resolvedPeriod = resolvedPeriod; }
 }

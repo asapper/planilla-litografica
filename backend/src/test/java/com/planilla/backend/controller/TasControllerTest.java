@@ -549,6 +549,45 @@ class TasControllerTest {
     }
 
     @Test
+    void recompute_afterResolveWithPeriodFilter_usesSamePeriodFilter() throws Exception {
+        TasUploadResult result = emptyResult();
+        result.setAllSessions(new ArrayList<>());
+        when(parserService.parse(any())).thenReturn(emptyParseResult());
+        when(uploadService.processScans(any(), any(), any())).thenReturn(result);
+
+        MockMultipartFile file = new MockMultipartFile("file", "test.csv", "text/csv", "data".getBytes());
+        String uploadResponse = mvc.perform(multipart("/api/tas/upload").file(file))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        String token = (String) mapper.readValue(uploadResponse, Map.class).get("uploadToken");
+
+        when(shiftConfigService.getAllShifts()).thenReturn(new ArrayList<>());
+        when(reportBuilder.build(any(), any(), any(), any(), any()))
+                .thenReturn(new TasReportBuilder.BuildResult(new ArrayList<>(), new LinkedHashMap<>()));
+
+        // /resolve with period filter 2026-Q1-1 — should persist the filter
+        Map<String, Object> resolveBody = new LinkedHashMap<>();
+        resolveBody.put("uploadToken", token);
+        resolveBody.put("resolutions", List.of());
+        resolveBody.put("anio", 2026);
+        resolveBody.put("mes", 3);
+        resolveBody.put("numeroDequincena", 1);
+        mvc.perform(post("/api/tas/resolve")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(resolveBody)))
+           .andExpect(status().isOk());
+
+        clearInvocations(reportBuilder);
+
+        // /recompute must pass the stored period filter, not null
+        mvc.perform(post("/api/tas/recompute/" + token))
+           .andExpect(status().isOk());
+
+        verify(reportBuilder).build(
+                any(), any(), any(), any(), eq(new TasPeriod(2026, 3, 1)));
+    }
+
+    @Test
     void recompute_nullSessions_treatedAsEmptyList() throws Exception {
         TasUploadResult result = emptyResult();
         result.setAllSessions(new ArrayList<>());
