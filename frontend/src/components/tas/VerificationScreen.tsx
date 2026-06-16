@@ -8,21 +8,25 @@ import EmployeeGroup from './EmployeeGroup';
 import { buildEmployeeGroups } from './verificationGrouping';
 
 const FLAG_LABELS: Record<TasFlag, string> = {
-  MISSING_ENTRY:  'Falta entrada',
-  MISSING_EXIT:   'Falta salida',
-  SHIFT_MISMATCH: 'Cambio de turno',
+  MISSING_ENTRY:   'Falta entrada',
+  MISSING_EXIT:    'Falta salida',
+  SHIFT_MISMATCH:  'Cambio de turno',
   SAME_DAY_DOUBLE: 'Doble marcación',
-  START_CUTOFF:   'Corte de período',
-  END_CUTOFF:     'Corte de período',
+  START_CUTOFF:    'Corte de período',
+  END_CUTOFF:      'Corte de período',
+  AMBIGUOUS_SHIFT: 'Turno ambiguo',
+  SHORT_DAY:       'Jornada corta',
 };
 
 const FLAG_COLORS: Record<TasFlag, string> = {
-  MISSING_ENTRY:  'bg-red-100 text-red-700',
-  MISSING_EXIT:   'bg-red-100 text-red-700',
-  SHIFT_MISMATCH: 'bg-amber-100 text-amber-700',
+  MISSING_ENTRY:   'bg-red-100 text-red-700',
+  MISSING_EXIT:    'bg-red-100 text-red-700',
+  SHIFT_MISMATCH:  'bg-amber-100 text-amber-700',
   SAME_DAY_DOUBLE: 'bg-orange-100 text-orange-700',
-  START_CUTOFF:   'bg-blue-100 text-blue-700',
-  END_CUTOFF:     'bg-blue-100 text-blue-700',
+  START_CUTOFF:    'bg-blue-100 text-blue-700',
+  END_CUTOFF:      'bg-blue-100 text-blue-700',
+  AMBIGUOUS_SHIFT: 'bg-surface-container text-on-surface-variant',
+  SHORT_DAY:       'bg-amber-100 text-amber-700',
 };
 
 function flagLabel(flag: TasFlag, session: TasSession): string {
@@ -218,6 +222,71 @@ function SameDayDoubleGroupCard({ sessions, choice, onChange }: SameDayDoubleGro
   );
 }
 
+interface ShortDayCardProps {
+  session: TasSession;
+  onSaveOverride: (resolvedStart: string, resolvedEnd: string) => void;
+}
+
+function ShortDayCard({ session, onSaveOverride }: ShortDayCardProps) {
+  const originalExit = toHHMM(session.lastScan);
+  const [exit, setExit] = useState(originalExit);
+  const changed = !!exit && exit !== originalExit;
+
+  return (
+    <div className="bg-white rounded-shape-md border border-outline-variant p-4 shadow-sm">
+      <div className="flex items-center gap-3 mb-2">
+        <span className="font-medium text-on-surface">{session.employeeName}</span>
+        <span className="text-on-surface-variant text-body-sm">{formatDate(session.date)}</span>
+        <span className={`text-label-sm px-2 py-0.5 rounded-full ${FLAG_COLORS['SHORT_DAY']}`}>
+          {FLAG_LABELS['SHORT_DAY']}
+        </span>
+      </div>
+
+      {session.scans.length > 0 && (
+        <div className="flex gap-2 mb-3 flex-wrap">
+          {session.scans.map((s, i) => (
+            <span key={i} className="px-2 py-1 rounded-shape-sm bg-surface-container text-body-sm text-on-surface-variant">
+              {toHHMM(s)}
+            </span>
+          ))}
+        </div>
+      )}
+
+      <div className="flex gap-4 items-end mb-3">
+        <div className="flex flex-col gap-1">
+          <label className="text-label-sm text-on-surface-variant">Entrada</label>
+          <input
+            type="time"
+            value={toHHMM(session.effectiveStart)}
+            readOnly
+            aria-label="Entrada"
+            className="h-9 px-3 rounded-shape-sm border border-outline-variant bg-surface-container text-body-md text-on-surface-variant cursor-default"
+          />
+        </div>
+        <div className="flex flex-col gap-1">
+          <label className="text-label-sm text-on-surface-variant">Salida</label>
+          <input
+            type="time"
+            value={exit}
+            onChange={e => setExit(e.target.value)}
+            aria-label="Salida"
+            className="h-9 px-3 rounded-shape-sm border border-outline bg-white text-body-md focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+          />
+        </div>
+      </div>
+
+      {changed && (
+        <button
+          onClick={() => onSaveOverride(toHHMM(session.effectiveStart), exit)}
+          className="m3-btn-filled"
+        >
+          Registrar corrección
+        </button>
+      )}
+    </div>
+  );
+}
+
 interface SessionCardProps {
   session: TasSession;
   confirmed: boolean;
@@ -362,6 +431,10 @@ export default function VerificationScreen() {
   );
   const regular = needsResolutionSessions.filter(
     s => !sameDayDoubleSessions.includes(s) && !allShiftMismatchOnly.includes(s),
+  );
+
+  const shortDaySessions = flaggedSessions.filter(
+    s => !s.needsResolution && s.flags.includes('SHORT_DAY') && periodsEqual(getSessionPeriod(s.date), selectedPeriod),
   );
 
   const sameDayDoubleGroups = new Map<string, TasSession[]>();
@@ -546,6 +619,23 @@ export default function VerificationScreen() {
               </EmployeeGroup>
             );
           })
+        )}
+
+        {shortDaySessions.length > 0 && (
+          <div className="mt-4">
+            <h3 className="text-title-sm font-medium text-on-surface mb-2">Jornadas cortas</h3>
+            <div className="flex flex-col gap-3">
+              {shortDaySessions.map(session => (
+                <ShortDayCard
+                  key={session.sessionId}
+                  session={session}
+                  onSaveOverride={(resolvedStart, resolvedEnd) =>
+                    setResolvedSession(session.sessionId, { resolvedStart, resolvedEnd })
+                  }
+                />
+              ))}
+            </div>
+          </div>
         )}
       </div>
 

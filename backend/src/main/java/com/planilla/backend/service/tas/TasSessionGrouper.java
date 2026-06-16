@@ -19,12 +19,19 @@ public class TasSessionGrouper {
     private static final int DETECTION_AFTER_MINUTES  = 10;
     private static final int AMBIGUOUS_MAX_SPAN_MINUTES = 720;
 
+    private final AppConfigService appConfigService;
+
+    public TasSessionGrouper(AppConfigService appConfigService) {
+        this.appConfigService = appConfigService;
+    }
+
     public List<TasSession> group(
             List<TasScanRecord> scans,
             List<Map<String, Object>> shifts,
             Map<String, String> employeeShiftAssignments) {
 
         List<TasScanRecord> deduped = deduplicate(scans);
+        int maxSessionSpanMinutes = appConfigService.getMaxSessionSpanMinutes();
 
         Map<String, List<TasScanRecord>> byEmployee = new LinkedHashMap<>();
         for (TasScanRecord scan : deduped) {
@@ -43,7 +50,7 @@ public class TasSessionGrouper {
             boolean isCrossMidnight = assignedShift != null && Boolean.TRUE.equals(assignedShift.get("crossMidnight"));
 
             List<TasSession> empSessions = groupEmployeeSessions(
-                    employeeId, empScans, shifts, assignedShift, isCrossMidnight);
+                    employeeId, empScans, shifts, assignedShift, isCrossMidnight, maxSessionSpanMinutes);
 
             for (TasSession s : empSessions) {
                 s.setSessionId(sessionCounter++);
@@ -76,7 +83,8 @@ public class TasSessionGrouper {
             List<TasScanRecord> scans,
             List<Map<String, Object>> shifts,
             Map<String, Object> assignedShift,
-            boolean isCrossMidnight) {
+            boolean isCrossMidnight,
+            int maxSessionSpanMinutes) {
 
         List<TasSession> sessions = new ArrayList<>();
         TasSession currentSession = null;
@@ -123,9 +131,12 @@ public class TasSessionGrouper {
                             ? openSession(employeeId, scan, openerShift, assignedShift, isCrossMidnight)
                             : openAmbiguousSession(employeeId, scan);
                 } else {
+                    long spanMinutes = ChronoUnit.MINUTES.between(
+                            currentSession.getScans().get(0), scan.getTimestamp());
                     Map<String, Object> openerShift = currentSession.getScans().size() == 1
                             && isScanAfterCurrentShiftEnd(scan.getTimestamp(), currentSession, shifts)
                             && !isWithinShiftEndTolerance(scan.getTimestamp(), currentSession, shifts)
+                            && spanMinutes > maxSessionSpanMinutes
                             ? findOpenerShift(scan.getTimestamp(), shifts, assignedShift, isCrossMidnight, true)
                             : null;
                     if (openerShift != null) {

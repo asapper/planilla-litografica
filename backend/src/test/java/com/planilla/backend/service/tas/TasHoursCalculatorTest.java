@@ -146,8 +146,9 @@ class TasHoursCalculatorTest {
     }
 
     @Test
-    void calculate_missingExitFlag_setsNeedsResolution() {
+    void calculate_evenScans_earlyExit_setsShortDayAndComputesHours() {
         LocalDate date = LocalDate.of(2026, 3, 10);
+        // 2 scans (even) — employee in at 07:00, out at 13:00 (before the 14:00 threshold)
         TasSession s = session(date,
             LocalDateTime.of(2026, 3, 10, 7, 0),
             LocalDateTime.of(2026, 3, 10, 13, 0)
@@ -155,23 +156,11 @@ class TasHoursCalculatorTest {
 
         calculator.calculate(List.of(s), REPORT_START, REPORT_END);
 
-        assertThat(s.getFlags()).contains(TasFlag.MISSING_EXIT);
-        assertThat(s.isNeedsResolution()).isTrue();
-        assertThat(s.getWorkedMinutes()).isEqualTo(0);
-        assertThat(s.getWorkedHours()).isEqualTo(0.0);
-    }
-
-    @Test
-    void calculate_missingExitFlag_setsEffectiveStartFromFirstScan() {
-        LocalDate date = LocalDate.of(2026, 3, 10);
-        TasSession s = session(date,
-            LocalDateTime.of(2026, 3, 10, 7, 0),
-            LocalDateTime.of(2026, 3, 10, 13, 0)
-        );
-
-        calculator.calculate(List.of(s), REPORT_START, REPORT_END);
-
-        assertThat(s.getFlags()).contains(TasFlag.MISSING_EXIT);
+        assertThat(s.getFlags()).contains(TasFlag.SHORT_DAY);
+        assertThat(s.getFlags()).doesNotContain(TasFlag.MISSING_EXIT);
+        assertThat(s.isNeedsResolution()).isFalse();
+        assertThat(s.getWorkedMinutes()).isEqualTo(360);
+        assertThat(s.getWorkedHours()).isEqualTo(6.0);
         assertThat(s.getEffectiveStart()).isEqualTo(LocalDateTime.of(2026, 3, 10, 7, 0));
         assertThat(s.getLastScan()).isEqualTo(LocalDateTime.of(2026, 3, 10, 13, 0));
     }
@@ -491,6 +480,104 @@ class TasHoursCalculatorTest {
         assertThat(s.getSimplesMinutes()).isEqualTo(5);
         assertThat(s.getDoblesMinutes()).isEqualTo(0);
         assertThat(s.getLastScan()).isEqualTo(LocalDateTime.of(2026, 3, 10, 15, 5));
+    }
+
+    @Test
+    void calculate_evenScans_earlyExit_emitsShortDayInsteadOfMissingExit() {
+        LocalDate date = LocalDate.of(2026, 3, 10);
+        // 2 scans (even) — employee in at 07:00, out at 11:00 (before the 14:00 MISSING_EXIT threshold)
+        TasSession s = session(date,
+            LocalDateTime.of(2026, 3, 10, 7, 0),
+            LocalDateTime.of(2026, 3, 10, 11, 0)
+        );
+
+        calculator.calculate(List.of(s), REPORT_START, REPORT_END);
+
+        assertThat(s.getFlags()).contains(TasFlag.SHORT_DAY);
+        assertThat(s.getFlags()).doesNotContain(TasFlag.MISSING_EXIT);
+        assertThat(s.isNeedsResolution()).isFalse();
+        assertThat(s.getWorkedMinutes()).isEqualTo(240);
+    }
+
+    @Test
+    void calculate_oddScans_earlyExit_emitsMissingExitAndBlocks() {
+        LocalDate date = LocalDate.of(2026, 3, 10);
+        // 1 scan (odd) — employee in at 07:00, never scanned out
+        TasSession s = session(date,
+            LocalDateTime.of(2026, 3, 10, 7, 0)
+        );
+
+        calculator.calculate(List.of(s), REPORT_START, REPORT_END);
+
+        assertThat(s.getFlags()).contains(TasFlag.MISSING_EXIT);
+        assertThat(s.getFlags()).doesNotContain(TasFlag.SHORT_DAY);
+        assertThat(s.isNeedsResolution()).isTrue();
+    }
+
+    @Test
+    void calculate_evenScans_fullDay_noShortDayFlag() {
+        LocalDate date = LocalDate.of(2026, 3, 10);
+        // 2 scans, exit on time — no SHORT_DAY, no MISSING_EXIT
+        TasSession s = session(date,
+            LocalDateTime.of(2026, 3, 10, 7, 0),
+            LocalDateTime.of(2026, 3, 10, 15, 0)
+        );
+
+        calculator.calculate(List.of(s), REPORT_START, REPORT_END);
+
+        assertThat(s.getFlags()).doesNotContain(TasFlag.SHORT_DAY);
+        assertThat(s.getFlags()).doesNotContain(TasFlag.MISSING_EXIT);
+        assertThat(s.isNeedsResolution()).isFalse();
+    }
+
+    @Test
+    void calculate_evenScans_missingEntryAndEarlyExit_blocksOnMissingEntry() {
+        LocalDate date = LocalDate.of(2026, 3, 10);
+        // 2 scans (even) — employee arrived very late (after MISSING_ENTRY threshold 08:10)
+        // AND exited early (before MISSING_EXIT threshold 14:00)
+        TasSession s = session(date,
+            LocalDateTime.of(2026, 3, 10, 9, 30),  // late entry → MISSING_ENTRY
+            LocalDateTime.of(2026, 3, 10, 11, 0)   // early exit → SHORT_DAY (even count)
+        );
+
+        calculator.calculate(List.of(s), REPORT_START, REPORT_END);
+
+        assertThat(s.getFlags()).contains(TasFlag.MISSING_ENTRY);
+        assertThat(s.getFlags()).contains(TasFlag.SHORT_DAY);
+        assertThat(s.isNeedsResolution()).isTrue();  // MISSING_ENTRY makes it blocking
+    }
+
+    @Test
+    void calculate_evenScans_shiftMismatchAndEarlyExit_doesNotEmitShortDay() {
+        LocalDate date = LocalDate.of(2026, 3, 10);
+        TasSession s = session(date,
+            LocalDateTime.of(2026, 3, 10, 7, 0),
+            LocalDateTime.of(2026, 3, 10, 11, 0)
+        );
+        // Simulate SHIFT_MISMATCH already set by TasSessionGrouper
+        s.getFlags().add(TasFlag.SHIFT_MISMATCH);
+
+        calculator.calculate(List.of(s), REPORT_START, REPORT_END);
+
+        assertThat(s.getFlags()).doesNotContain(TasFlag.SHORT_DAY);
+        assertThat(s.getFlags()).doesNotContain(TasFlag.MISSING_EXIT);
+        assertThat(s.getFlags()).contains(TasFlag.SHIFT_MISMATCH);
+        assertThat(s.isNeedsResolution()).isTrue();
+    }
+
+    @Test
+    void calculate_oddScans_shiftMismatchAndEarlyExit_stillEmitsMissingExit() {
+        LocalDate date = LocalDate.of(2026, 3, 10);
+        TasSession s = session(date,
+            LocalDateTime.of(2026, 3, 10, 7, 0)
+        );
+        s.getFlags().add(TasFlag.SHIFT_MISMATCH);
+
+        calculator.calculate(List.of(s), REPORT_START, REPORT_END);
+
+        assertThat(s.getFlags()).contains(TasFlag.MISSING_EXIT);
+        assertThat(s.getFlags()).doesNotContain(TasFlag.SHORT_DAY);
+        assertThat(s.isNeedsResolution()).isTrue();
     }
 
     @Test

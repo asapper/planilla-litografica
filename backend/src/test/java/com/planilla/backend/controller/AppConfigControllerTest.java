@@ -76,4 +76,25 @@ class AppConfigControllerTest {
 
         verify(appConfigService, never()).setLegalBreakAllowanceMinutes(anyInt());
     }
+
+    @Test
+    void get_includesMaxSessionSpanMinutes() throws Exception {
+        when(appConfigService.getMaxSessionSpanMinutes()).thenReturn(780);
+
+        mvc.perform(get("/api/config/general"))
+           .andExpect(status().isOk())
+           .andExpect(jsonPath("$.maxSessionSpanMinutes").value(780));
+    }
+
+    @Test
+    void update_maxSessionSpanMinutes_updatesValue() throws Exception {
+        Map<String, Object> body = Map.of("maxSessionSpanMinutes", 960);
+
+        mvc.perform(put("/api/config/general")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(body)))
+           .andExpect(status().isOk());
+
+        verify(appConfigService).setMaxSessionSpanMinutes(960);
+    }
 }

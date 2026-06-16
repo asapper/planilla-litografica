@@ -22,6 +22,7 @@ public class AppConfigController {
     public ResponseEntity<?> get() {
         Map<String, Object> response = new HashMap<>();
         response.put("legalBreakAllowanceMinutes", appConfigService.getLegalBreakAllowanceMinutes());
+        response.put("maxSessionSpanMinutes", appConfigService.getMaxSessionSpanMinutes());
         return ResponseEntity.ok(response);
     }
 
@@ -31,6 +32,10 @@ public class AppConfigController {
             if (body.containsKey("legalBreakAllowanceMinutes")) {
                 int minutes = ((Number) body.get("legalBreakAllowanceMinutes")).intValue();
                 appConfigService.setLegalBreakAllowanceMinutes(minutes);
+            }
+            if (body.containsKey("maxSessionSpanMinutes")) {
+                int minutes = ((Number) body.get("maxSessionSpanMinutes")).intValue();
+                appConfigService.setMaxSessionSpanMinutes(minutes);
             }
             return ResponseEntity.ok().build();
         } catch (Exception e) {

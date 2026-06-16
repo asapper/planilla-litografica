@@ -39,7 +39,8 @@ class TasAmbiguousShiftPipelineTest {
 
     @BeforeEach
     void setUp() {
-        grouper = new TasSessionGrouper();
+        lenient().when(appConfigService.getMaxSessionSpanMinutes()).thenReturn(780);
+        grouper = new TasSessionGrouper(appConfigService);
         calculator = new TasHoursCalculator(appConfigService, holidayService, shiftConfigService);
         reportBuilder = new TasReportBuilder(holidayService, employeeRegistryService);
         lenient().when(employeeRegistryService.getAccruesOvertimeFlags(any())).thenReturn(Map.of());
