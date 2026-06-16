@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useTasStore } from '../../tasStore';
 import { resolveVerification } from '../../tasApi';
 import type { TasResolution } from '../../tasApi';
@@ -372,7 +372,23 @@ export default function VerificationScreen() {
     sameDayDoubleGroups.set(key, group);
   }
 
-  const employeeGroups = buildEmployeeGroups(regular, allShiftMismatchOnly, sameDayDoubleGroups, resolvedSessions);
+  const rawGroups = buildEmployeeGroups(regular, allShiftMismatchOnly, sameDayDoubleGroups, resolvedSessions, sameDayDoubleResolutions);
+
+  // Freeze the initial sort order so that resolving an employee's items doesn't
+  // move their group to the bottom of the list mid-session.
+  const groupOrderRef = useRef<string[]>([]);
+  if (groupOrderRef.current.length === 0 && rawGroups.length > 0) {
+    groupOrderRef.current = rawGroups.map(g => g.employeeId);
+  } else {
+    const known = new Set(groupOrderRef.current);
+    const added = rawGroups.map(g => g.employeeId).filter(id => !known.has(id));
+    if (added.length > 0) groupOrderRef.current = [...groupOrderRef.current, ...added];
+  }
+  const employeeGroups = groupOrderRef.current.length > 0
+    ? groupOrderRef.current
+        .map(id => rawGroups.find(g => g.employeeId === id))
+        .filter((g): g is (typeof rawGroups)[number] => g !== undefined)
+    : rawGroups;
 
   const totalToResolve = needsResolutionSessions.length;
   const pendingCount   = employeeGroups.reduce((sum, g) => sum + g.pendingCount, 0);

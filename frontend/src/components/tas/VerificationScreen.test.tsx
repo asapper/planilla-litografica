@@ -652,6 +652,29 @@ describe('VerificationScreen employee grouping', () => {
     expect(screen.getByText('Confirmado')).toBeInTheDocument();
   });
 
+  it('keeps a resolved group in its original position instead of sinking it to the bottom', () => {
+    useTasStore.getState().setFlaggedSessions([
+      makeSession({ sessionId: 1, employeeId: 'E1', employeeName: 'Ana López', effectiveStart: '08:00:00', lastScan: '17:00:00' }),
+      makeSession({ sessionId: 2, employeeId: 'E2', employeeName: 'Luis Soto' }),
+    ]);
+    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
+    render(<VerificationScreen />);
+
+    // Initial order: Ana first (alphabetical, both pending)
+    let headers = screen.getAllByRole('button', { name: /Ana López|Luis Soto/ });
+    expect(headers[0]).toHaveTextContent('Ana López');
+    expect(headers[1]).toHaveTextContent('Luis Soto');
+
+    // Confirm Ana's session — her pendingCount drops to 0
+    fireEvent.click(screen.getAllByRole('button', { name: /confirmar/i })[0]);
+
+    // Ana's group should still appear first (collapsed in-place), not sink behind Luis
+    headers = screen.getAllByRole('button', { name: /Ana López|Luis Soto/ });
+    expect(headers[0]).toHaveTextContent('Ana López');
+    expect(headers[1]).toHaveTextContent('Luis Soto');
+    expect(headers[0]).toHaveAttribute('aria-expanded', 'false');
+  });
+
   it('orders groups with pending sessions before fully resolved groups', () => {
     useTasStore.getState().setFlaggedSessions([
       makeSession({ sessionId: 1, employeeId: 'E1', employeeName: 'Zoe Vargas' }),

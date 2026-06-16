@@ -18,6 +18,7 @@ export function buildEmployeeGroups(
   shiftMismatchOnly: TasSession[],
   sameDayDoubleGroups: Map<string, TasSession[]>,
   resolvedSessions: Record<number, ResolvedSessionEntry>,
+  sameDayDoubleResolutions: Record<string, number | 'all'> = {},
 ): EmployeeGroupData[] {
   const groups = new Map<string, EmployeeGroupData>();
 
@@ -48,7 +49,18 @@ export function buildEmployeeGroups(
   }
 
   for (const group of groups.values()) {
-    group.items.sort((a, b) => a.date.localeCompare(b.date));
+    group.items.sort((a, b) => {
+      const aPending =
+        a.type === 'session' ? !resolvedSessions[a.session.sessionId] :
+        a.type === 'same_day_double' ? !sameDayDoubleResolutions[a.groupKey] :
+        false;
+      const bPending =
+        b.type === 'session' ? !resolvedSessions[b.session.sessionId] :
+        b.type === 'same_day_double' ? !sameDayDoubleResolutions[b.groupKey] :
+        false;
+      if (aPending !== bPending) return aPending ? -1 : 1;
+      return a.date.localeCompare(b.date);
+    });
   }
 
   return Array.from(groups.values()).sort((a, b) => {
