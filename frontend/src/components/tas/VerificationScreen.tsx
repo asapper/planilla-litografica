@@ -95,7 +95,7 @@ function ShiftMismatchCard({ session, availableShifts, acceptedShiftId, onChange
   const selectedShiftTimes = selectedShift ? ` (${selectedShift.startTime}–${selectedShift.endTime})` : '';
 
   return (
-    <div className="bg-white rounded-shape-md border border-outline-variant p-4 mb-3 shadow-sm">
+    <div className="bg-white rounded-shape-md border border-outline-variant p-4 shadow-sm">
       <div className="flex items-center gap-3 mb-2">
         <span className="font-medium text-on-surface">{session.employeeName}</span>
         <span className="text-on-surface-variant text-body-sm">{formatDate(session.date)}</span>
@@ -178,7 +178,7 @@ function SameDayDoubleGroupCard({ sessions, choice, onChange }: SameDayDoubleGro
   const first = sessions[0];
 
   return (
-    <div className="bg-white rounded-shape-md border border-outline-variant p-4 mb-3 shadow-sm">
+    <div className="bg-white rounded-shape-md border border-outline-variant p-4 shadow-sm">
       <div className="flex items-center gap-3 mb-2">
         <span className="font-medium text-on-surface">{first.employeeName}</span>
         <span className="text-on-surface-variant text-body-sm">{formatDate(first.date)}</span>
@@ -239,7 +239,7 @@ function SessionCard({ session, confirmed, onConfirm }: SessionCardProps) {
 
   if (confirmed) {
     return (
-      <div className="border-l-4 border-green-500 bg-white rounded-shape-md px-4 py-3 mb-3 flex items-center gap-4 shadow-sm">
+      <div className="border-l-4 border-green-500 bg-white rounded-shape-md px-4 py-3 flex items-center gap-4 shadow-sm">
         <div className="flex-1">
           <span className="font-medium text-on-surface">{session.employeeName}</span>
           <span className="mx-2 text-on-surface-variant">·</span>
@@ -251,7 +251,7 @@ function SessionCard({ session, confirmed, onConfirm }: SessionCardProps) {
   }
 
   return (
-    <div className="bg-white rounded-shape-md border border-outline-variant p-4 mb-3 shadow-sm">
+    <div className="bg-white rounded-shape-md border border-outline-variant p-4 shadow-sm">
       <div className="flex items-center gap-3 mb-2">
         <span className="font-medium text-on-surface">{session.employeeName}</span>
         <span className="text-on-surface-variant text-body-sm">{formatDate(session.date)}</span>
