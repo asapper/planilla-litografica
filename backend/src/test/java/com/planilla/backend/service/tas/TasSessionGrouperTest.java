@@ -676,4 +676,44 @@ class TasSessionGrouperTest {
         assertThat(sessions.get(1).getScans()).hasSize(1);
     }
 
+    @Test
+    void group_noche_loneScanFollowedByMultiDayGap_splitsInsteadOfAbsorbing() {
+        // Repro: Daniel Morales (134), Noche employee — lone entry at 19:20 on April 1,
+        // no exit scan, then next scans 6 days later on April 7. Without the max-span
+        // guard, all subsequent scans were absorbed into the April 1 session, producing
+        // workedHours=133.5 and doblesMinutes=7741.
+        List<TasScanRecord> scans = List.of(
+            scan("134", LocalDateTime.of(2026, 4, 1, 19, 20)),
+            scan("134", LocalDateTime.of(2026, 4, 7, 9, 1)),
+            scan("134", LocalDateTime.of(2026, 4, 7, 19, 26))
+        );
+
+        List<TasSession> sessions = grouper.group(scans, shifts, assignNoche("134"));
+
+        assertThat(sessions.size()).isGreaterThanOrEqualTo(2);
+        TasSession first = sessions.get(0);
+        assertThat(first.getDate()).isEqualTo(LocalDate.of(2026, 4, 1));
+        assertThat(first.getScans()).hasSize(1);
+
+        TasSession second = sessions.get(1);
+        assertThat(second.getDate()).isEqualTo(LocalDate.of(2026, 4, 7));
+    }
+
+    @Test
+    void group_noche_multiDayGap_doesNotInflateWorkedMinutes() {
+        // Same scenario as above but also verifying downstream hours stay sane.
+        // A lone-scan session must not produce hundreds of worked hours.
+        List<TasScanRecord> scans = List.of(
+            scan("134", LocalDateTime.of(2026, 4, 1, 19, 20)),
+            scan("134", LocalDateTime.of(2026, 4, 7, 9, 1))
+        );
+
+        List<TasSession> sessions = grouper.group(scans, shifts, assignNoche("134"));
+
+        assertThat(sessions).hasSize(2);
+        for (TasSession s : sessions) {
+            assertThat(s.getScans()).hasSize(1);
+        }
+    }
+
 }
