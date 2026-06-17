@@ -37,8 +37,15 @@ logs/
 *.log
 
 # ── Runtime data (H2 embedded database files) ────────────────────────────────
+backend/db.properties
 backend/data/
 *.mv.db
 *.trace.db
 .worktrees/
 .superpowers/
+
+node_modules
+docs/old/*
+docs/superpowers/*
+backlog/*
+.claudeignore

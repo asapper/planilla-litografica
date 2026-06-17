@@ -99,6 +99,32 @@
 					</execution>
 				</executions>
 			</plugin>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-enforcer-plugin</artifactId>
+				<version>3.5.0</version>
+				<executions>
+					<execution>
+						<id>enforce-db-credentials</id>
+						<phase>generate-sources</phase>
+						<goals><goal>enforce</goal></goals>
+						<configuration>
+							<rules>
+								<requireProperty>
+									<property>POSTGRES_DB_USERNAME</property>
+									<message>POSTGRES_DB_USERNAME is not set. Create ~/.planilla/db.properties or pass -DPOSTGRES_DB_USERNAME=...</message>
+									<regex>.+</regex>
+								</requireProperty>
+								<requireProperty>
+									<property>POSTGRES_DB_PASSWORD</property>
+									<message>POSTGRES_DB_PASSWORD is not set. Create ~/.planilla/db.properties or pass -DPOSTGRES_DB_PASSWORD=...</message>
+									<regex>.+</regex>
+								</requireProperty>
+							</rules>
+						</configuration>
+					</execution>
+				</executions>
+			</plugin>
 		</plugins>
 	</build>
 
