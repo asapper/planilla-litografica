@@ -10,7 +10,6 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.ByteArrayInputStream;
 import java.io.InputStreamReader;
 import java.io.Reader;
-import java.io.SequenceInputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -21,6 +20,15 @@ public class TasParserService {
 
     private static final DateTimeFormatter TIMESTAMP_FORMAT =
             DateTimeFormatter.ofPattern("yyyy/MM/dd HH:mm");
+
+    private static final String COL_NO            = "No.";
+    private static final String COL_TIMESTAMP     = "Fecha y hora";
+    private static final String COL_EVENT         = "Evento";
+    private static final String COL_EMPLOYEE_NAME = "Nombre de usuario";
+    private static final String COL_EMPLOYEE_ID   = "ID de usuario";
+
+    private static final Set<String> REQUIRED_COLUMNS = new LinkedHashSet<>(
+            List.of(COL_NO, COL_TIMESTAMP, COL_EVENT, COL_EMPLOYEE_NAME, COL_EMPLOYEE_ID));
 
     public ParseResult parse(MultipartFile file) throws Exception {
         byte[] rawBytes = file.getBytes();
@@ -39,26 +47,41 @@ public class TasParserService {
 
         CSVFormat format = CSVFormat.RFC4180.builder()
                 .setIgnoreEmptyLines(true)
+                .setHeader()
+                .setSkipHeaderRecord(true)
                 .build();
 
         List<TasScanRecord> rawScans = new ArrayList<>();
         List<String> warnings = new ArrayList<>();
 
         try (CSVParser parser = new CSVParser(reader, format)) {
-            for (CSVRecord record : parser) {
-                if (record.size() < 5) continue;
+            List<String> actualHeaders = parser.getHeaderNames();
+            Set<String> actualSet = new LinkedHashSet<>(actualHeaders);
 
-                String col0 = record.get(0).trim();
-                if ("No.".equalsIgnoreCase(col0) || !isNumeric(col0)) {
+            Set<String> missing = new LinkedHashSet<>(REQUIRED_COLUMNS);
+            missing.removeAll(actualSet);
+            if (!missing.isEmpty()) {
+                throw new Exception("Columnas requeridas no encontradas: " + missing + ".");
+            }
+
+            Set<String> extra = new LinkedHashSet<>(actualSet);
+            extra.removeAll(REQUIRED_COLUMNS);
+            if (!extra.isEmpty()) {
+                warnings.add("Columnas adicionales ignoradas: " + extra + ".");
+            }
+
+            for (CSVRecord record : parser) {
+                String rowNum = record.get(COL_NO).trim();
+                if (!isNumeric(rowNum)) {
                     continue;
                 }
 
-                String timestampStr = record.get(1).trim();
-                String employeeName = record.get(3).trim();
-                String employeeId   = record.get(4).trim();
+                String timestampStr = record.get(COL_TIMESTAMP).trim();
+                String employeeName = record.get(COL_EMPLOYEE_NAME).trim();
+                String employeeId   = record.get(COL_EMPLOYEE_ID).trim();
 
                 if (timestampStr.isEmpty() || employeeId.isEmpty()) {
-                    warnings.add("Fila " + col0 + " ignorada: datos incompletos.");
+                    warnings.add("Fila " + rowNum + " ignorada: datos incompletos.");
                     continue;
                 }
 
@@ -70,7 +93,7 @@ public class TasParserService {
                     scan.setTimestamp(timestamp);
                     rawScans.add(scan);
                 } catch (Exception e) {
-                    warnings.add("Fila " + col0 + " ignorada: formato de fecha inválido '" + timestampStr + "'.");
+                    warnings.add("Fila " + rowNum + " ignorada: formato de fecha inválido '" + timestampStr + "'.");
                 }
             }
         }

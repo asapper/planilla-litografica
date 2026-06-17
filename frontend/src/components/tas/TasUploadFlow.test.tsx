@@ -75,4 +75,18 @@ describe('TasUploadFlow routing', () => {
     expect(screen.getByTestId('tas-result-screen')).toBeInTheDocument();
     expect(screen.getByTestId('absent-review-overlay')).toBeInTheDocument();
   });
+
+  it('shows warning banner when warnings are present in review view', () => {
+    useTasStore.getState().setWarnings(['Columnas adicionales ignoradas: [Departamento, Cargo].']);
+    useTasStore.getState().setTasView('review');
+    render(<TasUploadFlow fileName="test.csv" />);
+    expect(screen.getByText('Columnas adicionales ignoradas: [Departamento, Cargo].')).toBeInTheDocument();
+    expect(screen.getByTestId('review-screen')).toBeInTheDocument();
+  });
+
+  it('does not show warning banner when warnings are empty', () => {
+    useTasStore.getState().setTasView('review');
+    render(<TasUploadFlow fileName="test.csv" />);
+    expect(screen.queryByText(/Columnas adicionales/)).not.toBeInTheDocument();
+  });
 });

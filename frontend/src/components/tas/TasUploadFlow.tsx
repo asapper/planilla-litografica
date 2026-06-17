@@ -1,4 +1,5 @@
 import { useTasStore } from '../../tasStore';
+import AlertMessage from '../ui/AlertMessage';
 import ProcessingScreen from './ProcessingScreen';
 import ReactivationReviewScreen from './ReactivationReviewScreen';
 import VerificationScreen from './VerificationScreen';
@@ -12,7 +13,8 @@ interface Props {
 }
 
 export default function TasUploadFlow({ fileName }: Props) {
-  const tasView = useTasStore(s => s.tasView);
+  const tasView  = useTasStore(s => s.tasView);
+  const warnings = useTasStore(s => s.warnings);
 
   if (tasView === 'idle') return null;
 
@@ -20,16 +22,24 @@ export default function TasUploadFlow({ fileName }: Props) {
     return <ProcessingScreen fileName={fileName} />;
   }
 
+  const warningBanner = warnings.length > 0 && (
+    <div className="px-6 pt-4">
+      {warnings.map((w, i) => (
+        <AlertMessage key={i} message={w} variant="warning" />
+      ))}
+    </div>
+  );
+
   if (tasView === 'inactiveReview') {
-    return <ReactivationReviewScreen />;
+    return <>{warningBanner}<ReactivationReviewScreen /></>;
   }
 
   if (tasView === 'verification') {
-    return <VerificationScreen />;
+    return <>{warningBanner}<VerificationScreen /></>;
   }
 
   if (tasView === 'review') {
-    return <ReviewScreen />;
+    return <>{warningBanner}<ReviewScreen /></>;
   }
 
   if (tasView === 'submitting') {

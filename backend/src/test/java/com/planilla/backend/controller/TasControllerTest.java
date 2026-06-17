@@ -94,6 +94,39 @@ class TasControllerTest {
     }
 
     @Test
+    void upload_withParseWarnings_returnsWarningsInResponse() throws Exception {
+        List<String> parseWarnings = List.of("Columnas adicionales ignoradas: [Departamento, Cargo].");
+        TasParserService.ParseResult parseResult =
+                new TasParserService.ParseResult(new ArrayList<>(), parseWarnings);
+
+        TasUploadResult uploadResult = emptyResult();
+        uploadResult.setWarnings(parseWarnings);
+
+        when(parserService.parse(any())).thenReturn(parseResult);
+        when(uploadService.processScans(any(), eq(parseWarnings), any())).thenReturn(uploadResult);
+
+        MockMultipartFile file = new MockMultipartFile("file", "test.csv", "text/csv", "data".getBytes());
+
+        mvc.perform(multipart("/api/tas/upload").file(file))
+           .andExpect(status().isOk())
+           .andExpect(jsonPath("$.warnings").isArray())
+           .andExpect(jsonPath("$.warnings[0]").value("Columnas adicionales ignoradas: [Departamento, Cargo]."));
+    }
+
+    @Test
+    void upload_missingColumns_returns400WithSpecificMessage() throws Exception {
+        when(parserService.parse(any()))
+                .thenThrow(new Exception("Columnas requeridas no encontradas: [Fecha y hora, ID de usuario]."));
+
+        MockMultipartFile file = new MockMultipartFile("file", "bad.csv", "text/csv", "data".getBytes());
+
+        mvc.perform(multipart("/api/tas/upload").file(file))
+           .andExpect(status().isBadRequest())
+           .andExpect(jsonPath("$.code").value("UPLOAD_FAILED"))
+           .andExpect(jsonPath("$.message").value("Columnas requeridas no encontradas: [Fecha y hora, ID de usuario]."));
+    }
+
+    @Test
     void upload_parseException_returns400() throws Exception {
         when(parserService.parse(any())).thenThrow(new Exception("No se encontraron registros"));
 

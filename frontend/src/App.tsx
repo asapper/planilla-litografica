@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import axios from 'axios';
 import { checkHealth } from './api';
 import { uploadTasFile } from './tasApi';
 import { useTasStore } from './tasStore';
@@ -29,6 +30,7 @@ export default function App() {
   const setResolvedRows       = useTasStore(s => s.setResolvedRows);
   const setInactiveEmployees  = useTasStore(s => s.setInactiveEmployees);
   const setAbsentEmployees = useTasStore(s => s.setAbsentEmployees);
+  const setWarnings          = useTasStore(s => s.setWarnings);
   const setUsedFallbackHolidays = useTasStore(s => s.setUsedFallbackHolidays);
   const setAvailablePeriods = useTasStore(s => s.setAvailablePeriods);
   const setProcessingMessage = useTasStore(s => s.setProcessingMessage);
@@ -50,6 +52,7 @@ export default function App() {
       setResolvedRows(result.resolvedRows ?? []);
       setInactiveEmployees(result.inactiveEmployeesFound);
       setAbsentEmployees(result.absentActiveEmployees);
+      setWarnings(result.warnings ?? []);
       setUsedFallbackHolidays(result.usedFallbackHolidays);
       setAvailablePeriods(result.availablePeriods ?? []);
       if (result.inactiveEmployeesFound.length > 0) {
@@ -59,9 +62,13 @@ export default function App() {
         const hasMultiplePeriods = (result.availablePeriods?.length ?? 0) > 1;
         setTasView(hasNeedsResolution || hasMultiplePeriods ? 'verification' : 'review');
       }
-    } catch {
+    } catch (err: unknown) {
       setTasView('processing');
-      setError('Ocurrió un error al procesar el archivo. Intente nuevamente.');
+      const backendMessage =
+        axios.isAxiosError(err) && typeof err.response?.data?.message === 'string'
+          ? err.response.data.message
+          : null;
+      setError(backendMessage ?? 'Ocurrió un error al procesar el archivo. Intente nuevamente.');
     }
     return true;
   };

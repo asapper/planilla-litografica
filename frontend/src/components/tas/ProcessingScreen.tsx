@@ -1,4 +1,5 @@
 import { useTasStore } from '../../tasStore';
+import AlertMessage from '../ui/AlertMessage';
 import Spinner from '../ui/Spinner';
 
 interface Props {
@@ -7,11 +8,20 @@ interface Props {
 
 export default function ProcessingScreen({ fileName }: Props) {
   const processingMessage       = useTasStore(s => s.processingMessage);
+  const error                   = useTasStore(s => s.error);
   const usedFallbackHolidays    = useTasStore(s => s.usedFallbackHolidays);
   const fallbackBannerDismissed = useTasStore(s => s.fallbackBannerDismissed);
   const dismissFallbackBanner   = useTasStore(s => s.dismissFallbackBanner);
 
   const showBanner = usedFallbackHolidays && !fallbackBannerDismissed;
+
+  if (error) {
+    return (
+      <div className="fixed inset-0 flex flex-col items-center justify-center gap-6 bg-white px-6">
+        <AlertMessage message={error} />
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 flex flex-col items-center justify-center gap-6 bg-white px-6">

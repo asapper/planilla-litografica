@@ -204,6 +204,39 @@ describe('TAS Nueva carga redirect', () => {
   });
 });
 
+describe('TAS upload error handling', () => {
+  it('surfaces backend error message on upload failure', async () => {
+    const axiosError = {
+      isAxiosError: true,
+      response: { status: 400, data: { code: 'UPLOAD_FAILED', message: 'Columnas requeridas no encontradas: [Fecha y hora].' } },
+    };
+    Object.defineProperty(axiosError, 'isAxiosError', { value: true });
+    mockUploadTasFile.mockRejectedValue(axiosError);
+
+    render(<App />);
+    await waitFor(() => expect(screen.getByTestId('empty-state')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('button', { name: /cargar tas/i }));
+
+    await waitFor(() =>
+      expect(useTasStore.getState().error).toBe('Columnas requeridas no encontradas: [Fecha y hora].')
+    );
+  });
+
+  it('falls back to generic message when backend error has no message', async () => {
+    mockUploadTasFile.mockRejectedValue(new Error('Network Error'));
+
+    render(<App />);
+    await waitFor(() => expect(screen.getByTestId('empty-state')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('button', { name: /cargar tas/i }));
+
+    await waitFor(() =>
+      expect(useTasStore.getState().error).toBe('Ocurrió un error al procesar el archivo. Intente nuevamente.')
+    );
+  });
+});
+
 describe('Top bar Nueva carga button', () => {
   it('resets the session and returns to the upload screen when confirmed', async () => {
     render(<App />);
