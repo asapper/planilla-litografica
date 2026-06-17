@@ -4,7 +4,7 @@ import ReviewScreen from './ReviewScreen';
 import { useTasStore } from '../../tasStore';
 import * as tasApi from '../../tasApi';
 import * as configApi from '../../configApi';
-import type { ResolvedRow } from '../../tasTypes';
+import type { ResolvedRow, SessionSummary } from '../../tasTypes';
 
 vi.mock('../../tasApi');
 vi.mock('../../configApi');
@@ -17,6 +17,16 @@ const rows: ResolvedRow[] = [
   { codigoEmpleado: 'E1', nombreEmpleado: 'Ana López', diasNoLaborados: 0, horasExtrasSimples: 2, horasExtrasDobles: 0, mes: 3, anio: 2026, numeroDequincena: 1, diasTurnoAmbiguo: 0, accruesOvertime: true },
   { codigoEmpleado: 'E2', nombreEmpleado: 'Luis García', diasNoLaborados: 1, horasExtrasSimples: 0, horasExtrasDobles: 1, mes: 3, anio: 2026, numeroDequincena: 1, diasTurnoAmbiguo: 0, accruesOvertime: true },
 ];
+
+const sessionSummaries: Record<string, SessionSummary[]> = {
+  E1: [
+    { date: '2026-06-02', shiftName: 'Mañana', entryTime: '2026-06-02T07:02:00', exitTime: '2026-06-02T15:05:00', workedHours: 8.0, simplesMinutes: 30, doblesMinutes: 0 },
+    { date: '2026-06-03', shiftName: 'Mañana', entryTime: '2026-06-03T07:00:00', exitTime: '2026-06-03T15:00:00', workedHours: 8.0, simplesMinutes: 0, doblesMinutes: 0 },
+  ],
+  E2: [
+    { date: '2026-06-02', shiftName: 'Tarde', entryTime: '2026-06-02T14:00:00', exitTime: '2026-06-02T22:00:00', workedHours: 8.0, simplesMinutes: 0, doblesMinutes: 60 },
+  ],
+};
 
 beforeEach(() => {
   useTasStore.getState().resetTas();
@@ -232,5 +242,54 @@ describe('ReviewScreen accruesOvertime toggle', () => {
     fireEvent.click(screen.getAllByRole('switch')[0]);
 
     await waitFor(() => expect(useTasStore.getState().error).toMatch(/sesión.*expir|vuelve a subir/i));
+  });
+});
+
+describe('ReviewScreen expandable session details', () => {
+  beforeEach(() => {
+    useTasStore.getState().setUploadToken('tok-1');
+    useTasStore.getState().setResolvedRows(rows);
+    useTasStore.getState().setSessionSummaries(sessionSummaries);
+  });
+
+  it('renders an expand button for each employee row', () => {
+    render(<ReviewScreen />);
+    const expandButtons = screen.getAllByRole('button', { name: /detalles/i });
+    expect(expandButtons).toHaveLength(2);
+  });
+
+  it('does not show session details by default', () => {
+    render(<ReviewScreen />);
+    expect(screen.queryByText('Mañana')).not.toBeInTheDocument();
+    expect(screen.queryByText('Tarde')).not.toBeInTheDocument();
+  });
+
+  it('shows session details when expand button is clicked', () => {
+    render(<ReviewScreen />);
+    const expandButtons = screen.getAllByRole('button', { name: /detalles/i });
+    fireEvent.click(expandButtons[0]);
+
+    expect(screen.getAllByText('Mañana')).toHaveLength(2);
+    expect(screen.getByText('07:02')).toBeInTheDocument();
+    expect(screen.getByText('15:05')).toBeInTheDocument();
+  });
+
+  it('hides session details when collapse button is clicked', () => {
+    render(<ReviewScreen />);
+    const expandButtons = screen.getAllByRole('button', { name: /detalles/i });
+    fireEvent.click(expandButtons[0]);
+    expect(screen.getAllByText('Mañana')).toHaveLength(2);
+
+    fireEvent.click(expandButtons[0]);
+    expect(screen.queryByText('07:02')).not.toBeInTheDocument();
+  });
+
+  it('shows empty message when employee has no sessions', () => {
+    useTasStore.getState().setSessionSummaries({ E1: [], E2: sessionSummaries.E2 });
+    render(<ReviewScreen />);
+    const expandButtons = screen.getAllByRole('button', { name: /detalles/i });
+    fireEvent.click(expandButtons[0]);
+
+    expect(screen.getByText(/sin sesiones registradas/i)).toBeInTheDocument();
   });
 });

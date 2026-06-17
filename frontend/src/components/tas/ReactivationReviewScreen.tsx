@@ -17,6 +17,7 @@ export default function ReactivationReviewScreen() {
   const setAvailableShifts = useTasStore(s => s.setAvailableShifts);
   const setResolvedRowCount = useTasStore(s => s.setResolvedRowCount);
   const setResolvedRows    = useTasStore(s => s.setResolvedRows);
+  const setSessionSummaries = useTasStore(s => s.setSessionSummaries);
   const setError           = useTasStore(s => s.setError);
 
   const getDecision = (employeeId: string): InactiveDecision =>
@@ -43,6 +44,7 @@ export default function ReactivationReviewScreen() {
       setAvailableShifts(result.availableShifts ?? []);
 
       setResolvedRows(result.resolvedRows ?? []);
+      setSessionSummaries(result.sessionSummaries ?? {});
       const hasNeedsResolution = result.flaggedSessions.some(s => s.needsResolution);
       const hasMultiplePeriods = (result.availablePeriods?.length ?? 0) > 1;
       setTasView(hasNeedsResolution || hasMultiplePeriods ? 'verification' : 'review');

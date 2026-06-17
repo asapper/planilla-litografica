@@ -35,6 +35,7 @@ export default function App() {
   const setAvailablePeriods = useTasStore(s => s.setAvailablePeriods);
   const setProcessingMessage = useTasStore(s => s.setProcessingMessage);
   const setError           = useTasStore(s => s.setError);
+  const setSessionSummaries = useTasStore(s => s.setSessionSummaries);
   const resetTas           = useTasStore(s => s.resetTas);
   const tasView            = useTasStore(s => s.tasView);
 
@@ -50,6 +51,7 @@ export default function App() {
       setFlaggedSessions(result.flaggedSessions);
       setResolvedRowCount(result.resolvedRows?.length ?? 0);
       setResolvedRows(result.resolvedRows ?? []);
+      setSessionSummaries(result.sessionSummaries ?? {});
       setInactiveEmployees(result.inactiveEmployeesFound);
       setAbsentEmployees(result.absentActiveEmployees);
       setWarnings(result.warnings ?? []);

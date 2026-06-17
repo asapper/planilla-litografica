@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { TasView, TasSession, InactiveEmployee, InactiveDecision, AbsentEmployee, ResolvedRow, TasPeriod, ShiftOption } from './tasTypes';
+import type { TasView, TasSession, InactiveEmployee, InactiveDecision, AbsentEmployee, ResolvedRow, TasPeriod, ShiftOption, SessionSummary } from './tasTypes';
 
 export interface ResolvedSessionEntry {
   resolvedStart: string;
@@ -26,6 +26,7 @@ interface TasStore {
   fallbackBannerDismissed: boolean;
   jobId: string | null;
   error: string | null;
+  sessionSummaries: Record<string, SessionSummary[]>;
 
   setWarnings: (warnings: string[]) => void;
   setTasView: (view: TasView) => void;
@@ -49,6 +50,7 @@ interface TasStore {
   dismissFallbackBanner: () => void;
   setJobId: (id: string | null) => void;
   setError: (msg: string | null) => void;
+  setSessionSummaries: (summaries: Record<string, SessionSummary[]>) => void;
   resetTas: () => void;
 }
 
@@ -73,6 +75,7 @@ const initialState = {
   fallbackBannerDismissed: false,
   jobId: null,
   error: null,
+  sessionSummaries: {} as Record<string, SessionSummary[]>,
 };
 
 export const useTasStore = create<TasStore>(set => ({
@@ -117,5 +120,6 @@ export const useTasStore = create<TasStore>(set => ({
   dismissFallbackBanner: () => set({ fallbackBannerDismissed: true }),
   setJobId: (id) => set({ jobId: id }),
   setError: (msg) => set({ error: msg }),
+  setSessionSummaries: (summaries) => set({ sessionSummaries: summaries }),
   resetTas: () => set({ ...initialState }),
 }));
