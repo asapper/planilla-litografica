@@ -11,6 +11,10 @@ function formatTime(iso: string | null): string {
   return t.substring(0, 5);
 }
 
+function minutesToHours(minutes: number): number {
+  return Math.round(Math.floor(minutes / 30) / 2 * 10) / 10;
+}
+
 function SessionDetailRows({ sessions }: { sessions: SessionSummary[] }) {
   if (sessions.length === 0) {
     return (
@@ -33,8 +37,8 @@ function SessionDetailRows({ sessions }: { sessions: SessionSummary[] }) {
               <th className="py-1 px-4 text-left text-label-sm text-on-surface-variant font-medium">Entrada</th>
               <th className="py-1 px-4 text-left text-label-sm text-on-surface-variant font-medium">Salida</th>
               <th className="py-1 px-4 text-right text-label-sm text-on-surface-variant font-medium">Horas trabajadas</th>
-              <th className="py-1 px-4 text-right text-label-sm text-on-surface-variant font-medium">Extras simples (min)</th>
-              <th className="py-1 px-4 text-right text-label-sm text-on-surface-variant font-medium">Extras dobles (min)</th>
+              <th className="py-1 px-4 text-right text-label-sm text-on-surface-variant font-medium">Extras simples</th>
+              <th className="py-1 px-4 text-right text-label-sm text-on-surface-variant font-medium">Extras dobles</th>
             </tr>
           </thead>
           <tbody>
@@ -45,8 +49,8 @@ function SessionDetailRows({ sessions }: { sessions: SessionSummary[] }) {
                 <td className="py-1.5 px-4 text-body-sm text-on-surface-variant">{formatTime(s.entryTime)}</td>
                 <td className="py-1.5 px-4 text-body-sm text-on-surface-variant">{formatTime(s.exitTime)}</td>
                 <td className="py-1.5 px-4 text-body-sm text-on-surface-variant text-right">{s.workedHours}</td>
-                <td className="py-1.5 px-4 text-body-sm text-on-surface-variant text-right">{s.simplesMinutes}</td>
-                <td className="py-1.5 px-4 text-body-sm text-on-surface-variant text-right">{s.doblesMinutes}</td>
+                <td className="py-1.5 px-4 text-body-sm text-on-surface-variant text-right">{minutesToHours(s.simplesMinutes)}</td>
+                <td className="py-1.5 px-4 text-body-sm text-on-surface-variant text-right">{minutesToHours(s.doblesMinutes)}</td>
               </tr>
             ))}
           </tbody>
