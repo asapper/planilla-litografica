@@ -144,21 +144,7 @@ public class TasSessionGrouper {
                             ? openSession(employeeId, scan, openerShift, assignedShift, isCrossMidnight)
                             : openAmbiguousSession(employeeId, scan);
                 } else {
-                    long spanMinutes = ChronoUnit.MINUTES.between(
-                            currentSession.getScans().get(0), scan.getTimestamp());
-                    Map<String, Object> openerShift = currentSession.getScans().size() == 1
-                            && isScanAfterCurrentShiftEnd(scan.getTimestamp(), currentSession, shifts)
-                            && !isWithinShiftEndTolerance(scan.getTimestamp(), currentSession, shifts)
-                            && spanMinutes > maxSessionSpanMinutes
-                            ? findOpenerShift(scan.getTimestamp(), shifts, assignedShift, isCrossMidnight, true)
-                            : null;
-                    if (openerShift != null) {
-                        finalizeSession(currentSession);
-                        sessions.add(currentSession);
-                        currentSession = openSession(employeeId, scan, openerShift, assignedShift, isCrossMidnight);
-                    } else {
-                        currentSession.getScans().add(scan.getTimestamp());
-                    }
+                    currentSession.getScans().add(scan.getTimestamp());
                 }
             }
         }

@@ -690,19 +690,21 @@ class TasSessionGrouperTest {
 
         List<TasSession> sessions = grouper.group(scans, shifts, assignNoche("134"));
 
-        assertThat(sessions.size()).isGreaterThanOrEqualTo(2);
+        assertThat(sessions).hasSize(2);
         TasSession first = sessions.get(0);
         assertThat(first.getDate()).isEqualTo(LocalDate.of(2026, 4, 1));
         assertThat(first.getScans()).hasSize(1);
 
         TasSession second = sessions.get(1);
         assertThat(second.getDate()).isEqualTo(LocalDate.of(2026, 4, 7));
+        assertThat(second.getScans()).hasSize(2);
     }
 
     @Test
-    void group_noche_multiDayGap_doesNotInflateWorkedMinutes() {
-        // Same scenario as above but also verifying downstream hours stay sane.
-        // A lone-scan session must not produce hundreds of worked hours.
+    void group_noche_multiDayGap_eachScanGetsOwnSession() {
+        // Two scans separated by a multi-day gap must produce two single-scan
+        // sessions, preventing the downstream hours calculator from computing
+        // a span of thousands of minutes.
         List<TasScanRecord> scans = List.of(
             scan("134", LocalDateTime.of(2026, 4, 1, 19, 20)),
             scan("134", LocalDateTime.of(2026, 4, 7, 9, 1))
@@ -711,9 +713,26 @@ class TasSessionGrouperTest {
         List<TasSession> sessions = grouper.group(scans, shifts, assignNoche("134"));
 
         assertThat(sessions).hasSize(2);
-        for (TasSession s : sessions) {
-            assertThat(s.getScans()).hasSize(1);
-        }
+        assertThat(sessions.get(0).getScans()).hasSize(1);
+        assertThat(sessions.get(0).getDate()).isEqualTo(LocalDate.of(2026, 4, 1));
+        assertThat(sessions.get(1).getScans()).hasSize(1);
+        assertThat(sessions.get(1).getDate()).isEqualTo(LocalDate.of(2026, 4, 7));
+    }
+
+    @Test
+    void group_noche_spanAtExactMax_doesNotSplit() {
+        // A session spanning exactly maxSessionSpanMinutes (780) must NOT be
+        // split — the guard uses strict greater-than.
+        // 780 min = 13h: entry at 19:00, exit 13h later at 08:00 next day.
+        List<TasScanRecord> scans = List.of(
+            scan("300", LocalDateTime.of(2026, 3, 10, 19, 0)),
+            scan("300", LocalDateTime.of(2026, 3, 11, 8, 0))
+        );
+
+        List<TasSession> sessions = grouper.group(scans, shifts, assignNoche("300"));
+
+        assertThat(sessions).hasSize(1);
+        assertThat(sessions.get(0).getScans()).hasSize(2);
     }
 
 }
