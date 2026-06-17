@@ -1,0 +1,5 @@
+# Copy this file to ~/.planilla/db.properties and fill in real values.
+# Maven auto-loads it when the file exists (via the local-credentials profile).
+# For CI builds, pass values via: mvn package -DPOSTGRES_DB_USERNAME=... -DPOSTGRES_DB_PASSWORD=...
+POSTGRES_DB_USERNAME=
+POSTGRES_DB_PASSWORD=
