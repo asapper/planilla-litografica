@@ -168,3 +168,18 @@ describe('AbsentReviewOverlay escape key', () => {
     expect(useTasStore.getState().tasView).toBe('result');
   });
 });
+
+describe('AbsentReviewOverlay pill width stability', () => {
+  it('both active and inactive pills have the same min-width class', () => {
+    setup();
+    useTasStore.getState().setAbsentEmployees([
+      { employeeId: 'E1', name: 'Ana López' },
+      { employeeId: 'E2', name: 'Luis García', active: false },
+    ]);
+    render(<AbsentReviewOverlay />);
+    const activePill = screen.getByRole('button', { name: /desactivar Ana/i });
+    const inactivePill = screen.getByRole('button', { name: /reactivar Luis/i });
+    expect(activePill.className).toContain('min-w-[7rem]');
+    expect(inactivePill.className).toContain('min-w-[7rem]');
+  });
+});

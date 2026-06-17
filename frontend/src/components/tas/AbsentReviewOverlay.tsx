@@ -81,7 +81,7 @@ export default function AbsentReviewOverlay() {
                       {isActive ? (
                         <button
                           onClick={() => handleToggle(emp.employeeId)}
-                          className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-green-400 text-green-700 text-label-sm hover:bg-green-50 transition-colors cursor-pointer"
+                          className="inline-flex items-center justify-center gap-2 min-w-[7rem] px-3 py-1 rounded-full border border-green-400 text-green-700 text-label-sm hover:bg-green-50 transition-colors cursor-pointer"
                           aria-label={`Desactivar ${emp.name}`}
                         >
                           <span className="w-2 h-2 rounded-full bg-green-500" />
@@ -90,7 +90,7 @@ export default function AbsentReviewOverlay() {
                       ) : (
                         <button
                           onClick={() => handleToggle(emp.employeeId)}
-                          className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-outline-variant text-on-surface-variant text-label-sm hover:bg-surface-container-low transition-colors cursor-pointer"
+                          className="inline-flex items-center justify-center gap-2 min-w-[7rem] px-3 py-1 rounded-full border border-outline-variant text-on-surface-variant text-label-sm hover:bg-surface-container-low transition-colors cursor-pointer"
                           aria-label={`Reactivar ${emp.name}`}
                         >
                           <span className="w-2 h-2 rounded-full bg-outline" />
