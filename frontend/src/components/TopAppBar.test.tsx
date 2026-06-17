@@ -39,8 +39,13 @@ describe('Nueva carga button', () => {
     expect(screen.queryByRole('button', { name: /nueva carga/i })).not.toBeInTheDocument();
   });
 
-  it('is rendered when tasView is not idle', () => {
+  it('is rendered when tasView is not idle on tas view', () => {
     render(<TopAppBar currentView="tas" onViewChange={noop} tasView="review" onNewUpload={vi.fn()} />);
+    expect(screen.getByRole('button', { name: /nueva carga/i })).toBeInTheDocument();
+  });
+
+  it('is rendered when tasView is not idle on config view', () => {
+    render(<TopAppBar currentView="config" onViewChange={noop} tasView="review" onNewUpload={vi.fn()} />);
     expect(screen.getByRole('button', { name: /nueva carga/i })).toBeInTheDocument();
   });
 
@@ -86,5 +91,37 @@ describe('Nueva carga button', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Sí, descartar' }));
     expect(onNewUpload).toHaveBeenCalledTimes(1);
     expect(screen.queryByText('Iniciar nueva carga')).not.toBeInTheDocument();
+  });
+});
+
+describe('Volver a la carga button (config → tas toggle)', () => {
+  it('is not shown when on config view with idle tasView', () => {
+    render(<TopAppBar currentView="config" onViewChange={noop} tasView="idle" onNewUpload={vi.fn()} />);
+    expect(screen.queryByRole('button', { name: /volver a la carga/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /configuración/i })).toBeInTheDocument();
+  });
+
+  it('replaces Configuración when on config view with active session', () => {
+    render(<TopAppBar currentView="config" onViewChange={noop} tasView="review" onNewUpload={vi.fn()} />);
+    expect(screen.getByRole('button', { name: /volver a la carga/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /configuración/i })).not.toBeInTheDocument();
+  });
+
+  it('is not shown when on tas view even with active session', () => {
+    render(<TopAppBar currentView="tas" onViewChange={noop} tasView="review" onNewUpload={vi.fn()} />);
+    expect(screen.queryByRole('button', { name: /volver a la carga/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /configuración/i })).toBeInTheDocument();
+  });
+
+  it('calls onViewChange with "tas" when clicked', () => {
+    const onViewChange = vi.fn();
+    render(<TopAppBar currentView="config" onViewChange={onViewChange} tasView="verification" onNewUpload={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: /volver a la carga/i }));
+    expect(onViewChange).toHaveBeenCalledWith('tas');
+  });
+
+  it('appears during submitting state on config view', () => {
+    render(<TopAppBar currentView="config" onViewChange={noop} tasView="submitting" onNewUpload={vi.fn()} />);
+    expect(screen.getByRole('button', { name: /volver a la carga/i })).toBeInTheDocument();
   });
 });
