@@ -544,6 +544,61 @@ class TasControllerTest {
            .andExpect(jsonPath("$.code").value("UNRESOLVED_SESSIONS"));
     }
 
+    @Test
+    void submit_ignoresUnresolvedSessionsOutsideResolvedPeriod() throws Exception {
+        TasSession resolved = new TasSession();
+        resolved.setEmployeeId("100");
+        resolved.setDate(java.time.LocalDate.of(2026, 3, 20));
+        resolved.setNeedsResolution(false);
+        resolved.setFlags(List.of());
+
+        TasSession unresolvedOtherPeriod = new TasSession();
+        unresolvedOtherPeriod.setEmployeeId("100");
+        unresolvedOtherPeriod.setDate(java.time.LocalDate.of(2026, 3, 5));
+        unresolvedOtherPeriod.setNeedsResolution(true);
+        unresolvedOtherPeriod.setFlags(List.of(com.planilla.backend.model.tas.TasFlag.MISSING_EXIT));
+
+        EmployeeRow row = new EmployeeRow();
+        row.setCodigoEmpleado("100");
+        row.setNombreEmpleado("Test");
+        row.setMes(3);
+        row.setAnio(2026);
+        row.setNumeroDequincena(2);
+
+        TasUploadResult result = emptyResult();
+        result.setAllSessions(List.of(resolved, unresolvedOtherPeriod));
+        result.setFlaggedSessions(List.of(unresolvedOtherPeriod));
+        result.setResolvedRows(List.of(row));
+        when(parserService.parse(any())).thenReturn(emptyParseResult());
+        when(uploadService.processScans(any(), any(), any())).thenReturn(result);
+
+        MockMultipartFile file = new MockMultipartFile("file", "test.csv", "text/csv", "data".getBytes());
+        String uploadResponse = mvc.perform(multipart("/api/tas/upload").file(file))
+           .andExpect(status().isOk())
+           .andReturn().getResponse().getContentAsString();
+        String token = (String) mapper.readValue(uploadResponse, Map.class).get("uploadToken");
+
+        // Simulate resolve for period 2 (quincena 2, March 16-31)
+        when(shiftConfigService.getAllShifts()).thenReturn(List.of());
+        when(reportBuilder.build(any(), any(), any(), any(), any()))
+            .thenReturn(new com.planilla.backend.service.tas.TasReportBuilder.BuildResult(List.of(row), Map.of()));
+        mvc.perform(post("/api/tas/resolve")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(Map.of(
+                    "uploadToken", token,
+                    "resolutions", List.of(),
+                    "anio", 2026, "mes", 3, "numeroDequincena", 2))))
+           .andExpect(status().isOk());
+
+        when(jobService.createJob(any())).thenReturn("job-456");
+
+        mvc.perform(post("/api/tas/submit")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(Map.of("uploadToken", token))))
+           .andExpect(status().isOk())
+           .andExpect(jsonPath("$.jobId").value("job-456"));
+    }
+
     // ── POST /api/tas/recompute/{uploadToken} ───────────────────────────────
 
     @Test
