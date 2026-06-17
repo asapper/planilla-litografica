@@ -106,6 +106,28 @@ describe('ReviewScreen submit', () => {
   });
 });
 
+describe('ReviewScreen error display', () => {
+  it('shows error alert when store has an error', () => {
+    useTasStore.getState().setResolvedRows(rows);
+    useTasStore.getState().setError('Ocurrió un error al enviar. Intente nuevamente.');
+    render(<ReviewScreen />);
+    expect(screen.getByText('Ocurrió un error al enviar. Intente nuevamente.')).toBeInTheDocument();
+  });
+
+  it('renders the error message from a failed submit', async () => {
+    useTasStore.getState().setUploadToken('tok-1');
+    useTasStore.getState().setResolvedRows(rows);
+    mockSubmitTas.mockRejectedValue(new Error('network error'));
+
+    render(<ReviewScreen />);
+    fireEvent.click(screen.getByRole('button', { name: /enviar/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Ocurrió un error al enviar. Intente nuevamente.')).toBeInTheDocument();
+    });
+  });
+});
+
 describe('ReviewScreen accruesOvertime toggle', () => {
   beforeEach(() => {
     useTasStore.getState().setUploadToken('tok-1');

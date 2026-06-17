@@ -4,6 +4,7 @@ import { resolveVerification } from '../../tasApi';
 import type { TasResolution } from '../../tasApi';
 import { MONTH_NAMES_ES } from '../../dateNames';
 import type { TasSession, TasFlag, TasPeriod, ShiftOption } from '../../tasTypes';
+import AlertMessage from '../ui/AlertMessage';
 import EmployeeGroup from './EmployeeGroup';
 import { buildEmployeeGroups } from './verificationGrouping';
 
@@ -416,6 +417,7 @@ export default function VerificationScreen() {
   const setShiftAcceptance  = useTasStore(s => s.setShiftAcceptance);
   const sameDayDoubleResolutions    = useTasStore(s => s.sameDayDoubleResolutions);
   const setSameDayDoubleResolution  = useTasStore(s => s.setSameDayDoubleResolution);
+  const error                       = useTasStore(s => s.error);
 
   // Inverts the computed default expansion for an employeeId (not an absolute
   // expanded/collapsed state), so a manual toggle doesn't permanently "stick"
@@ -485,13 +487,18 @@ export default function VerificationScreen() {
 
   const handleSubmit = async () => {
     if (!uploadToken) return;
+    setError(null);
     try {
+      const sessionDateById = new Map(flaggedSessions.map(s => [s.sessionId, s.date]));
       const resolutions: TasResolution[] = [
-        ...Object.entries(resolvedSessions).map(([id, entry]) => ({
-          sessionId: Number(id),
-          resolvedStart: entry.resolvedStart,
-          resolvedEnd:   entry.resolvedEnd,
-        })),
+        ...Object.entries(resolvedSessions).map(([id, entry]) => {
+          const date = sessionDateById.get(Number(id)) ?? '';
+          return {
+            sessionId: Number(id),
+            resolvedStart: `${date} ${entry.resolvedStart}`,
+            resolvedEnd:   `${date} ${entry.resolvedEnd}`,
+          };
+        }),
         ...allShiftMismatchOnly.map(session => ({
           sessionId: session.sessionId,
           acceptedShiftId: shiftAcceptances[session.sessionId] ?? session.matchedShiftId ?? '',
@@ -533,6 +540,8 @@ export default function VerificationScreen() {
         <h2 className="text-headline-sm font-medium text-on-surface mb-4">
           Verificación de marcaciones
         </h2>
+
+        {error && <AlertMessage message={error} />}
 
         {availablePeriods.length > 1 && (
           <div className="flex flex-col gap-1 mb-2">

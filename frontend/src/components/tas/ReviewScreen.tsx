@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useTasStore } from '../../tasStore';
 import { submitTas, recomputeTas } from '../../tasApi';
 import { updateAccruesOvertime } from '../../configApi';
+import AlertMessage from '../ui/AlertMessage';
 import type { ResolvedRow } from '../../tasTypes';
 
 export default function ReviewScreen() {
@@ -10,12 +11,14 @@ export default function ReviewScreen() {
   const setResolvedRows = useTasStore(s => s.setResolvedRows);
   const setTasView   = useTasStore(s => s.setTasView);
   const setJobId     = useTasStore(s => s.setJobId);
+  const error        = useTasStore(s => s.error);
   const setError     = useTasStore(s => s.setError);
 
   const [pendingToggleId, setPendingToggleId] = useState<string | null>(null);
 
   const handleSubmit = async () => {
     if (!uploadToken) return;
+    setError(null);
     try {
       setTasView('submitting');
       const { jobId } = await submitTas(uploadToken);
@@ -55,6 +58,9 @@ export default function ReviewScreen() {
         <h2 className="text-headline-sm font-medium text-on-surface mb-2">
           Revisión de registros procesados
         </h2>
+
+        {error && <AlertMessage message={error} />}
+
         <p className="text-body-md text-on-surface-variant mb-6">
           {resolvedRows.length === 1
             ? 'Se procesó 1 registro. Revisa la información antes de enviar.'
