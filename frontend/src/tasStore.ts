@@ -21,11 +21,13 @@ interface TasStore {
   inactiveEmployees: InactiveEmployee[];
   inactiveDecisions: Record<string, InactiveDecision>;
   absentEmployees: AbsentEmployee[];
+  warnings: string[];
   usedFallbackHolidays: boolean;
   fallbackBannerDismissed: boolean;
   jobId: string | null;
   error: string | null;
 
+  setWarnings: (warnings: string[]) => void;
   setTasView: (view: TasView) => void;
   setUploadToken: (token: string | null) => void;
   setProcessingMessage: (msg: string) => void;
@@ -66,6 +68,7 @@ const initialState = {
   inactiveEmployees: [],
   inactiveDecisions: {},
   absentEmployees: [],
+  warnings: [] as string[],
   usedFallbackHolidays: false,
   fallbackBannerDismissed: false,
   jobId: null,
@@ -109,6 +112,7 @@ export const useTasStore = create<TasStore>(set => ({
     inactiveDecisions: { ...s.inactiveDecisions, [employeeId]: decision },
   })),
   setAbsentEmployees: (employees) => set({ absentEmployees: employees }),
+  setWarnings: (warnings) => set({ warnings }),
   setUsedFallbackHolidays: (v) => set({ usedFallbackHolidays: v }),
   dismissFallbackBanner: () => set({ fallbackBannerDismissed: true }),
   setJobId: (id) => set({ jobId: id }),

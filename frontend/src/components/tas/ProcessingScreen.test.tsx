@@ -50,4 +50,11 @@ describe('ProcessingScreen', () => {
     expect(useTasStore.getState().fallbackBannerDismissed).toBe(true);
     expect(screen.queryByText(/feriados en línea/i)).not.toBeInTheDocument();
   });
+
+  it('renders error message instead of spinner when error is set', () => {
+    useTasStore.getState().setError('Columnas requeridas no encontradas: [Fecha y hora].');
+    render(<ProcessingScreen fileName="reporte.csv" />);
+    expect(screen.getByText('Columnas requeridas no encontradas: [Fecha y hora].')).toBeInTheDocument();
+    expect(screen.queryByText(/procesando/i)).not.toBeInTheDocument();
+  });
 });
