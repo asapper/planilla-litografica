@@ -12,7 +12,6 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/config/shifts")
-@CrossOrigin(origins = "*")
 public class ShiftConfigController {
 
     private final ShiftConfigService shiftConfigService;

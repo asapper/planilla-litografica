@@ -20,7 +20,6 @@ import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/tas")
-@CrossOrigin(origins = "*")
 public class TasController {
 
     private final TasParserService        parserService;
