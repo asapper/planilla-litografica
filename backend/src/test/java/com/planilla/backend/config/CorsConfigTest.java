@@ -6,9 +6,9 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
@@ -22,7 +22,7 @@ class CorsConfigTest {
 
     @Autowired MockMvc mvc;
 
-    @MockBean(name = "postgresJdbcTemplate")
+    @MockitoBean(name = "postgresJdbcTemplate")
     JdbcTemplate postgresJdbc;
 
     @ParameterizedTest
@@ -35,6 +35,19 @@ class CorsConfigTest {
         mvc.perform(options("/api/health")
                 .header("Origin", origin)
                 .header("Access-Control-Request-Method", "GET"))
+           .andExpect(status().isOk())
+           .andExpect(header().string("Access-Control-Allow-Origin", origin));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "http://localhost:5173",
+            "tauri://localhost",
+            "https://tauri.localhost"
+    })
+    void allowedOriginOnSimpleGetReturnsCorsHeader(String origin) throws Exception {
+        mvc.perform(get("/api/health")
+                .header("Origin", origin))
            .andExpect(status().isOk())
            .andExpect(header().string("Access-Control-Allow-Origin", origin));
     }
