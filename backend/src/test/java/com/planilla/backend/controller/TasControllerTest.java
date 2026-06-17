@@ -913,4 +913,125 @@ class TasControllerTest {
         verify(hoursCalculator, times(1)).recompute(eq(a), any());
         verify(hoursCalculator, never()).recompute(eq(b), any());
     }
+
+    @Test
+    void upload_responseIncludesSessionSummaries() throws Exception {
+        TasUploadResult result = emptyResult();
+
+        TasSession s1 = new TasSession();
+        s1.setEmployeeId("E1");
+        s1.setEmployeeName("Ana");
+        s1.setDate(java.time.LocalDate.of(2026, 6, 2));
+        s1.setMatchedShiftName("Mañana");
+        s1.setEffectiveStart(java.time.LocalDateTime.of(2026, 6, 2, 7, 2));
+        s1.setLastScan(java.time.LocalDateTime.of(2026, 6, 2, 15, 5));
+        s1.setWorkedHours(8.0);
+        s1.setSimplesMinutes(30);
+        s1.setDoblesMinutes(0);
+        s1.setNeedsResolution(false);
+
+        TasSession s2 = new TasSession();
+        s2.setEmployeeId("E2");
+        s2.setEmployeeName("Luis");
+        s2.setDate(java.time.LocalDate.of(2026, 6, 2));
+        s2.setMatchedShiftName("Tarde");
+        s2.setEffectiveStart(java.time.LocalDateTime.of(2026, 6, 2, 14, 0));
+        s2.setLastScan(java.time.LocalDateTime.of(2026, 6, 2, 22, 0));
+        s2.setWorkedHours(8.0);
+        s2.setSimplesMinutes(0);
+        s2.setDoblesMinutes(0);
+        s2.setNeedsResolution(false);
+
+        result.setAllSessions(List.of(s1, s2));
+
+        when(parserService.parse(any())).thenReturn(emptyParseResult());
+        when(uploadService.processScans(any(), any(), any())).thenReturn(result);
+
+        MockMultipartFile file = new MockMultipartFile("file", "test.csv", "text/csv", "data".getBytes());
+
+        mvc.perform(multipart("/api/tas/upload").file(file))
+           .andExpect(status().isOk())
+           .andExpect(jsonPath("$.sessionSummaries.E1").isArray())
+           .andExpect(jsonPath("$.sessionSummaries.E1[0].date").value("2026-06-02"))
+           .andExpect(jsonPath("$.sessionSummaries.E1[0].shiftName").value("Mañana"))
+           .andExpect(jsonPath("$.sessionSummaries.E1[0].entryTime").value("2026-06-02T07:02"))
+           .andExpect(jsonPath("$.sessionSummaries.E1[0].exitTime").value("2026-06-02T15:05"))
+           .andExpect(jsonPath("$.sessionSummaries.E1[0].workedHours").value(8.0))
+           .andExpect(jsonPath("$.sessionSummaries.E1[0].simplesMinutes").value(30))
+           .andExpect(jsonPath("$.sessionSummaries.E1[0].doblesMinutes").value(0))
+           .andExpect(jsonPath("$.sessionSummaries.E2").isArray())
+           .andExpect(jsonPath("$.sessionSummaries.E2[0].shiftName").value("Tarde"));
+    }
+
+    @Test
+    void upload_sessionSummariesExcludesNeedsResolution() throws Exception {
+        TasUploadResult result = emptyResult();
+
+        TasSession resolved = new TasSession();
+        resolved.setEmployeeId("E1");
+        resolved.setEmployeeName("Ana");
+        resolved.setDate(java.time.LocalDate.of(2026, 6, 2));
+        resolved.setMatchedShiftName("Mañana");
+        resolved.setEffectiveStart(java.time.LocalDateTime.of(2026, 6, 2, 7, 0));
+        resolved.setLastScan(java.time.LocalDateTime.of(2026, 6, 2, 15, 0));
+        resolved.setWorkedHours(8.0);
+        resolved.setSimplesMinutes(0);
+        resolved.setDoblesMinutes(0);
+        resolved.setNeedsResolution(false);
+
+        TasSession unresolved = new TasSession();
+        unresolved.setEmployeeId("E1");
+        unresolved.setEmployeeName("Ana");
+        unresolved.setDate(java.time.LocalDate.of(2026, 6, 3));
+        unresolved.setNeedsResolution(true);
+
+        result.setAllSessions(List.of(resolved, unresolved));
+
+        when(parserService.parse(any())).thenReturn(emptyParseResult());
+        when(uploadService.processScans(any(), any(), any())).thenReturn(result);
+
+        MockMultipartFile file = new MockMultipartFile("file", "test.csv", "text/csv", "data".getBytes());
+
+        mvc.perform(multipart("/api/tas/upload").file(file))
+           .andExpect(status().isOk())
+           .andExpect(jsonPath("$.sessionSummaries.E1").isArray())
+           .andExpect(jsonPath("$.sessionSummaries.E1.length()").value(1))
+           .andExpect(jsonPath("$.sessionSummaries.E1[0].date").value("2026-06-02"));
+    }
+
+    @Test
+    void recompute_responseIncludesSessionSummaries() throws Exception {
+        TasUploadResult result = emptyResult();
+
+        TasSession s = new TasSession();
+        s.setEmployeeId("E1");
+        s.setEmployeeName("Ana");
+        s.setDate(java.time.LocalDate.of(2026, 6, 2));
+        s.setMatchedShiftName("Mañana");
+        s.setEffectiveStart(java.time.LocalDateTime.of(2026, 6, 2, 7, 0));
+        s.setLastScan(java.time.LocalDateTime.of(2026, 6, 2, 15, 0));
+        s.setWorkedHours(8.0);
+        s.setSimplesMinutes(0);
+        s.setDoblesMinutes(0);
+        s.setNeedsResolution(false);
+
+        result.setAllSessions(List.of(s));
+
+        when(parserService.parse(any())).thenReturn(emptyParseResult());
+        when(uploadService.processScans(any(), any(), any())).thenReturn(result);
+        when(reportBuilder.build(any(), any(), any(), any(), any()))
+                .thenReturn(new TasReportBuilder.BuildResult(new ArrayList<>(), Map.of()));
+
+        // Upload first to get a token
+        MockMultipartFile file = new MockMultipartFile("file", "test.csv", "text/csv", "data".getBytes());
+        String uploadResponse = mvc.perform(multipart("/api/tas/upload").file(file))
+                .andReturn().getResponse().getContentAsString();
+        String token = mapper.readTree(uploadResponse).get("uploadToken").asText();
+
+        mvc.perform(post("/api/tas/recompute/" + token)
+                .contentType(MediaType.APPLICATION_JSON))
+           .andExpect(status().isOk())
+           .andExpect(jsonPath("$.sessionSummaries.E1").isArray())
+           .andExpect(jsonPath("$.sessionSummaries.E1[0].date").value("2026-06-02"));
+    }
 }

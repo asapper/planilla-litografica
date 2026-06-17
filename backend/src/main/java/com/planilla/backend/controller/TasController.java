@@ -274,6 +274,7 @@ public class TasController {
         Map<String, Object> resp = new LinkedHashMap<>();
         resp.put("uploadToken", uploadToken);
         resp.put("resolvedRows", state.getResolvedRows());
+        resp.put("sessionSummaries", buildSessionSummaries(sessions));
         return ResponseEntity.ok(resp);
     }
 
@@ -384,6 +385,32 @@ public class TasController {
         return result;
     }
 
+    private Map<String, List<Map<String, Object>>> buildSessionSummaries(List<TasSession> sessions) {
+        if (sessions == null) return Collections.emptyMap();
+
+        Map<String, List<Map<String, Object>>> result = new LinkedHashMap<>();
+
+        List<TasSession> filtered = sessions.stream()
+                .filter(s -> !s.isNeedsResolution())
+                .sorted(Comparator.comparing(TasSession::getDate))
+                .collect(Collectors.toList());
+
+        for (TasSession s : filtered) {
+            Map<String, Object> entry = new LinkedHashMap<>();
+            entry.put("date", s.getDate().toString());
+            entry.put("shiftName", s.getMatchedShiftName());
+            entry.put("entryTime", s.getEffectiveStart() != null ? s.getEffectiveStart().toString() : null);
+            entry.put("exitTime", s.getLastScan() != null ? s.getLastScan().toString() : null);
+            entry.put("workedHours", s.getWorkedHours());
+            entry.put("simplesMinutes", s.getSimplesMinutes());
+            entry.put("doblesMinutes", s.getDoblesMinutes());
+
+            result.computeIfAbsent(s.getEmployeeId(), k -> new ArrayList<>()).add(entry);
+        }
+
+        return result;
+    }
+
     private Map<String, Object> buildResponseBody(String token, TasUploadResult result) {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("uploadToken", token);
@@ -404,6 +431,8 @@ public class TasController {
         body.put("availablePeriods", reportBuilder.computeAvailablePeriods(
                 result.getAllSessions() != null ? result.getAllSessions() : Collections.emptyList()));
         body.put("availableShifts", mapAvailableShifts(shiftConfigService.getAllShifts()));
+        body.put("sessionSummaries", buildSessionSummaries(
+                result.getAllSessions() != null ? result.getAllSessions() : Collections.emptyList()));
         return body;
     }
 }
