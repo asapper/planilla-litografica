@@ -15,7 +15,7 @@ function SessionDetailRows({ sessions }: { sessions: SessionSummary[] }) {
   if (sessions.length === 0) {
     return (
       <tr>
-        <td colSpan={8} className="py-2 px-8 text-body-sm text-on-surface-variant italic">
+        <td colSpan={7} className="py-2 px-8 text-body-sm text-on-surface-variant italic">
           Sin sesiones registradas.
         </td>
       </tr>
@@ -31,19 +31,17 @@ function SessionDetailRows({ sessions }: { sessions: SessionSummary[] }) {
         <td className="py-1 px-4 text-label-sm text-on-surface-variant font-medium">Entrada</td>
         <td className="py-1 px-4 text-label-sm text-on-surface-variant font-medium">Salida</td>
         <td className="py-1 px-4 text-label-sm text-on-surface-variant font-medium text-right">Horas</td>
-        <td className="py-1 px-4 text-label-sm text-on-surface-variant font-medium text-right">HE simp. (min)</td>
-        <td className="py-1 px-4 text-label-sm text-on-surface-variant font-medium text-right">HE dobles (min)</td>
+        <td className="py-1 px-4 text-label-sm text-on-surface-variant font-medium text-right">HE simp. / dobles (min)</td>
       </tr>
-      {sessions.map(s => (
-        <tr key={s.date} className="bg-gray-50 border-t border-gray-100">
+      {sessions.map((s, i) => (
+        <tr key={`${s.date}-${i}`} className="bg-gray-50 border-t border-gray-100">
           <td />
           <td className="py-1.5 px-4 text-body-sm text-on-surface-variant">{s.date}</td>
           <td className="py-1.5 px-4 text-body-sm text-on-surface-variant">{s.shiftName ?? '—'}</td>
           <td className="py-1.5 px-4 text-body-sm text-on-surface-variant">{formatTime(s.entryTime)}</td>
           <td className="py-1.5 px-4 text-body-sm text-on-surface-variant">{formatTime(s.exitTime)}</td>
           <td className="py-1.5 px-4 text-body-sm text-on-surface-variant text-right">{s.workedHours}</td>
-          <td className="py-1.5 px-4 text-body-sm text-on-surface-variant text-right">{s.simplesMinutes}</td>
-          <td className="py-1.5 px-4 text-body-sm text-on-surface-variant text-right">{s.doblesMinutes}</td>
+          <td className="py-1.5 px-4 text-body-sm text-on-surface-variant text-right">{s.simplesMinutes} / {s.doblesMinutes}</td>
         </tr>
       ))}
     </>
