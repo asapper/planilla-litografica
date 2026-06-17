@@ -139,3 +139,47 @@ describe('AbsentReviewOverlay close', () => {
     expect(useTasStore.getState().tasView).toBe('result');
   });
 });
+
+describe('AbsentReviewOverlay backdrop', () => {
+  it('clicking the backdrop closes the overlay', () => {
+    setup();
+    useTasStore.getState().setTasView('absentReview');
+    render(<AbsentReviewOverlay />);
+    const backdrop = screen.getByTestId('absent-review-backdrop');
+    fireEvent.click(backdrop);
+    expect(useTasStore.getState().tasView).toBe('result');
+  });
+
+  it('clicking inside the modal card does not close the overlay', () => {
+    setup();
+    useTasStore.getState().setTasView('absentReview');
+    render(<AbsentReviewOverlay />);
+    fireEvent.click(screen.getByText('Empleados sin marcaciones'));
+    expect(useTasStore.getState().tasView).toBe('absentReview');
+  });
+});
+
+describe('AbsentReviewOverlay escape key', () => {
+  it('pressing Escape closes the overlay', () => {
+    setup();
+    useTasStore.getState().setTasView('absentReview');
+    render(<AbsentReviewOverlay />);
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(useTasStore.getState().tasView).toBe('result');
+  });
+});
+
+describe('AbsentReviewOverlay pill width stability', () => {
+  it('both active and inactive pills have the same min-width class', () => {
+    setup();
+    useTasStore.getState().setAbsentEmployees([
+      { employeeId: 'E1', name: 'Ana López' },
+      { employeeId: 'E2', name: 'Luis García', active: false },
+    ]);
+    render(<AbsentReviewOverlay />);
+    const activePill = screen.getByRole('button', { name: /desactivar Ana/i });
+    const inactivePill = screen.getByRole('button', { name: /reactivar Luis/i });
+    expect(activePill.className).toContain('min-w-[7rem]');
+    expect(inactivePill.className).toContain('min-w-[7rem]');
+  });
+});

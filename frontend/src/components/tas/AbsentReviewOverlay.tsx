@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useTasStore } from '../../tasStore';
 import { setAbsentEmployeesActive } from '../../tasApi';
 
@@ -30,9 +30,24 @@ export default function AbsentReviewOverlay() {
     setTasView('result');
   };
 
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') handleClose();
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, []);
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.8)' }}>
-      <div className="bg-white rounded-shape-lg shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col">
+    <div
+      data-testid="absent-review-backdrop"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+      onClick={handleClose}
+    >
+      <div
+        className="bg-white rounded-shape-lg shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col"
+        onClick={e => e.stopPropagation()}
+      >
         <div className="px-6 py-5 border-b border-outline-variant">
           <h2 className="text-headline-sm font-medium text-on-surface mb-1">
             Empleados sin marcaciones
@@ -66,7 +81,7 @@ export default function AbsentReviewOverlay() {
                       {isActive ? (
                         <button
                           onClick={() => handleToggle(emp.employeeId)}
-                          className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-green-400 text-green-700 text-label-sm hover:bg-green-50 transition-colors cursor-pointer"
+                          className="inline-flex items-center justify-center gap-2 min-w-[7rem] px-3 py-1 rounded-full border border-green-400 text-green-700 text-label-sm hover:bg-green-50 transition-colors cursor-pointer"
                           aria-label={`Desactivar ${emp.name}`}
                         >
                           <span className="w-2 h-2 rounded-full bg-green-500" />
@@ -75,7 +90,7 @@ export default function AbsentReviewOverlay() {
                       ) : (
                         <button
                           onClick={() => handleToggle(emp.employeeId)}
-                          className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-outline-variant text-on-surface-variant text-label-sm hover:bg-surface-container-low transition-colors cursor-pointer"
+                          className="inline-flex items-center justify-center gap-2 min-w-[7rem] px-3 py-1 rounded-full border border-outline-variant text-on-surface-variant text-label-sm hover:bg-surface-container-low transition-colors cursor-pointer"
                           aria-label={`Reactivar ${emp.name}`}
                         >
                           <span className="w-2 h-2 rounded-full bg-outline" />
