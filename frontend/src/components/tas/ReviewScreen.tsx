@@ -33,8 +33,8 @@ function SessionDetailRows({ sessions }: { sessions: SessionSummary[] }) {
               <th className="py-1 px-4 text-left text-label-sm text-on-surface-variant font-medium">Entrada</th>
               <th className="py-1 px-4 text-left text-label-sm text-on-surface-variant font-medium">Salida</th>
               <th className="py-1 px-4 text-right text-label-sm text-on-surface-variant font-medium">Horas trabajadas</th>
-              <th className="py-1 px-4 text-right text-label-sm text-on-surface-variant font-medium">HE simples (min)</th>
-              <th className="py-1 px-4 text-right text-label-sm text-on-surface-variant font-medium">HE dobles (min)</th>
+              <th className="py-1 px-4 text-right text-label-sm text-on-surface-variant font-medium">Extras simples (min)</th>
+              <th className="py-1 px-4 text-right text-label-sm text-on-surface-variant font-medium">Extras dobles (min)</th>
             </tr>
           </thead>
           <tbody>
