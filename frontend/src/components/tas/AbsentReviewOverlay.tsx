@@ -31,8 +31,15 @@ export default function AbsentReviewOverlay() {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.8)' }}>
-      <div className="bg-white rounded-shape-lg shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col">
+    <div
+      data-testid="absent-review-backdrop"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+      onClick={handleClose}
+    >
+      <div
+        className="bg-white rounded-shape-lg shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col"
+        onClick={e => e.stopPropagation()}
+      >
         <div className="px-6 py-5 border-b border-outline-variant">
           <h2 className="text-headline-sm font-medium text-on-surface mb-1">
             Empleados sin marcaciones

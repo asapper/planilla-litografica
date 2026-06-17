@@ -139,3 +139,22 @@ describe('AbsentReviewOverlay close', () => {
     expect(useTasStore.getState().tasView).toBe('result');
   });
 });
+
+describe('AbsentReviewOverlay backdrop', () => {
+  it('clicking the backdrop closes the overlay', () => {
+    setup();
+    useTasStore.getState().setTasView('absentReview');
+    render(<AbsentReviewOverlay />);
+    const backdrop = screen.getByTestId('absent-review-backdrop');
+    fireEvent.click(backdrop);
+    expect(useTasStore.getState().tasView).toBe('result');
+  });
+
+  it('clicking inside the modal card does not close the overlay', () => {
+    setup();
+    useTasStore.getState().setTasView('absentReview');
+    render(<AbsentReviewOverlay />);
+    fireEvent.click(screen.getByText('Empleados sin marcaciones'));
+    expect(useTasStore.getState().tasView).toBe('absentReview');
+  });
+});
