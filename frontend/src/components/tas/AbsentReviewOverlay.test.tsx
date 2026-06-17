@@ -158,3 +158,13 @@ describe('AbsentReviewOverlay backdrop', () => {
     expect(useTasStore.getState().tasView).toBe('absentReview');
   });
 });
+
+describe('AbsentReviewOverlay escape key', () => {
+  it('pressing Escape closes the overlay', () => {
+    setup();
+    useTasStore.getState().setTasView('absentReview');
+    render(<AbsentReviewOverlay />);
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(useTasStore.getState().tasView).toBe('result');
+  });
+});

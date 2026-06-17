@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useTasStore } from '../../tasStore';
 import { setAbsentEmployeesActive } from '../../tasApi';
 
@@ -29,6 +29,14 @@ export default function AbsentReviewOverlay() {
   const handleClose = () => {
     setTasView('result');
   };
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') handleClose();
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, []);
 
   return (
     <div
