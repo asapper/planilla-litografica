@@ -230,8 +230,10 @@ public class TasController {
         List<TasSession> sessions = state.getSessions();
         if (sessions == null) sessions = Collections.emptyList();
 
+        TasPeriod resolvedPeriod = state.getResolvedPeriod();
         List<TasSession> unresolved = sessions.stream()
                 .filter(TasSession::isNeedsResolution)
+                .filter(s -> resolvedPeriod == null || resolvedPeriod.equals(TasPeriod.of(s.getDate())))
                 .collect(Collectors.toList());
         if (!unresolved.isEmpty()) {
             return ResponseEntity.status(409).body(Map.of(

@@ -241,6 +241,27 @@ describe('VerificationScreen submit', () => {
     expect(useTasStore.getState().resolvedRows).toHaveLength(2);
   });
 
+  it('sends full datetime (date + time) for resolved session entries', async () => {
+    useTasStore.getState().setUploadToken('tok-1');
+    useTasStore.getState().setFlaggedSessions([
+      makeSession({ sessionId: 1, date: '2026-03-15', effectiveStart: '2026-03-15T08:00:00', lastScan: '2026-03-15T17:00:00' }),
+    ]);
+    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
+    mockResolveVerification.mockResolvedValue(mockResult);
+
+    render(<VerificationScreen />);
+    fireEvent.click(screen.getByRole('button', { name: /confirmar/i }));
+    fireEvent.click(screen.getByRole('button', { name: /enviar/i }));
+
+    await waitFor(() => expect(mockResolveVerification).toHaveBeenCalledOnce());
+    const [, payload] = mockResolveVerification.mock.calls[0];
+    expect(payload).toContainEqual({
+      sessionId: 1,
+      resolvedStart: '2026-03-15 08:00',
+      resolvedEnd: '2026-03-15 17:00',
+    });
+  });
+
   it('clears resolvedSessions and stays in verification when resolve returns more flagged sessions', async () => {
     useTasStore.getState().setUploadToken('tok-1');
     useTasStore.getState().setFlaggedSessions([makeSession({ effectiveStart: '08:00:00', lastScan: '17:00:00' })]);
@@ -820,6 +841,40 @@ describe('SHORT_DAY sessions', () => {
 
     const resolved = useTasStore.getState().resolvedSessions[99];
     expect(resolved).toEqual({ resolvedStart: '07:00', resolvedEnd: '13:00' });
+  });
+});
+
+describe('VerificationScreen error display', () => {
+  it('shows error alert when store has an error', () => {
+    useTasStore.getState().setFlaggedSessions([makeSession()]);
+    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
+    useTasStore.getState().setError('Ocurrió un error al enviar. Intente nuevamente.');
+    render(<VerificationScreen />);
+    expect(screen.getByText('Ocurrió un error al enviar. Intente nuevamente.')).toBeInTheDocument();
+  });
+
+  it('does not show error alert when there is no error', () => {
+    useTasStore.getState().setFlaggedSessions([makeSession()]);
+    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
+    render(<VerificationScreen />);
+    expect(screen.queryByText(/error/i)).not.toBeInTheDocument();
+  });
+
+  it('renders the error message from a failed resolve call', async () => {
+    useTasStore.getState().setUploadToken('tok-1');
+    useTasStore.getState().setFlaggedSessions([
+      makeSession({ sessionId: 1, effectiveStart: '08:00:00', lastScan: '17:00:00' }),
+    ]);
+    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
+    mockResolveVerification.mockRejectedValue(new Error('network error'));
+
+    render(<VerificationScreen />);
+    fireEvent.click(screen.getByRole('button', { name: /confirmar/i }));
+    fireEvent.click(screen.getByRole('button', { name: /enviar/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Ocurrió un error al enviar. Intente nuevamente.')).toBeInTheDocument();
+    });
   });
 });
 
