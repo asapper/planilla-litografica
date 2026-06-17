@@ -47,6 +47,16 @@ export interface ResolvedRow {
   accruesOvertime: boolean
 }
 
+export interface SessionSummary {
+  date: string
+  shiftName: string | null
+  entryTime: string | null
+  exitTime: string | null
+  workedHours: number
+  simplesMinutes: number
+  doblesMinutes: number
+}
+
 export interface TasUploadResult {
   uploadToken: string
   resolvedRows?: ResolvedRow[]
@@ -57,6 +67,7 @@ export interface TasUploadResult {
   warnings: string[]
   availablePeriods?: TasPeriod[]
   availableShifts: ShiftOption[]
+  sessionSummaries?: Record<string, SessionSummary[]>
 }
 
 export interface TasResolveResult {
@@ -66,6 +77,7 @@ export interface TasResolveResult {
   usedFallbackHolidays: boolean
   availablePeriods?: TasPeriod[]
   availableShifts: ShiftOption[]
+  sessionSummaries?: Record<string, SessionSummary[]>
 }
 
 export type InactiveDecision = 'reactivate' | 'ignore'

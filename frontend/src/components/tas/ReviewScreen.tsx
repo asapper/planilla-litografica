@@ -9,6 +9,7 @@ export default function ReviewScreen() {
   const uploadToken  = useTasStore(s => s.uploadToken);
   const resolvedRows = useTasStore(s => s.resolvedRows);
   const setResolvedRows = useTasStore(s => s.setResolvedRows);
+  const setSessionSummaries = useTasStore(s => s.setSessionSummaries);
   const setTasView   = useTasStore(s => s.setTasView);
   const setJobId     = useTasStore(s => s.setJobId);
   const error        = useTasStore(s => s.error);
@@ -45,6 +46,7 @@ export default function ReviewScreen() {
       try {
         const result = await recomputeTas(uploadToken);
         setResolvedRows(result.resolvedRows);
+        setSessionSummaries(result.sessionSummaries ?? {});
       } catch {
         setError('La sesión de carga expiró. Vuelve a subir el archivo.');
       }

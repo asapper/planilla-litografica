@@ -403,6 +403,7 @@ export default function VerificationScreen() {
   const setTasView            = useTasStore(s => s.setTasView);
   const setResolvedRowCount      = useTasStore(s => s.setResolvedRowCount);
   const setResolvedRows          = useTasStore(s => s.setResolvedRows);
+  const setSessionSummaries      = useTasStore(s => s.setSessionSummaries);
   const setUsedFallbackHolidays  = useTasStore(s => s.setUsedFallbackHolidays);
   const setFlaggedSessions    = useTasStore(s => s.setFlaggedSessions);
   const setUploadToken        = useTasStore(s => s.setUploadToken);
@@ -524,6 +525,7 @@ export default function VerificationScreen() {
       setUploadToken(result.uploadToken);
       setResolvedRowCount(result.resolvedRows?.length ?? 0);
       setResolvedRows(result.resolvedRows ?? []);
+      setSessionSummaries(result.sessionSummaries ?? {});
       setUsedFallbackHolidays(result.usedFallbackHolidays);
       setAvailablePeriods(result.availablePeriods ?? []);
       setAvailableShifts(result.availableShifts ?? []);
