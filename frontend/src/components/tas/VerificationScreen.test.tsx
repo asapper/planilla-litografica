@@ -859,6 +859,23 @@ describe('VerificationScreen error display', () => {
     render(<VerificationScreen />);
     expect(screen.queryByText(/error/i)).not.toBeInTheDocument();
   });
+
+  it('renders the error message from a failed resolve call', async () => {
+    useTasStore.getState().setUploadToken('tok-1');
+    useTasStore.getState().setFlaggedSessions([
+      makeSession({ sessionId: 1, effectiveStart: '08:00:00', lastScan: '17:00:00' }),
+    ]);
+    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
+    mockResolveVerification.mockRejectedValue(new Error('network error'));
+
+    render(<VerificationScreen />);
+    fireEvent.click(screen.getByRole('button', { name: /confirmar/i }));
+    fireEvent.click(screen.getByRole('button', { name: /enviar/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Ocurrió un error al enviar. Intente nuevamente.')).toBeInTheDocument();
+    });
+  });
 });
 
 describe('VerificationScreen completion state', () => {

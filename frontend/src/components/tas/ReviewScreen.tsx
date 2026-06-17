@@ -32,6 +32,7 @@ export default function ReviewScreen() {
 
   const handleAccruesOvertimeToggle = async (row: ResolvedRow) => {
     if (!uploadToken) return;
+    setError(null);
     const newAccruesOvertime = !row.accruesOvertime;
     setPendingToggleId(row.codigoEmpleado);
     try {
