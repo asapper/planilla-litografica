@@ -23,28 +23,36 @@ function SessionDetailRows({ sessions }: { sessions: SessionSummary[] }) {
   }
 
   return (
-    <>
-      <tr className="bg-gray-50">
-        <td />
-        <td className="py-1 px-4 text-label-sm text-on-surface-variant font-medium">Fecha</td>
-        <td className="py-1 px-4 text-label-sm text-on-surface-variant font-medium">Turno</td>
-        <td className="py-1 px-4 text-label-sm text-on-surface-variant font-medium">Entrada</td>
-        <td className="py-1 px-4 text-label-sm text-on-surface-variant font-medium">Salida</td>
-        <td className="py-1 px-4 text-label-sm text-on-surface-variant font-medium text-right">Horas</td>
-        <td className="py-1 px-4 text-label-sm text-on-surface-variant font-medium text-right">HE simp. / dobles (min)</td>
-      </tr>
-      {sessions.map((s, i) => (
-        <tr key={`${s.date}-${i}`} className="bg-gray-50 border-t border-gray-100">
-          <td />
-          <td className="py-1.5 px-4 text-body-sm text-on-surface-variant">{s.date}</td>
-          <td className="py-1.5 px-4 text-body-sm text-on-surface-variant">{s.shiftName ?? '—'}</td>
-          <td className="py-1.5 px-4 text-body-sm text-on-surface-variant">{formatTime(s.entryTime)}</td>
-          <td className="py-1.5 px-4 text-body-sm text-on-surface-variant">{formatTime(s.exitTime)}</td>
-          <td className="py-1.5 px-4 text-body-sm text-on-surface-variant text-right">{s.workedHours}</td>
-          <td className="py-1.5 px-4 text-body-sm text-on-surface-variant text-right">{s.simplesMinutes} / {s.doblesMinutes}</td>
-        </tr>
-      ))}
-    </>
+    <tr>
+      <td colSpan={7} className="p-0">
+        <table className="w-full border-collapse bg-gray-50">
+          <thead>
+            <tr>
+              <th className="py-1 px-4 text-left text-label-sm text-on-surface-variant font-medium">Fecha</th>
+              <th className="py-1 px-4 text-left text-label-sm text-on-surface-variant font-medium">Turno</th>
+              <th className="py-1 px-4 text-left text-label-sm text-on-surface-variant font-medium">Entrada</th>
+              <th className="py-1 px-4 text-left text-label-sm text-on-surface-variant font-medium">Salida</th>
+              <th className="py-1 px-4 text-right text-label-sm text-on-surface-variant font-medium">Horas trabajadas</th>
+              <th className="py-1 px-4 text-right text-label-sm text-on-surface-variant font-medium">HE simples (min)</th>
+              <th className="py-1 px-4 text-right text-label-sm text-on-surface-variant font-medium">HE dobles (min)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sessions.map((s, i) => (
+              <tr key={`${s.date}-${i}`} className="border-t border-gray-100">
+                <td className="py-1.5 px-4 text-body-sm text-on-surface-variant">{s.date}</td>
+                <td className="py-1.5 px-4 text-body-sm text-on-surface-variant">{s.shiftName ?? '—'}</td>
+                <td className="py-1.5 px-4 text-body-sm text-on-surface-variant">{formatTime(s.entryTime)}</td>
+                <td className="py-1.5 px-4 text-body-sm text-on-surface-variant">{formatTime(s.exitTime)}</td>
+                <td className="py-1.5 px-4 text-body-sm text-on-surface-variant text-right">{s.workedHours}</td>
+                <td className="py-1.5 px-4 text-body-sm text-on-surface-variant text-right">{s.simplesMinutes}</td>
+                <td className="py-1.5 px-4 text-body-sm text-on-surface-variant text-right">{s.doblesMinutes}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </td>
+    </tr>
   );
 }
 
