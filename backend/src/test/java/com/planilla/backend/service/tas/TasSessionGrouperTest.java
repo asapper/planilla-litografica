@@ -676,4 +676,63 @@ class TasSessionGrouperTest {
         assertThat(sessions.get(1).getScans()).hasSize(1);
     }
 
+    @Test
+    void group_noche_loneScanFollowedByMultiDayGap_splitsInsteadOfAbsorbing() {
+        // Repro: Daniel Morales (134), Noche employee — lone entry at 19:20 on April 1,
+        // no exit scan, then next scans 6 days later on April 7. Without the max-span
+        // guard, all subsequent scans were absorbed into the April 1 session, producing
+        // workedHours=133.5 and doblesMinutes=7741.
+        List<TasScanRecord> scans = List.of(
+            scan("134", LocalDateTime.of(2026, 4, 1, 19, 20)),
+            scan("134", LocalDateTime.of(2026, 4, 7, 9, 1)),
+            scan("134", LocalDateTime.of(2026, 4, 7, 19, 26))
+        );
+
+        List<TasSession> sessions = grouper.group(scans, shifts, assignNoche("134"));
+
+        assertThat(sessions).hasSize(2);
+        TasSession first = sessions.get(0);
+        assertThat(first.getDate()).isEqualTo(LocalDate.of(2026, 4, 1));
+        assertThat(first.getScans()).hasSize(1);
+
+        TasSession second = sessions.get(1);
+        assertThat(second.getDate()).isEqualTo(LocalDate.of(2026, 4, 7));
+        assertThat(second.getScans()).hasSize(2);
+    }
+
+    @Test
+    void group_noche_multiDayGap_eachScanGetsOwnSession() {
+        // Two scans separated by a multi-day gap must produce two single-scan
+        // sessions, preventing the downstream hours calculator from computing
+        // a span of thousands of minutes.
+        List<TasScanRecord> scans = List.of(
+            scan("134", LocalDateTime.of(2026, 4, 1, 19, 20)),
+            scan("134", LocalDateTime.of(2026, 4, 7, 9, 1))
+        );
+
+        List<TasSession> sessions = grouper.group(scans, shifts, assignNoche("134"));
+
+        assertThat(sessions).hasSize(2);
+        assertThat(sessions.get(0).getScans()).hasSize(1);
+        assertThat(sessions.get(0).getDate()).isEqualTo(LocalDate.of(2026, 4, 1));
+        assertThat(sessions.get(1).getScans()).hasSize(1);
+        assertThat(sessions.get(1).getDate()).isEqualTo(LocalDate.of(2026, 4, 7));
+    }
+
+    @Test
+    void group_noche_spanAtExactMax_doesNotSplit() {
+        // A session spanning exactly maxSessionSpanMinutes (780) must NOT be
+        // split — the guard uses strict greater-than.
+        // 780 min = 13h: entry at 19:00, exit 13h later at 08:00 next day.
+        List<TasScanRecord> scans = List.of(
+            scan("300", LocalDateTime.of(2026, 3, 10, 19, 0)),
+            scan("300", LocalDateTime.of(2026, 3, 11, 8, 0))
+        );
+
+        List<TasSession> sessions = grouper.group(scans, shifts, assignNoche("300"));
+
+        assertThat(sessions).hasSize(1);
+        assertThat(sessions.get(0).getScans()).hasSize(2);
+    }
+
 }
