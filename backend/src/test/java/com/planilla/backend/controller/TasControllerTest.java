@@ -412,6 +412,51 @@ class TasControllerTest {
         verify(reportBuilder).build(any(), any(), any(), any(), eq(new TasPeriod(2026, 3, 1)));
     }
 
+    @Test
+    void resolve_responseIncludesSessionSummaries() throws Exception {
+        TasSession resolved = new TasSession();
+        resolved.setSessionId(42);
+        resolved.setEmployeeId("E1");
+        resolved.setEmployeeName("Ana");
+        resolved.setDate(java.time.LocalDate.of(2026, 6, 2));
+        resolved.setMatchedShiftName("Mañana");
+        resolved.setEffectiveStart(java.time.LocalDateTime.of(2026, 6, 2, 7, 0));
+        resolved.setLastScan(java.time.LocalDateTime.of(2026, 6, 2, 15, 0));
+        resolved.setWorkedHours(8.0);
+        resolved.setSimplesMinutes(30);
+        resolved.setDoblesMinutes(0);
+        resolved.setNeedsResolution(false);
+        resolved.setFlags(new ArrayList<>());
+
+        TasUploadResult result = emptyResult();
+        result.setAllSessions(List.of(resolved));
+        when(parserService.parse(any())).thenReturn(emptyParseResult());
+        when(uploadService.processScans(any(), any(), any())).thenReturn(result);
+
+        MockMultipartFile file = new MockMultipartFile("file", "test.csv", "text/csv", "data".getBytes());
+        String uploadResponse = mvc.perform(multipart("/api/tas/upload").file(file))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        String token = (String) mapper.readValue(uploadResponse, Map.class).get("uploadToken");
+
+        when(shiftConfigService.getAllShifts()).thenReturn(new ArrayList<>());
+        when(reportBuilder.build(any(), any(), any(), any(), any()))
+                .thenReturn(new TasReportBuilder.BuildResult(new ArrayList<>(), new LinkedHashMap<>()));
+
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("uploadToken", token);
+        body.put("resolutions", List.of());
+
+        mvc.perform(post("/api/tas/resolve")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(body)))
+           .andExpect(status().isOk())
+           .andExpect(jsonPath("$.sessionSummaries.E1").isArray())
+           .andExpect(jsonPath("$.sessionSummaries.E1[0].date").value("2026-06-02"))
+           .andExpect(jsonPath("$.sessionSummaries.E1[0].shiftName").value("Mañana"))
+           .andExpect(jsonPath("$.sessionSummaries.E1[0].workedHours").value(8.0));
+    }
+
     // ── POST /api/tas/submit ──────────────────────────────────────────────────
 
     @Test

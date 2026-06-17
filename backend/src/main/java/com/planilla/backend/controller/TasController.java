@@ -216,6 +216,7 @@ public class TasController {
         resp.put("usedFallbackHolidays", state.isUsedFallbackHolidays());
         resp.put("availablePeriods", reportBuilder.computeAvailablePeriods(sessions));
         resp.put("availableShifts", mapAvailableShifts(shifts));
+        resp.put("sessionSummaries", buildSessionSummaries(sessions));
         return ResponseEntity.ok(resp);
     }
 
@@ -391,7 +392,7 @@ public class TasController {
         Map<String, List<Map<String, Object>>> result = new LinkedHashMap<>();
 
         List<TasSession> filtered = sessions.stream()
-                .filter(s -> !s.isNeedsResolution())
+                .filter(s -> !s.isNeedsResolution() && s.getDate() != null)
                 .sorted(Comparator.comparing(TasSession::getDate))
                 .collect(Collectors.toList());
 
