@@ -19,7 +19,7 @@ function SessionDetailRows({ sessions }: { sessions: SessionSummary[] }) {
   if (sessions.length === 0) {
     return (
       <tr>
-        <td colSpan={7} className="py-2 px-8 text-body-sm text-on-surface-variant italic">
+        <td colSpan={8} className="py-2 px-8 text-body-sm text-on-surface-variant italic">
           Sin sesiones registradas.
         </td>
       </tr>
@@ -28,7 +28,7 @@ function SessionDetailRows({ sessions }: { sessions: SessionSummary[] }) {
 
   return (
     <tr>
-      <td colSpan={7} className="p-0">
+      <td colSpan={8} className="p-0">
         <table className="w-full border-collapse bg-gray-50">
           <thead>
             <tr>
