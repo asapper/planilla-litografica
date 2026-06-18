@@ -303,9 +303,9 @@ function SessionCard({ session, confirmed, onConfirm }: SessionCardProps) {
   const entryReadOnly = !needsEntry && !!session.effectiveStart;
   const exitReadOnly  = !needsExit  && !!session.lastScan;
 
-  const canConfirm = (!needsEntry || !!entry) && (!needsExit || !!exit);
-
   const hoursPreview = calcHours(entry, exit);
+  const timesInverted = !!entry && !!exit && hoursPreview === '—';
+  const canConfirm = (!needsEntry || !!entry) && (!needsExit || !!exit) && !timesInverted;
 
   if (confirmed) {
     return (
@@ -351,6 +351,7 @@ function SessionCard({ session, confirmed, onConfirm }: SessionCardProps) {
             type="time"
             value={entry}
             onChange={e => setEntry(e.target.value)}
+            onInput={e => setEntry((e.target as HTMLInputElement).value)}
             readOnly={entryReadOnly}
             aria-label="Entrada"
             className={`h-9 px-3 rounded-shape-sm border text-body-md focus:outline-none focus:border-primary transition-colors ${
@@ -366,6 +367,7 @@ function SessionCard({ session, confirmed, onConfirm }: SessionCardProps) {
             type="time"
             value={exit}
             onChange={e => setExit(e.target.value)}
+            onInput={e => setExit((e.target as HTMLInputElement).value)}
             readOnly={exitReadOnly}
             aria-label="Salida"
             className={`h-9 px-3 rounded-shape-sm border text-body-md focus:outline-none focus:border-primary transition-colors ${
@@ -382,6 +384,10 @@ function SessionCard({ session, confirmed, onConfirm }: SessionCardProps) {
           </span>
         </div>
       </div>
+
+      {timesInverted && (
+        <p className="text-body-sm text-error mb-2">La entrada debe ser antes de la salida</p>
+      )}
 
       <button
         disabled={!canConfirm}
