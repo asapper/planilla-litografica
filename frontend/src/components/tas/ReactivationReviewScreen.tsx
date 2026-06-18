@@ -1,6 +1,7 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useTasStore } from '../../tasStore';
 import { submitInactiveReview } from '../../tasApi';
+import { matchesSearch } from '../../textSearch';
 import type { InactiveDecision } from '../../tasTypes';
 
 export default function ReactivationReviewScreen() {
@@ -23,6 +24,21 @@ export default function ReactivationReviewScreen() {
 
   const scrollRef = useRef<HTMLDivElement>(null);
   useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTop = 0; }, []);
+
+  const [search, setSearch] = useState('');
+
+  const filteredEmployees = search.trim()
+    ? inactiveEmployees.filter(e =>
+        matchesSearch(e.name, search) || matchesSearch(e.employeeId, search))
+    : inactiveEmployees;
+
+  const tableRef = useRef<HTMLTableElement>(null);
+  useLayoutEffect(() => {
+    const table = tableRef.current;
+    if (!table || inactiveEmployees.length === 0) return;
+    const ths = table.querySelectorAll<HTMLElement>('thead th');
+    ths.forEach(th => { th.style.minWidth = `${th.getBoundingClientRect().width}px`; });
+  }, [inactiveEmployees]);
 
   const getDecision = (employeeId: string): InactiveDecision =>
     inactiveDecisions[employeeId] ?? 'ignore';
@@ -69,7 +85,27 @@ export default function ReactivationReviewScreen() {
           Decide qué hacer con cada uno.
         </p>
 
-        <table className="w-full border-collapse">
+        <div className="relative mb-4 w-72">
+          <input
+            type="text"
+            placeholder="Buscar por nombre o ID"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            aria-label="Buscar empleado"
+            className="w-full border border-outline-variant rounded-shape-md px-3 py-2 pr-8 text-body-md text-on-surface bg-surface-container-lowest focus:outline-none focus:border-primary transition-colors"
+          />
+          {search && (
+            <button
+              onClick={() => setSearch('')}
+              aria-label="Limpiar búsqueda"
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-on-surface text-body-lg leading-none"
+            >
+              ✕
+            </button>
+          )}
+        </div>
+
+        <table ref={tableRef} className="w-full border-collapse">
           <thead>
             <tr className="border-b border-outline-variant">
               <th className="text-left text-label-lg text-on-surface-variant py-2 pr-4">Nombre</th>
@@ -79,7 +115,14 @@ export default function ReactivationReviewScreen() {
             </tr>
           </thead>
           <tbody>
-            {inactiveEmployees.map(emp => {
+            {filteredEmployees.length === 0 && search.trim() && (
+              <tr>
+                <td colSpan={4} className="py-8 text-center text-body-md text-on-surface-variant">
+                  No se encontraron empleados que coincidan con la búsqueda.
+                </td>
+              </tr>
+            )}
+            {filteredEmployees.map(emp => {
               const decision = getDecision(emp.employeeId);
               return (
                 <tr key={emp.employeeId} className="border-b border-outline-variant">

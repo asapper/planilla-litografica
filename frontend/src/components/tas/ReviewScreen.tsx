@@ -1,9 +1,10 @@
-import { Fragment, useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import axios from 'axios';
 import { useTasStore } from '../../tasStore';
 import { submitTas, recomputeTas } from '../../tasApi';
 import { updateAccruesOvertime } from '../../configApi';
 import AlertMessage from '../ui/AlertMessage';
+import { matchesSearch } from '../../textSearch';
 import type { ResolvedRow, SessionSummary } from '../../tasTypes';
 
 function formatTime(iso: string | null): string {
@@ -81,6 +82,20 @@ export default function ReviewScreen() {
 
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [pendingToggleId, setPendingToggleId] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+
+  const filteredRows = search.trim()
+    ? resolvedRows.filter(r =>
+        matchesSearch(r.nombreEmpleado, search) || matchesSearch(r.codigoEmpleado, search))
+    : resolvedRows;
+
+  const tableRef = useRef<HTMLTableElement>(null);
+  useLayoutEffect(() => {
+    const table = tableRef.current;
+    if (!table || resolvedRows.length === 0) return;
+    const ths = table.querySelectorAll<HTMLElement>('thead th');
+    ths.forEach(th => { th.style.minWidth = `${th.getBoundingClientRect().width}px`; });
+  }, [resolvedRows]);
 
   const toggleExpanded = (id: string) => {
     setExpandedIds(prev => {
@@ -158,7 +173,27 @@ export default function ReviewScreen() {
             : `Se procesaron ${resolvedRows.length} registros. Revisa la información antes de enviar.`}
         </p>
 
-        <table className="w-full border-collapse bg-white rounded-shape-md overflow-hidden shadow-sm">
+        <div className="relative mb-4 w-72">
+          <input
+            type="text"
+            placeholder="Buscar por nombre o código"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            aria-label="Buscar empleado"
+            className="w-full border border-outline-variant rounded-shape-md px-3 py-2 pr-8 text-body-md text-on-surface bg-surface-container-lowest focus:outline-none focus:border-primary transition-colors"
+          />
+          {search && (
+            <button
+              onClick={() => setSearch('')}
+              aria-label="Limpiar búsqueda"
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-on-surface text-body-lg leading-none"
+            >
+              ✕
+            </button>
+          )}
+        </div>
+
+        <table ref={tableRef} className="w-full border-collapse bg-white rounded-shape-md overflow-hidden shadow-sm">
           <thead>
             <tr className="border-b border-outline-variant">
               <th className="w-10" />
@@ -171,7 +206,14 @@ export default function ReviewScreen() {
             </tr>
           </thead>
           <tbody>
-            {resolvedRows.map(row => {
+            {filteredRows.length === 0 && search.trim() && (
+              <tr>
+                <td colSpan={7} className="py-8 text-center text-body-md text-on-surface-variant">
+                  No se encontraron empleados que coincidan con la búsqueda.
+                </td>
+              </tr>
+            )}
+            {filteredRows.map(row => {
               const isExpanded = expandedIds.has(row.codigoEmpleado);
               const sessions = sessionSummaries[row.codigoEmpleado] ?? [];
               return (

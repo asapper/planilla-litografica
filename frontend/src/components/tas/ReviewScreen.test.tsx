@@ -416,6 +416,65 @@ describe('ReviewScreen overtime override', () => {
   });
 });
 
+describe('ReviewScreen search filter', () => {
+  beforeEach(() => {
+    useTasStore.getState().setResolvedRows(rows);
+  });
+
+  it('renders a search input', () => {
+    render(<ReviewScreen />);
+    expect(screen.getByLabelText(/buscar empleado/i)).toBeInTheDocument();
+  });
+
+  it('filters rows by employee name', () => {
+    render(<ReviewScreen />);
+    fireEvent.change(screen.getByLabelText(/buscar empleado/i), { target: { value: 'ana' } });
+    expect(screen.getByText('Ana López')).toBeInTheDocument();
+    expect(screen.queryByText('Luis García')).not.toBeInTheDocument();
+  });
+
+  it('filters rows by employee code', () => {
+    render(<ReviewScreen />);
+    fireEvent.change(screen.getByLabelText(/buscar empleado/i), { target: { value: 'E2' } });
+    expect(screen.queryByText('Ana López')).not.toBeInTheDocument();
+    expect(screen.getByText('Luis García')).toBeInTheDocument();
+  });
+
+  it('matches accent-insensitively', () => {
+    render(<ReviewScreen />);
+    fireEvent.change(screen.getByLabelText(/buscar empleado/i), { target: { value: 'lopez' } });
+    expect(screen.getByText('Ana López')).toBeInTheDocument();
+  });
+
+  it('shows empty state when no rows match', () => {
+    render(<ReviewScreen />);
+    fireEvent.change(screen.getByLabelText(/buscar empleado/i), { target: { value: 'xyz' } });
+    expect(screen.getByText(/no se encontraron empleados/i)).toBeInTheDocument();
+  });
+
+  it('shows a clear button when search has text', () => {
+    render(<ReviewScreen />);
+    expect(screen.queryByLabelText(/limpiar búsqueda/i)).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText(/buscar empleado/i), { target: { value: 'ana' } });
+    expect(screen.getByLabelText(/limpiar búsqueda/i)).toBeInTheDocument();
+  });
+
+  it('clears search when clear button is clicked', () => {
+    render(<ReviewScreen />);
+    fireEvent.change(screen.getByLabelText(/buscar empleado/i), { target: { value: 'ana' } });
+    expect(screen.queryByText('Luis García')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText(/limpiar búsqueda/i));
+    expect(screen.getByText('Luis García')).toBeInTheDocument();
+    expect(screen.getByText('Ana López')).toBeInTheDocument();
+  });
+
+  it('does not alter resolvedRows in the store', () => {
+    render(<ReviewScreen />);
+    fireEvent.change(screen.getByLabelText(/buscar empleado/i), { target: { value: 'ana' } });
+    expect(useTasStore.getState().resolvedRows).toEqual(rows);
+  });
+});
+
 describe('ReviewScreen expandable session details', () => {
   beforeEach(() => {
     useTasStore.getState().setUploadToken('tok-1');
