@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { AxiosError } from 'axios';
 import ReviewScreen from './ReviewScreen';
 import { useTasStore } from '../../tasStore';
 import * as tasApi from '../../tasApi';
@@ -124,7 +125,7 @@ describe('ReviewScreen error display', () => {
     expect(screen.getByText('Ocurrió un error al enviar. Intente nuevamente.')).toBeInTheDocument();
   });
 
-  it('renders the error message from a failed submit', async () => {
+  it('renders the generic error message from a failed submit', async () => {
     useTasStore.getState().setUploadToken('tok-1');
     useTasStore.getState().setResolvedRows(rows);
     mockSubmitTas.mockRejectedValue(new Error('network error'));
@@ -135,6 +136,27 @@ describe('ReviewScreen error display', () => {
     await waitFor(() => {
       expect(screen.getByText('Ocurrió un error al enviar. Intente nuevamente.')).toBeInTheDocument();
     });
+  });
+
+  it('shows backend DB error message when submit returns a 502 with message', async () => {
+    useTasStore.getState().setUploadToken('tok-1');
+    useTasStore.getState().setResolvedRows(rows);
+    const axiosError = new AxiosError('Request failed', '502', undefined, undefined, {
+      data: { code: 'DB_ERROR', message: 'Base de datos remota no disponible.' },
+      status: 502,
+      statusText: 'Bad Gateway',
+      headers: {},
+      config: {} as never,
+    });
+    mockSubmitTas.mockRejectedValue(axiosError);
+
+    render(<ReviewScreen />);
+    fireEvent.click(screen.getByRole('button', { name: /enviar/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Base de datos remota no disponible.')).toBeInTheDocument();
+    });
+    expect(useTasStore.getState().tasView).toBe('review');
   });
 });
 

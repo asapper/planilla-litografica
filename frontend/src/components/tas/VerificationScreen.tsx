@@ -667,7 +667,7 @@ export default function VerificationScreen() {
               : 'm3-btn-filled disabled:opacity-40 disabled:cursor-not-allowed'
           }
         >
-          {allConfirmed && totalToResolve > 0 ? '✓ Enviar' : 'Enviar'}
+          {allConfirmed && totalToResolve > 0 ? '✓ Revisar' : 'Revisar'}
         </button>
       </div>
     </div>

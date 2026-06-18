@@ -78,9 +78,12 @@ class JobServiceTest {
         when(databaseService.isDuplicate(any())).thenReturn(false);
 
         String jobId = service.createJob(List.of(row("1"), row("2")));
-        service.processJob(jobId);
+        JobService.JobResult result = service.processJob(jobId);
 
         verify(databaseService, times(2)).submitRow(any());
+        assertThat(result.submitted()).isEqualTo(2);
+        assertThat(result.failed()).isEqualTo(0);
+        assertThat(result.hasFailures()).isFalse();
     }
 
     @Test
@@ -88,9 +91,11 @@ class JobServiceTest {
         when(databaseService.isDuplicate(any())).thenReturn(true);
 
         String jobId = service.createJob(List.of(row("1")));
-        service.processJob(jobId);
+        JobService.JobResult result = service.processJob(jobId);
 
         verify(databaseService, never()).submitRow(any());
+        assertThat(result.skipped()).isEqualTo(1);
+        assertThat(result.failed()).isEqualTo(0);
     }
 
     @Test
@@ -108,7 +113,10 @@ class JobServiceTest {
 
     @Test
     void processJob_unknownJobIdIsNoOp() {
-        assertThatCode(() -> service.processJob("no-such-job")).doesNotThrowAnyException();
+        JobService.JobResult result = service.processJob("no-such-job");
+        assertThat(result.submitted()).isEqualTo(0);
+        assertThat(result.failed()).isEqualTo(0);
+        assertThat(result.hasFailures()).isFalse();
     }
 
     // ── processJob — connection error ─────────────────────────────────────────
@@ -120,10 +128,13 @@ class JobServiceTest {
             .thenReturn(false);
 
         String jobId = service.createJob(List.of(row("1"), row("2"), row("3")));
-        service.processJob(jobId);
+        JobService.JobResult result = service.processJob(jobId);
 
         verify(databaseService, times(1)).isDuplicate(any());
         verify(databaseService, never()).submitRow(any());
+        assertThat(result.failed()).isEqualTo(3);
+        assertThat(result.hasFailures()).isTrue();
+        assertThat(result.error()).isEqualTo("Base de datos remota no disponible.");
     }
 
     @Test
@@ -132,10 +143,12 @@ class JobServiceTest {
             .thenThrow(new RuntimeException("timeout", new SocketTimeoutException()));
 
         String jobId = service.createJob(List.of(row("1"), row("2")));
-        service.processJob(jobId);
+        JobService.JobResult result = service.processJob(jobId);
 
         verify(databaseService, times(1)).isDuplicate(any());
         verify(databaseService, never()).submitRow(any());
+        assertThat(result.failed()).isEqualTo(2);
+        assertThat(result.hasFailures()).isTrue();
     }
 
     // ── processJob — non-connection error ─────────────────────────────────────

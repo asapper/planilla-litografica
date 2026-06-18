@@ -215,11 +215,11 @@ describe('VerificationScreen time inputs', () => {
 });
 
 describe('VerificationScreen submit', () => {
-  it('Enviar button is disabled until all sessions confirmed', () => {
+  it('Revisar button is disabled until all sessions confirmed', () => {
     useTasStore.getState().setFlaggedSessions([makeSession()]);
     useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
     render(<VerificationScreen />);
-    expect(screen.getByRole('button', { name: /enviar/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /revisar/i })).toBeDisabled();
   });
 
   it('calls resolveVerification then advances to review without auto-submitting', async () => {
@@ -230,7 +230,7 @@ describe('VerificationScreen submit', () => {
 
     render(<VerificationScreen />);
     fireEvent.click(screen.getByRole('button', { name: /confirmar/i }));
-    fireEvent.click(screen.getByRole('button', { name: /enviar/i }));
+    fireEvent.click(screen.getByRole('button', { name: /revisar/i }));
 
     await waitFor(() => {
       expect(useTasStore.getState().tasView).toBe('review');
@@ -251,7 +251,7 @@ describe('VerificationScreen submit', () => {
 
     render(<VerificationScreen />);
     fireEvent.click(screen.getByRole('button', { name: /confirmar/i }));
-    fireEvent.click(screen.getByRole('button', { name: /enviar/i }));
+    fireEvent.click(screen.getByRole('button', { name: /revisar/i }));
 
     await waitFor(() => expect(mockResolveVerification).toHaveBeenCalledOnce());
     const [, payload] = mockResolveVerification.mock.calls[0];
@@ -275,7 +275,7 @@ describe('VerificationScreen submit', () => {
 
     render(<VerificationScreen />);
     fireEvent.click(screen.getByRole('button', { name: /confirmar/i }));
-    fireEvent.click(screen.getByRole('button', { name: /enviar/i }));
+    fireEvent.click(screen.getByRole('button', { name: /revisar/i }));
 
     await waitFor(() => {
       expect(useTasStore.getState().flaggedSessions[0].sessionId).toBe(2);
@@ -340,7 +340,7 @@ describe('VerificationScreen period selector', () => {
     expect(screen.getByText(/Solo se enviará el periodo seleccionado/)).toBeInTheDocument();
   });
 
-  it('Enviar is enabled when the selected period has no flagged sessions even if other periods do', () => {
+  it('Revisar is enabled when the selected period has no flagged sessions even if other periods do', () => {
     useTasStore.getState().setFlaggedSessions([
       makeSession({ sessionId: 1, date: '2026-03-10', needsResolution: false }),
       makeSession({ sessionId: 2, date: '2026-03-20', needsResolution: true }),
@@ -348,7 +348,7 @@ describe('VerificationScreen period selector', () => {
     useTasStore.getState().setAvailablePeriods([p1, p2]);
     useTasStore.getState().setSelectedPeriod(p1);
     render(<VerificationScreen />);
-    expect(screen.getByRole('button', { name: 'Enviar' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Revisar' })).toBeEnabled();
   });
 
   it('passes the selected period to resolveVerification on submit', async () => {
@@ -361,7 +361,7 @@ describe('VerificationScreen period selector', () => {
 
     render(<VerificationScreen />);
     fireEvent.click(screen.getByRole('button', { name: /confirmar/i }));
-    fireEvent.click(screen.getByRole('button', { name: /enviar/i }));
+    fireEvent.click(screen.getByRole('button', { name: /revisar/i }));
 
     await waitFor(() => {
       expect(mockResolveVerification).toHaveBeenCalledWith('tok-1', expect.any(Array), p1);
@@ -452,7 +452,7 @@ describe('VerificationScreen shift mismatch card', () => {
     mockResolveVerification.mockResolvedValue(mockResult);
 
     render(<VerificationScreen />);
-    fireEvent.click(screen.getByRole('button', { name: /enviar/i }));
+    fireEvent.click(screen.getByRole('button', { name: /revisar/i }));
 
     await waitFor(() => expect(useTasStore.getState().tasView).toBe('review'));
 
@@ -494,7 +494,7 @@ describe('VerificationScreen empty state for selected period', () => {
 
     expect(screen.getByText(/Este periodo no presenta inconsistencias/i)).toBeInTheDocument();
     expect(screen.queryByText('Ana')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /enviar/i })).not.toBeDisabled();
+    expect(screen.getByRole('button', { name: /revisar/i })).not.toBeDisabled();
   });
 
   it('hides the empty-state message and shows the employee group when the selected period has sessions to resolve', () => {
@@ -593,7 +593,7 @@ describe('VerificationScreen same-day double group', () => {
     expect(useTasStore.getState().sameDayDoubleResolutions['E1|2026-03-15']).toBe(1);
   });
 
-  it('Enviar stays enabled with the default same-day-double selection', () => {
+  it('Revisar stays enabled with the default same-day-double selection', () => {
     useTasStore.getState().setFlaggedSessions([
       doubleSession({ sessionId: 1, matchedShiftId: 'manana', matchedShiftName: 'Manana' }),
       doubleSession({
@@ -608,7 +608,7 @@ describe('VerificationScreen same-day double group', () => {
 
     render(<VerificationScreen />);
 
-    expect(screen.getByRole('button', { name: /enviar/i })).not.toBeDisabled();
+    expect(screen.getByRole('button', { name: /revisar/i })).not.toBeDisabled();
   });
 
   it('includes employeeId/date/keepSessionId in resolveVerification payload on submit by default', async () => {
@@ -616,7 +616,7 @@ describe('VerificationScreen same-day double group', () => {
     mockResolveVerification.mockResolvedValue(mockResult);
 
     render(<VerificationScreen />);
-    fireEvent.click(screen.getByRole('button', { name: /enviar/i }));
+    fireEvent.click(screen.getByRole('button', { name: /revisar/i }));
 
     await waitFor(() => expect(useTasStore.getState().tasView).toBe('review'));
 
@@ -870,7 +870,7 @@ describe('VerificationScreen error display', () => {
 
     render(<VerificationScreen />);
     fireEvent.click(screen.getByRole('button', { name: /confirmar/i }));
-    fireEvent.click(screen.getByRole('button', { name: /enviar/i }));
+    fireEvent.click(screen.getByRole('button', { name: /revisar/i }));
 
     await waitFor(() => {
       expect(screen.getByText('Ocurrió un error al enviar. Intente nuevamente.')).toBeInTheDocument();
@@ -879,7 +879,7 @@ describe('VerificationScreen error display', () => {
 });
 
 describe('VerificationScreen completion state', () => {
-  it('shows green banner and enables green Enviar button when all sessions are confirmed', () => {
+  it('shows green banner and enables green Revisar button when all sessions are confirmed', () => {
     useTasStore.getState().setFlaggedSessions([
       makeSession({ sessionId: 1, effectiveStart: '08:00:00', lastScan: '17:00:00' }),
     ]);
@@ -889,9 +889,9 @@ describe('VerificationScreen completion state', () => {
     fireEvent.click(screen.getByRole('button', { name: /confirmar/i }));
 
     expect(screen.getByText(/Todos los grupos están resueltos/)).toBeInTheDocument();
-    const enviar = screen.getByRole('button', { name: /enviar/i });
+    const enviar = screen.getByRole('button', { name: /revisar/i });
     expect(enviar).not.toBeDisabled();
-    expect(enviar).toHaveTextContent('✓ Enviar');
+    expect(enviar).toHaveTextContent('✓ Revisar');
   });
 
   it('does not show green banner when there are still pending sessions', () => {
@@ -902,7 +902,7 @@ describe('VerificationScreen completion state', () => {
     render(<VerificationScreen />);
 
     expect(screen.queryByText(/Todos los grupos están resueltos/)).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /enviar/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /revisar/i })).toBeDisabled();
   });
 
   it('does not show green banner when totalToResolve is 0 (empty state — no inconsistencies)', () => {
@@ -911,9 +911,9 @@ describe('VerificationScreen completion state', () => {
     render(<VerificationScreen />);
 
     expect(screen.queryByText(/Todos los grupos están resueltos/)).not.toBeInTheDocument();
-    const enviar = screen.getByRole('button', { name: /enviar/i });
+    const enviar = screen.getByRole('button', { name: /revisar/i });
     expect(enviar).not.toBeDisabled();
-    expect(enviar).toHaveTextContent('Enviar');
-    expect(enviar).not.toHaveTextContent('✓ Enviar');
+    expect(enviar).toHaveTextContent('Revisar');
+    expect(enviar).not.toHaveTextContent('✓ Revisar');
   });
 });

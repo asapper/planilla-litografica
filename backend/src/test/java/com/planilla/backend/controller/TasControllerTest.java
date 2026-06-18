@@ -551,14 +551,59 @@ class TasControllerTest {
         String token = (String) mapper.readValue(uploadResponse, Map.class).get("uploadToken");
 
         when(jobService.createJob(any())).thenReturn("job-123");
+        when(jobService.processJob("job-123")).thenReturn(new JobService.JobResult(1, 0, 0, null));
 
         mvc.perform(post("/api/tas/submit")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("uploadToken", token))))
            .andExpect(status().isOk())
            .andExpect(jsonPath("$.jobId").value("job-123"));
+    }
 
-        verify(jobService).processJob("job-123");
+    @Test
+    void submit_returns502WhenDbFails() throws Exception {
+        EmployeeRow row = new EmployeeRow();
+        row.setCodigoEmpleado("100");
+        row.setNombreEmpleado("Test");
+        row.setDiasNoLaborados(0);
+        row.setHorasExtrasSimples(8);
+        row.setHorasExtrasDobles(0);
+        row.setMes(3);
+        row.setAnio(2026);
+        row.setNumeroDequincena(1);
+
+        TasUploadResult result = emptyResult();
+        result.setResolvedRows(List.of(row));
+        when(parserService.parse(any())).thenReturn(emptyParseResult());
+        when(uploadService.processScans(any(), any(), any())).thenReturn(result);
+
+        MockMultipartFile file = new MockMultipartFile("file", "test.csv", "text/csv", "data".getBytes());
+
+        String uploadResponse = mvc.perform(multipart("/api/tas/upload").file(file))
+           .andExpect(status().isOk())
+           .andReturn().getResponse().getContentAsString();
+
+        String token = (String) mapper.readValue(uploadResponse, Map.class).get("uploadToken");
+
+        when(jobService.createJob(any())).thenReturn("job-fail");
+        when(jobService.processJob("job-fail")).thenReturn(
+            new JobService.JobResult(0, 0, 1, "Base de datos remota no disponible."));
+
+        mvc.perform(post("/api/tas/submit")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(Map.of("uploadToken", token))))
+           .andExpect(status().is(502))
+           .andExpect(jsonPath("$.code").value("DB_ERROR"))
+           .andExpect(jsonPath("$.message").value("Base de datos remota no disponible."))
+           .andExpect(jsonPath("$.failed").value(1));
+
+        // Token remains valid after a 502 so the user can retry
+        when(jobService.processJob("job-fail")).thenReturn(new JobService.JobResult(1, 0, 0, null));
+        mvc.perform(post("/api/tas/submit")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(Map.of("uploadToken", token))))
+           .andExpect(status().isOk())
+           .andExpect(jsonPath("$.jobId").value("job-fail"));
     }
 
     @Test
@@ -636,6 +681,7 @@ class TasControllerTest {
            .andExpect(status().isOk());
 
         when(jobService.createJob(any())).thenReturn("job-456");
+        when(jobService.processJob("job-456")).thenReturn(new JobService.JobResult(1, 0, 0, null));
 
         mvc.perform(post("/api/tas/submit")
                 .contentType(MediaType.APPLICATION_JSON)

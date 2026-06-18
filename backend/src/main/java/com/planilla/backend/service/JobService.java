@@ -4,7 +4,6 @@ import com.planilla.backend.model.EmployeeRow;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
@@ -34,15 +33,19 @@ public class JobService {
         return jobId;
     }
 
-    @Async("jobExecutor")
-    public void processJob(String jobId) {
+    public record JobResult(int submitted, int skipped, int failed, String error) {
+        public boolean hasFailures() { return failed > 0; }
+    }
+
+    public JobResult processJob(String jobId) {
         JobState job = jobs.get(jobId);
-        if (job == null) return;
+        if (job == null) return new JobResult(0, 0, 0, null);
 
         job.status.set("IN_PROGRESS");
         log.info("Job {} started — {} rows, attempt {}/{}", jobId, job.totalRows(), job.attemptNumber, job.maxRetries);
 
         boolean dbUnreachable = false;
+        String firstError = null;
 
         for (JobRowState rowState : job.rows) {
             if (dbUnreachable) {
@@ -64,9 +67,11 @@ public class JobService {
                 if (isConnectionError(e)) {
                     dbUnreachable = true;
                     rowState.error = "Base de datos remota no disponible.";
+                    if (firstError == null) firstError = "Base de datos remota no disponible.";
                     log.warn("Job {} — PostgreSQL no disponible, se omiten las filas restantes: {}", jobId, e.getMessage());
                 } else {
                     rowState.error = "Error al procesar el registro.";
+                    if (firstError == null) firstError = "Error al procesar el registro.";
                     log.error("Job {} — error en fila {}: {}", jobId, rowState.row.getCodigoEmpleado(), e.getMessage());
                 }
                 rowState.setStatus("FAILED");
@@ -77,6 +82,8 @@ public class JobService {
         job.status.set(finalStatus);
         log.info("Job {} finished — status={} submitted={} skipped={} failed={}",
             jobId, finalStatus, job.submitted(), job.skipped(), job.failed());
+
+        return new JobResult(job.submitted(), job.skipped(), job.failed(), firstError);
     }
 
     static boolean isConnectionError(Exception e) {
