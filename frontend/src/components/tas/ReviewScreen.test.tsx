@@ -304,15 +304,21 @@ describe('ReviewScreen overtime override', () => {
     expect(inputs[0]).toHaveValue(10);
   });
 
-  it('applies visual indicator class when value is overridden', () => {
+  it('applies visual indicator when value is overridden', () => {
     useTasStore.getState().setOvertimeOverride('E1', 'horasExtrasSimples', 10);
     render(<ReviewScreen />);
     const inputs = screen.getAllByRole('spinbutton');
-    expect(inputs[0]).toHaveClass('text-blue-600');
-    expect(inputs[1]).not.toHaveClass('text-blue-600');
+    expect(inputs[0]).toHaveClass('bg-amber-50');
+    expect(inputs[1]).not.toHaveClass('bg-amber-50');
   });
 
-  it('overrides persist after accruesOvertime recompute', async () => {
+  it('shows original computed value below overridden input', () => {
+    useTasStore.getState().setOvertimeOverride('E1', 'horasExtrasSimples', 10);
+    render(<ReviewScreen />);
+    expect(screen.getByText('era 2')).toBeInTheDocument();
+  });
+
+  it('stashes overrides when toggling accruesOvertime off', async () => {
     useTasStore.getState().setOvertimeOverride('E1', 'horasExtrasSimples', 10);
     mockUpdateAccruesOvertime.mockResolvedValue({
       id: 'E1', code: 'E1', name: 'Ana López', shiftId: null, shiftName: null, active: true, accruesOvertime: false,
@@ -327,11 +333,43 @@ describe('ReviewScreen overtime override', () => {
     fireEvent.click(screen.getAllByRole('switch')[0]);
 
     await waitFor(() => expect(useTasStore.getState().resolvedRows).toEqual(newRows));
-    expect(useTasStore.getState().overtimeOverrides).toEqual({
+    expect(useTasStore.getState().overtimeOverrides.E1).toBeUndefined();
+    expect(useTasStore.getState().stashedOvertimeOverrides).toEqual({
       E1: { horasExtrasSimples: 10 },
     });
-    const inputs = screen.getAllByRole('spinbutton');
-    expect(inputs[0]).toHaveValue(10);
+  });
+
+  it('restores overrides when toggling accruesOvertime back on', async () => {
+    useTasStore.getState().setOvertimeOverride('E1', 'horasExtrasSimples', 10);
+    // Toggle OFF first
+    mockUpdateAccruesOvertime.mockResolvedValue({
+      id: 'E1', code: 'E1', name: 'Ana López', shiftId: null, shiftName: null, active: true, accruesOvertime: false,
+    });
+    const offRows: ResolvedRow[] = [
+      { ...rows[0], accruesOvertime: false, horasExtrasSimples: 0, horasExtrasDobles: 0 },
+      rows[1],
+    ];
+    mockRecomputeTas.mockResolvedValue({ uploadToken: 'tok-1', resolvedRows: offRows });
+
+    const { unmount } = render(<ReviewScreen />);
+    fireEvent.click(screen.getAllByRole('switch')[0]);
+    await waitFor(() => expect(useTasStore.getState().stashedOvertimeOverrides.E1).toBeDefined());
+    unmount();
+
+    // Toggle ON
+    mockUpdateAccruesOvertime.mockResolvedValue({
+      id: 'E1', code: 'E1', name: 'Ana López', shiftId: null, shiftName: null, active: true, accruesOvertime: true,
+    });
+    mockRecomputeTas.mockResolvedValue({ uploadToken: 'tok-1', resolvedRows: rows });
+    useTasStore.getState().setResolvedRows(offRows);
+
+    render(<ReviewScreen />);
+    fireEvent.click(screen.getAllByRole('switch')[0]);
+
+    await waitFor(() => expect(useTasStore.getState().overtimeOverrides).toEqual({
+      E1: { horasExtrasSimples: 10 },
+    }));
+    expect(useTasStore.getState().stashedOvertimeOverrides.E1).toBeUndefined();
   });
 
   it('rejects negative values by clamping to 0', () => {

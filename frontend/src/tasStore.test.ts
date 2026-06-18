@@ -449,6 +449,42 @@ describe('overtimeOverrides', () => {
     useTasStore.getState().resetTas();
     expect(useTasStore.getState().overtimeOverrides).toEqual({});
   });
+
+  it('stashOvertimeOverrides moves overrides to stash', () => {
+    useTasStore.getState().setOvertimeOverride('E1', 'horasExtrasSimples', 5);
+    useTasStore.getState().stashOvertimeOverrides('E1');
+    expect(useTasStore.getState().overtimeOverrides.E1).toBeUndefined();
+    expect(useTasStore.getState().stashedOvertimeOverrides).toEqual({
+      E1: { horasExtrasSimples: 5 },
+    });
+  });
+
+  it('stashOvertimeOverrides is a no-op when employee has no overrides', () => {
+    useTasStore.getState().stashOvertimeOverrides('E1');
+    expect(useTasStore.getState().stashedOvertimeOverrides).toEqual({});
+  });
+
+  it('restoreOvertimeOverrides moves stashed back to active', () => {
+    useTasStore.getState().setOvertimeOverride('E1', 'horasExtrasSimples', 5);
+    useTasStore.getState().stashOvertimeOverrides('E1');
+    useTasStore.getState().restoreOvertimeOverrides('E1');
+    expect(useTasStore.getState().overtimeOverrides).toEqual({
+      E1: { horasExtrasSimples: 5 },
+    });
+    expect(useTasStore.getState().stashedOvertimeOverrides.E1).toBeUndefined();
+  });
+
+  it('restoreOvertimeOverrides is a no-op when nothing stashed', () => {
+    useTasStore.getState().restoreOvertimeOverrides('E1');
+    expect(useTasStore.getState().overtimeOverrides).toEqual({});
+  });
+
+  it('resetTas clears stashedOvertimeOverrides', () => {
+    useTasStore.getState().setOvertimeOverride('E1', 'horasExtrasSimples', 5);
+    useTasStore.getState().stashOvertimeOverrides('E1');
+    useTasStore.getState().resetTas();
+    expect(useTasStore.getState().stashedOvertimeOverrides).toEqual({});
+  });
 });
 
 // -----------------------------------------------------------------
