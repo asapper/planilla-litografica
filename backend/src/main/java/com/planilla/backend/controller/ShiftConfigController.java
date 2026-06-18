@@ -60,7 +60,10 @@ public class ShiftConfigController {
             }
             return ResponseEntity.ok(updated);
         } catch (IllegalArgumentException e) {
-            return ResponseEntity.status(404).body(error(404, e.getMessage(), "Shift not found"));
+            if ("SHIFT_NOT_FOUND".equals(e.getMessage())) {
+                return ResponseEntity.status(404).body(error(404, e.getMessage(), "Shift not found"));
+            }
+            return ResponseEntity.badRequest().body(error(400, "UPDATE_FAILED", e.getMessage()));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(error(400, "UPDATE_FAILED", e.getMessage()));
         }

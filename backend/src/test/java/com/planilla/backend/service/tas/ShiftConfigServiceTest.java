@@ -95,6 +95,24 @@ class ShiftConfigServiceTest {
     }
 
     @Test
+    void createShift_throwsWhenNameIsNull() {
+        assertThatThrownBy(() -> service.createShift(null, "07:00", "15:00", false, 60, 10))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessage("NAME_REQUIRED");
+
+        verify(jdbc, never()).update(anyString(), any(), any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void createShift_throwsWhenNameIsBlank() {
+        assertThatThrownBy(() -> service.createShift("   ", "07:00", "15:00", false, 60, 10))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessage("NAME_REQUIRED");
+
+        verify(jdbc, never()).update(anyString(), any(), any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
     void updateShift_successReturnsUpdatedDto() {
         when(jdbc.update(anyString(), any(), any(), any(), any(), any(), any(), any())).thenReturn(1);
         Map<String, Object> row = new java.util.HashMap<>();
@@ -111,6 +129,24 @@ class ShiftConfigServiceTest {
 
         assertThat(updated.get("id")).isEqualTo("tarde");
         assertThat(updated.get("startTime")).isEqualTo("15:00");
+    }
+
+    @Test
+    void updateShift_throwsWhenNameIsNull() {
+        assertThatThrownBy(() -> service.updateShift("tarde", null, "15:00", "23:00", false, 60, 10))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessage("NAME_REQUIRED");
+
+        verify(jdbc, never()).update(anyString(), any(), any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void updateShift_throwsWhenNameIsBlank() {
+        assertThatThrownBy(() -> service.updateShift("tarde", "  ", "15:00", "23:00", false, 60, 10))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessage("NAME_REQUIRED");
+
+        verify(jdbc, never()).update(anyString(), any(), any(), any(), any(), any(), any(), any());
     }
 
     @Test
