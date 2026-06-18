@@ -27,6 +27,7 @@ interface TasStore {
   jobId: string | null;
   error: string | null;
   sessionSummaries: Record<string, SessionSummary[]>;
+  overtimeOverrides: Record<string, { horasExtrasSimples?: number; horasExtrasDobles?: number }>;
 
   setWarnings: (warnings: string[]) => void;
   setTasView: (view: TasView) => void;
@@ -51,6 +52,8 @@ interface TasStore {
   setJobId: (id: string | null) => void;
   setError: (msg: string | null) => void;
   setSessionSummaries: (summaries: Record<string, SessionSummary[]>) => void;
+  setOvertimeOverride: (codigoEmpleado: string, field: 'horasExtrasSimples' | 'horasExtrasDobles', value: number) => void;
+  clearOvertimeOverrides: () => void;
   resetTas: () => void;
 }
 
@@ -76,6 +79,7 @@ const initialState = {
   jobId: null,
   error: null,
   sessionSummaries: {} as Record<string, SessionSummary[]>,
+  overtimeOverrides: {} as Record<string, { horasExtrasSimples?: number; horasExtrasDobles?: number }>,
 };
 
 export const useTasStore = create<TasStore>(set => ({
@@ -121,5 +125,12 @@ export const useTasStore = create<TasStore>(set => ({
   setJobId: (id) => set({ jobId: id }),
   setError: (msg) => set({ error: msg }),
   setSessionSummaries: (summaries) => set({ sessionSummaries: summaries }),
+  setOvertimeOverride: (codigoEmpleado, field, value) => set(s => ({
+    overtimeOverrides: {
+      ...s.overtimeOverrides,
+      [codigoEmpleado]: { ...s.overtimeOverrides[codigoEmpleado], [field]: value },
+    },
+  })),
+  clearOvertimeOverrides: () => set({ overtimeOverrides: {} }),
   resetTas: () => set({ ...initialState }),
 }));
