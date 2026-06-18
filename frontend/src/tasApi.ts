@@ -38,8 +38,11 @@ export const resolveVerification = (
   return client.post<TasResolveResult>('/tas/resolve', body).then(r => r.data);
 };
 
-export const submitTas = (token: string): Promise<{ jobId: string }> =>
-  client.post<{ jobId: string }>('/tas/submit', { uploadToken: token }).then(r => r.data);
+export const submitTas = (
+  token: string,
+  overtimeOverrides: Record<string, { horasExtrasSimples?: number; horasExtrasDobles?: number }>,
+): Promise<{ jobId: string }> =>
+  client.post<{ jobId: string }>('/tas/submit', { uploadToken: token, overtimeOverrides }).then(r => r.data);
 
 export const getAbsentReview = (token: string): Promise<{ absentEmployees: AbsentEmployee[] }> =>
   client.get<{ absentEmployees: AbsentEmployee[] }>(`/tas/absent-review/${token}`).then(r => r.data);

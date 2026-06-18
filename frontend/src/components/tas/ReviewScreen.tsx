@@ -91,7 +91,7 @@ export default function ReviewScreen() {
     setError(null);
     try {
       setTasView('submitting');
-      const { jobId } = await submitTas(uploadToken);
+      const { jobId } = await submitTas(uploadToken, overtimeOverrides);
       setJobId(jobId);
       setTasView('result');
     } catch (err) {

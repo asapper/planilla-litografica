@@ -90,7 +90,7 @@ describe('ReviewScreen submit', () => {
     fireEvent.click(screen.getByRole('button', { name: /enviar/i }));
 
     await waitFor(() => expect(useTasStore.getState().tasView).toBe('result'));
-    expect(mockSubmitTas).toHaveBeenCalledWith('tok-1');
+    expect(mockSubmitTas).toHaveBeenCalledWith('tok-1', {});
     expect(useTasStore.getState().jobId).toBe('job-final');
   });
 
@@ -114,6 +114,22 @@ describe('ReviewScreen submit', () => {
 
     expect(mockSubmitTas).not.toHaveBeenCalled();
     expect(useTasStore.getState().tasView).toBe('idle');
+  });
+});
+
+describe('ReviewScreen overtime override', () => {
+  it('sends overrides in submit payload', async () => {
+    useTasStore.getState().setUploadToken('tok-1');
+    useTasStore.getState().setResolvedRows(rows);
+    useTasStore.getState().setOvertimeOverride('E1', 'horasExtrasSimples', 10);
+    mockSubmitTas.mockResolvedValue({ jobId: 'job-override' });
+
+    render(<ReviewScreen />);
+    fireEvent.click(screen.getByRole('button', { name: /enviar/i }));
+
+    await waitFor(() => expect(mockSubmitTas).toHaveBeenCalledWith('tok-1', {
+      E1: { horasExtrasSimples: 10 },
+    }));
   });
 });
 
