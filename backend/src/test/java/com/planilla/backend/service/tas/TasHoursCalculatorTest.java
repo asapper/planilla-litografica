@@ -358,7 +358,7 @@ class TasHoursCalculatorTest {
             LocalDateTime.of(2026, 3, 10, 19, 0)
         );
         s.setMatchedShiftId(null);
-        s.setFlags(new ArrayList<>(List.of(TasFlag.AMBIGUOUS_SHIFT)));
+        s.setFlags(new ArrayList<>(List.of(TasFlag.BEST_FIT_SHIFT)));
 
         calculator.calculate(List.of(s), REPORT_START, REPORT_END);
 
@@ -379,7 +379,7 @@ class TasHoursCalculatorTest {
         LocalDate date = LocalDate.of(2026, 3, 10);
         TasSession s = session(date, LocalDateTime.of(2026, 3, 10, 9, 7));
         s.setMatchedShiftId(null);
-        s.setFlags(new ArrayList<>(List.of(TasFlag.AMBIGUOUS_SHIFT)));
+        s.setFlags(new ArrayList<>(List.of(TasFlag.BEST_FIT_SHIFT)));
 
         calculator.calculate(List.of(s), REPORT_START, REPORT_END);
 
@@ -398,7 +398,7 @@ class TasHoursCalculatorTest {
             LocalDateTime.of(2026, 3, 10, 19, 0)
         );
         s.setMatchedShiftId(null);
-        s.setFlags(new ArrayList<>(List.of(TasFlag.AMBIGUOUS_SHIFT, TasFlag.SAME_DAY_DOUBLE)));
+        s.setFlags(new ArrayList<>(List.of(TasFlag.BEST_FIT_SHIFT, TasFlag.SAME_DAY_DOUBLE)));
 
         calculator.calculate(List.of(s), REPORT_START, REPORT_END);
 

@@ -237,7 +237,7 @@ class TasReportBuilderTest {
 
         TasSession ambiguous = resolvedSession("100", LocalDate.of(2026, 3, 5), 480, 0);
         ambiguous.setMatchedShiftId(null);
-        ambiguous.setFlags(new ArrayList<>(List.of(TasFlag.AMBIGUOUS_SHIFT)));
+        ambiguous.setFlags(new ArrayList<>(List.of(TasFlag.BEST_FIT_SHIFT)));
 
         TasSession normal = resolvedSession("100", LocalDate.of(2026, 3, 6), 480, 0);
 

@@ -95,7 +95,7 @@ class TasAmbiguousShiftPipelineTest {
 
         List<TasSession> sessions = grouper.group(scans, shifts, assignments);
         assertThat(sessions).hasSize(2);
-        assertThat(sessions).allSatisfy(s -> assertThat(s.getFlags()).contains(TasFlag.AMBIGUOUS_SHIFT));
+        assertThat(sessions).allSatisfy(s -> assertThat(s.getFlags()).contains(TasFlag.BEST_FIT_SHIFT));
 
         LocalDate reportStart = LocalDate.of(2026, 4, 16);
         LocalDate reportEnd   = LocalDate.of(2026, 5, 15);

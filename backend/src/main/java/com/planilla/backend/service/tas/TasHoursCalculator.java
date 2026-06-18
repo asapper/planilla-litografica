@@ -41,7 +41,7 @@ public class TasHoursCalculator {
 
             boolean hasBlockingFlags = session.getFlags() != null
                     && session.getFlags().stream().anyMatch(
-                            f -> f != TasFlag.AMBIGUOUS_SHIFT && f != TasFlag.SHORT_DAY);
+                            f -> f != TasFlag.BEST_FIT_SHIFT && f != TasFlag.SHORT_DAY);
             session.setNeedsResolution(hasBlockingFlags);
 
             if (!hasBlockingFlags) {

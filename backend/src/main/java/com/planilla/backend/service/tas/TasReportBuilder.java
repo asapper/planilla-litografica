@@ -64,7 +64,7 @@ public class TasReportBuilder {
                 minutes[1] += session.getDoblesMinutes();
             }
 
-            if (session.getFlags() != null && session.getFlags().contains(TasFlag.AMBIGUOUS_SHIFT)) {
+            if (session.getFlags() != null && session.getFlags().contains(TasFlag.BEST_FIT_SHIFT)) {
                 ambiguousDaysByEmpPeriod
                         .computeIfAbsent(empId, k -> new LinkedHashMap<>())
                         .computeIfAbsent(period, k -> new HashSet<>())
