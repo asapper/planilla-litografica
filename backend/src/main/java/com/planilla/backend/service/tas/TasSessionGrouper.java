@@ -357,21 +357,21 @@ public class TasSessionGrouper {
             if (daySessions.size() < 2) continue;
 
             Set<String> matchedShiftIds = new HashSet<>();
-            boolean hasAmbiguous = false;
+            boolean hasBestFit = false;
             for (TasSession s : daySessions) {
                 if (s.getFlags().contains(TasFlag.BEST_FIT_SHIFT)) {
-                    hasAmbiguous = true;
+                    hasBestFit = true;
                 } else {
                     matchedShiftIds.add(s.getMatchedShiftId());
                 }
             }
 
-            // A "double" requires evidence of two distinct shifts: either two sessions
-            // matched different shift configs, or an ambiguous session alongside one
-            // that did match a shift. Two ambiguous sessions alone (matchedShiftId ==
-            // null for both) can't be distinguished from a single shift that got split,
-            // so they're not flagged.
-            boolean isDouble = matchedShiftIds.size() >= 2 || (hasAmbiguous && !matchedShiftIds.isEmpty());
+            // A "double" requires evidence of two distinct shifts: either two
+            // sessions matched different shift configs, or a best-fit session
+            // alongside one that matched via detection window. Two best-fit
+            // sessions that happen to pick the same closest shift can't be
+            // distinguished from a single shift that got split.
+            boolean isDouble = matchedShiftIds.size() >= 2 || (hasBestFit && !matchedShiftIds.isEmpty());
             if (!isDouble) continue;
 
             for (TasSession s : daySessions) {
