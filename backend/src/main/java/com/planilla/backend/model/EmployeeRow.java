@@ -10,7 +10,7 @@ public class EmployeeRow {
     private int mes;
     private int anio;
     private Integer numeroDequincena; // set by user after upload
-    private int diasTurnoAmbiguo;
+    private int diasTurnoEstimado;
     private boolean accruesOvertime = true;
 
     public EmployeeRow() {}
@@ -39,8 +39,8 @@ public class EmployeeRow {
     public Integer getNumeroDequincena() { return numeroDequincena; }
     public void setNumeroDequincena(Integer numeroDequincena) { this.numeroDequincena = numeroDequincena; }
 
-    public int getDiasTurnoAmbiguo() { return diasTurnoAmbiguo; }
-    public void setDiasTurnoAmbiguo(int diasTurnoAmbiguo) { this.diasTurnoAmbiguo = diasTurnoAmbiguo; }
+    public int getDiasTurnoEstimado() { return diasTurnoEstimado; }
+    public void setDiasTurnoEstimado(int diasTurnoEstimado) { this.diasTurnoEstimado = diasTurnoEstimado; }
 
     public boolean isAccruesOvertime() { return accruesOvertime; }
     public void setAccruesOvertime(boolean accruesOvertime) { this.accruesOvertime = accruesOvertime; }

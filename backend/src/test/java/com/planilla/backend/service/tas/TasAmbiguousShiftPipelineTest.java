@@ -109,6 +109,6 @@ class TasAmbiguousShiftPipelineTest {
         assertThat(result.rows).isNotEmpty();
         EmployeeRow row = result.rows.get(0);
         assertThat(row.getCodigoEmpleado()).isEqualTo("134");
-        assertThat(row.getDiasTurnoAmbiguo()).isGreaterThan(0);
+        assertThat(row.getDiasTurnoEstimado()).isGreaterThan(0);
     }
 }
