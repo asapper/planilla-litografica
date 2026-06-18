@@ -102,6 +102,21 @@ class ShiftConfigControllerTest {
     }
 
     @Test
+    void create_returns400WhenNameIsNull() throws Exception {
+        doThrow(new IllegalArgumentException("NAME_REQUIRED")).when(shiftConfigService)
+            .createShift(isNull(), any(), any(), anyBoolean(), any(), any());
+
+        Map<String, Object> body = Map.of("startTime", "07:00", "endTime", "15:00");
+
+        mvc.perform(post("/api/config/shifts")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(body)))
+           .andExpect(status().isBadRequest())
+           .andExpect(jsonPath("$.code").value("CREATE_FAILED"))
+           .andExpect(jsonPath("$.message").value("NAME_REQUIRED"));
+    }
+
+    @Test
     void create_returns500WhenServiceReturnsNull() throws Exception {
         when(shiftConfigService.createShift(any(), any(), any(), anyBoolean(), any(), any())).thenReturn(null);
 

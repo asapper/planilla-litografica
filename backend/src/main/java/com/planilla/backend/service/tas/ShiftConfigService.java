@@ -45,6 +45,9 @@ public class ShiftConfigService {
 
     public Map<String, Object> createShift(String name, String startTime, String endTime, boolean crossMidnight,
                                              Integer detectionBeforeMinutes, Integer detectionAfterMinutes) {
+        if (name == null || name.isBlank()) {
+            throw new IllegalArgumentException("NAME_REQUIRED");
+        }
         String id = generateShiftId(name);
         int before = detectionBeforeMinutes != null ? detectionBeforeMinutes : 60;
         int after = detectionAfterMinutes != null ? detectionAfterMinutes : 10;
