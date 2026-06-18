@@ -114,4 +114,61 @@ class TasBestFitShiftPipelineTest {
         assertThat(row.getCodigoEmpleado()).isEqualTo("134");
         assertThat(row.getDiasTurnoEstimado()).isGreaterThan(0);
     }
+
+    @Test
+    void employee134_singleScanDays_correctMissingEntryVsExitFlags() {
+        String name = "Morales Cifuentes Roberto Daniel";
+        List<TasScanRecord> scans = List.of(
+            scan("134", name, LocalDateTime.of(2026, 4, 1, 19, 20)),
+            scan("134", name, LocalDateTime.of(2026, 4, 9, 8, 58)),
+            scan("134", name, LocalDateTime.of(2026, 4, 11, 17, 15)),
+            scan("134", name, LocalDateTime.of(2026, 4, 14, 21, 42)),
+            scan("134", name, LocalDateTime.of(2026, 4, 21, 8, 52)),
+            scan("134", name, LocalDateTime.of(2026, 4, 27, 21, 4))
+        );
+
+        Map<String, String> assignments = Map.of("134", "manana");
+
+        List<TasSession> sessions = grouper.group(scans, shifts, assignments);
+        LocalDate reportStart = LocalDate.of(2026, 4, 1);
+        LocalDate reportEnd   = LocalDate.of(2026, 4, 30);
+        calculator.calculate(sessions, reportStart, reportEnd);
+
+        List<TasSession> flagged = sessions.stream()
+                .filter(TasSession::isNeedsResolution)
+                .toList();
+
+        for (TasSession s : flagged) {
+            System.out.printf("Date=%s flags=%s matched=%s assigned=%s effectiveStart=%s lastScan=%s%n",
+                    s.getDate(), s.getFlags(), s.getMatchedShiftId(), s.getAssignedShiftId(),
+                    s.getEffectiveStart(), s.getLastScan());
+        }
+
+        assertThat(flagged).hasSize(6);
+
+        TasSession apr01 = findByDate(flagged, LocalDate.of(2026, 4, 1));
+        assertThat(apr01.getFlags()).contains(TasFlag.MISSING_ENTRY);
+
+        TasSession apr09 = findByDate(flagged, LocalDate.of(2026, 4, 9));
+        assertThat(apr09.getFlags()).contains(TasFlag.MISSING_EXIT);
+
+        TasSession apr11 = findByDate(flagged, LocalDate.of(2026, 4, 11));
+        assertThat(apr11.getFlags()).contains(TasFlag.MISSING_ENTRY);
+
+        TasSession apr14 = findByDate(flagged, LocalDate.of(2026, 4, 14));
+        assertThat(apr14.getFlags()).contains(TasFlag.MISSING_ENTRY);
+
+        TasSession apr21 = findByDate(flagged, LocalDate.of(2026, 4, 21));
+        assertThat(apr21.getFlags()).contains(TasFlag.MISSING_EXIT);
+
+        TasSession apr27 = findByDate(flagged, LocalDate.of(2026, 4, 27));
+        assertThat(apr27.getFlags()).contains(TasFlag.MISSING_ENTRY);
+    }
+
+    private TasSession findByDate(List<TasSession> sessions, LocalDate date) {
+        return sessions.stream()
+                .filter(s -> s.getDate().equals(date))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("No session for " + date));
+    }
 }
