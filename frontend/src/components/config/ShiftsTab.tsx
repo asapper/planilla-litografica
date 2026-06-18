@@ -18,8 +18,6 @@ interface RowProps {
 }
 
 function ShiftRow({ shift, onUpdate, onDetectionChange, onDelete, deleteError }: RowProps) {
-  const cross = isCrossMidnight(shift.startTime, shift.endTime);
-
   return (
     <>
       <tr className="border-b border-gray-200 hover:bg-gray-50">
@@ -48,15 +46,6 @@ function ShiftRow({ shift, onUpdate, onDetectionChange, onDelete, deleteError }:
             onChange={e => onUpdate(shift.id, 'endTime', e.target.value)}
             aria-label="Hora de fin"
           />
-        </td>
-        <td className="px-4 py-2 text-center">
-          {cross && (
-            <span title="Turno de madrugada" aria-label="Turno de madrugada">
-              <svg className="w-4 h-4 inline text-gray-500" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M21.64 13a1 1 0 00-1.05-.14 8.05 8.05 0 01-3.37.73 8.15 8.15 0 01-8.14-8.1 8.59 8.59 0 01.25-2A1 1 0 008 2.36a10.14 10.14 0 1014 11.69 1 1 0 00-.36-.97z"/>
-              </svg>
-            </span>
-          )}
         </td>
         <td className="px-4 py-2">
           <input
@@ -98,7 +87,7 @@ function ShiftRow({ shift, onUpdate, onDetectionChange, onDelete, deleteError }:
       </tr>
       {deleteError && (
         <tr>
-          <td colSpan={7} className="px-4 py-1">
+          <td colSpan={6} className="px-4 py-1">
             <p className="text-sm text-red-600 bg-red-50 rounded px-2 py-1">{deleteError}</p>
           </td>
         </tr>
@@ -119,7 +108,6 @@ function AddShiftRow({ onAdd }: AddRowProps) {
   const [detectionAfterMinutes, setDetectionAfterMinutes] = useState(10);
 
   const canAdd = name.trim() !== '' && startTime !== '' && endTime !== '';
-  const cross = isCrossMidnight(startTime, endTime);
 
   const handleAdd = () => {
     if (!canAdd) return;
@@ -159,15 +147,6 @@ function AddShiftRow({ onAdd }: AddRowProps) {
           onChange={e => setEndTime(e.target.value)}
           aria-label="Hora de fin del nuevo turno"
         />
-      </td>
-      <td className="px-4 py-2 text-center">
-        {cross && (
-          <span title="Turno de madrugada" aria-label="Turno de madrugada (nuevo)">
-            <svg className="w-4 h-4 inline text-gray-500" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M21.64 13a1 1 0 00-1.05-.14 8.05 8.05 0 01-3.37.73 8.15 8.15 0 01-8.14-8.1 8.59 8.59 0 01.25-2A1 1 0 008 2.36a10.14 10.14 0 1014 11.69 1 1 0 00-.36-.97z"/>
-            </svg>
-          </span>
-        )}
       </td>
       <td className="px-4 py-2">
         <input
@@ -341,7 +320,6 @@ export default function ShiftsTab() {
               <th className="px-4 py-2 font-medium text-gray-700">Nombre</th>
               <th className="px-4 py-2 font-medium text-gray-700">Inicio (HH:MM)</th>
               <th className="px-4 py-2 font-medium text-gray-700">Fin (HH:MM)</th>
-              <th className="px-4 py-2 font-medium text-gray-700 text-center w-12"></th>
               <th className="px-4 py-2 font-medium text-gray-700">Detección antes (min)</th>
               <th className="px-4 py-2 font-medium text-gray-700">Detección después (min)</th>
               <th className="px-4 py-2 font-medium text-gray-700 text-center w-32"></th>

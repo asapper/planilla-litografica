@@ -72,17 +72,6 @@ describe('ShiftsTab table', () => {
     await waitFor(() => expect(screen.getByDisplayValue('17:00')).toBeInTheDocument());
   });
 
-  it('shows moon icon for cross-midnight shift', async () => {
-    mockGetShifts.mockResolvedValue([shift2]);
-    render(<ShiftsTab />);
-    await waitFor(() => expect(screen.getByLabelText('Turno de madrugada')).toBeInTheDocument());
-  });
-
-  it('does not show moon icon for normal shift', async () => {
-    render(<ShiftsTab />);
-    await waitFor(() => expect(screen.queryByLabelText('Turno de madrugada')).not.toBeInTheDocument());
-  });
-
   it('shows detection window inputs with shift values', async () => {
     render(<ShiftsTab />);
     await waitFor(() => screen.getByDisplayValue('Diurno'));
@@ -103,11 +92,11 @@ describe('ShiftsTab inline editing', () => {
     expect(useConfigStore.getState().shifts.dirty).toBe(true);
   });
 
-  it('editing end time to before start auto-derives cross midnight', async () => {
+  it('editing end time to before start marks tab as dirty', async () => {
     render(<ShiftsTab />);
     await waitFor(() => screen.getByDisplayValue('17:00'));
     fireEvent.change(screen.getByLabelText('Hora de fin'), { target: { value: '06:00' } });
-    await waitFor(() => expect(screen.getByLabelText('Turno de madrugada')).toBeInTheDocument());
+    expect(useConfigStore.getState().shifts.dirty).toBe(true);
   });
 
   it('marks tab as dirty when detection before minutes is edited', async () => {
@@ -343,16 +332,6 @@ describe('ShiftsTab add shift', () => {
     fireEvent.click(screen.getByRole('button', { name: /\+ agregar turno/i }));
 
     await waitFor(() => expect(screen.getByDisplayValue('Tarde')).toBeInTheDocument());
-  });
-
-  it('detects cross-midnight in the add form preview', async () => {
-    render(<ShiftsTab />);
-    await waitFor(() => screen.getByDisplayValue('Diurno'));
-
-    fireEvent.change(screen.getByLabelText(/hora de inicio del nuevo turno/i), { target: { value: '22:00' } });
-    fireEvent.change(screen.getByLabelText(/hora de fin del nuevo turno/i), { target: { value: '06:00' } });
-
-    expect(screen.getByLabelText('Turno de madrugada (nuevo)')).toBeInTheDocument();
   });
 
   it('shows error when createShift fails', async () => {
