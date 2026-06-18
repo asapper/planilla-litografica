@@ -122,7 +122,7 @@ public class TasHoursCalculator {
             if (!hasShiftMismatch && scans.size() % 2 == 0) {
                 addFlag(session, TasFlag.SHORT_DAY);
             } else if (scans.size() % 2 != 0) {
-                addFlag(session, TasFlag.MISSING_EXIT);
+                addFlag(session, detectMissingScanType(session, shifts));
             }
             // even scans + SHIFT_MISMATCH: exit exists but threshold based on wrong shift — emit nothing
         }
@@ -132,15 +132,16 @@ public class TasHoursCalculator {
         List<LocalDateTime> scans = session.getScans();
         if (scans == null || scans.isEmpty() || scans.size() % 2 == 0) return;
 
+        addFlag(session, detectMissingScanType(session, shifts));
+    }
+
+    private TasFlag detectMissingScanType(TasSession session, List<Map<String, Object>> shifts) {
         Map<String, Object> assignedShift = findShiftById(shifts, session.getAssignedShiftId());
-        if (assignedShift == null) {
-            addFlag(session, TasFlag.MISSING_EXIT);
-            return;
-        }
+        if (assignedShift == null) return TasFlag.MISSING_EXIT;
 
         LocalTime shiftStart = parseTime(assignedShift.get("startTime"));
         LocalTime shiftEnd   = parseTime(assignedShift.get("endTime"));
-        LocalTime scanTime   = scans.get(0).toLocalTime();
+        LocalTime scanTime   = session.getScans().get(0).toLocalTime();
 
         int scanMin  = scanTime.getHour()   * 60 + scanTime.getMinute();
         int startMin = shiftStart.getHour() * 60 + shiftStart.getMinute();
@@ -149,11 +150,7 @@ public class TasHoursCalculator {
         int distToStart = Math.min(Math.abs(scanMin - startMin), 1440 - Math.abs(scanMin - startMin));
         int distToEnd   = Math.min(Math.abs(scanMin - endMin),   1440 - Math.abs(scanMin - endMin));
 
-        if (distToStart <= distToEnd) {
-            addFlag(session, TasFlag.MISSING_EXIT);
-        } else {
-            addFlag(session, TasFlag.MISSING_ENTRY);
-        }
+        return distToStart <= distToEnd ? TasFlag.MISSING_EXIT : TasFlag.MISSING_ENTRY;
     }
 
     private void computeWorkedHours(

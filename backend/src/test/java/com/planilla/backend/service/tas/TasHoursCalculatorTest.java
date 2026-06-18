@@ -659,6 +659,34 @@ class TasHoursCalculatorTest {
     }
 
     @Test
+    void calculate_oddScans_shiftMismatch_eveningScan_assignedManana_emitsMissingEntry() {
+        // 04/01 19:20 matched Noche via detection window but employee assigned Mañana.
+        // Single scan is closer to Mañana end (15:00) than start (07:00) → MISSING_ENTRY
+        LocalDate date = LocalDate.of(2026, 4, 1);
+        TasSession s = session(date,
+            LocalDateTime.of(2026, 4, 1, 19, 20)
+        );
+        s.setMatchedShiftId("noche");
+        s.setAssignedShiftId("manana");
+        s.getFlags().add(TasFlag.SHIFT_MISMATCH);
+
+        Map<String, Object> nocheShift = new LinkedHashMap<>();
+        nocheShift.put("id", "noche");
+        nocheShift.put("name", "Noche");
+        nocheShift.put("startTime", "19:00");
+        nocheShift.put("endTime", "07:00");
+        nocheShift.put("crossMidnight", true);
+
+        when(shiftConfigService.getAllShifts()).thenReturn(List.of(mananaShift, nocheShift));
+
+        calculator.calculate(List.of(s), LocalDate.of(2026, 4, 1), LocalDate.of(2026, 4, 15));
+
+        assertThat(s.getFlags()).contains(TasFlag.MISSING_ENTRY);
+        assertThat(s.getFlags()).doesNotContain(TasFlag.MISSING_EXIT);
+        assertThat(s.isNeedsResolution()).isTrue();
+    }
+
+    @Test
     void calculate_crossMidnight_startsFriday_endsSaturday_noSpecialDay_normalSplit() {
         // Friday 2026-03-06 19:00 -> Saturday 2026-03-07 09:00 (noche shift, 14h worked, no break)
         LocalDate friday = LocalDate.of(2026, 3, 6);
