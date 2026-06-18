@@ -387,15 +387,17 @@ class TasHoursCalculatorTest {
     }
 
     @Test
-    void calculate_bestFitShiftSingleScan_doesNotBlockHoursComputation() {
+    void calculate_bestFitShiftSingleScan_detectsMissingExitAndBlocks() {
         LocalDate date = LocalDate.of(2026, 3, 10);
         TasSession s = session(date, LocalDateTime.of(2026, 3, 10, 9, 7));
         s.setMatchedShiftId("manana");
+        s.setAssignedShiftId("manana");
         s.setFlags(new ArrayList<>(List.of(TasFlag.BEST_FIT_SHIFT)));
 
         calculator.calculate(List.of(s), REPORT_START, REPORT_END);
 
-        assertThat(s.isNeedsResolution()).isFalse();
+        assertThat(s.isNeedsResolution()).isTrue();
+        assertThat(s.getFlags()).contains(TasFlag.BEST_FIT_SHIFT, TasFlag.MISSING_EXIT);
         assertThat(s.getWorkedMinutes()).isEqualTo(0);
         assertThat(s.getWorkedHours()).isEqualTo(0.0);
     }
@@ -417,9 +419,9 @@ class TasHoursCalculatorTest {
     }
 
     @Test
-    void calculate_bestFitShift_skipsMissingScanDetection() {
+    void calculate_bestFitShift_evenScans_skipsThresholdBasedMissingScanDetection() {
         // 09:00 entry with Manana (07:00) would normally trigger MISSING_ENTRY
-        // but BEST_FIT_SHIFT sessions should skip this check entirely
+        // but BEST_FIT_SHIFT sessions skip threshold-based checks (even scan count = no missing scan)
         LocalDate date = LocalDate.of(2026, 3, 10);
         TasSession s = session(date,
             LocalDateTime.of(2026, 3, 10, 9, 0),
@@ -432,6 +434,57 @@ class TasHoursCalculatorTest {
 
         assertThat(s.getFlags()).containsExactly(TasFlag.BEST_FIT_SHIFT);
         assertThat(s.isNeedsResolution()).isFalse();
+    }
+
+    @Test
+    void calculate_bestFitShift_singleMorningScan_flagsMissingExit() {
+        // Single scan at 08:58 — closer to Manana start (07:00) than end (15:00)
+        // → it's an entry scan → MISSING_EXIT
+        LocalDate date = LocalDate.of(2026, 3, 10);
+        TasSession s = session(date, LocalDateTime.of(2026, 3, 10, 8, 58));
+        s.setMatchedShiftId("manana");
+        s.setAssignedShiftId("manana");
+        s.setFlags(new ArrayList<>(List.of(TasFlag.BEST_FIT_SHIFT)));
+
+        calculator.calculate(List.of(s), REPORT_START, REPORT_END);
+
+        assertThat(s.getFlags()).contains(TasFlag.BEST_FIT_SHIFT, TasFlag.MISSING_EXIT);
+        assertThat(s.isNeedsResolution()).isTrue();
+    }
+
+    @Test
+    void calculate_bestFitShift_singleEveningScan_flagsMissingEntry() {
+        // Single scan at 19:20 — closer to Manana end (15:00) than start (07:00)
+        // → it's an exit scan → MISSING_ENTRY
+        LocalDate date = LocalDate.of(2026, 3, 10);
+        TasSession s = session(date, LocalDateTime.of(2026, 3, 10, 19, 20));
+        s.setMatchedShiftId("manana");
+        s.setAssignedShiftId("manana");
+        s.setFlags(new ArrayList<>(List.of(TasFlag.BEST_FIT_SHIFT)));
+
+        calculator.calculate(List.of(s), REPORT_START, REPORT_END);
+
+        assertThat(s.getFlags()).contains(TasFlag.BEST_FIT_SHIFT, TasFlag.MISSING_ENTRY);
+        assertThat(s.isNeedsResolution()).isTrue();
+    }
+
+    @Test
+    void calculate_bestFitShift_threeScans_oddCount_flagsMissingExit() {
+        // 3 scans (odd) — first scan at 09:00 closer to Manana start → MISSING_EXIT
+        LocalDate date = LocalDate.of(2026, 3, 10);
+        TasSession s = session(date,
+            LocalDateTime.of(2026, 3, 10, 9, 0),
+            LocalDateTime.of(2026, 3, 10, 12, 0),
+            LocalDateTime.of(2026, 3, 10, 13, 0)
+        );
+        s.setMatchedShiftId("manana");
+        s.setAssignedShiftId("manana");
+        s.setFlags(new ArrayList<>(List.of(TasFlag.BEST_FIT_SHIFT)));
+
+        calculator.calculate(List.of(s), REPORT_START, REPORT_END);
+
+        assertThat(s.getFlags()).contains(TasFlag.BEST_FIT_SHIFT, TasFlag.MISSING_EXIT);
+        assertThat(s.isNeedsResolution()).isTrue();
     }
 
     @Test
