@@ -457,6 +457,126 @@ class TasControllerTest {
            .andExpect(jsonPath("$.sessionSummaries.E1[0].workedHours").value(8.0));
     }
 
+    @Test
+    void resolve_sessionSummariesFilteredByPeriod() throws Exception {
+        TasSession q1Session = new TasSession();
+        q1Session.setSessionId(1);
+        q1Session.setEmployeeId("E1");
+        q1Session.setEmployeeName("Ana");
+        q1Session.setDate(java.time.LocalDate.of(2026, 3, 5));
+        q1Session.setMatchedShiftName("Mañana");
+        q1Session.setEffectiveStart(java.time.LocalDateTime.of(2026, 3, 5, 7, 0));
+        q1Session.setLastScan(java.time.LocalDateTime.of(2026, 3, 5, 15, 0));
+        q1Session.setWorkedHours(8.0);
+        q1Session.setSimplesMinutes(0);
+        q1Session.setDoblesMinutes(0);
+        q1Session.setNeedsResolution(false);
+        q1Session.setFlags(new ArrayList<>());
+
+        TasSession q2Session = new TasSession();
+        q2Session.setSessionId(2);
+        q2Session.setEmployeeId("E1");
+        q2Session.setEmployeeName("Ana");
+        q2Session.setDate(java.time.LocalDate.of(2026, 3, 20));
+        q2Session.setMatchedShiftName("Tarde");
+        q2Session.setEffectiveStart(java.time.LocalDateTime.of(2026, 3, 20, 14, 0));
+        q2Session.setLastScan(java.time.LocalDateTime.of(2026, 3, 20, 22, 0));
+        q2Session.setWorkedHours(8.0);
+        q2Session.setSimplesMinutes(0);
+        q2Session.setDoblesMinutes(0);
+        q2Session.setNeedsResolution(false);
+        q2Session.setFlags(new ArrayList<>());
+
+        TasUploadResult result = emptyResult();
+        result.setAllSessions(List.of(q1Session, q2Session));
+        when(parserService.parse(any())).thenReturn(emptyParseResult());
+        when(uploadService.processScans(any(), any(), any())).thenReturn(result);
+
+        MockMultipartFile file = new MockMultipartFile("file", "test.csv", "text/csv", "data".getBytes());
+        String uploadResponse = mvc.perform(multipart("/api/tas/upload").file(file))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        String token = (String) mapper.readValue(uploadResponse, Map.class).get("uploadToken");
+
+        when(shiftConfigService.getAllShifts()).thenReturn(new ArrayList<>());
+        when(reportBuilder.build(any(), any(), any(), any(), any()))
+                .thenReturn(new TasReportBuilder.BuildResult(new ArrayList<>(), new LinkedHashMap<>()));
+
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("uploadToken", token);
+        body.put("resolutions", List.of());
+        body.put("anio", 2026);
+        body.put("mes", 3);
+        body.put("numeroDequincena", 1);
+
+        mvc.perform(post("/api/tas/resolve")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(body)))
+           .andExpect(status().isOk())
+           .andExpect(jsonPath("$.sessionSummaries.E1").isArray())
+           .andExpect(jsonPath("$.sessionSummaries.E1.length()").value(1))
+           .andExpect(jsonPath("$.sessionSummaries.E1[0].date").value("2026-03-05"))
+           .andExpect(jsonPath("$.sessionSummaries.E1[0].shiftName").value("Mañana"));
+    }
+
+    @Test
+    void recompute_sessionSummariesFilteredByPeriod() throws Exception {
+        TasSession q1Session = new TasSession();
+        q1Session.setSessionId(1);
+        q1Session.setEmployeeId("E1");
+        q1Session.setDate(java.time.LocalDate.of(2026, 3, 10));
+        q1Session.setMatchedShiftName("Mañana");
+        q1Session.setWorkedHours(8.0);
+        q1Session.setSimplesMinutes(0);
+        q1Session.setDoblesMinutes(0);
+        q1Session.setNeedsResolution(false);
+        q1Session.setFlags(new ArrayList<>());
+
+        TasSession q2Session = new TasSession();
+        q2Session.setSessionId(2);
+        q2Session.setEmployeeId("E1");
+        q2Session.setDate(java.time.LocalDate.of(2026, 3, 25));
+        q2Session.setMatchedShiftName("Tarde");
+        q2Session.setWorkedHours(8.0);
+        q2Session.setSimplesMinutes(0);
+        q2Session.setDoblesMinutes(0);
+        q2Session.setNeedsResolution(false);
+        q2Session.setFlags(new ArrayList<>());
+
+        TasUploadResult result = emptyResult();
+        result.setAllSessions(List.of(q1Session, q2Session));
+        when(parserService.parse(any())).thenReturn(emptyParseResult());
+        when(uploadService.processScans(any(), any(), any())).thenReturn(result);
+
+        MockMultipartFile file = new MockMultipartFile("file", "test.csv", "text/csv", "data".getBytes());
+        String uploadResponse = mvc.perform(multipart("/api/tas/upload").file(file))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        String token = (String) mapper.readValue(uploadResponse, Map.class).get("uploadToken");
+
+        when(shiftConfigService.getAllShifts()).thenReturn(new ArrayList<>());
+        when(reportBuilder.build(any(), any(), any(), any(), any()))
+                .thenReturn(new TasReportBuilder.BuildResult(new ArrayList<>(), new LinkedHashMap<>()));
+
+        Map<String, Object> resolveBody = new LinkedHashMap<>();
+        resolveBody.put("uploadToken", token);
+        resolveBody.put("resolutions", List.of());
+        resolveBody.put("anio", 2026);
+        resolveBody.put("mes", 3);
+        resolveBody.put("numeroDequincena", 2);
+        mvc.perform(post("/api/tas/resolve")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(resolveBody)))
+           .andExpect(status().isOk());
+
+        mvc.perform(post("/api/tas/recompute/" + token))
+           .andExpect(status().isOk())
+           .andExpect(jsonPath("$.sessionSummaries.E1").isArray())
+           .andExpect(jsonPath("$.sessionSummaries.E1.length()").value(1))
+           .andExpect(jsonPath("$.sessionSummaries.E1[0].date").value("2026-03-25"))
+           .andExpect(jsonPath("$.sessionSummaries.E1[0].shiftName").value("Tarde"));
+    }
+
     // ── POST /api/tas/submit ──────────────────────────────────────────────────
 
     @Test

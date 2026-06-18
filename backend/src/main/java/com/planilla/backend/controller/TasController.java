@@ -216,7 +216,7 @@ public class TasController {
         resp.put("usedFallbackHolidays", state.isUsedFallbackHolidays());
         resp.put("availablePeriods", reportBuilder.computeAvailablePeriods(sessions));
         resp.put("availableShifts", mapAvailableShifts(shifts));
-        resp.put("sessionSummaries", buildSessionSummaries(sessions));
+        resp.put("sessionSummaries", buildSessionSummaries(sessions, periodFilter));
         return ResponseEntity.ok(resp);
     }
 
@@ -340,7 +340,7 @@ public class TasController {
         Map<String, Object> resp = new LinkedHashMap<>();
         resp.put("uploadToken", uploadToken);
         resp.put("resolvedRows", state.getResolvedRows());
-        resp.put("sessionSummaries", buildSessionSummaries(sessions));
+        resp.put("sessionSummaries", buildSessionSummaries(sessions, state.getResolvedPeriod()));
         return ResponseEntity.ok(resp);
     }
 
@@ -451,13 +451,15 @@ public class TasController {
         return result;
     }
 
-    private Map<String, List<Map<String, Object>>> buildSessionSummaries(List<TasSession> sessions) {
+    private Map<String, List<Map<String, Object>>> buildSessionSummaries(
+            List<TasSession> sessions, TasPeriod periodFilter) {
         if (sessions == null) return Collections.emptyMap();
 
         Map<String, List<Map<String, Object>>> result = new LinkedHashMap<>();
 
         List<TasSession> filtered = sessions.stream()
                 .filter(s -> !s.isNeedsResolution() && s.getDate() != null)
+                .filter(s -> periodFilter == null || TasPeriod.of(s.getDate()).equals(periodFilter))
                 .sorted(Comparator.comparing(TasSession::getDate))
                 .collect(Collectors.toList());
 
@@ -498,7 +500,7 @@ public class TasController {
                 result.getAllSessions() != null ? result.getAllSessions() : Collections.emptyList()));
         body.put("availableShifts", mapAvailableShifts(shiftConfigService.getAllShifts()));
         body.put("sessionSummaries", buildSessionSummaries(
-                result.getAllSessions() != null ? result.getAllSessions() : Collections.emptyList()));
+                result.getAllSessions() != null ? result.getAllSessions() : Collections.emptyList(), null));
         return body;
     }
 }
