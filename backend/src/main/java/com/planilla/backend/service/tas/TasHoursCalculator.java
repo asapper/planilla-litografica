@@ -37,7 +37,12 @@ public class TasHoursCalculator {
 
         for (TasSession session : sessions) {
             detectCutoffFlags(session, reportStart, reportEnd);
-            detectMissingScansFlags(session, shifts, legalBreakAllowance);
+
+            boolean isBestFit = session.getFlags() != null
+                    && session.getFlags().contains(TasFlag.BEST_FIT_SHIFT);
+            if (!isBestFit) {
+                detectMissingScansFlags(session, shifts, legalBreakAllowance);
+            }
 
             boolean hasBlockingFlags = session.getFlags() != null
                     && session.getFlags().stream().anyMatch(
@@ -140,7 +145,9 @@ public class TasHoursCalculator {
         LocalDateTime lastScanDt = scans.get(scans.size() - 1);
 
         LocalDateTime effectiveStart;
-        if (shift != null && shiftStart != null) {
+        boolean isBestFit = session.getFlags() != null
+                && session.getFlags().contains(TasFlag.BEST_FIT_SHIFT);
+        if (!isBestFit && shift != null && shiftStart != null) {
             LocalDateTime expectedStart = LocalDateTime.of(session.getDate(), shiftStart);
             LocalDateTime graceEnd = expectedStart.plusMinutes(GRACE_PERIOD_MINUTES);
             effectiveStart = firstScan.isAfter(graceEnd) ? firstScan : expectedStart;
