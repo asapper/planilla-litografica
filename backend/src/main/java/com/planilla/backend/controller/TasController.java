@@ -250,9 +250,20 @@ public class TasController {
         }
 
         String jobId = jobService.createJob(rows);
-        jobService.processJob(jobId);
+        JobService.JobResult result = jobService.processJob(jobId);
 
         stateStore.remove(token);
+
+        if (result.hasFailures()) {
+            return ResponseEntity.status(502).body(Map.of(
+                "code", "DB_ERROR",
+                "message", result.error() != null ? result.error() : "Error al enviar los registros.",
+                "submitted", result.submitted(),
+                "skipped", result.skipped(),
+                "failed", result.failed()
+            ));
+        }
+
         return ResponseEntity.ok(Map.of("jobId", jobId));
     }
 

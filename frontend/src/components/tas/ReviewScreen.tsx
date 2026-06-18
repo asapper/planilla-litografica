@@ -1,4 +1,5 @@
 import { Fragment, useState } from 'react';
+import axios from 'axios';
 import { useTasStore } from '../../tasStore';
 import { submitTas, recomputeTas } from '../../tasApi';
 import { updateAccruesOvertime } from '../../configApi';
@@ -91,9 +92,12 @@ export default function ReviewScreen() {
       const { jobId } = await submitTas(uploadToken);
       setJobId(jobId);
       setTasView('result');
-    } catch {
+    } catch (err) {
       setTasView('review');
-      setError('Ocurrió un error al enviar. Intente nuevamente.');
+      const msg = axios.isAxiosError(err) && err.response?.data?.message
+        ? err.response.data.message
+        : 'Ocurrió un error al enviar. Intente nuevamente.';
+      setError(msg);
     }
   };
 
