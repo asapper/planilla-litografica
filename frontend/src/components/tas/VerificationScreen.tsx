@@ -347,6 +347,7 @@ function SessionCard({ session, confirmed, onConfirm }: SessionCardProps) {
       <div className="flex gap-4 items-end mb-3">
         <div className="flex flex-col gap-1">
           <label className="text-label-sm text-on-surface-variant">Entrada</label>
+          {/* onInput fires on AM/PM spinner clicks where onChange does not */}
           <input
             type="time"
             value={entry}
