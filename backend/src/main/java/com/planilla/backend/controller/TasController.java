@@ -252,8 +252,6 @@ public class TasController {
         String jobId = jobService.createJob(rows);
         JobService.JobResult result = jobService.processJob(jobId);
 
-        stateStore.remove(token);
-
         if (result.hasFailures()) {
             return ResponseEntity.status(502).body(Map.of(
                 "code", "DB_ERROR",
@@ -264,6 +262,7 @@ public class TasController {
             ));
         }
 
+        stateStore.remove(token);
         return ResponseEntity.ok(Map.of("jobId", jobId));
     }
 

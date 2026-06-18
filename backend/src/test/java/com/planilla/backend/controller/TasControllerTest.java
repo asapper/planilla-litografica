@@ -596,6 +596,14 @@ class TasControllerTest {
            .andExpect(jsonPath("$.code").value("DB_ERROR"))
            .andExpect(jsonPath("$.message").value("Base de datos remota no disponible."))
            .andExpect(jsonPath("$.failed").value(1));
+
+        // Token remains valid after a 502 so the user can retry
+        when(jobService.processJob("job-fail")).thenReturn(new JobService.JobResult(1, 0, 0, null));
+        mvc.perform(post("/api/tas/submit")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(Map.of("uploadToken", token))))
+           .andExpect(status().isOk())
+           .andExpect(jsonPath("$.jobId").value("job-fail"));
     }
 
     @Test
