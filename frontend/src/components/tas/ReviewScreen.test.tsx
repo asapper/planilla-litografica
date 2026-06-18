@@ -392,6 +392,17 @@ describe('ReviewScreen overtime override', () => {
     });
   });
 
+  it('does not send stashed overrides in submit payload', async () => {
+    useTasStore.getState().setOvertimeOverride('E1', 'horasExtrasSimples', 10);
+    useTasStore.getState().stashOvertimeOverrides('E1');
+    mockSubmitTas.mockResolvedValue({ jobId: 'job-stashed' });
+
+    render(<ReviewScreen />);
+    fireEvent.click(screen.getByRole('button', { name: /enviar/i }));
+
+    await waitFor(() => expect(mockSubmitTas).toHaveBeenCalledWith('tok-1', {}));
+  });
+
   it('sends overrides in submit payload', async () => {
     useTasStore.getState().setOvertimeOverride('E1', 'horasExtrasSimples', 10);
     mockSubmitTas.mockResolvedValue({ jobId: 'job-override' });
