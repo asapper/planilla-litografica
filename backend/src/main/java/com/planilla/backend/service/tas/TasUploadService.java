@@ -122,9 +122,7 @@ public class TasUploadService {
         List<Map<String, Object>> allEmployees = registryService.getAll(null, null, null);
         for (Map<String, Object> emp : allEmployees) {
             Object id      = emp.get("id");
-            if (id == null) id = emp.get("EMPLOYEE_ID");
             Object shiftId = emp.get("shiftId");
-            if (shiftId == null) shiftId = emp.get("SHIFT_ID");
             if (id != null) {
                 assignments.put(id.toString(), shiftId != null ? shiftId.toString() : null);
             }

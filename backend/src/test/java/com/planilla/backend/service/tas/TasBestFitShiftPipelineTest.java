@@ -138,12 +138,6 @@ class TasBestFitShiftPipelineTest {
                 .filter(TasSession::isNeedsResolution)
                 .toList();
 
-        for (TasSession s : flagged) {
-            System.out.printf("Date=%s flags=%s matched=%s assigned=%s effectiveStart=%s lastScan=%s%n",
-                    s.getDate(), s.getFlags(), s.getMatchedShiftId(), s.getAssignedShiftId(),
-                    s.getEffectiveStart(), s.getLastScan());
-        }
-
         assertThat(flagged).hasSize(6);
 
         TasSession apr01 = findByDate(flagged, LocalDate.of(2026, 4, 1));

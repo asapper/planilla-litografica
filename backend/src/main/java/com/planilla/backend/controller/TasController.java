@@ -181,7 +181,7 @@ public class TasController {
                 session.getFlags().removeIf(f -> f == TasFlag.SHIFT_MISMATCH);
 
                 boolean hasBlockingFlags = session.getFlags().stream()
-                        .anyMatch(f -> f != TasFlag.BEST_FIT_SHIFT);
+                        .anyMatch(f -> f != TasFlag.BEST_FIT_SHIFT && f != TasFlag.SHORT_DAY);
                 session.setNeedsResolution(hasBlockingFlags);
 
                 if (!hasBlockingFlags) {
@@ -429,7 +429,7 @@ public class TasController {
                 session.setNeedsResolution(false);
             } else {
                 boolean hasBlockingFlags = session.getFlags().stream()
-                        .anyMatch(f -> f != TasFlag.BEST_FIT_SHIFT);
+                        .anyMatch(f -> f != TasFlag.BEST_FIT_SHIFT && f != TasFlag.SHORT_DAY);
                 session.setNeedsResolution(hasBlockingFlags);
                 if (!hasBlockingFlags) {
                     hoursCalculator.recompute(session, shifts);
