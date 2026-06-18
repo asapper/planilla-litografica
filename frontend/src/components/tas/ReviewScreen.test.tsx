@@ -15,8 +15,8 @@ const mockRecomputeTas = vi.mocked(tasApi.recomputeTas);
 const mockUpdateAccruesOvertime = vi.mocked(configApi.updateAccruesOvertime);
 
 const rows: ResolvedRow[] = [
-  { codigoEmpleado: 'E1', nombreEmpleado: 'Ana López', diasNoLaborados: 0, horasExtrasSimples: 2, horasExtrasDobles: 0, mes: 3, anio: 2026, numeroDequincena: 1, diasTurnoAmbiguo: 0, accruesOvertime: true },
-  { codigoEmpleado: 'E2', nombreEmpleado: 'Luis García', diasNoLaborados: 1, horasExtrasSimples: 0, horasExtrasDobles: 1, mes: 3, anio: 2026, numeroDequincena: 1, diasTurnoAmbiguo: 0, accruesOvertime: true },
+  { codigoEmpleado: 'E1', nombreEmpleado: 'Ana López', diasNoLaborados: 0, horasExtrasSimples: 2, horasExtrasDobles: 0, mes: 3, anio: 2026, numeroDequincena: 1, diasTurnoEstimado: 0, accruesOvertime: true },
+  { codigoEmpleado: 'E2', nombreEmpleado: 'Luis García', diasNoLaborados: 1, horasExtrasSimples: 0, horasExtrasDobles: 1, mes: 3, anio: 2026, numeroDequincena: 1, diasTurnoEstimado: 0, accruesOvertime: true },
 ];
 
 const sessionSummaries: Record<string, SessionSummary[]> = {
@@ -53,19 +53,19 @@ describe('ReviewScreen rendering', () => {
     expect(screen.getByText(/se procesaron 2 registros/i)).toBeInTheDocument();
   });
 
-  it('shows the ambiguous-shift badge when diasTurnoAmbiguo > 0', () => {
+  it('shows the best-fit-shift badge when diasTurnoEstimado > 0', () => {
     useTasStore.getState().setResolvedRows([
-      { ...rows[0], diasTurnoAmbiguo: 2, accruesOvertime: true },
+      { ...rows[0], diasTurnoEstimado: 2, accruesOvertime: true },
       rows[1],
     ]);
     render(<ReviewScreen />);
-    expect(screen.getByText('2 sin turno')).toBeInTheDocument();
+    expect(screen.getByText('2 turno estimado')).toBeInTheDocument();
   });
 
-  it('does not show the ambiguous-shift badge when diasTurnoAmbiguo is 0', () => {
+  it('does not show the best-fit-shift badge when diasTurnoEstimado is 0', () => {
     useTasStore.getState().setResolvedRows(rows);
     render(<ReviewScreen />);
-    expect(screen.queryByText(/sin turno/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/turno estimado/)).not.toBeInTheDocument();
   });
 
   it('shows the resolved row count, singular', () => {

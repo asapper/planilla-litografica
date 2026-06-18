@@ -15,7 +15,7 @@ const FLAG_LABELS: Record<TasFlag, string> = {
   SAME_DAY_DOUBLE: 'Doble marcación',
   START_CUTOFF:    'Corte de período',
   END_CUTOFF:      'Corte de período',
-  AMBIGUOUS_SHIFT: 'Turno ambiguo',
+  BEST_FIT_SHIFT: 'Turno estimado',
   SHORT_DAY:       'Jornada corta',
 };
 
@@ -26,7 +26,7 @@ const FLAG_COLORS: Record<TasFlag, string> = {
   SAME_DAY_DOUBLE: 'bg-orange-100 text-orange-700',
   START_CUTOFF:    'bg-blue-100 text-blue-700',
   END_CUTOFF:      'bg-blue-100 text-blue-700',
-  AMBIGUOUS_SHIFT: 'bg-surface-container text-on-surface-variant',
+  BEST_FIT_SHIFT: 'bg-surface-container text-on-surface-variant',
   SHORT_DAY:       'bg-amber-100 text-amber-700',
 };
 
