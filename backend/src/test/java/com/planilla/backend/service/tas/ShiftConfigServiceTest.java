@@ -132,6 +132,24 @@ class ShiftConfigServiceTest {
     }
 
     @Test
+    void updateShift_throwsWhenNameIsNull() {
+        assertThatThrownBy(() -> service.updateShift("tarde", null, "15:00", "23:00", false, 60, 10))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessage("NAME_REQUIRED");
+
+        verify(jdbc, never()).update(anyString(), any(), any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void updateShift_throwsWhenNameIsBlank() {
+        assertThatThrownBy(() -> service.updateShift("tarde", "  ", "15:00", "23:00", false, 60, 10))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessage("NAME_REQUIRED");
+
+        verify(jdbc, never()).update(anyString(), any(), any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
     void updateShift_throwsWhenNoRowsAffected() {
         when(jdbc.update(anyString(), any(), any(), any(), any(), any(), any(), any())).thenReturn(0);
 
