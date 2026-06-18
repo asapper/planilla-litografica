@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTasStore } from '../../tasStore';
 import { resolveVerification } from '../../tasApi';
 import type { TasResolution } from '../../tasApi';
@@ -426,6 +426,9 @@ export default function VerificationScreen() {
   const setSameDayDoubleResolution  = useTasStore(s => s.setSameDayDoubleResolution);
   const error                       = useTasStore(s => s.error);
 
+  const scrollRef = useRef<HTMLDivElement>(null);
+  useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTop = 0; }, []);
+
   // Inverts the computed default expansion for an employeeId (not an absolute
   // expanded/collapsed state), so a manual toggle doesn't permanently "stick"
   // once the underlying default changes (e.g. a group auto-collapses on resolve).
@@ -544,7 +547,7 @@ export default function VerificationScreen() {
 
   return (
     <div className="fixed inset-0 flex flex-col bg-surface-container-lowest" style={{ paddingTop: 64 }}>
-      <div className="flex-1 overflow-auto px-6 py-6">
+      <div ref={scrollRef} className="flex-1 overflow-auto px-6 py-6">
         <h2 className="text-headline-sm font-medium text-on-surface mb-4">
           Verificación de marcaciones
         </h2>

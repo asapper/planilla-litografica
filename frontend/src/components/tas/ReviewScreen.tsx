@@ -1,4 +1,4 @@
-import { Fragment, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 import { useTasStore } from '../../tasStore';
 import { submitTas, recomputeTas } from '../../tasApi';
@@ -76,6 +76,9 @@ export default function ReviewScreen() {
   const stashOvertimeOverrides = useTasStore(s => s.stashOvertimeOverrides);
   const restoreOvertimeOverrides = useTasStore(s => s.restoreOvertimeOverrides);
 
+  const scrollRef = useRef<HTMLDivElement>(null);
+  useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTop = 0; }, []);
+
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [pendingToggleId, setPendingToggleId] = useState<string | null>(null);
 
@@ -142,7 +145,7 @@ export default function ReviewScreen() {
 
   return (
     <div className="fixed inset-0 flex flex-col bg-surface-container-lowest" style={{ paddingTop: 64 }}>
-      <div className="flex-1 overflow-auto px-6 py-6">
+      <div ref={scrollRef} className="flex-1 overflow-auto px-6 py-6">
         <h2 className="text-headline-sm font-medium text-on-surface mb-2">
           Revisión de registros procesados
         </h2>

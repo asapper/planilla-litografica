@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useTasStore } from '../../tasStore';
 import { setAbsentEmployeesActive } from '../../tasApi';
 
@@ -8,6 +8,9 @@ export default function AbsentReviewOverlay() {
   const setAbsentEmployees = useTasStore(s => s.setAbsentEmployees);
   const setTasView      = useTasStore(s => s.setTasView);
   const [toggleError, setToggleError] = useState<string | null>(null);
+
+  const scrollRef = useRef<HTMLDivElement>(null);
+  useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTop = 0; }, []);
 
   const handleToggle = async (employeeId: string) => {
     if (!uploadToken) return;
@@ -61,7 +64,7 @@ export default function AbsentReviewOverlay() {
           )}
         </div>
 
-        <div className="flex-1 overflow-auto px-6 py-4">
+        <div ref={scrollRef} className="flex-1 overflow-auto px-6 py-4">
           <table className="w-full border-collapse">
             <thead>
               <tr className="border-b border-outline-variant">

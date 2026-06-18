@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { useTasStore } from '../../tasStore';
 import { submitInactiveReview } from '../../tasApi';
 import type { InactiveDecision } from '../../tasTypes';
@@ -19,6 +20,9 @@ export default function ReactivationReviewScreen() {
   const setResolvedRows    = useTasStore(s => s.setResolvedRows);
   const setSessionSummaries = useTasStore(s => s.setSessionSummaries);
   const setError           = useTasStore(s => s.setError);
+
+  const scrollRef = useRef<HTMLDivElement>(null);
+  useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTop = 0; }, []);
 
   const getDecision = (employeeId: string): InactiveDecision =>
     inactiveDecisions[employeeId] ?? 'ignore';
@@ -55,7 +59,7 @@ export default function ReactivationReviewScreen() {
   };
 
   return (
-    <div className="fixed inset-0 flex flex-col bg-white overflow-auto" style={{ paddingTop: 64 }}>
+    <div ref={scrollRef} className="fixed inset-0 flex flex-col bg-white overflow-auto" style={{ paddingTop: 64 }}>
       <div className="flex-1 px-6 py-8 max-w-3xl mx-auto w-full">
         <h2 className="text-headline-sm font-medium text-on-surface mb-2">
           Empleados inactivos detectados
