@@ -34,9 +34,19 @@ describe('TopAppBar', () => {
 });
 
 describe('Nueva carga button', () => {
-  it('is not rendered when tasView is idle', () => {
+  it('is not rendered when tasView is idle on tas view', () => {
     render(<TopAppBar currentView="tas" onViewChange={noop} tasView="idle" onNewUpload={vi.fn()} />);
     expect(screen.queryByRole('button', { name: /nueva carga/i })).not.toBeInTheDocument();
+  });
+
+  it('is rendered on config view when tasView is idle and calls onNewUpload directly', () => {
+    const onNewUpload = vi.fn();
+    render(<TopAppBar currentView="config" onViewChange={noop} tasView="idle" onNewUpload={onNewUpload} />);
+    const btn = screen.getByRole('button', { name: /nueva carga/i });
+    expect(btn).toBeInTheDocument();
+    fireEvent.click(btn);
+    expect(onNewUpload).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText('Iniciar nueva carga')).not.toBeInTheDocument();
   });
 
   it('is rendered when tasView is not idle on tas view', () => {

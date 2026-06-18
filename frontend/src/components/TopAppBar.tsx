@@ -37,6 +37,17 @@ export default function TopAppBar({ currentView, onViewChange, tasView, onNewUpl
 
       {/* Trailing: session actions + navigation */}
       <div className="flex items-center gap-2 shrink-0">
+        {currentView === 'config' && tasView === 'idle' && (
+          <button
+            onClick={onNewUpload}
+            className="inline-flex items-center gap-1.5 px-4 h-8 rounded-shape-full text-label-lg font-medium text-white border border-white/70 hover:bg-white/15 transition-colors duration-150 cursor-pointer"
+          >
+            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            Nueva carga
+          </button>
+        )}
         {tasView !== 'idle' && (
           <button
             onClick={() => setShowConfirm(true)}
