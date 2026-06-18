@@ -37,11 +37,18 @@ public class TasHoursCalculator {
 
         for (TasSession session : sessions) {
             detectCutoffFlags(session, reportStart, reportEnd);
-            detectMissingScansFlags(session, shifts, legalBreakAllowance);
+
+            boolean isBestFit = session.getFlags() != null
+                    && session.getFlags().contains(TasFlag.BEST_FIT_SHIFT);
+            if (!isBestFit) {
+                detectMissingScansFlags(session, shifts, legalBreakAllowance);
+            } else {
+                detectBestFitMissingScanFlags(session, shifts);
+            }
 
             boolean hasBlockingFlags = session.getFlags() != null
                     && session.getFlags().stream().anyMatch(
-                            f -> f != TasFlag.AMBIGUOUS_SHIFT && f != TasFlag.SHORT_DAY);
+                            f -> f != TasFlag.BEST_FIT_SHIFT && f != TasFlag.SHORT_DAY);
             session.setNeedsResolution(hasBlockingFlags);
 
             if (!hasBlockingFlags) {
@@ -115,10 +122,35 @@ public class TasHoursCalculator {
             if (!hasShiftMismatch && scans.size() % 2 == 0) {
                 addFlag(session, TasFlag.SHORT_DAY);
             } else if (scans.size() % 2 != 0) {
-                addFlag(session, TasFlag.MISSING_EXIT);
+                addFlag(session, detectMissingScanType(session, shifts));
             }
             // even scans + SHIFT_MISMATCH: exit exists but threshold based on wrong shift — emit nothing
         }
+    }
+
+    private void detectBestFitMissingScanFlags(TasSession session, List<Map<String, Object>> shifts) {
+        List<LocalDateTime> scans = session.getScans();
+        if (scans == null || scans.isEmpty() || scans.size() % 2 == 0) return;
+
+        addFlag(session, detectMissingScanType(session, shifts));
+    }
+
+    private TasFlag detectMissingScanType(TasSession session, List<Map<String, Object>> shifts) {
+        Map<String, Object> assignedShift = findShiftById(shifts, session.getAssignedShiftId());
+        if (assignedShift == null) return TasFlag.MISSING_EXIT;
+
+        LocalTime shiftStart = parseTime(assignedShift.get("startTime"));
+        LocalTime shiftEnd   = parseTime(assignedShift.get("endTime"));
+        LocalTime scanTime   = session.getScans().get(0).toLocalTime();
+
+        int scanMin  = scanTime.getHour()   * 60 + scanTime.getMinute();
+        int startMin = shiftStart.getHour() * 60 + shiftStart.getMinute();
+        int endMin   = shiftEnd.getHour()   * 60 + shiftEnd.getMinute();
+
+        int distToStart = Math.min(Math.abs(scanMin - startMin), 1440 - Math.abs(scanMin - startMin));
+        int distToEnd   = Math.min(Math.abs(scanMin - endMin),   1440 - Math.abs(scanMin - endMin));
+
+        return distToStart <= distToEnd ? TasFlag.MISSING_EXIT : TasFlag.MISSING_ENTRY;
     }
 
     private void computeWorkedHours(
@@ -140,7 +172,9 @@ public class TasHoursCalculator {
         LocalDateTime lastScanDt = scans.get(scans.size() - 1);
 
         LocalDateTime effectiveStart;
-        if (shift != null && shiftStart != null) {
+        boolean isBestFit = session.getFlags() != null
+                && session.getFlags().contains(TasFlag.BEST_FIT_SHIFT);
+        if (!isBestFit && shift != null && shiftStart != null) {
             LocalDateTime expectedStart = LocalDateTime.of(session.getDate(), shiftStart);
             LocalDateTime graceEnd = expectedStart.plusMinutes(GRACE_PERIOD_MINUTES);
             effectiveStart = firstScan.isAfter(graceEnd) ? firstScan : expectedStart;

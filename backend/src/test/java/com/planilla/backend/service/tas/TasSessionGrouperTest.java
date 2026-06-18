@@ -232,16 +232,16 @@ class TasSessionGrouperTest {
         List<TasSession> sessions = grouper.group(scans, shifts, assignManana("100"));
 
         assertThat(sessions).hasSize(2);
-        assertThat(sessions.get(0).getFlags()).contains(TasFlag.AMBIGUOUS_SHIFT, TasFlag.SAME_DAY_DOUBLE);
+        assertThat(sessions.get(0).getFlags()).contains(TasFlag.BEST_FIT_SHIFT, TasFlag.SAME_DAY_DOUBLE);
         assertThat(sessions.get(1).getMatchedShiftId()).isEqualTo(TARDE_ID);
         assertThat(sessions.get(1).getFlags()).contains(TasFlag.SAME_DAY_DOUBLE);
     }
 
     @Test
-    void group_twoAmbiguousSessionsSameDay_notFlaggedSameDayDouble() {
-        // Both sessions are AMBIGUOUS_SHIFT (no matched shift), so there's no way to
-        // tell they represent distinct shifts - likely a single shift split by the
-        // ambiguous-session span/day-boundary rules. Should not be flagged as a double.
+    void group_twoBestFitSessionsSameDay_notFlaggedSameDayDouble() {
+        // Both sessions have BEST_FIT_SHIFT flag. detectSameDayDouble treats them
+        // as "ambiguous" (excluded from matchedShiftIds), so two best-fit sessions
+        // alone cannot trigger SAME_DAY_DOUBLE — they may just be a split artifact.
         List<TasScanRecord> scans = List.of(
             scan("100", LocalDateTime.of(2026, 3, 10, 0, 0)),
             scan("100", LocalDateTime.of(2026, 3, 10, 12, 30))
@@ -250,11 +250,10 @@ class TasSessionGrouperTest {
         List<TasSession> sessions = grouper.group(scans, shifts, assignManana("100"));
 
         assertThat(sessions).hasSize(2);
-        assertThat(sessions.get(0).getFlags()).contains(TasFlag.AMBIGUOUS_SHIFT);
+        assertThat(sessions.get(0).getFlags()).contains(TasFlag.BEST_FIT_SHIFT);
         assertThat(sessions.get(0).getFlags()).doesNotContain(TasFlag.SAME_DAY_DOUBLE);
-        assertThat(sessions.get(1).getFlags()).contains(TasFlag.AMBIGUOUS_SHIFT);
+        assertThat(sessions.get(1).getFlags()).contains(TasFlag.BEST_FIT_SHIFT);
         assertThat(sessions.get(1).getFlags()).doesNotContain(TasFlag.SAME_DAY_DOUBLE);
-        assertThat(sessions.get(1).getMatchedShiftId()).isNull();
     }
 
     @Test
@@ -267,7 +266,8 @@ class TasSessionGrouperTest {
     }
 
     @Test
-    void group_scanOutsideAllWindows_createsAmbiguousSession() {
+    void group_scanOutsideAllWindows_createsBestFitSession() {
+        // 11:30 is closest to Tarde (15:00, 3.5h away) vs Manana (07:00, 4.5h away)
         List<TasScanRecord> scans = List.of(
             scan("100", LocalDateTime.of(2026, 3, 10, 11, 30))
         );
@@ -276,13 +276,43 @@ class TasSessionGrouperTest {
 
         assertThat(sessions).hasSize(1);
         TasSession s = sessions.get(0);
-        assertThat(s.getMatchedShiftId()).isNull();
-        assertThat(s.getFlags()).containsExactly(TasFlag.AMBIGUOUS_SHIFT);
+        assertThat(s.getMatchedShiftId()).isEqualTo(TARDE_ID);
+        assertThat(s.getFlags()).containsExactly(TasFlag.BEST_FIT_SHIFT);
         assertThat(s.getScans()).containsExactly(LocalDateTime.of(2026, 3, 10, 11, 30));
     }
 
     @Test
-    void group_ambiguousSession_accumulatesSameDayScans() {
+    void group_scanOutsideAllWindows_assignsBestFitShift() {
+        // 09:00 is closest to Manana (07:00, 2h away) vs Tarde (15:00, 6h away)
+        List<TasScanRecord> scans = List.of(
+            scan("100", LocalDateTime.of(2026, 3, 10, 9, 0)),
+            scan("100", LocalDateTime.of(2026, 3, 10, 19, 0))
+        );
+
+        List<TasSession> sessions = grouper.group(scans, shifts, assignManana("100"));
+
+        assertThat(sessions).hasSize(1);
+        TasSession s = sessions.get(0);
+        assertThat(s.getMatchedShiftId()).isEqualTo(MANANA_ID);
+        assertThat(s.getFlags()).containsExactly(TasFlag.BEST_FIT_SHIFT);
+    }
+
+    @Test
+    void group_scanOutsideAllWindows_bestFitHandlesMidnightWrapAround() {
+        // 23:30 is closest to Noche (19:00, 4.5h away) not Manana (07:00, 7.5h away)
+        List<TasScanRecord> scans = List.of(
+            scan("100", LocalDateTime.of(2026, 3, 10, 23, 30))
+        );
+
+        List<TasSession> sessions = grouper.group(scans, shifts, assignManana("100"));
+
+        assertThat(sessions).hasSize(1);
+        assertThat(sessions.get(0).getMatchedShiftId()).isEqualTo(NOCHE_ID);
+        assertThat(sessions.get(0).getFlags()).containsExactly(TasFlag.BEST_FIT_SHIFT);
+    }
+
+    @Test
+    void group_bestFitSession_accumulatesSameDayScans() {
         List<TasScanRecord> scans = List.of(
             scan("134", LocalDateTime.of(2026, 4, 30, 8, 51)),
             scan("134", LocalDateTime.of(2026, 4, 30, 19, 11))
@@ -292,8 +322,8 @@ class TasSessionGrouperTest {
 
         assertThat(sessions).hasSize(1);
         TasSession s = sessions.get(0);
-        assertThat(s.getMatchedShiftId()).isNull();
-        assertThat(s.getFlags()).containsExactly(TasFlag.AMBIGUOUS_SHIFT);
+        assertThat(s.getMatchedShiftId()).isEqualTo(MANANA_ID);
+        assertThat(s.getFlags()).containsExactly(TasFlag.BEST_FIT_SHIFT);
         assertThat(s.getScans()).containsExactly(
             LocalDateTime.of(2026, 4, 30, 8, 51),
             LocalDateTime.of(2026, 4, 30, 19, 11)
@@ -301,7 +331,7 @@ class TasSessionGrouperTest {
     }
 
     @Test
-    void group_ambiguousSession_splitsAcrossCalendarDays() {
+    void group_bestFitSession_splitsAcrossCalendarDays() {
         List<TasScanRecord> scans = List.of(
             scan("134", LocalDateTime.of(2026, 4, 30, 8, 51)),
             scan("134", LocalDateTime.of(2026, 4, 30, 19, 11)),
@@ -313,14 +343,14 @@ class TasSessionGrouperTest {
         assertThat(sessions).hasSize(2);
         assertThat(sessions.get(0).getDate()).isEqualTo(LocalDate.of(2026, 4, 30));
         assertThat(sessions.get(0).getScans()).hasSize(2);
-        assertThat(sessions.get(0).getFlags()).contains(TasFlag.AMBIGUOUS_SHIFT);
+        assertThat(sessions.get(0).getFlags()).contains(TasFlag.BEST_FIT_SHIFT);
         assertThat(sessions.get(1).getDate()).isEqualTo(LocalDate.of(2026, 5, 1));
         assertThat(sessions.get(1).getScans()).containsExactly(LocalDateTime.of(2026, 5, 1, 9, 2));
-        assertThat(sessions.get(1).getFlags()).contains(TasFlag.AMBIGUOUS_SHIFT);
+        assertThat(sessions.get(1).getFlags()).contains(TasFlag.BEST_FIT_SHIFT);
     }
 
     @Test
-    void group_ambiguousSession_splitsWhenSpanExceeds12Hours() {
+    void group_bestFitSession_splitsWhenSpanExceeds12Hours() {
         List<TasScanRecord> scans = List.of(
             scan("100", LocalDateTime.of(2026, 3, 10, 8, 0)),
             scan("100", LocalDateTime.of(2026, 3, 10, 21, 0))
@@ -330,9 +360,9 @@ class TasSessionGrouperTest {
 
         assertThat(sessions).hasSize(2);
         assertThat(sessions.get(0).getScans()).containsExactly(LocalDateTime.of(2026, 3, 10, 8, 0));
-        assertThat(sessions.get(0).getFlags()).contains(TasFlag.AMBIGUOUS_SHIFT);
+        assertThat(sessions.get(0).getFlags()).contains(TasFlag.BEST_FIT_SHIFT);
         assertThat(sessions.get(1).getScans()).containsExactly(LocalDateTime.of(2026, 3, 10, 21, 0));
-        assertThat(sessions.get(1).getFlags()).contains(TasFlag.AMBIGUOUS_SHIFT);
+        assertThat(sessions.get(1).getFlags()).contains(TasFlag.BEST_FIT_SHIFT);
     }
 
     @Test
@@ -389,9 +419,9 @@ class TasSessionGrouperTest {
     }
 
     @Test
-    void group_ambiguousScansAcrossMidnight_splitsAtDayBoundary_knownLimitation() {
+    void group_bestFitScansAcrossMidnight_splitsAtDayBoundary_knownLimitation() {
         // Known limitation: an overnight stretch of scans that matches no shift window
-        // is split into two single-scan ambiguous sessions at the calendar-day boundary,
+        // is split into two single-scan best-fit sessions at the calendar-day boundary,
         // instead of one continuous cross-midnight session.
         List<TasScanRecord> scans = List.of(
             scan("100", LocalDateTime.of(2026, 3, 10, 23, 0)),
@@ -403,10 +433,10 @@ class TasSessionGrouperTest {
         assertThat(sessions).hasSize(2);
         assertThat(sessions.get(0).getDate()).isEqualTo(LocalDate.of(2026, 3, 10));
         assertThat(sessions.get(0).getScans()).containsExactly(LocalDateTime.of(2026, 3, 10, 23, 0));
-        assertThat(sessions.get(0).getFlags()).contains(TasFlag.AMBIGUOUS_SHIFT);
+        assertThat(sessions.get(0).getFlags()).contains(TasFlag.BEST_FIT_SHIFT);
         assertThat(sessions.get(1).getDate()).isEqualTo(LocalDate.of(2026, 3, 11));
         assertThat(sessions.get(1).getScans()).containsExactly(LocalDateTime.of(2026, 3, 11, 1, 0));
-        assertThat(sessions.get(1).getFlags()).contains(TasFlag.AMBIGUOUS_SHIFT);
+        assertThat(sessions.get(1).getFlags()).contains(TasFlag.BEST_FIT_SHIFT);
     }
 
     @Test
@@ -444,7 +474,7 @@ class TasSessionGrouperTest {
         assertThat(sessions).hasSize(1);
         TasSession session = sessions.get(0);
         assertThat(session.getMatchedShiftId()).isEqualTo(NOCHE_ID);
-        assertThat(session.getFlags()).doesNotContain(TasFlag.AMBIGUOUS_SHIFT);
+        assertThat(session.getFlags()).doesNotContain(TasFlag.BEST_FIT_SHIFT);
     }
 
     @Test
@@ -465,7 +495,7 @@ class TasSessionGrouperTest {
         assertThat(sessions).hasSize(1);
         TasSession session = sessions.get(0);
         assertThat(session.getMatchedShiftId()).isEqualTo(MANANA_ID);
-        assertThat(session.getFlags()).doesNotContain(TasFlag.AMBIGUOUS_SHIFT);
+        assertThat(session.getFlags()).doesNotContain(TasFlag.BEST_FIT_SHIFT);
     }
 
     @Test
@@ -477,7 +507,7 @@ class TasSessionGrouperTest {
 
         // 19:19 would be within a 50-min after window (19:00-19:50) if the String
         // were honored, but falls outside the default 10-min window (19:00-19:10),
-        // so the fallback constant should apply and leave this session ambiguous.
+        // so the fallback constant should apply and use best-fit matching instead.
         List<TasScanRecord> scans = List.of(
             scan("EMP1", LocalDateTime.of(2026, 3, 26, 19, 19))
         );
@@ -486,8 +516,8 @@ class TasSessionGrouperTest {
 
         assertThat(sessions).hasSize(1);
         TasSession session = sessions.get(0);
-        assertThat(session.getMatchedShiftId()).isNull();
-        assertThat(session.getFlags()).contains(TasFlag.AMBIGUOUS_SHIFT);
+        assertThat(session.getMatchedShiftId()).isEqualTo(NOCHE_ID);
+        assertThat(session.getFlags()).contains(TasFlag.BEST_FIT_SHIFT);
     }
 
     @Test
@@ -568,7 +598,7 @@ class TasSessionGrouperTest {
     void group_manana_firstScanInNocheWindow_matchesNocheAsSubstitution() {
         // A Mañana employee whose only scan of the day falls in Noche's opener window
         // is genuinely substituting on Noche — the opener call must still match Noche
-        // and produce SHIFT_MISMATCH (not AMBIGUOUS_SHIFT). Only the split-mode call
+        // and produce SHIFT_MISMATCH (not BEST_FIT_SHIFT). Only the split-mode call
         // excludes cross-midnight shifts, not the initial opener call.
         List<TasScanRecord> scans = List.of(
             scan("291", LocalDateTime.of(2026, 3, 4, 19, 6))
@@ -580,7 +610,7 @@ class TasSessionGrouperTest {
         TasSession s = sessions.get(0);
         assertThat(s.getMatchedShiftId()).isEqualTo(NOCHE_ID);
         assertThat(s.getFlags()).contains(TasFlag.SHIFT_MISMATCH);
-        assertThat(s.getFlags()).doesNotContain(TasFlag.AMBIGUOUS_SHIFT);
+        assertThat(s.getFlags()).doesNotContain(TasFlag.BEST_FIT_SHIFT);
     }
 
     @Test
@@ -595,7 +625,7 @@ class TasSessionGrouperTest {
 
         assertThat(sessions).hasSize(1);
         assertThat(sessions.get(0).getMatchedShiftId()).isEqualTo(NOCHE_ID);
-        assertThat(sessions.get(0).getFlags()).doesNotContain(TasFlag.AMBIGUOUS_SHIFT);
+        assertThat(sessions.get(0).getFlags()).doesNotContain(TasFlag.BEST_FIT_SHIFT);
     }
 
     @Test

@@ -121,10 +121,8 @@ public class TasUploadService {
         Map<String, String> assignments = new LinkedHashMap<>();
         List<Map<String, Object>> allEmployees = registryService.getAll(null, null, null);
         for (Map<String, Object> emp : allEmployees) {
-            Object id      = emp.get("EMPLOYEE_ID");
-            if (id == null) id = emp.get("employee_id");
-            Object shiftId = emp.get("SHIFT_ID");
-            if (shiftId == null) shiftId = emp.get("shift_id");
+            Object id      = emp.get("id");
+            Object shiftId = emp.get("shiftId");
             if (id != null) {
                 assignments.put(id.toString(), shiftId != null ? shiftId.toString() : null);
             }

@@ -24,7 +24,7 @@ import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
-class TasAmbiguousShiftPipelineTest {
+class TasBestFitShiftPipelineTest {
 
     @Mock AppConfigService appConfigService;
     @Mock HolidayService holidayService;
@@ -82,7 +82,7 @@ class TasAmbiguousShiftPipelineTest {
     }
 
     @Test
-    void employee134_scansOutsideAllShiftWindows_produceNonEmptyResolvedRows() {
+    void employee134_scansOutsideAllShiftWindows_bestFitAssignedAndReported() {
         String name = "Morales Cifuentes Roberto Daniel";
         List<TasScanRecord> scans = List.of(
             scan("134", name, LocalDateTime.of(2026, 4, 30, 8, 51)),
@@ -95,7 +95,10 @@ class TasAmbiguousShiftPipelineTest {
 
         List<TasSession> sessions = grouper.group(scans, shifts, assignments);
         assertThat(sessions).hasSize(2);
-        assertThat(sessions).allSatisfy(s -> assertThat(s.getFlags()).contains(TasFlag.AMBIGUOUS_SHIFT));
+        assertThat(sessions).allSatisfy(s -> {
+            assertThat(s.getFlags()).contains(TasFlag.BEST_FIT_SHIFT);
+            assertThat(s.getMatchedShiftId()).isEqualTo("manana");
+        });
 
         LocalDate reportStart = LocalDate.of(2026, 4, 16);
         LocalDate reportEnd   = LocalDate.of(2026, 5, 15);
@@ -109,6 +112,57 @@ class TasAmbiguousShiftPipelineTest {
         assertThat(result.rows).isNotEmpty();
         EmployeeRow row = result.rows.get(0);
         assertThat(row.getCodigoEmpleado()).isEqualTo("134");
-        assertThat(row.getDiasTurnoAmbiguo()).isGreaterThan(0);
+        assertThat(row.getDiasTurnoEstimado()).isGreaterThan(0);
+    }
+
+    @Test
+    void employee134_singleScanDays_correctMissingEntryVsExitFlags() {
+        String name = "Morales Cifuentes Roberto Daniel";
+        List<TasScanRecord> scans = List.of(
+            scan("134", name, LocalDateTime.of(2026, 4, 1, 19, 20)),
+            scan("134", name, LocalDateTime.of(2026, 4, 9, 8, 58)),
+            scan("134", name, LocalDateTime.of(2026, 4, 11, 17, 15)),
+            scan("134", name, LocalDateTime.of(2026, 4, 14, 21, 42)),
+            scan("134", name, LocalDateTime.of(2026, 4, 21, 8, 52)),
+            scan("134", name, LocalDateTime.of(2026, 4, 27, 21, 4))
+        );
+
+        Map<String, String> assignments = Map.of("134", "manana");
+
+        List<TasSession> sessions = grouper.group(scans, shifts, assignments);
+        LocalDate reportStart = LocalDate.of(2026, 4, 1);
+        LocalDate reportEnd   = LocalDate.of(2026, 4, 30);
+        calculator.calculate(sessions, reportStart, reportEnd);
+
+        List<TasSession> flagged = sessions.stream()
+                .filter(TasSession::isNeedsResolution)
+                .toList();
+
+        assertThat(flagged).hasSize(6);
+
+        TasSession apr01 = findByDate(flagged, LocalDate.of(2026, 4, 1));
+        assertThat(apr01.getFlags()).contains(TasFlag.MISSING_ENTRY);
+
+        TasSession apr09 = findByDate(flagged, LocalDate.of(2026, 4, 9));
+        assertThat(apr09.getFlags()).contains(TasFlag.MISSING_EXIT);
+
+        TasSession apr11 = findByDate(flagged, LocalDate.of(2026, 4, 11));
+        assertThat(apr11.getFlags()).contains(TasFlag.MISSING_ENTRY);
+
+        TasSession apr14 = findByDate(flagged, LocalDate.of(2026, 4, 14));
+        assertThat(apr14.getFlags()).contains(TasFlag.MISSING_ENTRY);
+
+        TasSession apr21 = findByDate(flagged, LocalDate.of(2026, 4, 21));
+        assertThat(apr21.getFlags()).contains(TasFlag.MISSING_EXIT);
+
+        TasSession apr27 = findByDate(flagged, LocalDate.of(2026, 4, 27));
+        assertThat(apr27.getFlags()).contains(TasFlag.MISSING_ENTRY);
+    }
+
+    private TasSession findByDate(List<TasSession> sessions, LocalDate date) {
+        return sessions.stream()
+                .filter(s -> s.getDate().equals(date))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("No session for " + date));
     }
 }

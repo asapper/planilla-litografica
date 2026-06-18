@@ -196,7 +196,7 @@ describe('setAbsentEmployeesActive', () => {
 describe('recomputeTas', () => {
   it('posts to /tas/recompute/:token and returns resolvedRows', async () => {
     const resolvedRows: ResolvedRow[] = [
-      { codigoEmpleado: 'E1', nombreEmpleado: 'Ana', diasNoLaborados: 0, horasExtrasSimples: 2, horasExtrasDobles: 0, mes: 3, anio: 2026, numeroDequincena: 1, diasTurnoAmbiguo: 0, accruesOvertime: true },
+      { codigoEmpleado: 'E1', nombreEmpleado: 'Ana', diasNoLaborados: 0, horasExtrasSimples: 2, horasExtrasDobles: 0, mes: 3, anio: 2026, numeroDequincena: 1, diasTurnoEstimado: 0, accruesOvertime: true },
     ];
     mockPost.mockResolvedValue({ data: { uploadToken: 'tok-abc', resolvedRows } });
     const result = await recomputeTas('tok-abc');

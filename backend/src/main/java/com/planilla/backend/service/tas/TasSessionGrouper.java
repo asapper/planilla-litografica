@@ -94,7 +94,7 @@ public class TasSessionGrouper {
                 Map<String, Object> openerShift = findOpenerShift(scan.getTimestamp(), shifts, assignedShift, isCrossMidnight, false);
                 currentSession = openerShift != null
                         ? openSession(employeeId, scan, openerShift, assignedShift, isCrossMidnight)
-                        : openAmbiguousSession(employeeId, scan);
+                        : openBestFitSession(employeeId, scan, shifts, assignedShift);
             } else {
                 if (isNextShiftExitScan(scan.getTimestamp(), currentSession, shifts, assignedShift)) {
                     currentSession.getScans().add(scan.getTimestamp());
@@ -113,11 +113,11 @@ public class TasSessionGrouper {
                             scan.getTimestamp(), shifts, assignedShift, isCrossMidnight, false);
                     currentSession = openerShift != null
                             ? openSession(employeeId, scan, openerShift, assignedShift, isCrossMidnight)
-                            : openAmbiguousSession(employeeId, scan);
+                            : openBestFitSession(employeeId, scan, shifts, assignedShift);
                     continue;
                 }
 
-                if (currentSession.getMatchedShiftId() == null) {
+                if (currentSession.getFlags().contains(TasFlag.BEST_FIT_SHIFT)) {
                     LocalDateTime sessionFirstScan = currentSession.getScans().get(0);
                     boolean differentDay = !scan.getTimestamp().toLocalDate().equals(currentSession.getDate());
                     boolean exceedsSpan = ChronoUnit.MINUTES.between(sessionFirstScan, scan.getTimestamp()) > AMBIGUOUS_MAX_SPAN_MINUTES;
@@ -128,7 +128,7 @@ public class TasSessionGrouper {
                         Map<String, Object> openerShift = findOpenerShift(scan.getTimestamp(), shifts, assignedShift, isCrossMidnight, false);
                         currentSession = openerShift != null
                                 ? openSession(employeeId, scan, openerShift, assignedShift, isCrossMidnight)
-                                : openAmbiguousSession(employeeId, scan);
+                                : openBestFitSession(employeeId, scan, shifts, assignedShift);
                     } else {
                         currentSession.getScans().add(scan.getTimestamp());
                     }
@@ -142,7 +142,7 @@ public class TasSessionGrouper {
                     sessions.add(currentSession);
                     currentSession = openerShift != null
                             ? openSession(employeeId, scan, openerShift, assignedShift, isCrossMidnight)
-                            : openAmbiguousSession(employeeId, scan);
+                            : openBestFitSession(employeeId, scan, shifts, assignedShift);
                 } else {
                     currentSession.getScans().add(scan.getTimestamp());
                 }
@@ -290,22 +290,55 @@ public class TasSessionGrouper {
         return session;
     }
 
-    private TasSession openAmbiguousSession(String employeeId, TasScanRecord firstScan) {
+    private TasSession openBestFitSession(
+            String employeeId,
+            TasScanRecord firstScan,
+            List<Map<String, Object>> shifts,
+            Map<String, Object> assignedShift) {
+        Map<String, Object> bestFit = findBestFitShift(firstScan.getTimestamp(), shifts);
+
         TasSession session = new TasSession();
         session.setEmployeeId(employeeId);
         session.setEmployeeName(firstScan.getEmployeeName());
         session.setDate(firstScan.getTimestamp().toLocalDate());
         session.setCrossMidnight(false);
         session.setSessionAnchor("D");
-        session.setFlags(new ArrayList<>(List.of(TasFlag.AMBIGUOUS_SHIFT)));
+        session.setFlags(new ArrayList<>(List.of(TasFlag.BEST_FIT_SHIFT)));
 
         List<LocalDateTime> scans = new ArrayList<>();
         scans.add(firstScan.getTimestamp());
         session.setScans(scans);
 
-        session.setMatchedShiftId(null);
+        session.setMatchedShiftId(bestFit != null ? getShiftId(bestFit) : null);
+        session.setMatchedShiftName(bestFit != null ? (String) bestFit.get("name") : null);
+        session.setAssignedShiftId(getShiftId(assignedShift));
+        session.setAssignedShiftName(assignedShift != null ? (String) assignedShift.get("name") : null);
 
         return session;
+    }
+
+    private Map<String, Object> findBestFitShift(
+            LocalDateTime scanTime, List<Map<String, Object>> shifts) {
+        LocalTime scanTimeOfDay = scanTime.toLocalTime();
+        int scanMinutes = scanTimeOfDay.getHour() * 60 + scanTimeOfDay.getMinute();
+
+        Map<String, Object> best = null;
+        int bestDistance = Integer.MAX_VALUE;
+
+        for (Map<String, Object> shift : shifts) {
+            LocalTime shiftStart = parseTime(shift.get("startTime"));
+            int shiftMinutes = shiftStart.getHour() * 60 + shiftStart.getMinute();
+
+            int diff = Math.abs(scanMinutes - shiftMinutes);
+            int circularDiff = Math.min(diff, 1440 - diff);
+
+            if (circularDiff < bestDistance) {
+                bestDistance = circularDiff;
+                best = shift;
+            }
+        }
+
+        return best;
     }
 
     private void finalizeSession(TasSession session) {
@@ -324,21 +357,21 @@ public class TasSessionGrouper {
             if (daySessions.size() < 2) continue;
 
             Set<String> matchedShiftIds = new HashSet<>();
-            boolean hasAmbiguous = false;
+            boolean hasBestFit = false;
             for (TasSession s : daySessions) {
-                if (s.getFlags().contains(TasFlag.AMBIGUOUS_SHIFT)) {
-                    hasAmbiguous = true;
+                if (s.getFlags().contains(TasFlag.BEST_FIT_SHIFT)) {
+                    hasBestFit = true;
                 } else {
                     matchedShiftIds.add(s.getMatchedShiftId());
                 }
             }
 
-            // A "double" requires evidence of two distinct shifts: either two sessions
-            // matched different shift configs, or an ambiguous session alongside one
-            // that did match a shift. Two ambiguous sessions alone (matchedShiftId ==
-            // null for both) can't be distinguished from a single shift that got split,
-            // so they're not flagged.
-            boolean isDouble = matchedShiftIds.size() >= 2 || (hasAmbiguous && !matchedShiftIds.isEmpty());
+            // A "double" requires evidence of two distinct shifts: either two
+            // sessions matched different shift configs, or a best-fit session
+            // alongside one that matched via detection window. Two best-fit
+            // sessions that happen to pick the same closest shift can't be
+            // distinguished from a single shift that got split.
+            boolean isDouble = matchedShiftIds.size() >= 2 || (hasBestFit && !matchedShiftIds.isEmpty());
             if (!isDouble) continue;
 
             for (TasSession s : daySessions) {

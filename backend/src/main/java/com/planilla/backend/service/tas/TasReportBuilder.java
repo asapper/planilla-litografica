@@ -45,7 +45,7 @@ public class TasReportBuilder {
 
         Map<String, Set<LocalDate>> workedDaysByEmployee = new LinkedHashMap<>();
         Map<String, Map<TasPeriod, int[]>> minutesByEmployeePeriod = new LinkedHashMap<>();
-        Map<String, Map<TasPeriod, Set<LocalDate>>> ambiguousDaysByEmpPeriod = new LinkedHashMap<>();
+        Map<String, Map<TasPeriod, Set<LocalDate>>> bestFitDaysByEmpPeriod = new LinkedHashMap<>();
 
         for (TasSession session : filteredSessions) {
             String empId = session.getEmployeeId();
@@ -64,8 +64,8 @@ public class TasReportBuilder {
                 minutes[1] += session.getDoblesMinutes();
             }
 
-            if (session.getFlags() != null && session.getFlags().contains(TasFlag.AMBIGUOUS_SHIFT)) {
-                ambiguousDaysByEmpPeriod
+            if (session.getFlags() != null && session.getFlags().contains(TasFlag.BEST_FIT_SHIFT)) {
+                bestFitDaysByEmpPeriod
                         .computeIfAbsent(empId, k -> new LinkedHashMap<>())
                         .computeIfAbsent(period, k -> new HashSet<>())
                         .add(session.getDate());
@@ -114,11 +114,11 @@ public class TasReportBuilder {
                 row.setAnio(period.anio());
                 row.setNumeroDequincena(period.numeroDequincena());
 
-                int diasTurnoAmbiguo = ambiguousDaysByEmpPeriod
+                int diasTurnoEstimado = bestFitDaysByEmpPeriod
                         .getOrDefault(empId, Map.of())
                         .getOrDefault(period, Set.of())
                         .size();
-                row.setDiasTurnoAmbiguo(diasTurnoAmbiguo);
+                row.setDiasTurnoEstimado(diasTurnoEstimado);
 
                 boolean accruesOvertime = accruesOvertimeFlags.getOrDefault(empId, true);
                 row.setAccruesOvertime(accruesOvertime);

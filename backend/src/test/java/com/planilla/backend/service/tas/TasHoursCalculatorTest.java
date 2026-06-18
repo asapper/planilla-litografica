@@ -351,14 +351,14 @@ class TasHoursCalculatorTest {
     }
 
     @Test
-    void calculate_ambiguousShiftFlagAlone_doesNotBlockHoursComputation() {
+    void calculate_bestFitShiftFlagAlone_doesNotBlockHoursComputation() {
         LocalDate date = LocalDate.of(2026, 3, 10);
         TasSession s = session(date,
             LocalDateTime.of(2026, 3, 10, 9, 0),
             LocalDateTime.of(2026, 3, 10, 19, 0)
         );
-        s.setMatchedShiftId(null);
-        s.setFlags(new ArrayList<>(List.of(TasFlag.AMBIGUOUS_SHIFT)));
+        s.setMatchedShiftId("manana");
+        s.setFlags(new ArrayList<>(List.of(TasFlag.BEST_FIT_SHIFT)));
 
         calculator.calculate(List.of(s), REPORT_START, REPORT_END);
 
@@ -366,47 +366,125 @@ class TasHoursCalculatorTest {
         assertThat(s.getEffectiveStart()).isEqualTo(LocalDateTime.of(2026, 3, 10, 9, 0));
         assertThat(s.getWorkedMinutes()).isEqualTo(600);
         assertThat(s.getWorkedHours()).isEqualTo(10.0);
-        // 8h default shift duration: overtime beyond 480min goes to simples, dobles stays 0
         assertThat(s.getSimplesMinutes()).isEqualTo(120);
         assertThat(s.getDoblesMinutes()).isEqualTo(0);
     }
 
     @Test
-    void calculate_ambiguousShiftSingleScan_noLongerSameDayDouble_doesNotBlockHoursComputation() {
-        // Regression for TASK-39: a single-scan AMBIGUOUS_SHIFT session (e.g. one half
-        // of a shift split across the 12h ambiguous-session span) that is no longer
-        // flagged SAME_DAY_DOUBLE must still compute (zero) hours without blowing up.
+    void calculate_bestFitShiftUsesRawScanStart_noGracePeriod() {
         LocalDate date = LocalDate.of(2026, 3, 10);
-        TasSession s = session(date, LocalDateTime.of(2026, 3, 10, 9, 7));
-        s.setMatchedShiftId(null);
-        s.setFlags(new ArrayList<>(List.of(TasFlag.AMBIGUOUS_SHIFT)));
+        TasSession s = session(date,
+            LocalDateTime.of(2026, 3, 10, 7, 5),
+            LocalDateTime.of(2026, 3, 10, 15, 5)
+        );
+        s.setMatchedShiftId("manana");
+        s.setFlags(new ArrayList<>(List.of(TasFlag.BEST_FIT_SHIFT)));
 
         calculator.calculate(List.of(s), REPORT_START, REPORT_END);
 
-        assertThat(s.isNeedsResolution()).isFalse();
-        assertThat(s.getWorkedMinutes()).isEqualTo(0);
-        assertThat(s.getWorkedHours()).isEqualTo(0.0);
-        assertThat(s.getSimplesMinutes()).isEqualTo(0);
-        assertThat(s.getDoblesMinutes()).isEqualTo(0);
+        assertThat(s.getEffectiveStart()).isEqualTo(LocalDateTime.of(2026, 3, 10, 7, 5));
+        assertThat(s.getWorkedMinutes()).isEqualTo(480);
     }
 
     @Test
-    void calculate_ambiguousShiftWithOtherFlag_stillNeedsResolution() {
+    void calculate_bestFitShiftSingleScan_detectsMissingExitAndBlocks() {
+        LocalDate date = LocalDate.of(2026, 3, 10);
+        TasSession s = session(date, LocalDateTime.of(2026, 3, 10, 9, 7));
+        s.setMatchedShiftId("manana");
+        s.setAssignedShiftId("manana");
+        s.setFlags(new ArrayList<>(List.of(TasFlag.BEST_FIT_SHIFT)));
+
+        calculator.calculate(List.of(s), REPORT_START, REPORT_END);
+
+        assertThat(s.isNeedsResolution()).isTrue();
+        assertThat(s.getFlags()).contains(TasFlag.BEST_FIT_SHIFT, TasFlag.MISSING_EXIT);
+        assertThat(s.getWorkedMinutes()).isEqualTo(0);
+        assertThat(s.getWorkedHours()).isEqualTo(0.0);
+    }
+
+    @Test
+    void calculate_bestFitShiftWithOtherFlag_stillNeedsResolution() {
         LocalDate date = LocalDate.of(2026, 3, 10);
         TasSession s = session(date,
             LocalDateTime.of(2026, 3, 10, 9, 0),
             LocalDateTime.of(2026, 3, 10, 19, 0)
         );
-        s.setMatchedShiftId(null);
-        s.setFlags(new ArrayList<>(List.of(TasFlag.AMBIGUOUS_SHIFT, TasFlag.SAME_DAY_DOUBLE)));
+        s.setMatchedShiftId("manana");
+        s.setFlags(new ArrayList<>(List.of(TasFlag.BEST_FIT_SHIFT, TasFlag.SAME_DAY_DOUBLE)));
 
         calculator.calculate(List.of(s), REPORT_START, REPORT_END);
 
         assertThat(s.isNeedsResolution()).isTrue();
         assertThat(s.getWorkedMinutes()).isEqualTo(0);
-        assertThat(s.getWorkedHours()).isEqualTo(0.0);
-        assertThat(s.getSimplesMinutes()).isEqualTo(0);
-        assertThat(s.getDoblesMinutes()).isEqualTo(0);
+    }
+
+    @Test
+    void calculate_bestFitShift_evenScans_skipsThresholdBasedMissingScanDetection() {
+        // 09:00 entry with Manana (07:00) would normally trigger MISSING_ENTRY
+        // but BEST_FIT_SHIFT sessions skip threshold-based checks (even scan count = no missing scan)
+        LocalDate date = LocalDate.of(2026, 3, 10);
+        TasSession s = session(date,
+            LocalDateTime.of(2026, 3, 10, 9, 0),
+            LocalDateTime.of(2026, 3, 10, 19, 0)
+        );
+        s.setMatchedShiftId("manana");
+        s.setFlags(new ArrayList<>(List.of(TasFlag.BEST_FIT_SHIFT)));
+
+        calculator.calculate(List.of(s), REPORT_START, REPORT_END);
+
+        assertThat(s.getFlags()).containsExactly(TasFlag.BEST_FIT_SHIFT);
+        assertThat(s.isNeedsResolution()).isFalse();
+    }
+
+    @Test
+    void calculate_bestFitShift_singleMorningScan_flagsMissingExit() {
+        // Single scan at 08:58 — closer to Manana start (07:00) than end (15:00)
+        // → it's an entry scan → MISSING_EXIT
+        LocalDate date = LocalDate.of(2026, 3, 10);
+        TasSession s = session(date, LocalDateTime.of(2026, 3, 10, 8, 58));
+        s.setMatchedShiftId("manana");
+        s.setAssignedShiftId("manana");
+        s.setFlags(new ArrayList<>(List.of(TasFlag.BEST_FIT_SHIFT)));
+
+        calculator.calculate(List.of(s), REPORT_START, REPORT_END);
+
+        assertThat(s.getFlags()).contains(TasFlag.BEST_FIT_SHIFT, TasFlag.MISSING_EXIT);
+        assertThat(s.isNeedsResolution()).isTrue();
+    }
+
+    @Test
+    void calculate_bestFitShift_singleEveningScan_flagsMissingEntry() {
+        // Single scan at 19:20 — closer to Manana end (15:00) than start (07:00)
+        // → it's an exit scan → MISSING_ENTRY
+        LocalDate date = LocalDate.of(2026, 3, 10);
+        TasSession s = session(date, LocalDateTime.of(2026, 3, 10, 19, 20));
+        s.setMatchedShiftId("manana");
+        s.setAssignedShiftId("manana");
+        s.setFlags(new ArrayList<>(List.of(TasFlag.BEST_FIT_SHIFT)));
+
+        calculator.calculate(List.of(s), REPORT_START, REPORT_END);
+
+        assertThat(s.getFlags()).contains(TasFlag.BEST_FIT_SHIFT, TasFlag.MISSING_ENTRY);
+        assertThat(s.isNeedsResolution()).isTrue();
+    }
+
+    @Test
+    void calculate_bestFitShift_threeScans_oddCount_flagsMissingExit() {
+        // 3 scans (odd) — first scan at 09:00 closer to Manana start → MISSING_EXIT
+        LocalDate date = LocalDate.of(2026, 3, 10);
+        TasSession s = session(date,
+            LocalDateTime.of(2026, 3, 10, 9, 0),
+            LocalDateTime.of(2026, 3, 10, 12, 0),
+            LocalDateTime.of(2026, 3, 10, 13, 0)
+        );
+        s.setMatchedShiftId("manana");
+        s.setAssignedShiftId("manana");
+        s.setFlags(new ArrayList<>(List.of(TasFlag.BEST_FIT_SHIFT)));
+
+        calculator.calculate(List.of(s), REPORT_START, REPORT_END);
+
+        assertThat(s.getFlags()).contains(TasFlag.BEST_FIT_SHIFT, TasFlag.MISSING_EXIT);
+        assertThat(s.isNeedsResolution()).isTrue();
     }
 
     @Test
@@ -577,6 +655,34 @@ class TasHoursCalculatorTest {
 
         assertThat(s.getFlags()).contains(TasFlag.MISSING_EXIT);
         assertThat(s.getFlags()).doesNotContain(TasFlag.SHORT_DAY);
+        assertThat(s.isNeedsResolution()).isTrue();
+    }
+
+    @Test
+    void calculate_oddScans_shiftMismatch_eveningScan_assignedManana_emitsMissingEntry() {
+        // 04/01 19:20 matched Noche via detection window but employee assigned Mañana.
+        // Single scan is closer to Mañana end (15:00) than start (07:00) → MISSING_ENTRY
+        LocalDate date = LocalDate.of(2026, 4, 1);
+        TasSession s = session(date,
+            LocalDateTime.of(2026, 4, 1, 19, 20)
+        );
+        s.setMatchedShiftId("noche");
+        s.setAssignedShiftId("manana");
+        s.getFlags().add(TasFlag.SHIFT_MISMATCH);
+
+        Map<String, Object> nocheShift = new LinkedHashMap<>();
+        nocheShift.put("id", "noche");
+        nocheShift.put("name", "Noche");
+        nocheShift.put("startTime", "19:00");
+        nocheShift.put("endTime", "07:00");
+        nocheShift.put("crossMidnight", true);
+
+        when(shiftConfigService.getAllShifts()).thenReturn(List.of(mananaShift, nocheShift));
+
+        calculator.calculate(List.of(s), LocalDate.of(2026, 4, 1), LocalDate.of(2026, 4, 15));
+
+        assertThat(s.getFlags()).contains(TasFlag.MISSING_ENTRY);
+        assertThat(s.getFlags()).doesNotContain(TasFlag.MISSING_EXIT);
         assertThat(s.isNeedsResolution()).isTrue();
     }
 
