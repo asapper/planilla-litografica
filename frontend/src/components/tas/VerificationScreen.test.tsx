@@ -205,12 +205,20 @@ describe('VerificationScreen time inputs', () => {
     expect(input.value).toBe('08:30');
   });
 
-  it('pre-fills exit from lastScan', () => {
+  it('pre-fills exit from lastScan when exit is not missing', () => {
     useTasStore.getState().setFlaggedSessions([makeSession({ lastScan: '17:45:00', effectiveStart: null, flags: ['MISSING_ENTRY'] })]);
     useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
     render(<VerificationScreen />);
     const input = screen.getByLabelText('Salida') as HTMLInputElement;
     expect(input.value).toBe('17:45');
+  });
+
+  it('leaves exit empty when exit is missing', () => {
+    useTasStore.getState().setFlaggedSessions([makeSession({ lastScan: '08:00:00', effectiveStart: '08:00:00', flags: ['MISSING_EXIT'] })]);
+    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
+    render(<VerificationScreen />);
+    const input = screen.getByLabelText('Salida') as HTMLInputElement;
+    expect(input.value).toBe('');
   });
 });
 

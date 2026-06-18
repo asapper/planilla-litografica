@@ -296,7 +296,7 @@ interface SessionCardProps {
 
 function SessionCard({ session, confirmed, onConfirm }: SessionCardProps) {
   const [entry, setEntry] = useState(toHHMM(session.effectiveStart));
-  const [exit,  setExit]  = useState(toHHMM(session.lastScan));
+  const [exit,  setExit]  = useState(session.flags.includes('MISSING_EXIT') ? '' : toHHMM(session.lastScan));
 
   const needsEntry = session.flags.includes('MISSING_ENTRY');
   const needsExit  = session.flags.includes('MISSING_EXIT');
