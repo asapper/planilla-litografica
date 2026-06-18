@@ -194,6 +194,19 @@ describe('ShiftsTab save', () => {
 // -----------------------------------------------------------------
 
 describe('ShiftsTab discard', () => {
+  it('Descartar is disabled when not dirty', async () => {
+    render(<ShiftsTab />);
+    await waitFor(() => screen.getByDisplayValue('Diurno'));
+    expect(screen.getByRole('button', { name: /descartar/i })).toBeDisabled();
+  });
+
+  it('Descartar is enabled when dirty', async () => {
+    render(<ShiftsTab />);
+    await waitFor(() => screen.getByDisplayValue('Diurno'));
+    fireEvent.change(screen.getByLabelText('Nombre del turno'), { target: { value: 'Modificado' } });
+    expect(screen.getByRole('button', { name: /descartar/i })).not.toBeDisabled();
+  });
+
   it('clicking Descartar reverts changes and clears dirty', async () => {
     render(<ShiftsTab />);
     await waitFor(() => screen.getByDisplayValue('Diurno'));

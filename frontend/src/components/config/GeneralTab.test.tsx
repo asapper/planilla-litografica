@@ -167,6 +167,19 @@ describe('GeneralTab save', () => {
 // -----------------------------------------------------------------
 
 describe('GeneralTab discard', () => {
+  it('Descartar is disabled when not dirty', async () => {
+    render(<GeneralTab />);
+    await waitFor(() => screen.getByDisplayValue('45'));
+    expect(screen.getByRole('button', { name: /descartar/i })).toBeDisabled();
+  });
+
+  it('Descartar is enabled when dirty', async () => {
+    render(<GeneralTab />);
+    await waitFor(() => screen.getByDisplayValue('45'));
+    fireEvent.change(screen.getByLabelText(/tiempo de descanso/i), { target: { value: '60' } });
+    expect(screen.getByRole('button', { name: /descartar/i })).not.toBeDisabled();
+  });
+
   it('Descartar reverts input to original value', async () => {
     render(<GeneralTab />);
     await waitFor(() => screen.getByDisplayValue('45'));
