@@ -24,7 +24,7 @@ import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
-class TasAmbiguousShiftPipelineTest {
+class TasBestFitShiftPipelineTest {
 
     @Mock AppConfigService appConfigService;
     @Mock HolidayService holidayService;
@@ -82,7 +82,7 @@ class TasAmbiguousShiftPipelineTest {
     }
 
     @Test
-    void employee134_scansOutsideAllShiftWindows_produceNonEmptyResolvedRows() {
+    void employee134_scansOutsideAllShiftWindows_bestFitAssignedAndReported() {
         String name = "Morales Cifuentes Roberto Daniel";
         List<TasScanRecord> scans = List.of(
             scan("134", name, LocalDateTime.of(2026, 4, 30, 8, 51)),
@@ -95,7 +95,10 @@ class TasAmbiguousShiftPipelineTest {
 
         List<TasSession> sessions = grouper.group(scans, shifts, assignments);
         assertThat(sessions).hasSize(2);
-        assertThat(sessions).allSatisfy(s -> assertThat(s.getFlags()).contains(TasFlag.BEST_FIT_SHIFT));
+        assertThat(sessions).allSatisfy(s -> {
+            assertThat(s.getFlags()).contains(TasFlag.BEST_FIT_SHIFT);
+            assertThat(s.getMatchedShiftId()).isEqualTo("manana");
+        });
 
         LocalDate reportStart = LocalDate.of(2026, 4, 16);
         LocalDate reportEnd   = LocalDate.of(2026, 5, 15);
