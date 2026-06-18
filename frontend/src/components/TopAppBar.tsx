@@ -41,7 +41,7 @@ export default function TopAppBar({ currentView, onViewChange, tasView, onNewUpl
           <button
             onClick={() => setShowConfirm(true)}
             disabled={tasView === 'submitting'}
-            className="inline-flex items-center gap-1.5 px-4 h-8 rounded-shape-full text-label-lg font-medium text-white/80 border border-white/50 hover:bg-white/15 transition-colors duration-150 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+            className="inline-flex items-center gap-1.5 px-4 h-8 rounded-shape-full text-label-lg font-medium text-white border border-white/70 hover:bg-white/15 transition-colors duration-150 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent"
           >
             <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -52,7 +52,7 @@ export default function TopAppBar({ currentView, onViewChange, tasView, onNewUpl
         {currentView === 'config' && tasView !== 'idle' ? (
           <button
             onClick={() => onViewChange('tas')}
-            className="inline-flex items-center gap-1.5 px-4 h-8 rounded-shape-full text-label-lg font-medium text-white/80 hover:bg-white/15 transition-colors duration-150 cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-4 h-8 rounded-shape-full text-label-lg font-medium text-white hover:bg-white/15 transition-colors duration-150 cursor-pointer"
           >
             <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path strokeLinecap="round" strokeLinejoin="round" d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3" />
@@ -66,7 +66,7 @@ export default function TopAppBar({ currentView, onViewChange, tasView, onNewUpl
             className={`inline-flex items-center gap-1.5 px-4 h-8 rounded-shape-full text-label-lg font-medium transition-colors duration-150 cursor-pointer ${
               currentView === 'config'
                 ? 'bg-white text-primary'
-                : 'text-white/80 hover:bg-white/15'
+                : 'text-white hover:bg-white/15'
             }`}
           >
             <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
