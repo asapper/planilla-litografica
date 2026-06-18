@@ -312,10 +312,12 @@ describe('ReviewScreen overtime override', () => {
     expect(inputs[1]).not.toHaveClass('bg-amber-50');
   });
 
-  it('shows original computed value below overridden input', () => {
+  it('shows original computed value below overridden input with correct pluralization', () => {
     useTasStore.getState().setOvertimeOverride('E1', 'horasExtrasSimples', 10);
+    useTasStore.getState().setOvertimeOverride('E2', 'horasExtrasDobles', 5);
     render(<ReviewScreen />);
-    expect(screen.getByText('era 2')).toBeInTheDocument();
+    expect(screen.getByText('eran 2')).toBeInTheDocument();
+    expect(screen.getByText('era 1')).toBeInTheDocument();
   });
 
   it('stashes overrides when toggling accruesOvertime off', async () => {

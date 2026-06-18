@@ -215,7 +215,7 @@ export default function ReviewScreen() {
                           />
                           {isOverridden && (
                             <div className="text-label-sm text-on-surface-variant mt-0.5">
-                              era {row[field]}
+                              {row[field] === 1 ? 'era' : 'eran'} {row[field]}
                             </div>
                           )}
                         </td>
