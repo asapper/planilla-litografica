@@ -249,6 +249,38 @@ public class TasController {
             return ResponseEntity.badRequest().body(Map.of("code", "NO_ROWS", "message", "No hay filas para enviar."));
         }
 
+        @SuppressWarnings("unchecked")
+        Map<String, Map<String, Object>> overtimeOverrides =
+            (Map<String, Map<String, Object>>) body.getOrDefault("overtimeOverrides", Collections.emptyMap());
+
+        for (Map.Entry<String, Map<String, Object>> entry : overtimeOverrides.entrySet()) {
+            String empId = entry.getKey();
+            Map<String, Object> fields = entry.getValue();
+            for (EmployeeRow r : rows) {
+                if (r.getCodigoEmpleado().equals(empId)) {
+                    if (fields.containsKey("horasExtrasSimples")) {
+                        int val = ((Number) fields.get("horasExtrasSimples")).intValue();
+                        if (val < 0) {
+                            return ResponseEntity.badRequest().body(Map.of(
+                                "code", "INVALID_OVERRIDE",
+                                "message", "Los valores de horas extra no pueden ser negativos."));
+                        }
+                        r.setHorasExtrasSimples(val);
+                    }
+                    if (fields.containsKey("horasExtrasDobles")) {
+                        int val = ((Number) fields.get("horasExtrasDobles")).intValue();
+                        if (val < 0) {
+                            return ResponseEntity.badRequest().body(Map.of(
+                                "code", "INVALID_OVERRIDE",
+                                "message", "Los valores de horas extra no pueden ser negativos."));
+                        }
+                        r.setHorasExtrasDobles(val);
+                    }
+                    break;
+                }
+            }
+        }
+
         String jobId = jobService.createJob(rows);
         JobService.JobResult result = jobService.processJob(jobId);
 
