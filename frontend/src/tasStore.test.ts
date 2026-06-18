@@ -407,6 +407,90 @@ describe('setSelectedPeriod', () => {
 // resetTas
 // -----------------------------------------------------------------
 
+// -----------------------------------------------------------------
+// overtimeOverrides
+// -----------------------------------------------------------------
+
+describe('overtimeOverrides', () => {
+  it('starts empty', () => {
+    expect(useTasStore.getState().overtimeOverrides).toEqual({});
+  });
+
+  it('setOvertimeOverride upserts a single field', () => {
+    useTasStore.getState().setOvertimeOverride('E1', 'horasExtrasSimples', 5);
+    expect(useTasStore.getState().overtimeOverrides).toEqual({
+      E1: { horasExtrasSimples: 5 },
+    });
+  });
+
+  it('setOvertimeOverride preserves other fields for same employee', () => {
+    useTasStore.getState().setOvertimeOverride('E1', 'horasExtrasSimples', 5);
+    useTasStore.getState().setOvertimeOverride('E1', 'horasExtrasDobles', 3);
+    expect(useTasStore.getState().overtimeOverrides).toEqual({
+      E1: { horasExtrasSimples: 5, horasExtrasDobles: 3 },
+    });
+  });
+
+  it('setOvertimeOverride keeps other employees untouched', () => {
+    useTasStore.getState().setOvertimeOverride('E1', 'horasExtrasSimples', 5);
+    useTasStore.getState().setOvertimeOverride('E2', 'horasExtrasDobles', 2);
+    expect(useTasStore.getState().overtimeOverrides.E1).toEqual({ horasExtrasSimples: 5 });
+    expect(useTasStore.getState().overtimeOverrides.E2).toEqual({ horasExtrasDobles: 2 });
+  });
+
+  it('clearOvertimeOverrides resets to empty', () => {
+    useTasStore.getState().setOvertimeOverride('E1', 'horasExtrasSimples', 5);
+    useTasStore.getState().clearOvertimeOverrides();
+    expect(useTasStore.getState().overtimeOverrides).toEqual({});
+  });
+
+  it('resetTas clears overtimeOverrides', () => {
+    useTasStore.getState().setOvertimeOverride('E1', 'horasExtrasSimples', 5);
+    useTasStore.getState().resetTas();
+    expect(useTasStore.getState().overtimeOverrides).toEqual({});
+  });
+
+  it('stashOvertimeOverrides moves overrides to stash', () => {
+    useTasStore.getState().setOvertimeOverride('E1', 'horasExtrasSimples', 5);
+    useTasStore.getState().stashOvertimeOverrides('E1');
+    expect(useTasStore.getState().overtimeOverrides.E1).toBeUndefined();
+    expect(useTasStore.getState().stashedOvertimeOverrides).toEqual({
+      E1: { horasExtrasSimples: 5 },
+    });
+  });
+
+  it('stashOvertimeOverrides is a no-op when employee has no overrides', () => {
+    useTasStore.getState().stashOvertimeOverrides('E1');
+    expect(useTasStore.getState().stashedOvertimeOverrides).toEqual({});
+  });
+
+  it('restoreOvertimeOverrides moves stashed back to active', () => {
+    useTasStore.getState().setOvertimeOverride('E1', 'horasExtrasSimples', 5);
+    useTasStore.getState().stashOvertimeOverrides('E1');
+    useTasStore.getState().restoreOvertimeOverrides('E1');
+    expect(useTasStore.getState().overtimeOverrides).toEqual({
+      E1: { horasExtrasSimples: 5 },
+    });
+    expect(useTasStore.getState().stashedOvertimeOverrides.E1).toBeUndefined();
+  });
+
+  it('restoreOvertimeOverrides is a no-op when nothing stashed', () => {
+    useTasStore.getState().restoreOvertimeOverrides('E1');
+    expect(useTasStore.getState().overtimeOverrides).toEqual({});
+  });
+
+  it('resetTas clears stashedOvertimeOverrides', () => {
+    useTasStore.getState().setOvertimeOverride('E1', 'horasExtrasSimples', 5);
+    useTasStore.getState().stashOvertimeOverrides('E1');
+    useTasStore.getState().resetTas();
+    expect(useTasStore.getState().stashedOvertimeOverrides).toEqual({});
+  });
+});
+
+// -----------------------------------------------------------------
+// resetTas
+// -----------------------------------------------------------------
+
 describe('resetTas', () => {
   it('resets all state to initial values', () => {
     useTasStore.getState().setTasView('verification');

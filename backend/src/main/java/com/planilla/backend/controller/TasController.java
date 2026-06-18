@@ -249,6 +249,61 @@ public class TasController {
             return ResponseEntity.badRequest().body(Map.of("code", "NO_ROWS", "message", "No hay filas para enviar."));
         }
 
+        Object rawOverrides = body.getOrDefault("overtimeOverrides", Collections.emptyMap());
+        if (!(rawOverrides instanceof Map)) {
+            return ResponseEntity.badRequest().body(Map.of(
+                "code", "INVALID_OVERRIDE",
+                "message", "Formato de horas extra inválido."));
+        }
+        @SuppressWarnings("unchecked")
+        Map<String, Object> overtimeOverrides = (Map<String, Object>) rawOverrides;
+
+        for (Map.Entry<String, Object> entry : overtimeOverrides.entrySet()) {
+            String empId = entry.getKey();
+            if (!(entry.getValue() instanceof Map)) {
+                return ResponseEntity.badRequest().body(Map.of(
+                    "code", "INVALID_OVERRIDE",
+                    "message", "Formato de horas extra inválido."));
+            }
+            @SuppressWarnings("unchecked")
+            Map<String, Object> fields = (Map<String, Object>) entry.getValue();
+            for (EmployeeRow r : rows) {
+                if (r.getCodigoEmpleado().equals(empId)) {
+                    if (fields.containsKey("horasExtrasSimples")) {
+                        Object raw = fields.get("horasExtrasSimples");
+                        if (!(raw instanceof Number)) {
+                            return ResponseEntity.badRequest().body(Map.of(
+                                "code", "INVALID_OVERRIDE",
+                                "message", "Formato de horas extra inválido."));
+                        }
+                        int val = ((Number) raw).intValue();
+                        if (val < 0) {
+                            return ResponseEntity.badRequest().body(Map.of(
+                                "code", "INVALID_OVERRIDE",
+                                "message", "Los valores de horas extra no pueden ser negativos."));
+                        }
+                        r.setHorasExtrasSimples(val);
+                    }
+                    if (fields.containsKey("horasExtrasDobles")) {
+                        Object raw = fields.get("horasExtrasDobles");
+                        if (!(raw instanceof Number)) {
+                            return ResponseEntity.badRequest().body(Map.of(
+                                "code", "INVALID_OVERRIDE",
+                                "message", "Formato de horas extra inválido."));
+                        }
+                        int val = ((Number) raw).intValue();
+                        if (val < 0) {
+                            return ResponseEntity.badRequest().body(Map.of(
+                                "code", "INVALID_OVERRIDE",
+                                "message", "Los valores de horas extra no pueden ser negativos."));
+                        }
+                        r.setHorasExtrasDobles(val);
+                    }
+                    break;
+                }
+            }
+        }
+
         String jobId = jobService.createJob(rows);
         JobService.JobResult result = jobService.processJob(jobId);
 

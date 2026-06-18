@@ -71,6 +71,10 @@ export default function ReviewScreen() {
   const setJobId     = useTasStore(s => s.setJobId);
   const error        = useTasStore(s => s.error);
   const setError     = useTasStore(s => s.setError);
+  const overtimeOverrides = useTasStore(s => s.overtimeOverrides);
+  const setOvertimeOverride = useTasStore(s => s.setOvertimeOverride);
+  const stashOvertimeOverrides = useTasStore(s => s.stashOvertimeOverrides);
+  const restoreOvertimeOverrides = useTasStore(s => s.restoreOvertimeOverrides);
 
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [pendingToggleId, setPendingToggleId] = useState<string | null>(null);
@@ -89,7 +93,7 @@ export default function ReviewScreen() {
     setError(null);
     try {
       setTasView('submitting');
-      const { jobId } = await submitTas(uploadToken);
+      const { jobId } = await submitTas(uploadToken, overtimeOverrides);
       setJobId(jobId);
       setTasView('result');
     } catch (err) {
@@ -117,12 +121,23 @@ export default function ReviewScreen() {
         const result = await recomputeTas(uploadToken);
         setResolvedRows(result.resolvedRows);
         setSessionSummaries(result.sessionSummaries ?? {});
+        if (newAccruesOvertime) {
+          restoreOvertimeOverrides(row.codigoEmpleado);
+        } else {
+          stashOvertimeOverrides(row.codigoEmpleado);
+        }
       } catch {
         setError('La sesión de carga expiró. Vuelve a subir el archivo.');
       }
     } finally {
       setPendingToggleId(null);
     }
+  };
+
+  const handleOvertimeChange = (codigoEmpleado: string, field: 'horasExtrasSimples' | 'horasExtrasDobles', raw: string) => {
+    const parsed = parseInt(raw, 10);
+    const value = Number.isNaN(parsed) || parsed < 0 ? 0 : parsed;
+    setOvertimeOverride(codigoEmpleado, field, value);
   };
 
   return (
@@ -181,8 +196,31 @@ export default function ReviewScreen() {
                     </td>
                     <td className="py-3 px-4 text-body-md text-on-surface-variant">{row.codigoEmpleado}</td>
                     <td className="py-3 px-4 text-body-md text-on-surface-variant text-right">{row.diasNoLaborados}</td>
-                    <td className="py-3 px-4 text-body-md text-on-surface-variant text-right">{row.horasExtrasSimples}</td>
-                    <td className="py-3 px-4 text-body-md text-on-surface-variant text-right">{row.horasExtrasDobles}</td>
+                    {(['horasExtrasSimples', 'horasExtrasDobles'] as const).map(field => {
+                      const override = overtimeOverrides[row.codigoEmpleado]?.[field];
+                      const isOverridden = override !== undefined;
+                      return (
+                        <td key={field} className={`py-3 px-4 text-right ${isOverridden ? 'bg-amber-50' : ''}`}>
+                          <input
+                            type="number"
+                            min="0"
+                            step="1"
+                            value={override ?? row[field]}
+                            onChange={e => handleOvertimeChange(row.codigoEmpleado, field, e.target.value)}
+                            className={`w-16 text-right text-body-md border-b focus:border-primary focus:outline-none transition-colors ${
+                              isOverridden
+                                ? 'bg-amber-50 border-amber-300 text-amber-900 font-medium'
+                                : 'bg-transparent border-outline-variant text-on-surface-variant'
+                            }`}
+                          />
+                          {isOverridden && (
+                            <div className="text-label-sm text-on-surface-variant mt-0.5">
+                              {row[field] === 1 ? 'era' : 'eran'} {row[field]}
+                            </div>
+                          )}
+                        </td>
+                      );
+                    })}
                     <td className="py-3 px-4 text-center">
                       <button
                         role="switch"

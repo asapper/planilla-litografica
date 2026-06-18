@@ -27,6 +27,8 @@ interface TasStore {
   jobId: string | null;
   error: string | null;
   sessionSummaries: Record<string, SessionSummary[]>;
+  overtimeOverrides: Record<string, { horasExtrasSimples?: number; horasExtrasDobles?: number }>;
+  stashedOvertimeOverrides: Record<string, { horasExtrasSimples?: number; horasExtrasDobles?: number }>;
 
   setWarnings: (warnings: string[]) => void;
   setTasView: (view: TasView) => void;
@@ -51,6 +53,10 @@ interface TasStore {
   setJobId: (id: string | null) => void;
   setError: (msg: string | null) => void;
   setSessionSummaries: (summaries: Record<string, SessionSummary[]>) => void;
+  setOvertimeOverride: (codigoEmpleado: string, field: 'horasExtrasSimples' | 'horasExtrasDobles', value: number) => void;
+  clearOvertimeOverrides: () => void;
+  stashOvertimeOverrides: (codigoEmpleado: string) => void;
+  restoreOvertimeOverrides: (codigoEmpleado: string) => void;
   resetTas: () => void;
 }
 
@@ -76,6 +82,8 @@ const initialState = {
   jobId: null,
   error: null,
   sessionSummaries: {} as Record<string, SessionSummary[]>,
+  overtimeOverrides: {} as Record<string, { horasExtrasSimples?: number; horasExtrasDobles?: number }>,
+  stashedOvertimeOverrides: {} as Record<string, { horasExtrasSimples?: number; horasExtrasDobles?: number }>,
 };
 
 export const useTasStore = create<TasStore>(set => ({
@@ -121,5 +129,30 @@ export const useTasStore = create<TasStore>(set => ({
   setJobId: (id) => set({ jobId: id }),
   setError: (msg) => set({ error: msg }),
   setSessionSummaries: (summaries) => set({ sessionSummaries: summaries }),
+  setOvertimeOverride: (codigoEmpleado, field, value) => set(s => ({
+    overtimeOverrides: {
+      ...s.overtimeOverrides,
+      [codigoEmpleado]: { ...s.overtimeOverrides[codigoEmpleado], [field]: value },
+    },
+  })),
+  clearOvertimeOverrides: () => set({ overtimeOverrides: {} }),
+  stashOvertimeOverrides: (codigoEmpleado) => set(s => {
+    const current = s.overtimeOverrides[codigoEmpleado];
+    if (!current) return s;
+    const { [codigoEmpleado]: _, ...rest } = s.overtimeOverrides;
+    return {
+      overtimeOverrides: rest,
+      stashedOvertimeOverrides: { ...s.stashedOvertimeOverrides, [codigoEmpleado]: current },
+    };
+  }),
+  restoreOvertimeOverrides: (codigoEmpleado) => set(s => {
+    const stashed = s.stashedOvertimeOverrides[codigoEmpleado];
+    if (!stashed) return s;
+    const { [codigoEmpleado]: _, ...rest } = s.stashedOvertimeOverrides;
+    return {
+      overtimeOverrides: { ...s.overtimeOverrides, [codigoEmpleado]: stashed },
+      stashedOvertimeOverrides: rest,
+    };
+  }),
   resetTas: () => set({ ...initialState }),
 }));
