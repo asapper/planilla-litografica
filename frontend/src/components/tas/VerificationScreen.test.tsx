@@ -205,12 +205,20 @@ describe('VerificationScreen time inputs', () => {
     expect(input.value).toBe('08:30');
   });
 
-  it('pre-fills exit from lastScan', () => {
+  it('pre-fills exit from lastScan when exit is not missing', () => {
     useTasStore.getState().setFlaggedSessions([makeSession({ lastScan: '17:45:00', effectiveStart: null, flags: ['MISSING_ENTRY'] })]);
     useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
     render(<VerificationScreen />);
     const input = screen.getByLabelText('Salida') as HTMLInputElement;
     expect(input.value).toBe('17:45');
+  });
+
+  it('leaves exit empty when exit is missing', () => {
+    useTasStore.getState().setFlaggedSessions([makeSession({ lastScan: '08:00:00', effectiveStart: '08:00:00', flags: ['MISSING_EXIT'] })]);
+    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
+    render(<VerificationScreen />);
+    const input = screen.getByLabelText('Salida') as HTMLInputElement;
+    expect(input.value).toBe('');
   });
 });
 
@@ -841,6 +849,84 @@ describe('SHORT_DAY sessions', () => {
 
     const resolved = useTasStore.getState().resolvedSessions[99];
     expect(resolved).toEqual({ resolvedStart: '07:00', resolvedEnd: '13:00' });
+  });
+});
+
+describe('SessionCard time validation', () => {
+  it('disables Confirmar when exit time is before entry time', () => {
+    useTasStore.getState().setFlaggedSessions([
+      makeSession({ flags: ['MISSING_ENTRY', 'MISSING_EXIT'], effectiveStart: null, lastScan: null }),
+    ]);
+    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
+    render(<VerificationScreen />);
+    const entryInput = screen.getByLabelText('Entrada');
+    const exitInput = screen.getByLabelText('Salida');
+    fireEvent.change(entryInput, { target: { value: '19:00' } });
+    fireEvent.change(exitInput, { target: { value: '05:00' } });
+    expect(screen.getByRole('button', { name: /confirmar/i })).toBeDisabled();
+  });
+
+  it('disables Confirmar when exit time equals entry time', () => {
+    useTasStore.getState().setFlaggedSessions([
+      makeSession({ flags: ['MISSING_ENTRY', 'MISSING_EXIT'], effectiveStart: null, lastScan: null }),
+    ]);
+    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
+    render(<VerificationScreen />);
+    const entryInput = screen.getByLabelText('Entrada');
+    const exitInput = screen.getByLabelText('Salida');
+    fireEvent.change(entryInput, { target: { value: '08:00' } });
+    fireEvent.change(exitInput, { target: { value: '08:00' } });
+    expect(screen.getByRole('button', { name: /confirmar/i })).toBeDisabled();
+  });
+
+  it('shows inline hint when times are inverted', () => {
+    useTasStore.getState().setFlaggedSessions([
+      makeSession({ flags: ['MISSING_ENTRY', 'MISSING_EXIT'], effectiveStart: null, lastScan: null }),
+    ]);
+    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
+    render(<VerificationScreen />);
+    const entryInput = screen.getByLabelText('Entrada');
+    const exitInput = screen.getByLabelText('Salida');
+    fireEvent.change(entryInput, { target: { value: '19:00' } });
+    fireEvent.change(exitInput, { target: { value: '05:00' } });
+    expect(screen.getByText('La entrada debe ser antes de la salida')).toBeInTheDocument();
+  });
+
+  it('does not show inline hint when times are valid', () => {
+    useTasStore.getState().setFlaggedSessions([
+      makeSession({ flags: ['MISSING_ENTRY', 'MISSING_EXIT'], effectiveStart: null, lastScan: null }),
+    ]);
+    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
+    render(<VerificationScreen />);
+    const entryInput = screen.getByLabelText('Entrada');
+    const exitInput = screen.getByLabelText('Salida');
+    fireEvent.change(entryInput, { target: { value: '08:00' } });
+    fireEvent.change(exitInput, { target: { value: '17:00' } });
+    expect(screen.queryByText('La entrada debe ser antes de la salida')).not.toBeInTheDocument();
+  });
+
+  it('enables Confirmar when entry < exit with both fields filled', () => {
+    useTasStore.getState().setFlaggedSessions([
+      makeSession({ flags: ['MISSING_ENTRY', 'MISSING_EXIT'], effectiveStart: null, lastScan: null }),
+    ]);
+    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
+    render(<VerificationScreen />);
+    const entryInput = screen.getByLabelText('Entrada');
+    const exitInput = screen.getByLabelText('Salida');
+    fireEvent.change(entryInput, { target: { value: '08:00' } });
+    fireEvent.change(exitInput, { target: { value: '17:00' } });
+    expect(screen.getByRole('button', { name: /confirmar/i })).not.toBeDisabled();
+  });
+
+  it('updates state via onInput event for time fields', () => {
+    useTasStore.getState().setFlaggedSessions([
+      makeSession({ flags: ['MISSING_ENTRY'], effectiveStart: null, lastScan: '17:00:00' }),
+    ]);
+    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
+    render(<VerificationScreen />);
+    const entryInput = screen.getByLabelText('Entrada');
+    fireEvent.input(entryInput, { target: { value: '08:00' } });
+    expect(screen.getByRole('button', { name: /confirmar/i })).not.toBeDisabled();
   });
 });
 

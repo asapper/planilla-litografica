@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTasStore } from '../../tasStore';
 import { resolveVerification } from '../../tasApi';
 import type { TasResolution } from '../../tasApi';
@@ -296,16 +296,16 @@ interface SessionCardProps {
 
 function SessionCard({ session, confirmed, onConfirm }: SessionCardProps) {
   const [entry, setEntry] = useState(toHHMM(session.effectiveStart));
-  const [exit,  setExit]  = useState(toHHMM(session.lastScan));
+  const [exit,  setExit]  = useState(session.flags.includes('MISSING_EXIT') ? '' : toHHMM(session.lastScan));
 
   const needsEntry = session.flags.includes('MISSING_ENTRY');
   const needsExit  = session.flags.includes('MISSING_EXIT');
   const entryReadOnly = !needsEntry && !!session.effectiveStart;
   const exitReadOnly  = !needsExit  && !!session.lastScan;
 
-  const canConfirm = (!needsEntry || !!entry) && (!needsExit || !!exit);
-
   const hoursPreview = calcHours(entry, exit);
+  const timesInverted = !!entry && !!exit && hoursPreview === '—';
+  const canConfirm = (!needsEntry || !!entry) && (!needsExit || !!exit) && !timesInverted;
 
   if (confirmed) {
     return (
@@ -347,10 +347,12 @@ function SessionCard({ session, confirmed, onConfirm }: SessionCardProps) {
       <div className="flex gap-4 items-end mb-3">
         <div className="flex flex-col gap-1">
           <label className="text-label-sm text-on-surface-variant">Entrada</label>
+          {/* onInput fires on AM/PM spinner clicks where onChange does not */}
           <input
             type="time"
             value={entry}
             onChange={e => setEntry(e.target.value)}
+            onInput={e => setEntry((e.target as HTMLInputElement).value)}
             readOnly={entryReadOnly}
             aria-label="Entrada"
             className={`h-9 px-3 rounded-shape-sm border text-body-md focus:outline-none focus:border-primary transition-colors ${
@@ -366,6 +368,7 @@ function SessionCard({ session, confirmed, onConfirm }: SessionCardProps) {
             type="time"
             value={exit}
             onChange={e => setExit(e.target.value)}
+            onInput={e => setExit((e.target as HTMLInputElement).value)}
             readOnly={exitReadOnly}
             aria-label="Salida"
             className={`h-9 px-3 rounded-shape-sm border text-body-md focus:outline-none focus:border-primary transition-colors ${
@@ -382,6 +385,10 @@ function SessionCard({ session, confirmed, onConfirm }: SessionCardProps) {
           </span>
         </div>
       </div>
+
+      {timesInverted && (
+        <p className="text-body-sm text-error mb-2">La entrada debe ser antes de la salida</p>
+      )}
 
       <button
         disabled={!canConfirm}
@@ -419,6 +426,9 @@ export default function VerificationScreen() {
   const sameDayDoubleResolutions    = useTasStore(s => s.sameDayDoubleResolutions);
   const setSameDayDoubleResolution  = useTasStore(s => s.setSameDayDoubleResolution);
   const error                       = useTasStore(s => s.error);
+
+  const scrollRef = useRef<HTMLDivElement>(null);
+  useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTop = 0; }, []);
 
   // Inverts the computed default expansion for an employeeId (not an absolute
   // expanded/collapsed state), so a manual toggle doesn't permanently "stick"
@@ -538,7 +548,7 @@ export default function VerificationScreen() {
 
   return (
     <div className="fixed inset-0 flex flex-col bg-surface-container-lowest" style={{ paddingTop: 64 }}>
-      <div className="flex-1 overflow-auto px-6 py-6">
+      <div ref={scrollRef} className="flex-1 overflow-auto px-6 py-6">
         <h2 className="text-headline-sm font-medium text-on-surface mb-4">
           Verificación de marcaciones
         </h2>
