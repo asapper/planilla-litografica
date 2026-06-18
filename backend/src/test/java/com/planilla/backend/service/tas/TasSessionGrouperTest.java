@@ -598,7 +598,7 @@ class TasSessionGrouperTest {
     void group_manana_firstScanInNocheWindow_matchesNocheAsSubstitution() {
         // A Mañana employee whose only scan of the day falls in Noche's opener window
         // is genuinely substituting on Noche — the opener call must still match Noche
-        // and produce SHIFT_MISMATCH (not AMBIGUOUS_SHIFT). Only the split-mode call
+        // and produce SHIFT_MISMATCH (not BEST_FIT_SHIFT). Only the split-mode call
         // excludes cross-midnight shifts, not the initial opener call.
         List<TasScanRecord> scans = List.of(
             scan("291", LocalDateTime.of(2026, 3, 4, 19, 6))
