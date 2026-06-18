@@ -88,6 +88,70 @@ describe('ReactivationReviewScreen decisions', () => {
   });
 });
 
+describe('ReactivationReviewScreen search filter', () => {
+  it('renders a search input', () => {
+    setup();
+    render(<ReactivationReviewScreen />);
+    expect(screen.getByLabelText(/buscar empleado/i)).toBeInTheDocument();
+  });
+
+  it('filters rows by employee name', () => {
+    setup();
+    render(<ReactivationReviewScreen />);
+    fireEvent.change(screen.getByLabelText(/buscar empleado/i), { target: { value: 'ana' } });
+    expect(screen.getByText('Ana López')).toBeInTheDocument();
+    expect(screen.queryByText('Luis García')).not.toBeInTheDocument();
+  });
+
+  it('filters rows by employee ID', () => {
+    setup();
+    render(<ReactivationReviewScreen />);
+    fireEvent.change(screen.getByLabelText(/buscar empleado/i), { target: { value: 'E2' } });
+    expect(screen.queryByText('Ana López')).not.toBeInTheDocument();
+    expect(screen.getByText('Luis García')).toBeInTheDocument();
+  });
+
+  it('matches accent-insensitively', () => {
+    setup();
+    render(<ReactivationReviewScreen />);
+    fireEvent.change(screen.getByLabelText(/buscar empleado/i), { target: { value: 'garcia' } });
+    expect(screen.getByText('Luis García')).toBeInTheDocument();
+  });
+
+  it('shows empty state when no rows match', () => {
+    setup();
+    render(<ReactivationReviewScreen />);
+    fireEvent.change(screen.getByLabelText(/buscar empleado/i), { target: { value: 'xyz' } });
+    expect(screen.getByText(/no se encontraron empleados/i)).toBeInTheDocument();
+  });
+
+  it('shows a clear button when search has text', () => {
+    setup();
+    render(<ReactivationReviewScreen />);
+    expect(screen.queryByLabelText(/limpiar búsqueda/i)).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText(/buscar empleado/i), { target: { value: 'ana' } });
+    expect(screen.getByLabelText(/limpiar búsqueda/i)).toBeInTheDocument();
+  });
+
+  it('clears search when clear button is clicked', () => {
+    setup();
+    render(<ReactivationReviewScreen />);
+    fireEvent.change(screen.getByLabelText(/buscar empleado/i), { target: { value: 'ana' } });
+    expect(screen.queryByText('Luis García')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText(/limpiar búsqueda/i));
+    expect(screen.getByText('Luis García')).toBeInTheDocument();
+    expect(screen.getByText('Ana López')).toBeInTheDocument();
+  });
+
+  it('does not alter inactiveDecisions in the store', () => {
+    setup();
+    useTasStore.getState().setInactiveDecision('E1', 'reactivate');
+    render(<ReactivationReviewScreen />);
+    fireEvent.change(screen.getByLabelText(/buscar empleado/i), { target: { value: 'luis' } });
+    expect(useTasStore.getState().inactiveDecisions['E1']).toBe('reactivate');
+  });
+});
+
 describe('ReactivationReviewScreen continue', () => {
   it('calls submitInactiveReview with correct split of decisions', async () => {
     setup();
