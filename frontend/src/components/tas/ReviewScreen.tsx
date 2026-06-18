@@ -71,6 +71,8 @@ export default function ReviewScreen() {
   const setJobId     = useTasStore(s => s.setJobId);
   const error        = useTasStore(s => s.error);
   const setError     = useTasStore(s => s.setError);
+  const overtimeOverrides = useTasStore(s => s.overtimeOverrides);
+  const setOvertimeOverride = useTasStore(s => s.setOvertimeOverride);
 
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [pendingToggleId, setPendingToggleId] = useState<string | null>(null);
@@ -123,6 +125,12 @@ export default function ReviewScreen() {
     } finally {
       setPendingToggleId(null);
     }
+  };
+
+  const handleOvertimeChange = (codigoEmpleado: string, field: 'horasExtrasSimples' | 'horasExtrasDobles', raw: string) => {
+    const parsed = parseInt(raw, 10);
+    const value = Number.isNaN(parsed) || parsed < 0 ? 0 : parsed;
+    setOvertimeOverride(codigoEmpleado, field, value);
   };
 
   return (
@@ -181,8 +189,30 @@ export default function ReviewScreen() {
                     </td>
                     <td className="py-3 px-4 text-body-md text-on-surface-variant">{row.codigoEmpleado}</td>
                     <td className="py-3 px-4 text-body-md text-on-surface-variant text-right">{row.diasNoLaborados}</td>
-                    <td className="py-3 px-4 text-body-md text-on-surface-variant text-right">{row.horasExtrasSimples}</td>
-                    <td className="py-3 px-4 text-body-md text-on-surface-variant text-right">{row.horasExtrasDobles}</td>
+                    <td className="py-3 px-4 text-right">
+                      <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        value={overtimeOverrides[row.codigoEmpleado]?.horasExtrasSimples ?? row.horasExtrasSimples}
+                        onChange={e => handleOvertimeChange(row.codigoEmpleado, 'horasExtrasSimples', e.target.value)}
+                        className={`w-16 text-right text-body-md bg-transparent border-b border-outline-variant focus:border-primary focus:outline-none transition-colors ${
+                          overtimeOverrides[row.codigoEmpleado]?.horasExtrasSimples !== undefined ? 'text-blue-600 font-medium' : 'text-on-surface-variant'
+                        }`}
+                      />
+                    </td>
+                    <td className="py-3 px-4 text-right">
+                      <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        value={overtimeOverrides[row.codigoEmpleado]?.horasExtrasDobles ?? row.horasExtrasDobles}
+                        onChange={e => handleOvertimeChange(row.codigoEmpleado, 'horasExtrasDobles', e.target.value)}
+                        className={`w-16 text-right text-body-md bg-transparent border-b border-outline-variant focus:border-primary focus:outline-none transition-colors ${
+                          overtimeOverrides[row.codigoEmpleado]?.horasExtrasDobles !== undefined ? 'text-blue-600 font-medium' : 'text-on-surface-variant'
+                        }`}
+                      />
+                    </td>
                     <td className="py-3 px-4 text-center">
                       <button
                         role="switch"

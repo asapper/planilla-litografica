@@ -267,6 +267,92 @@ describe('ReviewScreen accruesOvertime toggle', () => {
   });
 });
 
+describe('ReviewScreen overtime override', () => {
+  beforeEach(() => {
+    useTasStore.getState().setUploadToken('tok-1');
+    useTasStore.getState().setResolvedRows(rows);
+  });
+
+  it('renders number inputs for overtime columns', () => {
+    render(<ReviewScreen />);
+    const inputs = screen.getAllByRole('spinbutton');
+    expect(inputs).toHaveLength(4); // 2 employees × 2 fields
+  });
+
+  it('displays computed values by default', () => {
+    render(<ReviewScreen />);
+    const inputs = screen.getAllByRole('spinbutton');
+    expect(inputs[0]).toHaveValue(2);  // E1 simples
+    expect(inputs[1]).toHaveValue(0);  // E1 dobles
+    expect(inputs[2]).toHaveValue(0);  // E2 simples
+    expect(inputs[3]).toHaveValue(1);  // E2 dobles
+  });
+
+  it('updates store when user types a new value', () => {
+    render(<ReviewScreen />);
+    const inputs = screen.getAllByRole('spinbutton');
+    fireEvent.change(inputs[0], { target: { value: '7' } });
+    expect(useTasStore.getState().overtimeOverrides).toEqual({
+      E1: { horasExtrasSimples: 7 },
+    });
+  });
+
+  it('displays override value instead of computed value', () => {
+    useTasStore.getState().setOvertimeOverride('E1', 'horasExtrasSimples', 10);
+    render(<ReviewScreen />);
+    const inputs = screen.getAllByRole('spinbutton');
+    expect(inputs[0]).toHaveValue(10);
+  });
+
+  it('applies visual indicator class when value is overridden', () => {
+    useTasStore.getState().setOvertimeOverride('E1', 'horasExtrasSimples', 10);
+    render(<ReviewScreen />);
+    const inputs = screen.getAllByRole('spinbutton');
+    expect(inputs[0]).toHaveClass('text-blue-600');
+    expect(inputs[1]).not.toHaveClass('text-blue-600');
+  });
+
+  it('overrides persist after accruesOvertime recompute', async () => {
+    useTasStore.getState().setOvertimeOverride('E1', 'horasExtrasSimples', 10);
+    mockUpdateAccruesOvertime.mockResolvedValue({
+      id: 'E1', code: 'E1', name: 'Ana López', shiftId: null, shiftName: null, active: true, accruesOvertime: false,
+    });
+    const newRows: ResolvedRow[] = [
+      { ...rows[0], accruesOvertime: false, horasExtrasSimples: 0, horasExtrasDobles: 0 },
+      rows[1],
+    ];
+    mockRecomputeTas.mockResolvedValue({ uploadToken: 'tok-1', resolvedRows: newRows });
+
+    render(<ReviewScreen />);
+    fireEvent.click(screen.getAllByRole('switch')[0]);
+
+    await waitFor(() => expect(useTasStore.getState().resolvedRows).toEqual(newRows));
+    expect(useTasStore.getState().overtimeOverrides).toEqual({
+      E1: { horasExtrasSimples: 10 },
+    });
+    const inputs = screen.getAllByRole('spinbutton');
+    expect(inputs[0]).toHaveValue(10);
+  });
+
+  it('rejects negative values by clamping to 0', () => {
+    render(<ReviewScreen />);
+    const inputs = screen.getAllByRole('spinbutton');
+    fireEvent.change(inputs[0], { target: { value: '-3' } });
+    expect(useTasStore.getState().overtimeOverrides).toEqual({
+      E1: { horasExtrasSimples: 0 },
+    });
+  });
+
+  it('treats empty input as 0', () => {
+    render(<ReviewScreen />);
+    const inputs = screen.getAllByRole('spinbutton');
+    fireEvent.change(inputs[0], { target: { value: '' } });
+    expect(useTasStore.getState().overtimeOverrides).toEqual({
+      E1: { horasExtrasSimples: 0 },
+    });
+  });
+});
+
 describe('ReviewScreen expandable session details', () => {
   beforeEach(() => {
     useTasStore.getState().setUploadToken('tok-1');
