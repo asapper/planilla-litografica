@@ -7,7 +7,10 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 
 @Service
@@ -21,6 +24,7 @@ public class JobService {
     private int maxRetries;
 
     private final Map<String, JobState> jobs = new ConcurrentHashMap<>();
+    private final Executor asyncExecutor = Executors.newCachedThreadPool();
 
     public JobService(DatabaseService databaseService) {
         this.databaseService = databaseService;
@@ -84,6 +88,16 @@ public class JobService {
             jobId, finalStatus, job.submitted(), job.skipped(), job.failed());
 
         return new JobResult(job.submitted(), job.skipped(), job.failed(), firstError);
+    }
+
+    public <T> void processJobAsync(String jobId, String uploadToken, Map<String, T> stateStore) {
+        CompletableFuture.runAsync(() -> {
+            processJob(jobId);
+            JobState job = jobs.get(jobId);
+            if (job != null && "DONE".equals(job.status.get())) {
+                stateStore.remove(uploadToken);
+            }
+        }, asyncExecutor);
     }
 
     public record JobStatusDto(

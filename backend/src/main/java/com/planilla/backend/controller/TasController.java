@@ -220,6 +220,15 @@ public class TasController {
         return ResponseEntity.ok(resp);
     }
 
+    @GetMapping("/jobs/{jobId}")
+    public ResponseEntity<?> getJobStatus(@PathVariable String jobId) {
+        JobService.JobStatusDto status = jobService.getJobStatus(jobId);
+        if (status == null) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok(status);
+    }
+
     @PostMapping("/submit")
     public ResponseEntity<?> submit(@RequestBody Map<String, Object> body) {
         String token = (String) body.get("uploadToken");
@@ -305,20 +314,8 @@ public class TasController {
         }
 
         String jobId = jobService.createJob(rows);
-        JobService.JobResult result = jobService.processJob(jobId);
-
-        if (result.hasFailures()) {
-            return ResponseEntity.status(502).body(Map.of(
-                "code", "DB_ERROR",
-                "message", result.error() != null ? result.error() : "Error al enviar los registros.",
-                "submitted", result.submitted(),
-                "skipped", result.skipped(),
-                "failed", result.failed()
-            ));
-        }
-
-        stateStore.remove(token);
-        return ResponseEntity.ok(Map.of("jobId", jobId));
+        jobService.processJobAsync(jobId, token, stateStore);
+        return ResponseEntity.status(202).body(Map.of("jobId", jobId));
     }
 
     @PostMapping("/recompute/{uploadToken}")

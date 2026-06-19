@@ -671,59 +671,12 @@ class TasControllerTest {
         String token = (String) mapper.readValue(uploadResponse, Map.class).get("uploadToken");
 
         when(jobService.createJob(any())).thenReturn("job-123");
-        when(jobService.processJob("job-123")).thenReturn(new JobService.JobResult(1, 0, 0, null));
 
         mvc.perform(post("/api/tas/submit")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("uploadToken", token))))
-           .andExpect(status().isOk())
+           .andExpect(status().isAccepted())
            .andExpect(jsonPath("$.jobId").value("job-123"));
-    }
-
-    @Test
-    void submit_returns502WhenDbFails() throws Exception {
-        EmployeeRow row = new EmployeeRow();
-        row.setCodigoEmpleado("100");
-        row.setNombreEmpleado("Test");
-        row.setDiasNoLaborados(0);
-        row.setHorasExtrasSimples(8);
-        row.setHorasExtrasDobles(0);
-        row.setMes(3);
-        row.setAnio(2026);
-        row.setNumeroDequincena(1);
-
-        TasUploadResult result = emptyResult();
-        result.setResolvedRows(List.of(row));
-        when(parserService.parse(any())).thenReturn(emptyParseResult());
-        when(uploadService.processScans(any(), any(), any())).thenReturn(result);
-
-        MockMultipartFile file = new MockMultipartFile("file", "test.csv", "text/csv", "data".getBytes());
-
-        String uploadResponse = mvc.perform(multipart("/api/tas/upload").file(file))
-           .andExpect(status().isOk())
-           .andReturn().getResponse().getContentAsString();
-
-        String token = (String) mapper.readValue(uploadResponse, Map.class).get("uploadToken");
-
-        when(jobService.createJob(any())).thenReturn("job-fail");
-        when(jobService.processJob("job-fail")).thenReturn(
-            new JobService.JobResult(0, 0, 1, "Base de datos remota no disponible."));
-
-        mvc.perform(post("/api/tas/submit")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(json(Map.of("uploadToken", token))))
-           .andExpect(status().is(502))
-           .andExpect(jsonPath("$.code").value("DB_ERROR"))
-           .andExpect(jsonPath("$.message").value("Base de datos remota no disponible."))
-           .andExpect(jsonPath("$.failed").value(1));
-
-        // Token remains valid after a 502 so the user can retry
-        when(jobService.processJob("job-fail")).thenReturn(new JobService.JobResult(1, 0, 0, null));
-        mvc.perform(post("/api/tas/submit")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(json(Map.of("uploadToken", token))))
-           .andExpect(status().isOk())
-           .andExpect(jsonPath("$.jobId").value("job-fail"));
     }
 
     @Test
@@ -801,12 +754,11 @@ class TasControllerTest {
            .andExpect(status().isOk());
 
         when(jobService.createJob(any())).thenReturn("job-456");
-        when(jobService.processJob("job-456")).thenReturn(new JobService.JobResult(1, 0, 0, null));
 
         mvc.perform(post("/api/tas/submit")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("uploadToken", token))))
-           .andExpect(status().isOk())
+           .andExpect(status().isAccepted())
            .andExpect(jsonPath("$.jobId").value("job-456"));
     }
 
@@ -1210,6 +1162,45 @@ class TasControllerTest {
            .andExpect(jsonPath("$.sessionSummaries.E1[0].date").value("2026-06-02"));
     }
 
+    // ── GET /api/tas/jobs/{jobId} ────────────────────────────────────────
+
+    @Test
+    void getJobStatus_unknownJob_returns404() throws Exception {
+        when(jobService.getJobStatus("unknown")).thenReturn(null);
+
+        mvc.perform(get("/api/tas/jobs/unknown"))
+           .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void getJobStatus_existingJob_returnsStatus() throws Exception {
+        when(jobService.getJobStatus("job-1")).thenReturn(
+            new JobService.JobStatusDto("job-1", "IN_PROGRESS", 10, 3, 1, 0, List.of()));
+
+        mvc.perform(get("/api/tas/jobs/job-1"))
+           .andExpect(status().isOk())
+           .andExpect(jsonPath("$.jobId").value("job-1"))
+           .andExpect(jsonPath("$.status").value("IN_PROGRESS"))
+           .andExpect(jsonPath("$.totalRows").value(10))
+           .andExpect(jsonPath("$.submitted").value(3))
+           .andExpect(jsonPath("$.skipped").value(1))
+           .andExpect(jsonPath("$.failed").value(0))
+           .andExpect(jsonPath("$.failedRows").isEmpty());
+    }
+
+    @Test
+    void getJobStatus_withFailedRows_includesDetails() throws Exception {
+        when(jobService.getJobStatus("job-2")).thenReturn(
+            new JobService.JobStatusDto("job-2", "DONE_WITH_ERRORS", 2, 1, 0, 1,
+                List.of(new JobService.FailedRowDto("E1", "Ana", "DB error"))));
+
+        mvc.perform(get("/api/tas/jobs/job-2"))
+           .andExpect(status().isOk())
+           .andExpect(jsonPath("$.failedRows[0].codigoEmpleado").value("E1"))
+           .andExpect(jsonPath("$.failedRows[0].nombreEmpleado").value("Ana"))
+           .andExpect(jsonPath("$.failedRows[0].error").value("DB error"));
+    }
+
     // ── POST /api/tas/submit — overtime overrides ────────────────────────
 
     @Test
@@ -1238,7 +1229,6 @@ class TasControllerTest {
         String token = (String) mapper.readValue(uploadResponse, Map.class).get("uploadToken");
 
         when(jobService.createJob(any())).thenReturn("job-override");
-        when(jobService.processJob("job-override")).thenReturn(new JobService.JobResult(1, 0, 0, null));
 
         Map<String, Object> overrides = Map.of("100", Map.of("horasExtrasSimples", 15, "horasExtrasDobles", 4));
         Map<String, Object> body = Map.of("uploadToken", token, "overtimeOverrides", overrides);
@@ -1246,7 +1236,7 @@ class TasControllerTest {
         mvc.perform(post("/api/tas/submit")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(body)))
-           .andExpect(status().isOk())
+           .andExpect(status().isAccepted())
            .andExpect(jsonPath("$.jobId").value("job-override"));
 
         var captor = org.mockito.ArgumentCaptor.forClass(List.class);
@@ -1317,14 +1307,13 @@ class TasControllerTest {
         String token = (String) mapper.readValue(uploadResponse, Map.class).get("uploadToken");
 
         when(jobService.createJob(any())).thenReturn("job-nochange");
-        when(jobService.processJob("job-nochange")).thenReturn(new JobService.JobResult(1, 0, 0, null));
 
         Map<String, Object> body = Map.of("uploadToken", token, "overtimeOverrides", Map.of());
 
         mvc.perform(post("/api/tas/submit")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(body)))
-           .andExpect(status().isOk());
+           .andExpect(status().isAccepted());
 
         var captor = org.mockito.ArgumentCaptor.forClass(List.class);
         verify(jobService).createJob(captor.capture());
@@ -1359,7 +1348,6 @@ class TasControllerTest {
         String token = (String) mapper.readValue(uploadResponse, Map.class).get("uploadToken");
 
         when(jobService.createJob(any())).thenReturn("job-partial");
-        when(jobService.processJob("job-partial")).thenReturn(new JobService.JobResult(1, 0, 0, null));
 
         Map<String, Object> overrides = Map.of("100", Map.of("horasExtrasSimples", 20));
         Map<String, Object> body = Map.of("uploadToken", token, "overtimeOverrides", overrides);
@@ -1367,7 +1355,7 @@ class TasControllerTest {
         mvc.perform(post("/api/tas/submit")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(body)))
-           .andExpect(status().isOk());
+           .andExpect(status().isAccepted());
 
         var captor = org.mockito.ArgumentCaptor.forClass(List.class);
         verify(jobService).createJob(captor.capture());

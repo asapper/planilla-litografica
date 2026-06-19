@@ -10,9 +10,13 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.net.ConnectException;
 import java.net.SocketTimeoutException;
+import java.time.Duration;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 import static org.assertj.core.api.Assertions.*;
+import static org.awaitility.Awaitility.await;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
@@ -267,5 +271,57 @@ class JobServiceTest {
         assertThat(status.failedRows().get(0).codigoEmpleado()).isEqualTo("1");
         assertThat(status.failedRows().get(0).nombreEmpleado()).isEqualTo("Test 1");
         assertThat(status.failedRows().get(0).error()).isEqualTo("Error al procesar el registro.");
+    }
+
+    // ── processJobAsync ─────────────────────────────────────────────────────
+
+    @Test
+    void processJobAsync_processesInBackground() throws Exception {
+        when(databaseService.isDuplicate(any())).thenReturn(false);
+
+        String jobId = service.createJob(List.of(row("1")));
+        Map<String, Object> fakeStore = new ConcurrentHashMap<>();
+        fakeStore.put("token-1", new Object());
+
+        service.processJobAsync(jobId, "token-1", fakeStore);
+
+        await().atMost(Duration.ofSeconds(2)).untilAsserted(() -> {
+            JobService.JobStatusDto status = service.getJobStatus(jobId);
+            assertThat(status.status()).isEqualTo("DONE");
+        });
+        verify(databaseService).submitRow(any());
+    }
+
+    @Test
+    void processJobAsync_removesStateOnSuccess() throws Exception {
+        when(databaseService.isDuplicate(any())).thenReturn(false);
+
+        String jobId = service.createJob(List.of(row("1")));
+        Map<String, Object> fakeStore = new ConcurrentHashMap<>();
+        fakeStore.put("token-1", new Object());
+
+        service.processJobAsync(jobId, "token-1", fakeStore);
+
+        await().atMost(Duration.ofSeconds(2)).untilAsserted(() ->
+            assertThat(fakeStore).doesNotContainKey("token-1")
+        );
+    }
+
+    @Test
+    void processJobAsync_preservesStateOnFailure() throws Exception {
+        when(databaseService.isDuplicate(any()))
+            .thenThrow(new RuntimeException("DB error"));
+
+        String jobId = service.createJob(List.of(row("1")));
+        Map<String, Object> fakeStore = new ConcurrentHashMap<>();
+        fakeStore.put("token-1", new Object());
+
+        service.processJobAsync(jobId, "token-1", fakeStore);
+
+        await().atMost(Duration.ofSeconds(2)).untilAsserted(() -> {
+            JobService.JobStatusDto status = service.getJobStatus(jobId);
+            assertThat(status.status()).isEqualTo("DONE_WITH_ERRORS");
+        });
+        assertThat(fakeStore).containsKey("token-1");
     }
 }
