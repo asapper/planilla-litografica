@@ -18,15 +18,18 @@ export default function PollingScreen() {
   const [error, setError] = useState<string | null>(null);
   const [notFound, setNotFound] = useState(false);
   const failCountRef = useRef(0);
+  const intervalRef = useRef<number | null>(null);
+  const activeRef = useRef(true);
+  const pollRef = useRef<() => Promise<void>>();
 
   useEffect(() => {
     if (!jobId) return;
-    let active = true;
+    activeRef.current = true;
 
     const poll = async () => {
       try {
         const data = await getTasJobStatus(jobId);
-        if (!active) return;
+        if (!activeRef.current) return;
         failCountRef.current = 0;
         setError(null);
         setStatus(data);
@@ -40,21 +43,24 @@ export default function PollingScreen() {
           setTasView('result');
         }
       } catch (err) {
-        if (!active) return;
+        if (!activeRef.current) return;
         if ((err as any).response?.status === 404) {
+          clearInterval(intervalRef.current!);
           setNotFound(true);
           return;
         }
         failCountRef.current += 1;
         if (failCountRef.current >= MAX_FAILURES) {
+          clearInterval(intervalRef.current!);
           setError('No se pudo conectar al servidor. Verifique su conexión.');
         }
       }
     };
 
+    pollRef.current = poll;
     poll();
-    const id = setInterval(poll, POLL_INTERVAL);
-    return () => { active = false; clearInterval(id); };
+    intervalRef.current = setInterval(poll, POLL_INTERVAL);
+    return () => { activeRef.current = false; clearInterval(intervalRef.current!); };
   }, [jobId, setTasView, setJobResult]);
 
   if (notFound) {
@@ -85,6 +91,8 @@ export default function PollingScreen() {
           onClick={() => {
             failCountRef.current = 0;
             setError(null);
+            pollRef.current?.();
+            intervalRef.current = setInterval(pollRef.current!, POLL_INTERVAL);
           }}
         >
           Reintentar
