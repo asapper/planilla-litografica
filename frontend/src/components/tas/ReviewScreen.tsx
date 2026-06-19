@@ -120,7 +120,7 @@ export default function ReviewScreen() {
 
   const duplicateSet = new Set(duplicateCodes);
   const allDuplicate = resolvedRows.length > 0 && resolvedRows.every(r => duplicateSet.has(r.codigoEmpleado));
-  const nonDuplicateCount = resolvedRows.filter(r => !duplicateSet.has(r.codigoEmpleado)).length;
+
 
   const tableRef = useRef<HTMLTableElement>(null);
   useLayoutEffect(() => {
