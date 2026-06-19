@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { APP_BAR } from '../constants/colors';
 import type { AppView } from '../types';
 import type { TasView } from '../tasTypes';
@@ -13,6 +13,10 @@ interface Props {
 
 export default function TopAppBar({ currentView, onViewChange, tasView, onNewUpload }: Props) {
   const [showConfirm, setShowConfirm] = useState(false);
+
+  useEffect(() => {
+    if (tasView === 'submitting') setShowConfirm(false);
+  }, [tasView]);
 
   return (
     <header
