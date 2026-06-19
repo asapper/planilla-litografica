@@ -1,18 +1,21 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { AxiosError } from 'axios';
 import ReviewScreen from './ReviewScreen';
 import { useTasStore } from '../../tasStore';
 import * as tasApi from '../../tasApi';
 import * as configApi from '../../configApi';
+import * as api from '../../api';
 import type { ResolvedRow, SessionSummary } from '../../tasTypes';
 
 vi.mock('../../tasApi');
 vi.mock('../../configApi');
+vi.mock('../../api');
 
 const mockSubmitTas = vi.mocked(tasApi.submitTas);
 const mockRecomputeTas = vi.mocked(tasApi.recomputeTas);
 const mockUpdateAccruesOvertime = vi.mocked(configApi.updateAccruesOvertime);
+const mockCheckDbHealth = vi.mocked(api.checkDbHealth);
 
 const rows: ResolvedRow[] = [
   { codigoEmpleado: 'E1', nombreEmpleado: 'Ana López', diasNoLaborados: 0, horasExtrasSimples: 2, horasExtrasDobles: 0, mes: 3, anio: 2026, numeroDequincena: 1, diasTurnoEstimado: 0, accruesOvertime: true },
@@ -521,5 +524,75 @@ describe('ReviewScreen expandable session details', () => {
     fireEvent.click(expandButtons[0]);
 
     expect(screen.getByText(/sin sesiones registradas/i)).toBeInTheDocument();
+  });
+});
+
+describe('ReviewScreen DB health check', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    useTasStore.getState().setUploadToken('tok-1');
+    useTasStore.getState().setResolvedRows(rows);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('disables submit button and shows warning when DB is unreachable', async () => {
+    mockCheckDbHealth.mockResolvedValue(false);
+
+    render(<ReviewScreen />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /enviar/i })).toBeDisabled();
+    });
+    expect(screen.getByText(/base de datos no disponible/i)).toBeInTheDocument();
+  });
+
+  it('enables submit button when DB is reachable', async () => {
+    mockCheckDbHealth.mockResolvedValue(true);
+
+    render(<ReviewScreen />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /enviar/i })).not.toBeDisabled();
+    });
+    expect(screen.queryByText(/base de datos no disponible/i)).not.toBeInTheDocument();
+  });
+
+  it('re-checks DB health periodically and re-enables button when DB recovers', async () => {
+    mockCheckDbHealth.mockResolvedValue(false);
+
+    render(<ReviewScreen />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /enviar/i })).toBeDisabled();
+    });
+
+    mockCheckDbHealth.mockResolvedValue(true);
+    await act(async () => { vi.advanceTimersByTime(5000); });
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /enviar/i })).not.toBeDisabled();
+    });
+    expect(screen.queryByText(/base de datos no disponible/i)).not.toBeInTheDocument();
+  });
+
+  it('disables button when DB goes down after being up', async () => {
+    mockCheckDbHealth.mockResolvedValue(true);
+
+    render(<ReviewScreen />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /enviar/i })).not.toBeDisabled();
+    });
+
+    mockCheckDbHealth.mockResolvedValue(false);
+    await act(async () => { vi.advanceTimersByTime(5000); });
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /enviar/i })).toBeDisabled();
+    });
+    expect(screen.getByText(/base de datos no disponible/i)).toBeInTheDocument();
   });
 });

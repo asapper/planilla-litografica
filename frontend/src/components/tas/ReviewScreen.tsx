@@ -3,6 +3,7 @@ import axios from 'axios';
 import { useTasStore } from '../../tasStore';
 import { submitTas, recomputeTas } from '../../tasApi';
 import { updateAccruesOvertime } from '../../configApi';
+import { checkDbHealth } from '../../api';
 import AlertMessage from '../ui/AlertMessage';
 import { matchesSearch } from '../../textSearch';
 import type { ResolvedRow, SessionSummary } from '../../tasTypes';
@@ -79,6 +80,19 @@ export default function ReviewScreen() {
 
   const scrollRef = useRef<HTMLDivElement>(null);
   useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTop = 0; }, []);
+
+  const [dbHealthy, setDbHealthy] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const poll = async () => {
+      const healthy = await checkDbHealth();
+      if (!cancelled) setDbHealthy(healthy);
+    };
+    poll();
+    const id = setInterval(poll, 5000);
+    return () => { cancelled = true; clearInterval(id); };
+  }, []);
 
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [pendingToggleId, setPendingToggleId] = useState<string | null>(null);
@@ -293,8 +307,11 @@ export default function ReviewScreen() {
         </table>
       </div>
 
-      <div className="sticky bottom-0 bg-white border-t border-outline-variant px-6 py-4 flex justify-end">
-        <button onClick={handleSubmit} className="m3-btn-filled">
+      <div className="sticky bottom-0 bg-white border-t border-outline-variant px-6 py-4 flex items-center justify-end gap-4">
+        {dbHealthy === false && (
+          <span className="text-body-sm text-error">Base de datos no disponible</span>
+        )}
+        <button onClick={handleSubmit} disabled={dbHealthy === false} className="m3-btn-filled">
           Enviar
         </button>
       </div>
