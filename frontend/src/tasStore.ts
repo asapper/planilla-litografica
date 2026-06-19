@@ -30,6 +30,8 @@ interface TasStore {
   sessionSummaries: Record<string, SessionSummary[]>;
   overtimeOverrides: Record<string, { horasExtrasSimples?: number; horasExtrasDobles?: number }>;
   stashedOvertimeOverrides: Record<string, { horasExtrasSimples?: number; horasExtrasDobles?: number }>;
+  duplicateCodes: string[];
+  duplicatesLoading: boolean;
 
   setWarnings: (warnings: string[]) => void;
   setTasView: (view: TasView) => void;
@@ -59,6 +61,8 @@ interface TasStore {
   clearOvertimeOverrides: () => void;
   stashOvertimeOverrides: (codigoEmpleado: string) => void;
   restoreOvertimeOverrides: (codigoEmpleado: string) => void;
+  setDuplicateCodes: (codes: string[]) => void;
+  setDuplicatesLoading: (loading: boolean) => void;
   resetTas: () => void;
 }
 
@@ -87,6 +91,8 @@ const initialState = {
   sessionSummaries: {} as Record<string, SessionSummary[]>,
   overtimeOverrides: {} as Record<string, { horasExtrasSimples?: number; horasExtrasDobles?: number }>,
   stashedOvertimeOverrides: {} as Record<string, { horasExtrasSimples?: number; horasExtrasDobles?: number }>,
+  duplicateCodes: [] as string[],
+  duplicatesLoading: false,
 };
 
 export const useTasStore = create<TasStore>(set => ({
@@ -158,5 +164,7 @@ export const useTasStore = create<TasStore>(set => ({
       stashedOvertimeOverrides: rest,
     };
   }),
+  setDuplicateCodes: (codes) => set({ duplicateCodes: codes }),
+  setDuplicatesLoading: (loading) => set({ duplicatesLoading: loading }),
   resetTas: () => set({ ...initialState }),
 }));

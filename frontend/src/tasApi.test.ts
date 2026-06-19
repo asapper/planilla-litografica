@@ -18,6 +18,7 @@ const {
   getAbsentReview,
   setAbsentEmployeesActive,
   recomputeTas,
+  checkDuplicates,
 } = await import('./tasApi');
 
 const mockResult: TasUploadResult = {
@@ -207,5 +208,23 @@ describe('recomputeTas', () => {
   it('propagates errors', async () => {
     mockPost.mockRejectedValue(new Error('invalid token'));
     await expect(recomputeTas('tok')).rejects.toThrow('invalid token');
+  });
+});
+
+// -----------------------------------------------------------------
+// checkDuplicates
+// -----------------------------------------------------------------
+
+describe('checkDuplicates', () => {
+  it('posts to /tas/check-duplicates and returns duplicate codes', async () => {
+    mockPost.mockResolvedValue({ data: { duplicates: ['E1', 'E3'] } });
+    const result = await checkDuplicates('tok-abc');
+    expect(mockPost).toHaveBeenCalledWith('/tas/check-duplicates', { uploadToken: 'tok-abc' });
+    expect(result).toEqual(['E1', 'E3']);
+  });
+
+  it('propagates errors', async () => {
+    mockPost.mockRejectedValue(new Error('not found'));
+    await expect(checkDuplicates('tok')).rejects.toThrow('not found');
   });
 });
