@@ -104,7 +104,7 @@ export default function ReviewScreen() {
     setDuplicatesLoading(true);
     checkDuplicates(uploadToken)
       .then(codes => { if (!cancelled) setDuplicateCodes(codes); })
-      .catch(() => {})
+      .catch(() => { if (!cancelled) setError('No se pudo verificar duplicados. Los registros se enviarán sin verificación.'); })
       .finally(() => { if (!cancelled) setDuplicatesLoading(false); });
     return () => { cancelled = true; };
   }, [uploadToken, setDuplicateCodes, setDuplicatesLoading]);

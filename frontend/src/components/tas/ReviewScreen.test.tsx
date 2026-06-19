@@ -688,6 +688,15 @@ describe('ReviewScreen duplicate detection', () => {
     }));
   });
 
+  it('shows error message when checkDuplicates fails', async () => {
+    mockCheckDuplicates.mockRejectedValue(new Error('network error'));
+    render(<ReviewScreen />);
+    await waitFor(() => {
+      expect(screen.getByText(/no se pudo verificar duplicados/i)).toBeInTheDocument();
+    });
+    expect(screen.queryByText(/ya registrados/i)).not.toBeInTheDocument();
+  });
+
   it('disables submit button when all rows are duplicates', async () => {
     mockCheckDuplicates.mockResolvedValue(['E1', 'E2']);
     render(<ReviewScreen />);
