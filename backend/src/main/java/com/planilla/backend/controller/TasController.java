@@ -233,6 +233,28 @@ public class TasController {
         return ResponseEntity.ok(status);
     }
 
+    @PostMapping("/jobs/{jobId}/retry")
+    public ResponseEntity<?> retryJob(@PathVariable String jobId) {
+        try {
+            String retryJobId = jobService.createRetryJob(jobId);
+            jobService.processRetryJobAsync(retryJobId);
+            return ResponseEntity.ok(Map.of("jobId", retryJobId));
+        } catch (IllegalArgumentException e) {
+            if (e.getMessage().contains("no encontrado")) {
+                return ResponseEntity.notFound().build();
+            }
+            return ResponseEntity.status(409).body(Map.of(
+                "code", "MAX_RETRIES_EXHAUSTED",
+                "message", e.getMessage()
+            ));
+        } catch (IllegalStateException e) {
+            return ResponseEntity.status(409).body(Map.of(
+                "code", "NOT_RETRYABLE",
+                "message", e.getMessage()
+            ));
+        }
+    }
+
     @PostMapping("/check-duplicates")
     public ResponseEntity<?> checkDuplicates(@RequestBody Map<String, Object> body) {
         String token = (String) body.get("uploadToken");
