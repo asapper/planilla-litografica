@@ -311,7 +311,7 @@ export default function ReviewScreen() {
         {dbHealthy === false && (
           <span className="text-body-sm text-error">Base de datos no disponible</span>
         )}
-        <button onClick={handleSubmit} disabled={dbHealthy === false} className="m3-btn-filled">
+        <button onClick={handleSubmit} disabled={dbHealthy !== true} className="m3-btn-filled">
           Enviar
         </button>
       </div>

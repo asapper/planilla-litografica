@@ -35,6 +35,7 @@ const sessionSummaries: Record<string, SessionSummary[]> = {
 beforeEach(() => {
   useTasStore.getState().resetTas();
   vi.clearAllMocks();
+  mockCheckDbHealth.mockResolvedValue(true);
 });
 
 describe('ReviewScreen rendering', () => {
@@ -90,6 +91,7 @@ describe('ReviewScreen submit', () => {
     mockSubmitTas.mockResolvedValue({ jobId: 'job-final' });
 
     render(<ReviewScreen />);
+    await waitFor(() => expect(screen.getByRole('button', { name: /enviar/i })).not.toBeDisabled());
     fireEvent.click(screen.getByRole('button', { name: /enviar/i }));
 
     await waitFor(() => expect(useTasStore.getState().tasView).toBe('result'));
@@ -103,6 +105,7 @@ describe('ReviewScreen submit', () => {
     mockSubmitTas.mockRejectedValue(new Error('network error'));
 
     render(<ReviewScreen />);
+    await waitFor(() => expect(screen.getByRole('button', { name: /enviar/i })).not.toBeDisabled());
     fireEvent.click(screen.getByRole('button', { name: /enviar/i }));
 
     await waitFor(() => expect(useTasStore.getState().error).not.toBeNull());
@@ -134,6 +137,7 @@ describe('ReviewScreen error display', () => {
     mockSubmitTas.mockRejectedValue(new Error('network error'));
 
     render(<ReviewScreen />);
+    await waitFor(() => expect(screen.getByRole('button', { name: /enviar/i })).not.toBeDisabled());
     fireEvent.click(screen.getByRole('button', { name: /enviar/i }));
 
     await waitFor(() => {
@@ -154,6 +158,7 @@ describe('ReviewScreen error display', () => {
     mockSubmitTas.mockRejectedValue(axiosError);
 
     render(<ReviewScreen />);
+    await waitFor(() => expect(screen.getByRole('button', { name: /enviar/i })).not.toBeDisabled());
     fireEvent.click(screen.getByRole('button', { name: /enviar/i }));
 
     await waitFor(() => {
@@ -401,6 +406,7 @@ describe('ReviewScreen overtime override', () => {
     mockSubmitTas.mockResolvedValue({ jobId: 'job-stashed' });
 
     render(<ReviewScreen />);
+    await waitFor(() => expect(screen.getByRole('button', { name: /enviar/i })).not.toBeDisabled());
     fireEvent.click(screen.getByRole('button', { name: /enviar/i }));
 
     await waitFor(() => expect(mockSubmitTas).toHaveBeenCalledWith('tok-1', {}));
@@ -411,6 +417,7 @@ describe('ReviewScreen overtime override', () => {
     mockSubmitTas.mockResolvedValue({ jobId: 'job-override' });
 
     render(<ReviewScreen />);
+    await waitFor(() => expect(screen.getByRole('button', { name: /enviar/i })).not.toBeDisabled());
     fireEvent.click(screen.getByRole('button', { name: /enviar/i }));
 
     await waitFor(() => expect(mockSubmitTas).toHaveBeenCalledWith('tok-1', {
@@ -536,6 +543,14 @@ describe('ReviewScreen DB health check', () => {
 
   afterEach(() => {
     vi.useRealTimers();
+  });
+
+  it('disables submit button before the first health check resolves', () => {
+    mockCheckDbHealth.mockReturnValue(new Promise(() => {}));
+
+    render(<ReviewScreen />);
+
+    expect(screen.getByRole('button', { name: /enviar/i })).toBeDisabled();
   });
 
   it('disables submit button and shows warning when DB is unreachable', async () => {
