@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import TopAppBar from './TopAppBar';
 import type { AppView } from '../types';
+import type { TasView } from '../tasTypes';
 
 const noop = vi.fn<(view: AppView) => void>();
 
@@ -34,6 +35,8 @@ describe('TopAppBar', () => {
 });
 
 describe('Nueva carga button', () => {
+  const nonIdleViews: TasView[] = ['processing', 'inactiveReview', 'verification', 'review', 'submitting', 'result', 'absentReview'];
+
   it('is not rendered when tasView is idle on tas view', () => {
     render(<TopAppBar currentView="tas" onViewChange={noop} tasView="idle" onNewUpload={vi.fn()} />);
     expect(screen.queryByRole('button', { name: /nueva carga/i })).not.toBeInTheDocument();
@@ -49,13 +52,13 @@ describe('Nueva carga button', () => {
     expect(screen.queryByText('Iniciar nueva carga')).not.toBeInTheDocument();
   });
 
-  it('is rendered when tasView is not idle on tas view', () => {
-    render(<TopAppBar currentView="tas" onViewChange={noop} tasView="review" onNewUpload={vi.fn()} />);
+  it.each(nonIdleViews)('is rendered when tasView is "%s" on tas view', (tasView) => {
+    render(<TopAppBar currentView="tas" onViewChange={noop} tasView={tasView} onNewUpload={vi.fn()} />);
     expect(screen.getByRole('button', { name: /nueva carga/i })).toBeInTheDocument();
   });
 
-  it('is rendered when tasView is not idle on config view', () => {
-    render(<TopAppBar currentView="config" onViewChange={noop} tasView="review" onNewUpload={vi.fn()} />);
+  it.each(nonIdleViews)('is rendered when tasView is "%s" on config view', (tasView) => {
+    render(<TopAppBar currentView="config" onViewChange={noop} tasView={tasView} onNewUpload={vi.fn()} />);
     expect(screen.getByRole('button', { name: /nueva carga/i })).toBeInTheDocument();
   });
 
