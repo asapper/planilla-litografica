@@ -96,5 +96,7 @@ export interface JobStatus {
   submitted: number;
   skipped: number;
   failed: number;
+  attemptNumber: number;
+  maxRetries: number;
   failedRows: JobFailedRow[];
 }

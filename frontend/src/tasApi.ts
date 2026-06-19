@@ -58,3 +58,6 @@ export const checkDuplicates = (uploadToken: string): Promise<string[]> =>
 
 export const getTasJobStatus = (jobId: string): Promise<JobStatus> =>
   client.get<JobStatus>(`/tas/jobs/${jobId}`).then(r => r.data);
+
+export const retryTasJob = (jobId: string): Promise<{ jobId: string }> =>
+  client.post<{ jobId: string }>(`/tas/jobs/${jobId}/retry`).then(r => r.data);

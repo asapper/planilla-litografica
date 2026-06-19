@@ -25,7 +25,7 @@ interface TasStore {
   usedFallbackHolidays: boolean;
   fallbackBannerDismissed: boolean;
   jobId: string | null;
-  jobResult: { submitted: number; skipped: number; failed: number } | null;
+  jobResult: { submitted: number; skipped: number; failed: number; attemptNumber: number; maxRetries: number } | null;
   error: string | null;
   sessionSummaries: Record<string, SessionSummary[]>;
   overtimeOverrides: Record<string, { horasExtrasSimples?: number; horasExtrasDobles?: number }>;
@@ -54,7 +54,7 @@ interface TasStore {
   setUsedFallbackHolidays: (v: boolean) => void;
   dismissFallbackBanner: () => void;
   setJobId: (id: string | null) => void;
-  setJobResult: (result: { submitted: number; skipped: number; failed: number } | null) => void;
+  setJobResult: (result: { submitted: number; skipped: number; failed: number; attemptNumber: number; maxRetries: number } | null) => void;
   setError: (msg: string | null) => void;
   setSessionSummaries: (summaries: Record<string, SessionSummary[]>) => void;
   setOvertimeOverride: (codigoEmpleado: string, field: 'horasExtrasSimples' | 'horasExtrasDobles', value: number) => void;
