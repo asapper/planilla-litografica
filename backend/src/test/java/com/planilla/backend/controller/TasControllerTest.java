@@ -1177,7 +1177,7 @@ class TasControllerTest {
     @Test
     void getJobStatus_existingJob_returnsStatus() throws Exception {
         when(jobService.getJobStatus("job-1")).thenReturn(
-            new JobService.JobStatusDto("job-1", "IN_PROGRESS", 10, 3, 1, 0, List.of()));
+            new JobService.JobStatusDto("job-1", "IN_PROGRESS", 10, 3, 1, 0, 1, 3, List.of()));
 
         mvc.perform(get("/api/tas/jobs/job-1"))
            .andExpect(status().isOk())
@@ -1193,7 +1193,7 @@ class TasControllerTest {
     @Test
     void getJobStatus_withFailedRows_includesDetails() throws Exception {
         when(jobService.getJobStatus("job-2")).thenReturn(
-            new JobService.JobStatusDto("job-2", "DONE_WITH_ERRORS", 2, 1, 0, 1,
+            new JobService.JobStatusDto("job-2", "DONE_WITH_ERRORS", 2, 1, 0, 1, 1, 3,
                 List.of(new JobService.FailedRowDto("E1", "Ana", "DB error"))));
 
         mvc.perform(get("/api/tas/jobs/job-2"))

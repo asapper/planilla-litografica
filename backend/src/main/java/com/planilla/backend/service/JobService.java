@@ -127,6 +127,8 @@ public class JobService {
         int submitted,
         int skipped,
         int failed,
+        int attemptNumber,
+        int maxRetries,
         List<FailedRowDto> failedRows
     ) {}
 
@@ -155,8 +157,44 @@ public class JobService {
             job.submitted(),
             job.skipped(),
             job.failed(),
+            job.attemptNumber,
+            job.maxRetries,
             failedRows
         );
+    }
+
+    public String createRetryJob(String parentJobId) {
+        JobState parent = jobs.get(parentJobId);
+        if (parent == null) {
+            throw new IllegalArgumentException("Job no encontrado: " + parentJobId);
+        }
+        if (!"DONE_WITH_ERRORS".equals(parent.status.get())) {
+            throw new IllegalStateException("Solo se puede reintentar un job con estado DONE_WITH_ERRORS");
+        }
+        if (parent.attemptNumber >= parent.maxRetries) {
+            throw new IllegalArgumentException("Se alcanzó el máximo de reintentos");
+        }
+
+        List<JobRowState> failedRows = parent.rows.stream()
+            .filter(r -> r.getStatus().equals("FAILED"))
+            .map(r -> new JobRowState(r.row))
+            .collect(Collectors.toList());
+
+        String retryId = UUID.randomUUID().toString();
+        jobs.put(retryId, new JobState(retryId, parent.attemptNumber + 1, parent.maxRetries, failedRows));
+        return retryId;
+    }
+
+    public void processRetryJobAsync(String jobId) {
+        CompletableFuture.runAsync(() -> processJob(jobId), asyncExecutor)
+            .exceptionally(ex -> {
+                log.error("Retry job {} failed unexpectedly: {}", jobId, ex.getMessage(), ex);
+                JobState job = jobs.get(jobId);
+                if (job != null) {
+                    job.status.set("DONE_WITH_ERRORS");
+                }
+                return null;
+            });
     }
 
     static boolean isConnectionError(Exception e) {
