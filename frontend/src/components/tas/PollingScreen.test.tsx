@@ -17,6 +17,8 @@ const inProgressStatus: JobStatus = {
   submitted: 3,
   skipped: 1,
   failed: 0,
+  attemptNumber: 1,
+  maxRetries: 3,
   failedRows: [],
 };
 
@@ -27,6 +29,8 @@ const doneStatus: JobStatus = {
   submitted: 9,
   skipped: 1,
   failed: 0,
+  attemptNumber: 1,
+  maxRetries: 3,
   failedRows: [],
 };
 
@@ -37,6 +41,8 @@ const doneWithErrorsStatus: JobStatus = {
   submitted: 7,
   skipped: 1,
   failed: 2,
+  attemptNumber: 1,
+  maxRetries: 3,
   failedRows: [
     { codigoEmpleado: 'E1', nombreEmpleado: 'Ana', error: 'DB error' },
     { codigoEmpleado: 'E2', nombreEmpleado: 'Luis', error: 'Timeout' },
@@ -120,6 +126,8 @@ describe('PollingScreen terminal states', () => {
       submitted: 9,
       skipped: 1,
       failed: 0,
+      attemptNumber: 1,
+      maxRetries: 3,
     });
   });
 
@@ -135,6 +143,8 @@ describe('PollingScreen terminal states', () => {
       submitted: 7,
       skipped: 1,
       failed: 2,
+      attemptNumber: 1,
+      maxRetries: 3,
     });
   });
 });
