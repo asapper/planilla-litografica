@@ -6,6 +6,7 @@ import com.planilla.backend.model.tas.TasSession;
 import com.planilla.backend.model.tas.TasFlag;
 import com.planilla.backend.model.tas.TasPeriod;
 import com.planilla.backend.model.tas.TasUploadResult;
+import com.planilla.backend.service.DatabaseService;
 import com.planilla.backend.service.JobService;
 import com.planilla.backend.service.tas.*;
 import org.springframework.http.ResponseEntity;
@@ -29,6 +30,7 @@ public class TasController {
     private final JobService              jobService;
     private final ShiftConfigService      shiftConfigService;
     private final TasHoursCalculator      hoursCalculator;
+    private final DatabaseService         databaseService;
 
     private final ConcurrentHashMap<String, TasUploadState> stateStore = new ConcurrentHashMap<>();
 
@@ -39,7 +41,8 @@ public class TasController {
             EmployeeRegistryService registryService,
             JobService jobService,
             ShiftConfigService shiftConfigService,
-            TasHoursCalculator hoursCalculator) {
+            TasHoursCalculator hoursCalculator,
+            DatabaseService databaseService) {
         this.parserService      = parserService;
         this.uploadService      = uploadService;
         this.reportBuilder      = reportBuilder;
@@ -47,6 +50,7 @@ public class TasController {
         this.jobService         = jobService;
         this.shiftConfigService = shiftConfigService;
         this.hoursCalculator    = hoursCalculator;
+        this.databaseService    = databaseService;
     }
 
     @PostMapping(value = "/upload", consumes = "multipart/form-data")
@@ -227,6 +231,21 @@ public class TasController {
             return ResponseEntity.notFound().build();
         }
         return ResponseEntity.ok(status);
+    }
+
+    @PostMapping("/check-duplicates")
+    public ResponseEntity<?> checkDuplicates(@RequestBody Map<String, Object> body) {
+        String token = (String) body.get("uploadToken");
+        TasUploadState state = stateStore.get(token);
+        if (state == null) {
+            return ResponseEntity.notFound().build();
+        }
+
+        List<EmployeeRow> rows = state.getResolvedRows();
+        if (rows == null) rows = Collections.emptyList();
+
+        List<String> duplicates = databaseService.checkDuplicates(rows);
+        return ResponseEntity.ok(Map.of("duplicates", duplicates));
     }
 
     @PostMapping("/submit")
