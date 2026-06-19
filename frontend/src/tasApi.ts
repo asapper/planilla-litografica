@@ -1,5 +1,5 @@
 import axios from 'axios';
-import type { TasUploadResult, TasResolveResult, AbsentEmployee, TasPeriod, ResolvedRow, SessionSummary } from './tasTypes';
+import type { TasUploadResult, TasResolveResult, AbsentEmployee, TasPeriod, ResolvedRow, SessionSummary, JobStatus } from './tasTypes';
 
 export type TasResolution =
   | { sessionId: number; resolvedStart: string; resolvedEnd: string }
@@ -52,3 +52,6 @@ export const setAbsentEmployeesActive = (token: string, employeeIds: string[], a
 
 export const recomputeTas = (token: string): Promise<{ uploadToken: string; resolvedRows: ResolvedRow[]; sessionSummaries?: Record<string, SessionSummary[]> }> =>
   client.post<{ uploadToken: string; resolvedRows: ResolvedRow[]; sessionSummaries?: Record<string, SessionSummary[]> }>(`/tas/recompute/${token}`).then(r => r.data);
+
+export const getTasJobStatus = (jobId: string): Promise<JobStatus> =>
+  client.get<JobStatus>(`/tas/jobs/${jobId}`).then(r => r.data);

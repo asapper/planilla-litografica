@@ -127,7 +127,7 @@ export default function ReviewScreen() {
       setTasView('submitting');
       const { jobId } = await submitTas(uploadToken, overtimeOverrides);
       setJobId(jobId);
-      setTasView('result');
+      setTasView('polling');
     } catch (err) {
       setTasView('review');
       const msg = axios.isAxiosError(err) && err.response?.data?.message

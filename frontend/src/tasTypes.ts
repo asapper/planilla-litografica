@@ -81,4 +81,20 @@ export interface TasResolveResult {
 }
 
 export type InactiveDecision = 'reactivate' | 'ignore'
-export type TasView = 'idle' | 'processing' | 'inactiveReview' | 'verification' | 'review' | 'submitting' | 'result' | 'absentReview'
+export type TasView = 'idle' | 'processing' | 'inactiveReview' | 'verification' | 'review' | 'submitting' | 'polling' | 'result' | 'absentReview'
+
+export interface JobFailedRow {
+  codigoEmpleado: string;
+  nombreEmpleado: string;
+  error: string;
+}
+
+export interface JobStatus {
+  jobId: string;
+  status: 'PENDING' | 'IN_PROGRESS' | 'DONE' | 'DONE_WITH_ERRORS';
+  totalRows: number;
+  submitted: number;
+  skipped: number;
+  failed: number;
+  failedRows: JobFailedRow[];
+}

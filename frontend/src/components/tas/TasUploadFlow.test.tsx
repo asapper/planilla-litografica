@@ -18,6 +18,9 @@ vi.mock('./ReviewScreen', () => ({
 vi.mock('./TasResultScreen', () => ({
   default: () => <div data-testid="tas-result-screen" />,
 }));
+vi.mock('./PollingScreen', () => ({
+  default: () => <div data-testid="polling-screen" />,
+}));
 vi.mock('./AbsentReviewOverlay', () => ({
   default: () => <div data-testid="absent-review-overlay" />,
 }));
@@ -61,6 +64,12 @@ describe('TasUploadFlow routing', () => {
     useTasStore.getState().setTasView('submitting');
     render(<TasUploadFlow fileName="test.csv" />);
     expect(screen.getByText('Enviando...')).toBeInTheDocument();
+  });
+
+  it('renders PollingScreen when tasView is polling', () => {
+    useTasStore.getState().setTasView('polling');
+    render(<TasUploadFlow fileName="test.csv" />);
+    expect(screen.getByTestId('polling-screen')).toBeInTheDocument();
   });
 
   it('renders TasResultScreen when tasView is result', () => {

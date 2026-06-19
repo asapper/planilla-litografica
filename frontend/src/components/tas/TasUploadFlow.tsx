@@ -5,6 +5,7 @@ import ReactivationReviewScreen from './ReactivationReviewScreen';
 import VerificationScreen from './VerificationScreen';
 import ReviewScreen from './ReviewScreen';
 import TasResultScreen from './TasResultScreen';
+import PollingScreen from './PollingScreen';
 import AbsentReviewOverlay from './AbsentReviewOverlay';
 import Spinner from '../ui/Spinner';
 
@@ -49,6 +50,10 @@ export default function TasUploadFlow({ fileName }: Props) {
         <p className="text-title-md text-primary">Enviando...</p>
       </div>
     );
+  }
+
+  if (tasView === 'polling') {
+    return <PollingScreen />;
   }
 
   if (tasView === 'result') {
