@@ -211,4 +211,61 @@ class JobServiceTest {
         Exception outer = new RuntimeException("outer", middle);
         assertThat(JobService.isConnectionError(outer)).isTrue();
     }
+
+    // ── getJobStatus ─────────────────────────────────────────────────────
+
+    @Test
+    void getJobStatus_unknownJobId_returnsNull() {
+        assertThat(service.getJobStatus("no-such-job")).isNull();
+    }
+
+    @Test
+    void getJobStatus_pendingJob_returnsPendingStatus() {
+        String jobId = service.createJob(List.of(row("1"), row("2")));
+        JobService.JobStatusDto status = service.getJobStatus(jobId);
+
+        assertThat(status).isNotNull();
+        assertThat(status.jobId()).isEqualTo(jobId);
+        assertThat(status.status()).isEqualTo("PENDING");
+        assertThat(status.totalRows()).isEqualTo(2);
+        assertThat(status.submitted()).isEqualTo(0);
+        assertThat(status.skipped()).isEqualTo(0);
+        assertThat(status.failed()).isEqualTo(0);
+        assertThat(status.failedRows()).isEmpty();
+    }
+
+    @Test
+    void getJobStatus_afterProcessing_returnsFinalCounts() {
+        when(databaseService.isDuplicate(any()))
+            .thenReturn(true)
+            .thenReturn(false);
+
+        String jobId = service.createJob(List.of(row("1"), row("2")));
+        service.processJob(jobId);
+
+        JobService.JobStatusDto status = service.getJobStatus(jobId);
+        assertThat(status.status()).isEqualTo("DONE");
+        assertThat(status.submitted()).isEqualTo(1);
+        assertThat(status.skipped()).isEqualTo(1);
+        assertThat(status.failed()).isEqualTo(0);
+        assertThat(status.failedRows()).isEmpty();
+    }
+
+    @Test
+    void getJobStatus_withFailedRows_includesFailedRowDetails() {
+        when(databaseService.isDuplicate(any()))
+            .thenThrow(new RuntimeException("some DB error"))
+            .thenReturn(false);
+
+        String jobId = service.createJob(List.of(row("1"), row("2")));
+        service.processJob(jobId);
+
+        JobService.JobStatusDto status = service.getJobStatus(jobId);
+        assertThat(status.status()).isEqualTo("DONE_WITH_ERRORS");
+        assertThat(status.failed()).isEqualTo(1);
+        assertThat(status.failedRows()).hasSize(1);
+        assertThat(status.failedRows().get(0).codigoEmpleado()).isEqualTo("1");
+        assertThat(status.failedRows().get(0).nombreEmpleado()).isEqualTo("Test 1");
+        assertThat(status.failedRows().get(0).error()).isEqualTo("Error al procesar el registro.");
+    }
 }

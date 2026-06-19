@@ -86,6 +86,45 @@ public class JobService {
         return new JobResult(job.submitted(), job.skipped(), job.failed(), firstError);
     }
 
+    public record JobStatusDto(
+        String jobId,
+        String status,
+        int totalRows,
+        int submitted,
+        int skipped,
+        int failed,
+        List<FailedRowDto> failedRows
+    ) {}
+
+    public record FailedRowDto(
+        String codigoEmpleado,
+        String nombreEmpleado,
+        String error
+    ) {}
+
+    public JobStatusDto getJobStatus(String jobId) {
+        JobState job = jobs.get(jobId);
+        if (job == null) return null;
+
+        List<FailedRowDto> failedRows = job.rows.stream()
+            .filter(r -> r.getStatus().equals("FAILED"))
+            .map(r -> new FailedRowDto(
+                r.row.getCodigoEmpleado(),
+                r.row.getNombreEmpleado(),
+                r.error != null ? r.error : "Error desconocido"))
+            .collect(Collectors.toList());
+
+        return new JobStatusDto(
+            job.jobId,
+            job.status.get(),
+            job.totalRows(),
+            job.submitted(),
+            job.skipped(),
+            job.failed(),
+            failedRows
+        );
+    }
+
     static boolean isConnectionError(Exception e) {
         Throwable t = e;
         while (t != null) {
