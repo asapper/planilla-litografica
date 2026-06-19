@@ -53,5 +53,8 @@ export const setAbsentEmployeesActive = (token: string, employeeIds: string[], a
 export const recomputeTas = (token: string): Promise<{ uploadToken: string; resolvedRows: ResolvedRow[]; sessionSummaries?: Record<string, SessionSummary[]> }> =>
   client.post<{ uploadToken: string; resolvedRows: ResolvedRow[]; sessionSummaries?: Record<string, SessionSummary[]> }>(`/tas/recompute/${token}`).then(r => r.data);
 
+export const checkDuplicates = (uploadToken: string): Promise<string[]> =>
+  client.post<{ duplicates: string[] }>('/tas/check-duplicates', { uploadToken }).then(r => r.data.duplicates);
+
 export const getTasJobStatus = (jobId: string): Promise<JobStatus> =>
   client.get<JobStatus>(`/tas/jobs/${jobId}`).then(r => r.data);

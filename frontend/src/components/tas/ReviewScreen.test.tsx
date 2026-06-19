@@ -16,6 +16,7 @@ const mockSubmitTas = vi.mocked(tasApi.submitTas);
 const mockRecomputeTas = vi.mocked(tasApi.recomputeTas);
 const mockUpdateAccruesOvertime = vi.mocked(configApi.updateAccruesOvertime);
 const mockCheckDbHealth = vi.mocked(api.checkDbHealth);
+const mockCheckDuplicates = vi.mocked(tasApi.checkDuplicates);
 
 const rows: ResolvedRow[] = [
   { codigoEmpleado: 'E1', nombreEmpleado: 'Ana López', diasNoLaborados: 0, horasExtrasSimples: 2, horasExtrasDobles: 0, mes: 3, anio: 2026, numeroDequincena: 1, diasTurnoEstimado: 0, accruesOvertime: true },
@@ -36,6 +37,7 @@ beforeEach(() => {
   useTasStore.getState().resetTas();
   vi.clearAllMocks();
   mockCheckDbHealth.mockResolvedValue(true);
+  mockCheckDuplicates.mockResolvedValue([]);
 });
 
 describe('ReviewScreen rendering', () => {
@@ -609,5 +611,98 @@ describe('ReviewScreen DB health check', () => {
       expect(screen.getByRole('button', { name: /enviar/i })).toBeDisabled();
     });
     expect(screen.getByText(/base de datos no disponible/i)).toBeInTheDocument();
+  });
+});
+
+describe('ReviewScreen duplicate detection', () => {
+  beforeEach(() => {
+    useTasStore.getState().setUploadToken('tok-1');
+    useTasStore.getState().setResolvedRows(rows);
+  });
+
+  it('calls checkDuplicates on mount with the upload token', async () => {
+    mockCheckDuplicates.mockResolvedValue([]);
+    render(<ReviewScreen />);
+    await waitFor(() => expect(mockCheckDuplicates).toHaveBeenCalledWith('tok-1'));
+  });
+
+  it('renders duplicate banner when duplicates are found', async () => {
+    mockCheckDuplicates.mockResolvedValue(['E1']);
+    render(<ReviewScreen />);
+    await waitFor(() => {
+      expect(screen.getByText(/1 empleado\(s\) ya registrados/i)).toBeInTheDocument();
+    });
+  });
+
+  it('does not render duplicate banner when no duplicates', async () => {
+    mockCheckDuplicates.mockResolvedValue([]);
+    render(<ReviewScreen />);
+    await waitFor(() => expect(mockCheckDuplicates).toHaveBeenCalled());
+    expect(screen.queryByText(/ya registrados/i)).not.toBeInTheDocument();
+  });
+
+  it('applies warning style to duplicate rows', async () => {
+    mockCheckDuplicates.mockResolvedValue(['E1']);
+    render(<ReviewScreen />);
+    await waitFor(() => {
+      expect(screen.getByText(/ya registrados/i)).toBeInTheDocument();
+    });
+    const anaRow = screen.getByText('Ana López').closest('tr')!;
+    expect(anaRow).toHaveClass('bg-amber-50');
+  });
+
+  it('shows duplicate tooltip on duplicate rows', async () => {
+    mockCheckDuplicates.mockResolvedValue(['E1']);
+    render(<ReviewScreen />);
+    await waitFor(() => {
+      expect(screen.getByTitle('Ya registrado para esta quincena')).toBeInTheDocument();
+    });
+  });
+
+  it('disables overtime inputs for duplicate rows', async () => {
+    mockCheckDuplicates.mockResolvedValue(['E1']);
+    render(<ReviewScreen />);
+    await waitFor(() => {
+      expect(screen.getByText(/ya registrados/i)).toBeInTheDocument();
+    });
+    const inputs = screen.getAllByRole('spinbutton');
+    expect(inputs[0]).toBeDisabled(); // E1 simples
+    expect(inputs[1]).toBeDisabled(); // E1 dobles
+    expect(inputs[2]).not.toBeDisabled(); // E2 simples
+    expect(inputs[3]).not.toBeDisabled(); // E2 dobles
+  });
+
+  it('excludes duplicate employee codes from submit payload', async () => {
+    mockCheckDuplicates.mockResolvedValue(['E1']);
+    useTasStore.getState().setOvertimeOverride('E1', 'horasExtrasSimples', 10);
+    useTasStore.getState().setOvertimeOverride('E2', 'horasExtrasDobles', 5);
+    mockSubmitTas.mockResolvedValue({ jobId: 'job-dup' });
+
+    render(<ReviewScreen />);
+    await waitFor(() => expect(screen.getByText(/ya registrados/i)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('button', { name: /enviar/i })).not.toBeDisabled());
+    fireEvent.click(screen.getByRole('button', { name: /enviar/i }));
+
+    await waitFor(() => expect(mockSubmitTas).toHaveBeenCalledWith('tok-1', {
+      E2: { horasExtrasDobles: 5 },
+    }));
+  });
+
+  it('shows error message when checkDuplicates fails', async () => {
+    mockCheckDuplicates.mockRejectedValue(new Error('network error'));
+    render(<ReviewScreen />);
+    await waitFor(() => {
+      expect(screen.getByText(/no se pudo verificar duplicados/i)).toBeInTheDocument();
+    });
+    expect(screen.queryByText(/ya registrados/i)).not.toBeInTheDocument();
+  });
+
+  it('disables submit button when all rows are duplicates', async () => {
+    mockCheckDuplicates.mockResolvedValue(['E1', 'E2']);
+    render(<ReviewScreen />);
+    await waitFor(() => {
+      expect(screen.getByText(/ya registrados/i)).toBeInTheDocument();
+    });
+    expect(screen.getByRole('button', { name: /todos los registros ya fueron enviados/i })).toBeDisabled();
   });
 });

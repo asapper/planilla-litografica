@@ -404,6 +404,40 @@ describe('setSelectedPeriod', () => {
 });
 
 // -----------------------------------------------------------------
+// duplicateCodes / duplicatesLoading
+// -----------------------------------------------------------------
+
+describe('duplicateCodes', () => {
+  it('starts empty', () => {
+    expect(useTasStore.getState().duplicateCodes).toEqual([]);
+  });
+
+  it('setDuplicateCodes stores the codes', () => {
+    useTasStore.getState().setDuplicateCodes(['E1', 'E3']);
+    expect(useTasStore.getState().duplicateCodes).toEqual(['E1', 'E3']);
+  });
+
+  it('setDuplicateCodes can set to empty', () => {
+    useTasStore.getState().setDuplicateCodes(['E1']);
+    useTasStore.getState().setDuplicateCodes([]);
+    expect(useTasStore.getState().duplicateCodes).toEqual([]);
+  });
+});
+
+describe('duplicatesLoading', () => {
+  it('starts false', () => {
+    expect(useTasStore.getState().duplicatesLoading).toBe(false);
+  });
+
+  it('setDuplicatesLoading toggles the flag', () => {
+    useTasStore.getState().setDuplicatesLoading(true);
+    expect(useTasStore.getState().duplicatesLoading).toBe(true);
+    useTasStore.getState().setDuplicatesLoading(false);
+    expect(useTasStore.getState().duplicatesLoading).toBe(false);
+  });
+});
+
+// -----------------------------------------------------------------
 // resetTas
 // -----------------------------------------------------------------
 
@@ -527,5 +561,7 @@ describe('resetTas', () => {
     expect(s.resolvedRows).toEqual([]);
     expect(s.availablePeriods).toEqual([]);
     expect(s.selectedPeriod).toBeNull();
+    expect(s.duplicateCodes).toEqual([]);
+    expect(s.duplicatesLoading).toBe(false);
   });
 });

@@ -5,6 +5,9 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
+import java.util.List;
+
 @Service
 public class DatabaseService {
 
@@ -28,6 +31,16 @@ public class DatabaseService {
             row.getAnio()
         );
         return count != null && count > 0;
+    }
+
+    public List<String> checkDuplicates(List<EmployeeRow> rows) {
+        List<String> duplicates = new ArrayList<>();
+        for (EmployeeRow row : rows) {
+            if (isDuplicate(row)) {
+                duplicates.add(row.getCodigoEmpleado());
+            }
+        }
+        return duplicates;
     }
 
     public void submitRow(EmployeeRow row) {

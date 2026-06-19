@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import axios from 'axios';
 import { useTasStore } from '../../tasStore';
-import { submitTas, recomputeTas } from '../../tasApi';
+import { submitTas, recomputeTas, checkDuplicates } from '../../tasApi';
 import { updateAccruesOvertime } from '../../configApi';
 import { checkDbHealth } from '../../api';
 import AlertMessage from '../ui/AlertMessage';
@@ -77,6 +77,10 @@ export default function ReviewScreen() {
   const setOvertimeOverride = useTasStore(s => s.setOvertimeOverride);
   const stashOvertimeOverrides = useTasStore(s => s.stashOvertimeOverrides);
   const restoreOvertimeOverrides = useTasStore(s => s.restoreOvertimeOverrides);
+  const duplicateCodes = useTasStore(s => s.duplicateCodes);
+  const setDuplicateCodes = useTasStore(s => s.setDuplicateCodes);
+  const duplicatesLoading = useTasStore(s => s.duplicatesLoading);
+  const setDuplicatesLoading = useTasStore(s => s.setDuplicatesLoading);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTop = 0; }, []);
@@ -94,6 +98,17 @@ export default function ReviewScreen() {
     return () => { cancelled = true; clearInterval(id); };
   }, []);
 
+  useEffect(() => {
+    if (!uploadToken) return;
+    let cancelled = false;
+    setDuplicatesLoading(true);
+    checkDuplicates(uploadToken)
+      .then(codes => { if (!cancelled) setDuplicateCodes(codes); })
+      .catch(() => { if (!cancelled) setError('No se pudo verificar duplicados. Los registros se enviarán sin verificación.'); })
+      .finally(() => { if (!cancelled) setDuplicatesLoading(false); });
+    return () => { cancelled = true; };
+  }, [uploadToken, setDuplicateCodes, setDuplicatesLoading]);
+
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [pendingToggleId, setPendingToggleId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
@@ -102,6 +117,10 @@ export default function ReviewScreen() {
     ? resolvedRows.filter(r =>
         matchesSearch(r.nombreEmpleado, search) || matchesSearch(r.codigoEmpleado, search))
     : resolvedRows;
+
+  const duplicateSet = new Set(duplicateCodes);
+  const allDuplicate = resolvedRows.length > 0 && resolvedRows.every(r => duplicateSet.has(r.codigoEmpleado));
+
 
   const tableRef = useRef<HTMLTableElement>(null);
   useLayoutEffect(() => {
@@ -125,7 +144,13 @@ export default function ReviewScreen() {
     setError(null);
     try {
       setTasView('submitting');
-      const { jobId } = await submitTas(uploadToken, overtimeOverrides);
+      const filteredOverrides: Record<string, { horasExtrasSimples?: number; horasExtrasDobles?: number }> = {};
+      for (const [code, val] of Object.entries(overtimeOverrides)) {
+        if (!duplicateSet.has(code)) {
+          filteredOverrides[code] = val;
+        }
+      }
+      const { jobId } = await submitTas(uploadToken, filteredOverrides);
       setJobId(jobId);
       setTasView('polling');
     } catch (err) {
@@ -181,6 +206,12 @@ export default function ReviewScreen() {
 
         {error && <AlertMessage message={error} />}
 
+        {duplicateCodes.length > 0 && (
+          <div className="mb-4 px-4 py-3 rounded-shape-md bg-amber-50 border border-amber-200 text-amber-800 text-body-md">
+            Se encontraron {duplicateCodes.length} empleado(s) ya registrados para esta quincena. Estos registros se excluirán del envío.
+          </div>
+        )}
+
         <p className="text-body-md text-on-surface-variant mb-6">
           {resolvedRows.length === 1
             ? 'Se procesó 1 registro. Revisa la información antes de enviar.'
@@ -232,7 +263,7 @@ export default function ReviewScreen() {
               const sessions = sessionSummaries[row.codigoEmpleado] ?? [];
               return (
                 <Fragment key={`${row.codigoEmpleado}-${row.anio}-${row.mes}-${row.numeroDequincena}`}>
-                  <tr className="border-b border-outline-variant last:border-b-0">
+                  <tr className={`border-b border-outline-variant last:border-b-0 ${duplicateSet.has(row.codigoEmpleado) ? 'bg-amber-50' : ''}`}>
                     <td className="py-3 px-2 text-center">
                       <button
                         onClick={() => toggleExpanded(row.codigoEmpleado)}
@@ -252,6 +283,14 @@ export default function ReviewScreen() {
                           {row.diasTurnoEstimado} turno estimado
                         </span>
                       )}
+                      {duplicateSet.has(row.codigoEmpleado) && (
+                        <span
+                          title="Ya registrado para esta quincena"
+                          className="ml-2 text-label-sm px-2 py-0.5 rounded-full bg-amber-200 text-amber-800"
+                        >
+                          ⚠ Duplicado
+                        </span>
+                      )}
                     </td>
                     <td className="py-3 px-4 text-body-md text-on-surface-variant">{row.codigoEmpleado}</td>
                     <td className="py-3 px-4 text-body-md text-on-surface-variant text-right">{row.diasNoLaborados}</td>
@@ -264,6 +303,7 @@ export default function ReviewScreen() {
                             type="number"
                             min="0"
                             step="1"
+                            disabled={duplicateSet.has(row.codigoEmpleado)}
                             value={override ?? row[field]}
                             onChange={e => handleOvertimeChange(row.codigoEmpleado, field, e.target.value)}
                             className={`w-16 text-right text-body-md border-b focus:border-primary focus:outline-none transition-colors ${
@@ -311,8 +351,12 @@ export default function ReviewScreen() {
         {dbHealthy === false && (
           <span className="text-body-sm text-error">Base de datos no disponible</span>
         )}
-        <button onClick={handleSubmit} disabled={dbHealthy !== true} className="m3-btn-filled">
-          Enviar
+        <button
+          onClick={handleSubmit}
+          disabled={dbHealthy !== true || allDuplicate || duplicatesLoading}
+          className="m3-btn-filled"
+        >
+          {allDuplicate ? 'Todos los registros ya fueron enviados' : 'Enviar'}
         </button>
       </div>
     </div>

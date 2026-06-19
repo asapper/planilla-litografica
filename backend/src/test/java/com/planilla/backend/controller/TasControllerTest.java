@@ -6,6 +6,7 @@ import com.planilla.backend.model.tas.TasScanRecord;
 import com.planilla.backend.model.tas.TasPeriod;
 import com.planilla.backend.model.tas.TasSession;
 import com.planilla.backend.model.tas.TasUploadResult;
+import com.planilla.backend.service.DatabaseService;
 import com.planilla.backend.service.JobService;
 import com.planilla.backend.service.tas.*;
 import org.junit.jupiter.api.Test;
@@ -38,6 +39,7 @@ class TasControllerTest {
     @MockBean EmployeeRegistryService registryService;
     @MockBean JobService              jobService;
     @MockBean ShiftConfigService      shiftConfigService;
+    @MockBean DatabaseService         databaseService;
 
     private String json(Object o) throws Exception { return mapper.writeValueAsString(o); }
 
@@ -1465,5 +1467,98 @@ class TasControllerTest {
            .andExpect(status().isOk())
            .andExpect(jsonPath("$.sessionSummaries.E1").isArray())
            .andExpect(jsonPath("$.sessionSummaries.E1[0].date").value("2026-06-02"));
+    }
+
+    // ── POST /api/tas/check-duplicates ──────────────────────────────
+
+    @Test
+    void checkDuplicates_validToken_returnsDuplicateCodes() throws Exception {
+        EmployeeRow row1 = new EmployeeRow();
+        row1.setCodigoEmpleado("DUP");
+        row1.setNombreEmpleado("Dup Test");
+        row1.setMes(3);
+        row1.setAnio(2026);
+        row1.setNumeroDequincena(1);
+
+        EmployeeRow row2 = new EmployeeRow();
+        row2.setCodigoEmpleado("NEW");
+        row2.setNombreEmpleado("New Test");
+        row2.setMes(3);
+        row2.setAnio(2026);
+        row2.setNumeroDequincena(1);
+
+        TasUploadResult result = emptyResult();
+        result.setResolvedRows(List.of(row1, row2));
+        when(parserService.parse(any())).thenReturn(emptyParseResult());
+        when(uploadService.processScans(any(), any(), any())).thenReturn(result);
+
+        MockMultipartFile file = new MockMultipartFile("file", "test.csv", "text/csv", "data".getBytes());
+        String uploadResponse = mvc.perform(multipart("/api/tas/upload").file(file))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        String token = (String) mapper.readValue(uploadResponse, Map.class).get("uploadToken");
+
+        when(databaseService.checkDuplicates(any())).thenReturn(List.of("DUP"));
+
+        mvc.perform(post("/api/tas/check-duplicates")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(Map.of("uploadToken", token))))
+           .andExpect(status().isOk())
+           .andExpect(jsonPath("$.duplicates").isArray())
+           .andExpect(jsonPath("$.duplicates[0]").value("DUP"))
+           .andExpect(jsonPath("$.duplicates.length()").value(1));
+    }
+
+    @Test
+    void checkDuplicates_noDuplicates_returnsEmptyList() throws Exception {
+        TasUploadResult result = emptyResult();
+        result.setResolvedRows(List.of());
+        when(parserService.parse(any())).thenReturn(emptyParseResult());
+        when(uploadService.processScans(any(), any(), any())).thenReturn(result);
+
+        MockMultipartFile file = new MockMultipartFile("file", "test.csv", "text/csv", "data".getBytes());
+        String uploadResponse = mvc.perform(multipart("/api/tas/upload").file(file))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        String token = (String) mapper.readValue(uploadResponse, Map.class).get("uploadToken");
+
+        when(databaseService.checkDuplicates(any())).thenReturn(List.of());
+
+        mvc.perform(post("/api/tas/check-duplicates")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(Map.of("uploadToken", token))))
+           .andExpect(status().isOk())
+           .andExpect(jsonPath("$.duplicates").isArray())
+           .andExpect(jsonPath("$.duplicates").isEmpty());
+    }
+
+    @Test
+    void checkDuplicates_invalidToken_returns404() throws Exception {
+        mvc.perform(post("/api/tas/check-duplicates")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(Map.of("uploadToken", "nonexistent"))))
+           .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void checkDuplicates_noResolvedRows_returnsEmptyList() throws Exception {
+        TasUploadResult result = emptyResult();
+        result.setResolvedRows(null);
+        when(parserService.parse(any())).thenReturn(emptyParseResult());
+        when(uploadService.processScans(any(), any(), any())).thenReturn(result);
+
+        MockMultipartFile file = new MockMultipartFile("file", "test.csv", "text/csv", "data".getBytes());
+        String uploadResponse = mvc.perform(multipart("/api/tas/upload").file(file))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        String token = (String) mapper.readValue(uploadResponse, Map.class).get("uploadToken");
+
+        when(databaseService.checkDuplicates(any())).thenReturn(List.of());
+
+        mvc.perform(post("/api/tas/check-duplicates")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(Map.of("uploadToken", token))))
+           .andExpect(status().isOk())
+           .andExpect(jsonPath("$.duplicates").isEmpty());
     }
 }

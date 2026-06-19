@@ -8,6 +8,9 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.jdbc.core.JdbcTemplate;
 
+import java.util.Collections;
+import java.util.List;
+
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
@@ -137,5 +140,57 @@ class DatabaseServiceTest {
 
         verify(postgresJdbc, times(1)).queryForObject(anyString(), eq(Integer.class), any(), any(), any(), any(), any(), any(), any());
         verify(h2Jdbc, times(1)).update(anyString(), any(), any(), any(), any());
+    }
+
+    // -----------------------------------------------------------------
+    // checkDuplicates
+    // -----------------------------------------------------------------
+
+    @Test
+    void checkDuplicates_mixedRows_returnsOnlyDuplicateCodes() {
+        when(h2Jdbc.queryForObject(anyString(), eq(Integer.class), eq("DUP"), any(), any(), any()))
+            .thenReturn(1);
+        when(h2Jdbc.queryForObject(anyString(), eq(Integer.class), eq("NEW"), any(), any(), any()))
+            .thenReturn(0);
+
+        List<String> result = service.checkDuplicates(List.of(
+            row("DUP", 1, 3, 2026),
+            row("NEW", 1, 3, 2026)
+        ));
+
+        assertThat(result).containsExactly("DUP");
+    }
+
+    @Test
+    void checkDuplicates_noDuplicates_returnsEmptyList() {
+        when(h2Jdbc.queryForObject(anyString(), eq(Integer.class), any(), any(), any(), any()))
+            .thenReturn(0);
+
+        List<String> result = service.checkDuplicates(List.of(
+            row("A", 1, 3, 2026),
+            row("B", 1, 3, 2026)
+        ));
+
+        assertThat(result).isEmpty();
+    }
+
+    @Test
+    void checkDuplicates_allDuplicates_returnsAllCodes() {
+        when(h2Jdbc.queryForObject(anyString(), eq(Integer.class), any(), any(), any(), any()))
+            .thenReturn(1);
+
+        List<String> result = service.checkDuplicates(List.of(
+            row("X", 1, 3, 2026),
+            row("Y", 1, 3, 2026)
+        ));
+
+        assertThat(result).containsExactlyInAnyOrder("X", "Y");
+    }
+
+    @Test
+    void checkDuplicates_emptyList_returnsEmptyList() {
+        List<String> result = service.checkDuplicates(Collections.emptyList());
+
+        assertThat(result).isEmpty();
     }
 }
