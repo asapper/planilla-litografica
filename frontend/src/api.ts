@@ -7,3 +7,6 @@ const client = axios.create({
 
 export const checkHealth = (): Promise<void> =>
   client.get('/health', { timeout: 2_000 }).then(() => undefined);
+
+export const checkDbHealth = (): Promise<boolean> =>
+  client.get('/db-health', { timeout: 3_000 }).then(() => true).catch(() => false);
