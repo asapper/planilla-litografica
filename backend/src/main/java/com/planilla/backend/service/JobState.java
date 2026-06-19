@@ -1,5 +1,6 @@
 package com.planilla.backend.service;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -10,6 +11,7 @@ class JobState {
     final int maxRetries;
     final List<JobRowState> rows;
     final AtomicReference<String> status = new AtomicReference<>("PENDING");
+    final Instant createdAt = Instant.now();
 
     JobState(String jobId, int attemptNumber, int maxRetries, List<JobRowState> rows) {
         this.jobId = jobId;

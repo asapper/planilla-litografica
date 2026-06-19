@@ -4,8 +4,10 @@ import com.planilla.backend.model.EmployeeRow;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
+import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -24,7 +26,7 @@ public class JobService {
     private int maxRetries;
 
     private final Map<String, JobState> jobs = new ConcurrentHashMap<>();
-    private final Executor asyncExecutor = Executors.newCachedThreadPool();
+    private final Executor asyncExecutor = Executors.newFixedThreadPool(4);
 
     public JobService(DatabaseService databaseService) {
         this.databaseService = databaseService;
@@ -90,14 +92,32 @@ public class JobService {
         return new JobResult(job.submitted(), job.skipped(), job.failed(), firstError);
     }
 
-    public <T> void processJobAsync(String jobId, String uploadToken, Map<String, T> stateStore) {
+    public void processJobAsync(String jobId, String uploadToken, Map<String, ?> stateStore) {
         CompletableFuture.runAsync(() -> {
             processJob(jobId);
             JobState job = jobs.get(jobId);
             if (job != null && "DONE".equals(job.status.get())) {
                 stateStore.remove(uploadToken);
             }
-        }, asyncExecutor);
+        }, asyncExecutor).exceptionally(ex -> {
+            log.error("Job {} failed unexpectedly: {}", jobId, ex.getMessage(), ex);
+            JobState job = jobs.get(jobId);
+            if (job != null) {
+                job.status.set("DONE_WITH_ERRORS");
+            }
+            return null;
+        });
+    }
+
+    @Scheduled(fixedRate = 300_000)
+    void evictStaleJobs() {
+        Instant cutoff = Instant.now().minusSeconds(600);
+        jobs.entrySet().removeIf(e -> {
+            JobState job = e.getValue();
+            String status = job.status.get();
+            return ("DONE".equals(status) || "DONE_WITH_ERRORS".equals(status))
+                && job.createdAt.isBefore(cutoff);
+        });
     }
 
     public record JobStatusDto(

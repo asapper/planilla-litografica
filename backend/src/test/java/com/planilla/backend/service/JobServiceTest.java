@@ -11,6 +11,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import java.net.ConnectException;
 import java.net.SocketTimeoutException;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -308,6 +309,23 @@ class JobServiceTest {
     }
 
     @Test
+    void processJobAsync_setsStatusToDoneWithErrorsOnUnexpectedException() throws Exception {
+        when(databaseService.isDuplicate(any()))
+            .thenThrow(new RuntimeException("unexpected"));
+
+        String jobId = service.createJob(List.of(row("1")));
+        Map<String, Object> fakeStore = new ConcurrentHashMap<>();
+        fakeStore.put("token-1", new Object());
+
+        service.processJobAsync(jobId, "token-1", fakeStore);
+
+        await().atMost(Duration.ofSeconds(2)).untilAsserted(() -> {
+            JobService.JobStatusDto status = service.getJobStatus(jobId);
+            assertThat(status.status()).isEqualTo("DONE_WITH_ERRORS");
+        });
+    }
+
+    @Test
     void processJobAsync_preservesStateOnFailure() throws Exception {
         when(databaseService.isDuplicate(any()))
             .thenThrow(new RuntimeException("DB error"));
@@ -323,5 +341,48 @@ class JobServiceTest {
             assertThat(status.status()).isEqualTo("DONE_WITH_ERRORS");
         });
         assertThat(fakeStore).containsKey("token-1");
+    }
+
+    // ── evictStaleJobs ─────────────────────────────────────────────────────
+
+    @Test
+    void evictStaleJobs_removesTerminalJobsOlderThanCutoff() throws Exception {
+        when(databaseService.isDuplicate(any())).thenReturn(false);
+
+        String jobId = service.createJob(List.of(row("1")));
+        service.processJob(jobId);
+        assertThat(service.getJobStatus(jobId).status()).isEqualTo("DONE");
+
+        @SuppressWarnings("unchecked")
+        Map<String, JobState> jobs = (Map<String, JobState>) ReflectionTestUtils.getField(service, "jobs");
+        JobState job = jobs.get(jobId);
+        ReflectionTestUtils.setField(job, "createdAt", Instant.now().minusSeconds(700));
+
+        service.evictStaleJobs();
+
+        assertThat(service.getJobStatus(jobId)).isNull();
+    }
+
+    @Test
+    void evictStaleJobs_keepsRecentTerminalJobs() throws Exception {
+        when(databaseService.isDuplicate(any())).thenReturn(false);
+
+        String jobId = service.createJob(List.of(row("1")));
+        service.processJob(jobId);
+        assertThat(service.getJobStatus(jobId).status()).isEqualTo("DONE");
+
+        service.evictStaleJobs();
+
+        assertThat(service.getJobStatus(jobId)).isNotNull();
+    }
+
+    @Test
+    void evictStaleJobs_keepsInProgressJobs() throws Exception {
+        String jobId = service.createJob(List.of(row("1")));
+        assertThat(service.getJobStatus(jobId).status()).isEqualTo("PENDING");
+
+        service.evictStaleJobs();
+
+        assertThat(service.getJobStatus(jobId)).isNotNull();
     }
 }

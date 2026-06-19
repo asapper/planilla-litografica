@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { render, screen, act, waitFor } from '@testing-library/react';
+import { AxiosError, AxiosHeaders } from 'axios';
 import PollingScreen from './PollingScreen';
 import { useTasStore } from '../../tasStore';
 import * as tasApi from '../../tasApi';
@@ -175,8 +176,13 @@ describe('PollingScreen error handling', () => {
   });
 
   it('shows job-not-found message on 404', async () => {
-    const error = new Error('Not found') as Error & { response?: { status: number } };
-    error.response = { status: 404 };
+    const error = new AxiosError('Not found', '404', undefined, undefined, {
+      status: 404,
+      data: {},
+      statusText: 'Not Found',
+      headers: {},
+      config: { headers: new AxiosHeaders() },
+    });
     mockGetTasJobStatus.mockRejectedValue(error);
 
     render(<PollingScreen />);
@@ -187,8 +193,13 @@ describe('PollingScreen error handling', () => {
   });
 
   it('shows reset button on 404 that calls resetTas', async () => {
-    const error = new Error('Not found') as Error & { response?: { status: number } };
-    error.response = { status: 404 };
+    const error = new AxiosError('Not found', '404', undefined, undefined, {
+      status: 404,
+      data: {},
+      statusText: 'Not Found',
+      headers: {},
+      config: { headers: new AxiosHeaders() },
+    });
     mockGetTasJobStatus.mockRejectedValue(error);
 
     render(<PollingScreen />);

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import axios from 'axios';
 import { useTasStore } from '../../tasStore';
 import { getTasJobStatus } from '../../tasApi';
 import ScreenLayout from '../ui/ScreenLayout';
@@ -17,10 +18,10 @@ export default function PollingScreen() {
   const [status, setStatus] = useState<JobStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notFound, setNotFound] = useState(false);
+  const [retryTrigger, setRetryTrigger] = useState(0);
   const failCountRef = useRef(0);
   const intervalRef = useRef<number | null>(null);
   const activeRef = useRef(true);
-  const pollRef = useRef<() => Promise<void>>();
 
   useEffect(() => {
     if (!jobId) return;
@@ -35,6 +36,7 @@ export default function PollingScreen() {
         setStatus(data);
 
         if (data.status === 'DONE' || data.status === 'DONE_WITH_ERRORS') {
+          clearInterval(intervalRef.current!);
           setJobResult({
             submitted: data.submitted,
             skipped: data.skipped,
@@ -44,7 +46,7 @@ export default function PollingScreen() {
         }
       } catch (err) {
         if (!activeRef.current) return;
-        if ((err as any).response?.status === 404) {
+        if (axios.isAxiosError(err) && err.response?.status === 404) {
           clearInterval(intervalRef.current!);
           setNotFound(true);
           return;
@@ -57,11 +59,10 @@ export default function PollingScreen() {
       }
     };
 
-    pollRef.current = poll;
     poll();
     intervalRef.current = setInterval(poll, POLL_INTERVAL);
     return () => { activeRef.current = false; clearInterval(intervalRef.current!); };
-  }, [jobId, setTasView, setJobResult]);
+  }, [jobId, setTasView, setJobResult, retryTrigger]);
 
   if (notFound) {
     return (
@@ -91,8 +92,7 @@ export default function PollingScreen() {
           onClick={() => {
             failCountRef.current = 0;
             setError(null);
-            pollRef.current?.();
-            intervalRef.current = setInterval(pollRef.current!, POLL_INTERVAL);
+            setRetryTrigger(c => c + 1);
           }}
         >
           Reintentar
@@ -145,8 +145,8 @@ export default function PollingScreen() {
                 </tr>
               </thead>
               <tbody>
-                {status.failedRows.map(row => (
-                  <tr key={row.codigoEmpleado} className="border-b border-outline-variant last:border-b-0">
+                {status.failedRows.map((row, index) => (
+                  <tr key={index} className="border-b border-outline-variant last:border-b-0">
                     <td className="py-1 px-3 text-on-surface-variant">{row.codigoEmpleado}</td>
                     <td className="py-1 px-3 text-on-surface-variant">{row.nombreEmpleado}</td>
                     <td className="py-1 px-3 text-error">{row.error}</td>
