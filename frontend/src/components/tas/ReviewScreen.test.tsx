@@ -94,7 +94,7 @@ describe('ReviewScreen submit', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: /enviar/i })).not.toBeDisabled());
     fireEvent.click(screen.getByRole('button', { name: /enviar/i }));
 
-    await waitFor(() => expect(useTasStore.getState().tasView).toBe('result'));
+    await waitFor(() => expect(useTasStore.getState().tasView).toBe('polling'));
     expect(mockSubmitTas).toHaveBeenCalledWith('tok-1', {});
     expect(useTasStore.getState().jobId).toBe('job-final');
   });

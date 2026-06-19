@@ -4,6 +4,7 @@ import IconBadge from '../ui/IconBadge';
 
 export default function TasResultScreen() {
   const resolvedRowCount = useTasStore(s => s.resolvedRowCount);
+  const jobResult        = useTasStore(s => s.jobResult);
   const absentEmployees  = useTasStore(s => s.absentEmployees);
   const resetTas         = useTasStore(s => s.resetTas);
   const setTasView       = useTasStore(s => s.setTasView);
@@ -19,11 +20,32 @@ export default function TasResultScreen() {
       </IconBadge>
 
       <h2 className="text-headline-sm font-medium text-on-surface mb-3">Carga completada</h2>
-      <p className="text-body-md text-on-surface-variant mb-6">
-        {resolvedRowCount === 1
-          ? 'Se envió 1 registro.'
-          : `Se enviaron ${resolvedRowCount} registros.`}
-      </p>
+      {jobResult ? (
+        <>
+          <p className="text-body-md text-on-surface-variant mb-2">
+            {jobResult.submitted === 1
+              ? 'Se envió 1 registro.'
+              : `Se enviaron ${jobResult.submitted} registros.`}
+          </p>
+          {jobResult.skipped > 0 && (
+            <p className="text-body-md text-on-surface-variant mb-2">
+              {jobResult.skipped} {jobResult.skipped === 1 ? 'omitido' : 'omitidos'} por duplicado.
+            </p>
+          )}
+          {jobResult.failed > 0 && (
+            <p className="text-body-md text-error mb-2">
+              {jobResult.failed} con error.
+            </p>
+          )}
+          <div className="mb-6" />
+        </>
+      ) : (
+        <p className="text-body-md text-on-surface-variant mb-6">
+          {resolvedRowCount === 1
+            ? 'Se envió 1 registro.'
+            : `Se enviaron ${resolvedRowCount} registros.`}
+        </p>
+      )}
 
       {absentEmployees.length > 0 && (
         <p className="text-body-md text-on-surface-variant mb-6">
