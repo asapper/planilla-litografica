@@ -25,6 +25,7 @@ interface TasStore {
   usedFallbackHolidays: boolean;
   fallbackBannerDismissed: boolean;
   jobId: string | null;
+  jobResult: { submitted: number; skipped: number; failed: number } | null;
   error: string | null;
   sessionSummaries: Record<string, SessionSummary[]>;
   overtimeOverrides: Record<string, { horasExtrasSimples?: number; horasExtrasDobles?: number }>;
@@ -51,6 +52,7 @@ interface TasStore {
   setUsedFallbackHolidays: (v: boolean) => void;
   dismissFallbackBanner: () => void;
   setJobId: (id: string | null) => void;
+  setJobResult: (result: { submitted: number; skipped: number; failed: number } | null) => void;
   setError: (msg: string | null) => void;
   setSessionSummaries: (summaries: Record<string, SessionSummary[]>) => void;
   setOvertimeOverride: (codigoEmpleado: string, field: 'horasExtrasSimples' | 'horasExtrasDobles', value: number) => void;
@@ -80,6 +82,7 @@ const initialState = {
   usedFallbackHolidays: false,
   fallbackBannerDismissed: false,
   jobId: null,
+  jobResult: null,
   error: null,
   sessionSummaries: {} as Record<string, SessionSummary[]>,
   overtimeOverrides: {} as Record<string, { horasExtrasSimples?: number; horasExtrasDobles?: number }>,
@@ -127,6 +130,7 @@ export const useTasStore = create<TasStore>(set => ({
   setUsedFallbackHolidays: (v) => set({ usedFallbackHolidays: v }),
   dismissFallbackBanner: () => set({ fallbackBannerDismissed: true }),
   setJobId: (id) => set({ jobId: id }),
+  setJobResult: (result) => set({ jobResult: result }),
   setError: (msg) => set({ error: msg }),
   setSessionSummaries: (summaries) => set({ sessionSummaries: summaries }),
   setOvertimeOverride: (codigoEmpleado, field, value) => set(s => ({
