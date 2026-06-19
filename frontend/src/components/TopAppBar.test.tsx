@@ -97,6 +97,16 @@ describe('Nueva carga button', () => {
     expect(screen.queryByText('Iniciar nueva carga')).not.toBeInTheDocument();
   });
 
+  it('auto-closes the confirmation modal when tasView transitions to submitting', () => {
+    const onNewUpload = vi.fn();
+    const { rerender } = render(<TopAppBar currentView="tas" onViewChange={noop} tasView="review" onNewUpload={onNewUpload} />);
+    fireEvent.click(screen.getByRole('button', { name: /nueva carga/i }));
+    expect(screen.getByText('Iniciar nueva carga')).toBeInTheDocument();
+    rerender(<TopAppBar currentView="tas" onViewChange={noop} tasView="submitting" onNewUpload={onNewUpload} />);
+    expect(screen.queryByText('Iniciar nueva carga')).not.toBeInTheDocument();
+    expect(onNewUpload).not.toHaveBeenCalled();
+  });
+
   it('calls onNewUpload when the confirmation is accepted', () => {
     const onNewUpload = vi.fn();
     render(<TopAppBar currentView="tas" onViewChange={noop} tasView="review" onNewUpload={onNewUpload} />);
