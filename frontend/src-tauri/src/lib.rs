@@ -4,7 +4,7 @@ struct BackendProcess(Mutex<Option<std::process::Child>>);
 
 impl Drop for BackendProcess {
     fn drop(&mut self) {
-        if let Some(mut child) = self.0.lock().unwrap().take() {
+        if let Some(mut child) = self.0.lock().unwrap_or_else(|e| e.into_inner()).take() {
             let _ = child.kill();
             let _ = child.wait();
         }
