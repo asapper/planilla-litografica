@@ -1,3 +1,16 @@
+use std::sync::Mutex;
+
+struct BackendProcess(Mutex<Option<std::process::Child>>);
+
+impl Drop for BackendProcess {
+    fn drop(&mut self) {
+        if let Some(mut child) = self.0.lock().unwrap_or_else(|e| e.into_inner()).take() {
+            let _ = child.kill();
+            let _ = child.wait();
+        }
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -6,27 +19,20 @@ pub fn run() {
                 .level(log::LevelFilter::Info)
                 .build(),
         )
+        .manage(BackendProcess(Mutex::new(None)))
         .setup(|app| {
-            // Release only: spawn the bundled backend JAR using the bundled JRE.
-            // In dev mode the developer runs the backend separately via `./mvnw spring-boot:run`.
             #[cfg(not(debug_assertions))]
             {
                 use std::process::{Command, Stdio};
                 use tauri::Manager;
 
-                let resource_dir = app
-                    .path()
-                    .resource_dir()
-                    .map_err(|e| {
-                        log::error!("could not resolve resource directory: {e}");
-                        e
-                    })?;
+                let resource_dir = app.path().resource_dir().map_err(|e| {
+                    log::error!("could not resolve resource directory: {e}");
+                    e
+                })?;
 
                 log::info!("resource_dir = {}", resource_dir.display());
 
-                // Layout inside the bundle (see tauri.conf.json bundle.resources):
-                //   resources/jre/bin/java[.exe]
-                //   resources/backend.jar
                 let java_bin = if cfg!(target_os = "windows") {
                     resource_dir.join("jre").join("bin").join("java.exe")
                 } else {
@@ -37,11 +43,8 @@ pub fn run() {
                 log::info!("java_bin = {}", java_bin.display());
                 log::info!("jar      = {}", jar.display());
 
-                // The child process is killed automatically by the OS when the
-                // parent Tauri process exits, so no explicit cleanup is needed.
-                Command::new(&java_bin)
+                let child = Command::new(&java_bin)
                     .args(["-jar", jar.to_str().unwrap_or_default()])
-                    // Suppress output — the backend writes to its own log file
                     .stdout(Stdio::null())
                     .stderr(Stdio::null())
                     .spawn()
@@ -54,7 +57,10 @@ pub fn run() {
                         e
                     })?;
 
-                log::info!("backend process spawned successfully");
+                log::info!("backend process spawned (pid={})", child.id());
+
+                let state = app.state::<BackendProcess>();
+                *state.0.lock().unwrap() = Some(child);
             }
 
             let _ = app;

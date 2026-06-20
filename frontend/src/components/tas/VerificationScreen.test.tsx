@@ -21,6 +21,7 @@ function makeSession(overrides: Partial<TasSession> = {}): TasSession {
     date: '2026-03-15',
     scans: [],
     matchedShiftId: 'S1',
+    matchedShiftName: 'Turno Mañana',
     assignedShiftId: 'S1',
     assignedShiftName: 'Turno Mañana',
     effectiveStart: null,
@@ -41,6 +42,7 @@ const mockResult: TasResolveResult = {
   ],
   flaggedSessions: [],
   usedFallbackHolidays: false,
+  availableShifts: [],
 };
 
 beforeEach(() => {
@@ -794,6 +796,7 @@ describe('SHORT_DAY sessions', () => {
       date: '2026-03-10',
       scans: ['2026-03-10T07:00:00', '2026-03-10T11:00:00'],
       matchedShiftId: 'S1',
+      matchedShiftName: 'Turno Mañana',
       assignedShiftId: 'S1',
       assignedShiftName: 'Turno Mañana',
       effectiveStart: '2026-03-10T07:00:00',

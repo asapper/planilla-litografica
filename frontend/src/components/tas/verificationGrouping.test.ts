@@ -11,6 +11,7 @@ function makeSession(overrides: Partial<TasSession> = {}): TasSession {
     date: '2026-03-15',
     scans: [],
     matchedShiftId: 'S1',
+    matchedShiftName: 'Turno Mañana',
     assignedShiftId: 'S1',
     assignedShiftName: 'Turno Mañana',
     effectiveStart: null,

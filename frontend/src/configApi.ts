@@ -52,5 +52,5 @@ export const refreshHolidays = (year: number): Promise<void> =>
 export const getGeneralConfig = (): Promise<GeneralConfig> =>
   client.get<GeneralConfig>('/config/general').then(r => r.data);
 
-export const updateGeneralConfig = (body: { legalBreakAllowanceMinutes: number }): Promise<GeneralConfig> =>
+export const updateGeneralConfig = (body: GeneralConfig): Promise<GeneralConfig> =>
   client.put<GeneralConfig>('/config/general', body).then(r => r.data);
