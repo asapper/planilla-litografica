@@ -76,8 +76,8 @@ public class JobService {
                     if (firstError == null) firstError = "Base de datos remota no disponible.";
                     log.warn("Job {} — PostgreSQL no disponible, se omiten las filas restantes: {}", jobId, e.getMessage());
                 } else {
-                    rowState.error = "Error al procesar el registro.";
-                    if (firstError == null) firstError = "Error al procesar el registro.";
+                    rowState.error = classifyRowError(e);
+                    if (firstError == null) firstError = rowState.error;
                     log.error("Job {} — error en fila {}: {}", jobId, rowState.row.getCodigoEmpleado(), e.getMessage());
                 }
                 rowState.setStatus("FAILED");
@@ -191,6 +191,36 @@ public class JobService {
             }
             return null;
         });
+    }
+
+    static String classifyRowError(Exception e) {
+        Throwable t = e;
+        while (t != null) {
+            if (t instanceof org.springframework.dao.DataIntegrityViolationException) {
+                return "Datos duplicados o restricción de integridad violada.";
+            }
+            if (t instanceof org.springframework.dao.QueryTimeoutException) {
+                return "Tiempo de espera agotado al procesar el registro.";
+            }
+            if (t instanceof java.sql.SQLException sqlEx) {
+                String state = sqlEx.getSQLState();
+                if (state != null) {
+                    if (state.startsWith("23")) {
+                        return "Datos duplicados o restricción de integridad violada.";
+                    }
+                    if (state.startsWith("22")) {
+                        log.warn("Data error (SQLState {}): {}", state, sqlEx.getMessage());
+                        return "Datos inválidos para el procedimiento.";
+                    }
+                    if ("P0001".equals(state)) {
+                        log.warn("Stored procedure error (P0001): {}", sqlEx.getMessage());
+                        return "Error en procedimiento almacenado.";
+                    }
+                }
+            }
+            t = t.getCause();
+        }
+        return "Error inesperado al procesar el registro.";
     }
 
     static boolean isConnectionError(Exception e) {

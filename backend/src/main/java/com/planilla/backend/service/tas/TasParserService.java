@@ -10,6 +10,10 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.ByteArrayInputStream;
 import java.io.InputStreamReader;
 import java.io.Reader;
+import java.nio.ByteBuffer;
+import java.nio.charset.CharacterCodingException;
+import java.nio.charset.CharsetDecoder;
+import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -30,7 +34,16 @@ public class TasParserService {
     private static final Set<String> REQUIRED_COLUMNS = new LinkedHashSet<>(
             List.of(COL_NO, COL_TIMESTAMP, COL_EVENT, COL_EMPLOYEE_NAME, COL_EMPLOYEE_ID));
 
+    private static final long MAX_FILE_SIZE = 10L * 1024 * 1024;
+
     public ParseResult parse(MultipartFile file) throws Exception {
+        if (file.isEmpty()) {
+            throw new Exception("El archivo está vacío.");
+        }
+        if (file.getSize() > MAX_FILE_SIZE) {
+            throw new Exception("El archivo excede el tamaño máximo permitido (10 MB).");
+        }
+
         byte[] rawBytes = file.getBytes();
 
         byte[] content;
@@ -41,6 +54,15 @@ public class TasParserService {
             content = Arrays.copyOfRange(rawBytes, 3, rawBytes.length);
         } else {
             content = rawBytes;
+        }
+
+        CharsetDecoder decoder = StandardCharsets.UTF_8.newDecoder()
+                .onMalformedInput(CodingErrorAction.REPORT)
+                .onUnmappableCharacter(CodingErrorAction.REPORT);
+        try {
+            decoder.decode(ByteBuffer.wrap(content));
+        } catch (CharacterCodingException e) {
+            throw new Exception("El archivo no tiene una codificación válida (se esperaba UTF-8).");
         }
 
         Reader reader = new InputStreamReader(new ByteArrayInputStream(content), StandardCharsets.UTF_8);
@@ -96,6 +118,13 @@ public class TasParserService {
                     warnings.add("Fila " + rowNum + " ignorada: formato de fecha inválido '" + timestampStr + "'.");
                 }
             }
+        }
+
+        long skippedRows = warnings.stream().filter(w -> w.startsWith("Fila ")).count();
+        long totalDataRows = rawScans.size() + skippedRows;
+        if (totalDataRows > 0 && skippedRows > totalDataRows / 2) {
+            warnings.add("Se ignoraron " + skippedRows + " de " + totalDataRows
+                    + " filas por datos incompletos o inválidos.");
         }
 
         if (rawScans.isEmpty()) {

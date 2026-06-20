@@ -567,7 +567,7 @@ describe('ReviewScreen DB health check', () => {
     await waitFor(() => {
       expect(screen.getByRole('button', { name: /enviar/i })).toBeDisabled();
     });
-    expect(screen.getByText(/base de datos no disponible/i)).toBeInTheDocument();
+    expect(screen.getByText(/no se pudo conectar a la base de datos remota/i)).toBeInTheDocument();
   });
 
   it('enables submit button when DB is reachable', async () => {
@@ -578,7 +578,7 @@ describe('ReviewScreen DB health check', () => {
     await waitFor(() => {
       expect(screen.getByRole('button', { name: /enviar/i })).not.toBeDisabled();
     });
-    expect(screen.queryByText(/base de datos no disponible/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/no se pudo conectar a la base de datos remota/i)).not.toBeInTheDocument();
   });
 
   it('re-checks DB health periodically and re-enables button when DB recovers', async () => {
@@ -596,7 +596,7 @@ describe('ReviewScreen DB health check', () => {
     await waitFor(() => {
       expect(screen.getByRole('button', { name: /enviar/i })).not.toBeDisabled();
     });
-    expect(screen.queryByText(/base de datos no disponible/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/no se pudo conectar a la base de datos remota/i)).not.toBeInTheDocument();
   });
 
   it('disables button when DB goes down after being up', async () => {
@@ -614,7 +614,7 @@ describe('ReviewScreen DB health check', () => {
     await waitFor(() => {
       expect(screen.getByRole('button', { name: /enviar/i })).toBeDisabled();
     });
-    expect(screen.getByText(/base de datos no disponible/i)).toBeInTheDocument();
+    expect(screen.getByText(/no se pudo conectar a la base de datos remota/i)).toBeInTheDocument();
   });
 });
 

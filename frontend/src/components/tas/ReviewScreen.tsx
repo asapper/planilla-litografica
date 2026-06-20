@@ -346,7 +346,10 @@ export default function ReviewScreen() {
 
       <div className="sticky bottom-0 bg-white border-t border-outline-variant px-6 py-4 flex items-center justify-end gap-4">
         {dbHealthy === false && (
-          <span className="text-body-sm text-error">Base de datos no disponible</span>
+          <AlertMessage
+            message="No se pudo conectar a la base de datos remota. Verifique la conexión de red e intente nuevamente."
+            className="flex-shrink-0"
+          />
         )}
         <button
           onClick={handleSubmit}

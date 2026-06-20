@@ -273,7 +273,7 @@ class JobServiceTest {
         assertThat(status.failedRows()).hasSize(1);
         assertThat(status.failedRows().get(0).codigoEmpleado()).isEqualTo("1");
         assertThat(status.failedRows().get(0).nombreEmpleado()).isEqualTo("Test 1");
-        assertThat(status.failedRows().get(0).error()).isEqualTo("Error al procesar el registro.");
+        assertThat(status.failedRows().get(0).error()).isEqualTo("Error inesperado al procesar el registro.");
     }
 
     // ── processJobAsync ─────────────────────────────────────────────────────
@@ -443,5 +443,52 @@ class JobServiceTest {
         service.evictStaleJobs();
 
         assertThat(service.getJobStatus(jobId)).isNotNull();
+    }
+
+    // ── classifyRowError ─────────────────────────────────────────────────────
+
+    @Test
+    void classifyRowError_constraintViolation_returnsConstraintMessage() {
+        var ex = new org.springframework.dao.DataIntegrityViolationException("dup key");
+        assertThat(JobService.classifyRowError(ex))
+            .isEqualTo("Datos duplicados o restricción de integridad violada.");
+    }
+
+    @Test
+    void classifyRowError_queryTimeout_returnsTimeoutMessage() {
+        var ex = new org.springframework.dao.QueryTimeoutException("timeout");
+        assertThat(JobService.classifyRowError(ex))
+            .isEqualTo("Tiempo de espera agotado al procesar el registro.");
+    }
+
+    @Test
+    void classifyRowError_sqlStateConstraint_returnsConstraintMessage() {
+        var sqlEx = new java.sql.SQLException("constraint", "23505");
+        var ex = new RuntimeException(sqlEx);
+        assertThat(JobService.classifyRowError(ex))
+            .isEqualTo("Datos duplicados o restricción de integridad violada.");
+    }
+
+    @Test
+    void classifyRowError_sqlStateDataError_returnsDataMessage() {
+        var sqlEx = new java.sql.SQLException("invalid input", "22P02");
+        var ex = new RuntimeException(sqlEx);
+        assertThat(JobService.classifyRowError(ex))
+            .isEqualTo("Datos inválidos para el procedimiento.");
+    }
+
+    @Test
+    void classifyRowError_sqlStateRaiseException_returnsProcMessage() {
+        var sqlEx = new java.sql.SQLException("custom error", "P0001");
+        var ex = new RuntimeException(sqlEx);
+        assertThat(JobService.classifyRowError(ex))
+            .isEqualTo("Error en procedimiento almacenado.");
+    }
+
+    @Test
+    void classifyRowError_unknownException_returnsUnexpectedMessage() {
+        var ex = new RuntimeException("something weird");
+        assertThat(JobService.classifyRowError(ex))
+            .isEqualTo("Error inesperado al procesar el registro.");
     }
 }
