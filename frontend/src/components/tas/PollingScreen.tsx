@@ -20,7 +20,7 @@ export default function PollingScreen() {
   const [notFound, setNotFound] = useState(false);
   const [retryTrigger, setRetryTrigger] = useState(0);
   const failCountRef = useRef(0);
-  const intervalRef = useRef<number | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const activeRef = useRef(true);
 
   useEffect(() => {

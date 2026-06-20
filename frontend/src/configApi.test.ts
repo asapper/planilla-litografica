@@ -29,7 +29,7 @@ const {
 const shift: Shift = { id: 'manana', name: 'Diurno', startTime: '08:00', endTime: '17:00', crossMidnight: false, detectionBeforeMinutes: 60, detectionAfterMinutes: 10 };
 const employee: Employee = { id: 'emp1', code: 'EMP001', name: 'Ana García', shiftId: 'manana', shiftName: 'Diurno', active: true, accruesOvertime: true };
 const holiday: Holiday = { id: 1, date: '2026-01-01', name: 'Año Nuevo', source: 'API' };
-const generalConfig: GeneralConfig = { legalBreakAllowanceMinutes: 45 };
+const generalConfig: GeneralConfig = { legalBreakAllowanceMinutes: 45, maxSessionSpanMinutes: 840 };
 
 beforeEach(() => {
   mockPost.mockReset();
@@ -209,8 +209,8 @@ describe('getGeneralConfig', () => {
 describe('updateGeneralConfig', () => {
   it('puts to /config/general and returns updated config', async () => {
     mockPut.mockResolvedValue({ data: generalConfig });
-    const result = await updateGeneralConfig({ legalBreakAllowanceMinutes: 45 });
-    expect(mockPut).toHaveBeenCalledWith('/config/general', { legalBreakAllowanceMinutes: 45 });
+    const result = await updateGeneralConfig({ legalBreakAllowanceMinutes: 45, maxSessionSpanMinutes: 840 });
+    expect(mockPut).toHaveBeenCalledWith('/config/general', { legalBreakAllowanceMinutes: 45, maxSessionSpanMinutes: 840 });
     expect(result).toEqual(generalConfig);
   });
 });

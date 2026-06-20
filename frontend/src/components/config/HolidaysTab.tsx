@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useConfigStore } from '../../configStore';
+import { useToastStore } from '../../toastStore';
 import { getHolidays, createHoliday, deleteHoliday, refreshHolidays } from '../../configApi';
 import type { Holiday } from '../../configTypes';
 import Spinner from '../ui/Spinner';
@@ -26,7 +27,7 @@ export default function HolidaysTab() {
   const setHolidaysData = useConfigStore(s => s.setHolidaysData);
   const setHolidaysError = useConfigStore(s => s.setHolidaysError);
   const setHolidayYear = useConfigStore(s => s.setHolidayYear);
-  const showToast = useConfigStore(s => s.showToast);
+  const showToast = useToastStore(s => s.showToast);
 
   const [refreshing, setRefreshing] = useState(false);
   const [refreshSuccess, setRefreshSuccess] = useState(false);

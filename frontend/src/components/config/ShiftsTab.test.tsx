@@ -12,7 +12,6 @@ const mockUpdateShift = vi.mocked(configApi.updateShift);
 const mockDeleteShift = vi.mocked(configApi.deleteShift);
 
 const shift1 = { id: 'manana', name: 'Diurno', startTime: '08:00', endTime: '17:00', crossMidnight: false, detectionBeforeMinutes: 60, detectionAfterMinutes: 10 };
-const shift2 = { id: 'nocturno', name: 'Nocturno', startTime: '22:00', endTime: '06:00', crossMidnight: true, detectionBeforeMinutes: 60, detectionAfterMinutes: 50 };
 
 const { default: ShiftsTab } = await import('./ShiftsTab');
 

@@ -22,8 +22,6 @@ beforeEach(() => {
     employees: { loading: false, data: null, dirty: false, error: null },
     holidays: { loading: false, data: null, dirty: false, error: null },
     general: { loading: false, data: null, dirty: false, error: null },
-    toastVisible: false,
-    toastMessage: '',
     holidayYear: 2026,
   });
   vi.clearAllMocks();
