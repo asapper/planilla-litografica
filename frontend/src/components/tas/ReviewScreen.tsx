@@ -4,8 +4,9 @@ import { useTasStore } from '../../tasStore';
 import { submitTas, recomputeTas, checkDuplicates } from '../../tasApi';
 import { updateAccruesOvertime } from '../../configApi';
 import { checkDbHealth } from '../../api';
-import AlertMessage from '../ui/AlertMessage';
+import { useToastStore } from '../../toastStore';
 import { matchesSearch } from '../../textSearch';
+import AlertMessage from '../ui/AlertMessage';
 import type { ResolvedRow, SessionSummary } from '../../tasTypes';
 
 function formatTime(iso: string | null): string {
@@ -71,8 +72,6 @@ export default function ReviewScreen() {
   const setSessionSummaries = useTasStore(s => s.setSessionSummaries);
   const setTasView   = useTasStore(s => s.setTasView);
   const setJobId     = useTasStore(s => s.setJobId);
-  const error        = useTasStore(s => s.error);
-  const setError     = useTasStore(s => s.setError);
   const overtimeOverrides = useTasStore(s => s.overtimeOverrides);
   const setOvertimeOverride = useTasStore(s => s.setOvertimeOverride);
   const stashOvertimeOverrides = useTasStore(s => s.stashOvertimeOverrides);
@@ -104,7 +103,7 @@ export default function ReviewScreen() {
     setDuplicatesLoading(true);
     checkDuplicates(uploadToken)
       .then(codes => { if (!cancelled) setDuplicateCodes(codes); })
-      .catch(() => { if (!cancelled) setError('No se pudo verificar duplicados. Los registros se enviarán sin verificación.'); })
+      .catch(() => { if (!cancelled) useToastStore.getState().showToast('No se pudo verificar duplicados. Los registros se enviarán sin verificación.', 'error'); })
       .finally(() => { if (!cancelled) setDuplicatesLoading(false); });
     return () => { cancelled = true; };
   }, [uploadToken, setDuplicateCodes, setDuplicatesLoading]);
@@ -141,7 +140,6 @@ export default function ReviewScreen() {
 
   const handleSubmit = async () => {
     if (!uploadToken) return;
-    setError(null);
     try {
       setTasView('submitting');
       const filteredOverrides: Record<string, { horasExtrasSimples?: number; horasExtrasDobles?: number }> = {};
@@ -158,20 +156,19 @@ export default function ReviewScreen() {
       const msg = axios.isAxiosError(err) && err.response?.data?.message
         ? err.response.data.message
         : 'Ocurrió un error al enviar. Intente nuevamente.';
-      setError(msg);
+      useToastStore.getState().showToast(msg, 'error');
     }
   };
 
   const handleAccruesOvertimeToggle = async (row: ResolvedRow) => {
     if (!uploadToken) return;
-    setError(null);
     const newAccruesOvertime = !row.accruesOvertime;
     setPendingToggleId(row.codigoEmpleado);
     try {
       try {
         await updateAccruesOvertime(row.codigoEmpleado, newAccruesOvertime);
       } catch {
-        setError('No se pudo actualizar el acumulado de horas extra del empleado.');
+        useToastStore.getState().showToast('No se pudo actualizar el acumulado de horas extra del empleado.', 'error');
         return;
       }
       try {
@@ -184,7 +181,7 @@ export default function ReviewScreen() {
           stashOvertimeOverrides(row.codigoEmpleado);
         }
       } catch {
-        setError('La sesión de carga expiró. Vuelve a subir el archivo.');
+        useToastStore.getState().showToast('La sesión de carga expiró. Vuelve a subir el archivo.', 'error');
       }
     } finally {
       setPendingToggleId(null);
@@ -204,12 +201,12 @@ export default function ReviewScreen() {
           Revisión de registros procesados
         </h2>
 
-        {error && <AlertMessage message={error} />}
-
         {duplicateCodes.length > 0 && (
-          <div className="mb-4 px-4 py-3 rounded-shape-md bg-amber-50 border border-amber-200 text-amber-800 text-body-md">
-            Se encontraron {duplicateCodes.length} empleado(s) ya registrados para esta quincena. Estos registros se excluirán del envío.
-          </div>
+          <AlertMessage
+            variant="info"
+            message={`Se encontraron ${duplicateCodes.length} empleado(s) ya registrados para esta quincena. Estos registros se excluirán del envío.`}
+            className="mb-4"
+          />
         )}
 
         <p className="text-body-md text-on-surface-variant mb-6">
