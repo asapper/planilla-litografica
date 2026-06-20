@@ -18,8 +18,8 @@ export default function TasResultScreen() {
   const [retryError, setRetryError] = useState<string | null>(null);
 
   const hasFailed = jobResult != null && jobResult.failed > 0;
-  const canRetry = hasFailed && jobResult.attemptNumber < jobResult.maxRetries;
-  const retriesExhausted = hasFailed && jobResult.attemptNumber >= jobResult.maxRetries;
+  const canRetry = hasFailed && jobResult.attemptNumber <= jobResult.maxRetries;
+  const retriesExhausted = hasFailed && jobResult.attemptNumber > jobResult.maxRetries;
 
   const handleRetry = async () => {
     if (!jobId) return;

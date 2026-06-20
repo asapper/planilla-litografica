@@ -7,6 +7,7 @@ import com.planilla.backend.model.tas.TasPeriod;
 import com.planilla.backend.model.tas.TasSession;
 import com.planilla.backend.model.tas.TasUploadResult;
 import com.planilla.backend.service.DatabaseService;
+import com.planilla.backend.service.JobNotFoundException;
 import com.planilla.backend.service.JobService;
 import com.planilla.backend.service.tas.*;
 import org.junit.jupiter.api.Test;
@@ -1219,7 +1220,7 @@ class TasControllerTest {
     @Test
     void retryJob_notFound_returns404() throws Exception {
         when(jobService.createRetryJob("job-xyz")).thenThrow(
-            new IllegalArgumentException("Job no encontrado: job-xyz"));
+            new JobNotFoundException("job-xyz"));
 
         mvc.perform(post("/api/tas/jobs/job-xyz/retry"))
            .andExpect(status().isNotFound());

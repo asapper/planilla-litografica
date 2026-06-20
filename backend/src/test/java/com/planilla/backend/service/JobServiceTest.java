@@ -388,7 +388,10 @@ class JobServiceTest {
         String r3 = service.createRetryJob(r2);
         service.processJob(r3);
 
-        assertThatThrownBy(() -> service.createRetryJob(r3))
+        String r4 = service.createRetryJob(r3);
+        service.processJob(r4);
+
+        assertThatThrownBy(() -> service.createRetryJob(r4))
             .isInstanceOf(IllegalArgumentException.class)
             .hasMessageContaining("reintentos");
     }
@@ -396,7 +399,7 @@ class JobServiceTest {
     @Test
     void createRetryJob_rejectsUnknownJobId() {
         assertThatThrownBy(() -> service.createRetryJob("no-such-job"))
-            .isInstanceOf(IllegalArgumentException.class);
+            .isInstanceOf(JobNotFoundException.class);
     }
 
     // ── evictStaleJobs ─────────────────────────────────────────────────────

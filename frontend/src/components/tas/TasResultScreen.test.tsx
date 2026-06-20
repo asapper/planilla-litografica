@@ -92,7 +92,7 @@ describe('TasResultScreen retry', () => {
   });
 
   it('shows exhaustion message when max retries reached', () => {
-    useTasStore.getState().setJobResult({ submitted: 5, skipped: 0, failed: 2, attemptNumber: 3, maxRetries: 3 });
+    useTasStore.getState().setJobResult({ submitted: 5, skipped: 0, failed: 2, attemptNumber: 4, maxRetries: 3 });
     render(<TasResultScreen />);
     expect(screen.queryByRole('button', { name: /reintentar/i })).not.toBeInTheDocument();
     expect(screen.getByText(/se agotaron los reintentos/i)).toBeInTheDocument();

@@ -7,6 +7,7 @@ import com.planilla.backend.model.tas.TasFlag;
 import com.planilla.backend.model.tas.TasPeriod;
 import com.planilla.backend.model.tas.TasUploadResult;
 import com.planilla.backend.service.DatabaseService;
+import com.planilla.backend.service.JobNotFoundException;
 import com.planilla.backend.service.JobService;
 import com.planilla.backend.service.tas.*;
 import org.springframework.http.ResponseEntity;
@@ -239,10 +240,9 @@ public class TasController {
             String retryJobId = jobService.createRetryJob(jobId);
             jobService.processRetryJobAsync(retryJobId);
             return ResponseEntity.ok(Map.of("jobId", retryJobId));
+        } catch (JobNotFoundException e) {
+            return ResponseEntity.notFound().build();
         } catch (IllegalArgumentException e) {
-            if (e.getMessage().contains("no encontrado")) {
-                return ResponseEntity.notFound().build();
-            }
             return ResponseEntity.status(409).body(Map.of(
                 "code", "MAX_RETRIES_EXHAUSTED",
                 "message", e.getMessage()
