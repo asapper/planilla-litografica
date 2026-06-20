@@ -104,7 +104,7 @@ class TasParserServiceTest {
 
         assertThatThrownBy(() -> service.parse(emptyFile))
                 .isInstanceOf(Exception.class)
-                .hasMessageContaining("Columnas requeridas no encontradas");
+                .hasMessage("El archivo está vacío.");
     }
 
     @Test
@@ -240,5 +240,62 @@ class TasParserServiceTest {
         assertThat(result.warnings).hasSize(1);
         assertThat(result.warnings.get(0)).contains("Departamento");
         assertThat(result.warnings.get(0)).contains("Cargo");
+    }
+
+    @Test
+    void parse_emptyFile_throwsEmptyFileError() {
+        MockMultipartFile empty = new MockMultipartFile("file", "test.csv", "text/csv", new byte[0]);
+        assertThatThrownBy(() -> service.parse(empty))
+            .isInstanceOf(Exception.class)
+            .hasMessage("El archivo está vacío.");
+    }
+
+    @Test
+    void parse_oversizedFile_throwsSizeError() {
+        byte[] big = new byte[10 * 1024 * 1024 + 1];
+        MockMultipartFile file = new MockMultipartFile("file", "big.csv", "text/csv", big);
+        assertThatThrownBy(() -> service.parse(file))
+            .isInstanceOf(Exception.class)
+            .hasMessage("El archivo excede el tamaño máximo permitido (10 MB).");
+    }
+
+    @Test
+    void parse_invalidUtf8_throwsEncodingError() {
+        byte[] invalid = {(byte)0xC3, (byte)0x28};
+        MockMultipartFile file = new MockMultipartFile("file", "test.csv", "text/csv", invalid);
+        assertThatThrownBy(() -> service.parse(file))
+            .isInstanceOf(Exception.class)
+            .hasMessage("El archivo no tiene una codificación válida (se esperaba UTF-8).");
+    }
+
+    @Test
+    void parse_binaryContent_throwsError() {
+        byte[] binary = {0x00, 0x01, 0x02, 0x03};
+        MockMultipartFile file = new MockMultipartFile("file", "test.csv", "text/csv", binary);
+        assertThatThrownBy(() -> service.parse(file))
+            .isInstanceOf(Exception.class);
+    }
+
+    @Test
+    void parse_moreThanHalfRowsSkipped_addsSummaryWarning() throws Exception {
+        String content = HEADER
+            + "1,,Evento,Employee A,100\n"
+            + "2,,Evento,Employee B,200\n"
+            + "3,,Evento,Employee C,300\n"
+            + "4,2026/03/15 07:00,Evento,Valid,400\n";
+        TasParserService.ParseResult result = service.parse(csv(content));
+        assertThat(result.scans).hasSize(1);
+        assertThat(result.warnings).anyMatch(w -> w.contains("Se ignoraron 3 de 4 filas"));
+    }
+
+    @Test
+    void parse_lessThanHalfRowsSkipped_noSummaryWarning() throws Exception {
+        String content = HEADER
+            + "1,,Evento,Employee A,100\n"
+            + "2,2026/03/15 07:00,Evento,Valid B,200\n"
+            + "3,2026/03/15 08:00,Evento,Valid C,300\n";
+        TasParserService.ParseResult result = service.parse(csv(content));
+        assertThat(result.scans).hasSize(2);
+        assertThat(result.warnings).noneMatch(w -> w.contains("Se ignoraron"));
     }
 }
