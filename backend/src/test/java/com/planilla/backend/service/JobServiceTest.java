@@ -236,6 +236,8 @@ class JobServiceTest {
         assertThat(status.submitted()).isEqualTo(0);
         assertThat(status.skipped()).isEqualTo(0);
         assertThat(status.failed()).isEqualTo(0);
+        assertThat(status.attemptNumber()).isEqualTo(1);
+        assertThat(status.maxRetries()).isEqualTo(3);
         assertThat(status.failedRows()).isEmpty();
     }
 
@@ -341,6 +343,63 @@ class JobServiceTest {
             assertThat(status.status()).isEqualTo("DONE_WITH_ERRORS");
         });
         assertThat(fakeStore).containsKey("token-1");
+    }
+
+    // ── createRetryJob ──────────────────────────────────────────────────
+
+    @Test
+    void createRetryJob_createsJobWithOnlyFailedRows() {
+        when(databaseService.isDuplicate(any()))
+            .thenReturn(false)                          // row 1 succeeds
+            .thenThrow(new RuntimeException("err"));    // row 2 fails
+
+        String parentId = service.createJob(List.of(row("1"), row("2")));
+        service.processJob(parentId);
+
+        String retryId = service.createRetryJob(parentId);
+        JobService.JobStatusDto status = service.getJobStatus(retryId);
+
+        assertThat(retryId).isNotEqualTo(parentId);
+        assertThat(status.totalRows()).isEqualTo(1);
+        assertThat(status.attemptNumber()).isEqualTo(2);
+        assertThat(status.maxRetries()).isEqualTo(3);
+    }
+
+    @Test
+    void createRetryJob_rejectsJobNotDoneWithErrors() {
+        String jobId = service.createJob(List.of(row("1")));
+
+        assertThatThrownBy(() -> service.createRetryJob(jobId))
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("DONE_WITH_ERRORS");
+    }
+
+    @Test
+    void createRetryJob_rejectsWhenMaxRetriesReached() {
+        when(databaseService.isDuplicate(any()))
+            .thenThrow(new RuntimeException("err"));
+
+        String id = service.createJob(List.of(row("1")));
+        service.processJob(id);
+
+        String r2 = service.createRetryJob(id);
+        service.processJob(r2);
+
+        String r3 = service.createRetryJob(r2);
+        service.processJob(r3);
+
+        String r4 = service.createRetryJob(r3);
+        service.processJob(r4);
+
+        assertThatThrownBy(() -> service.createRetryJob(r4))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("reintentos");
+    }
+
+    @Test
+    void createRetryJob_rejectsUnknownJobId() {
+        assertThatThrownBy(() -> service.createRetryJob("no-such-job"))
+            .isInstanceOf(JobNotFoundException.class);
     }
 
     // ── evictStaleJobs ─────────────────────────────────────────────────────

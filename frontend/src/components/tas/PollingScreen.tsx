@@ -41,6 +41,8 @@ export default function PollingScreen() {
             submitted: data.submitted,
             skipped: data.skipped,
             failed: data.failed,
+            attemptNumber: data.attemptNumber,
+            maxRetries: data.maxRetries,
           });
           setTasView('result');
         }

@@ -7,6 +7,7 @@ import com.planilla.backend.model.tas.TasPeriod;
 import com.planilla.backend.model.tas.TasSession;
 import com.planilla.backend.model.tas.TasUploadResult;
 import com.planilla.backend.service.DatabaseService;
+import com.planilla.backend.service.JobNotFoundException;
 import com.planilla.backend.service.JobService;
 import com.planilla.backend.service.tas.*;
 import org.junit.jupiter.api.Test;
@@ -1177,7 +1178,7 @@ class TasControllerTest {
     @Test
     void getJobStatus_existingJob_returnsStatus() throws Exception {
         when(jobService.getJobStatus("job-1")).thenReturn(
-            new JobService.JobStatusDto("job-1", "IN_PROGRESS", 10, 3, 1, 0, List.of()));
+            new JobService.JobStatusDto("job-1", "IN_PROGRESS", 10, 3, 1, 0, 1, 3, List.of()));
 
         mvc.perform(get("/api/tas/jobs/job-1"))
            .andExpect(status().isOk())
@@ -1193,7 +1194,7 @@ class TasControllerTest {
     @Test
     void getJobStatus_withFailedRows_includesDetails() throws Exception {
         when(jobService.getJobStatus("job-2")).thenReturn(
-            new JobService.JobStatusDto("job-2", "DONE_WITH_ERRORS", 2, 1, 0, 1,
+            new JobService.JobStatusDto("job-2", "DONE_WITH_ERRORS", 2, 1, 0, 1, 1, 3,
                 List.of(new JobService.FailedRowDto("E1", "Ana", "DB error"))));
 
         mvc.perform(get("/api/tas/jobs/job-2"))
@@ -1201,6 +1202,50 @@ class TasControllerTest {
            .andExpect(jsonPath("$.failedRows[0].codigoEmpleado").value("E1"))
            .andExpect(jsonPath("$.failedRows[0].nombreEmpleado").value("Ana"))
            .andExpect(jsonPath("$.failedRows[0].error").value("DB error"));
+    }
+
+    // ── POST /api/tas/jobs/{jobId}/retry ──────────────────────────────────
+
+    @Test
+    void retryJob_success_returns200WithRetryJobId() throws Exception {
+        when(jobService.createRetryJob("job-1")).thenReturn("retry-id");
+
+        mvc.perform(post("/api/tas/jobs/job-1/retry"))
+           .andExpect(status().isOk())
+           .andExpect(jsonPath("$.jobId").value("retry-id"));
+
+        verify(jobService).processRetryJobAsync("retry-id");
+    }
+
+    @Test
+    void retryJob_notFound_returns404() throws Exception {
+        when(jobService.createRetryJob("job-xyz")).thenThrow(
+            new JobNotFoundException("job-xyz"));
+
+        mvc.perform(post("/api/tas/jobs/job-xyz/retry"))
+           .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void retryJob_maxRetriesExhausted_returns409WithMaxRetriesCode() throws Exception {
+        when(jobService.createRetryJob("job-2")).thenThrow(
+            new IllegalArgumentException("Se alcanzó el máximo de reintentos"));
+
+        mvc.perform(post("/api/tas/jobs/job-2/retry"))
+           .andExpect(status().isConflict())
+           .andExpect(jsonPath("$.code").value("MAX_RETRIES_EXHAUSTED"))
+           .andExpect(jsonPath("$.message").value("Se alcanzó el máximo de reintentos"));
+    }
+
+    @Test
+    void retryJob_notRetryable_returns409WithNotRetryableCode() throws Exception {
+        when(jobService.createRetryJob("job-3")).thenThrow(
+            new IllegalStateException("Solo se puede reintentar un job con estado DONE_WITH_ERRORS"));
+
+        mvc.perform(post("/api/tas/jobs/job-3/retry"))
+           .andExpect(status().isConflict())
+           .andExpect(jsonPath("$.code").value("NOT_RETRYABLE"))
+           .andExpect(jsonPath("$.message").value("Solo se puede reintentar un job con estado DONE_WITH_ERRORS"));
     }
 
     // ── POST /api/tas/submit — overtime overrides ────────────────────────

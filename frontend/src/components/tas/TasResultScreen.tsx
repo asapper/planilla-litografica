@@ -1,13 +1,41 @@
+import { useState } from 'react';
 import { useTasStore } from '../../tasStore';
+import { retryTasJob } from '../../tasApi';
 import ScreenLayout from '../ui/ScreenLayout';
 import IconBadge from '../ui/IconBadge';
 
 export default function TasResultScreen() {
   const resolvedRowCount = useTasStore(s => s.resolvedRowCount);
   const jobResult        = useTasStore(s => s.jobResult);
+  const jobId            = useTasStore(s => s.jobId);
   const absentEmployees  = useTasStore(s => s.absentEmployees);
   const resetTas         = useTasStore(s => s.resetTas);
   const setTasView       = useTasStore(s => s.setTasView);
+  const setJobId         = useTasStore(s => s.setJobId);
+  const setJobResult     = useTasStore(s => s.setJobResult);
+
+  const [retrying, setRetrying] = useState(false);
+  const [retryError, setRetryError] = useState<string | null>(null);
+
+  const hasFailed = jobResult != null && jobResult.failed > 0;
+  const canRetry = hasFailed && jobResult.attemptNumber <= jobResult.maxRetries;
+  const retriesExhausted = hasFailed && jobResult.attemptNumber > jobResult.maxRetries;
+
+  const handleRetry = async () => {
+    if (!jobId) return;
+    setRetrying(true);
+    setRetryError(null);
+    try {
+      const result = await retryTasJob(jobId);
+      setJobId(result.jobId);
+      setJobResult(null);
+      setTasView('polling');
+    } catch {
+      setRetryError('No se pudo reintentar. Intente de nuevo.');
+    } finally {
+      setRetrying(false);
+    }
+  };
 
   const handleReviewAbsent = () => {
     setTasView('absentReview');
@@ -37,6 +65,19 @@ export default function TasResultScreen() {
               {jobResult.failed} con error.
             </p>
           )}
+          {hasFailed && (
+            <p className="text-body-sm text-on-surface-variant mb-2">
+              Intento {jobResult.attemptNumber} de {jobResult.maxRetries}
+            </p>
+          )}
+          {retriesExhausted && (
+            <p className="text-body-sm text-error mb-2">
+              Se agotaron los reintentos.
+            </p>
+          )}
+          {retryError && (
+            <p className="text-body-sm text-error mb-2">{retryError}</p>
+          )}
           <div className="mb-6" />
         </>
       ) : (
@@ -54,9 +95,19 @@ export default function TasResultScreen() {
         </p>
       )}
 
-      {absentEmployees.length > 0 && (
+      {canRetry && (
         <button
           className="m3-btn-filled w-full mb-3"
+          onClick={handleRetry}
+          disabled={retrying}
+        >
+          {retrying ? 'Reintentando...' : 'Reintentar registros fallidos'}
+        </button>
+      )}
+
+      {absentEmployees.length > 0 && (
+        <button
+          className={`${canRetry ? 'm3-btn-outlined' : 'm3-btn-filled'} w-full mb-3`}
           onClick={handleReviewAbsent}
         >
           Revisar empleados sin marcaciones →
@@ -64,7 +115,7 @@ export default function TasResultScreen() {
       )}
 
       <button
-        className={absentEmployees.length > 0 ? 'm3-btn-outlined w-full' : 'm3-btn-filled w-full'}
+        className={absentEmployees.length > 0 || canRetry ? 'm3-btn-outlined w-full' : 'm3-btn-filled w-full'}
         onClick={resetTas}
       >
         Nueva carga
