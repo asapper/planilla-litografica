@@ -9,6 +9,7 @@ import ConfigPage from './components/ConfigPage';
 import ErrorBoundary from './components/ErrorBoundary';
 import Spinner from './components/ui/Spinner';
 import TasUploadFlow from './components/tas/TasUploadFlow';
+import ToastContainer from './components/ui/ToastContainer';
 
 const MAX_ATTEMPTS    = 40;
 const RETRY_INTERVAL  = 500;
@@ -146,6 +147,8 @@ export default function App() {
       {currentView === 'tas' && tasView === 'idle' && <EmptyState onTasFile={handleTasFile} />}
 
       {currentView === 'tas' && tasView !== 'idle' && <TasUploadFlow fileName={tasFileName} />}
+
+      <ToastContainer />
     </ErrorBoundary>
   );
 }

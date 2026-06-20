@@ -14,8 +14,6 @@ beforeEach(() => {
     employees: { loading: false, data: null, dirty: false, error: null },
     holidays: { loading: false, data: null, dirty: false, error: null },
     general: { loading: false, data: null, dirty: false, error: null },
-    toastVisible: false,
-    toastMessage: '',
     holidayYear: new Date().getFullYear(),
   });
 });
@@ -39,10 +37,6 @@ describe('initial state', () => {
     }
   });
 
-  it('toast starts hidden', () => {
-    expect(useConfigStore.getState().toastVisible).toBe(false);
-    expect(useConfigStore.getState().toastMessage).toBe('');
-  });
 });
 
 // -----------------------------------------------------------------
@@ -199,30 +193,6 @@ describe('general tab', () => {
   it('setGeneralError stores error', () => {
     useConfigStore.getState().setGeneralError('fail');
     expect(useConfigStore.getState().general.error).toBe('fail');
-  });
-});
-
-// -----------------------------------------------------------------
-// Toast
-// -----------------------------------------------------------------
-
-describe('toast', () => {
-  it('showToast makes toast visible with message', () => {
-    useConfigStore.getState().showToast('Cambios guardados');
-    expect(useConfigStore.getState().toastVisible).toBe(true);
-    expect(useConfigStore.getState().toastMessage).toBe('Cambios guardados');
-  });
-
-  it('hideToast hides the toast', () => {
-    useConfigStore.getState().showToast('test');
-    useConfigStore.getState().hideToast();
-    expect(useConfigStore.getState().toastVisible).toBe(false);
-  });
-
-  it('showToast with new message replaces previous message', () => {
-    useConfigStore.getState().showToast('first');
-    useConfigStore.getState().showToast('second');
-    expect(useConfigStore.getState().toastMessage).toBe('second');
   });
 });
 

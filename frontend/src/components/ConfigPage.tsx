@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useConfigStore } from '../configStore';
 import type { ConfigTab } from '../configTypes';
 import ShiftsTab from './config/ShiftsTab';
@@ -47,35 +47,6 @@ function UnsavedGuard({ onDiscard, onKeep }: UnsavedGuardProps) {
   );
 }
 
-interface ToastProps {
-  message: string;
-  visible: boolean;
-  onHide: () => void;
-}
-
-function Toast({ message, visible, onHide }: ToastProps) {
-  useEffect(() => {
-    if (!visible) return;
-    const timer = setTimeout(onHide, 3_000);
-    return () => clearTimeout(timer);
-  }, [visible]);
-
-  if (!visible) return null;
-
-  return (
-    <div
-      role="status"
-      aria-live="polite"
-      className="fixed bottom-6 right-6 z-50 flex items-center gap-2 px-4 py-3 bg-green-600 text-white rounded shadow-lg text-sm"
-    >
-      <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-      </svg>
-      {message}
-    </div>
-  );
-}
-
 export default function ConfigPage() {
   const activeTab = useConfigStore(s => s.activeTab);
   const setActiveTab = useConfigStore(s => s.setActiveTab);
@@ -89,10 +60,6 @@ export default function ConfigPage() {
   const setEmployeesDirty = useConfigStore(s => s.setEmployeesDirty);
   const setHolidaysDirty = useConfigStore(s => s.setHolidaysDirty);
   const setGeneralDirty = useConfigStore(s => s.setGeneralDirty);
-
-  const toastVisible = useConfigStore(s => s.toastVisible);
-  const toastMessage = useConfigStore(s => s.toastMessage);
-  const hideToast = useConfigStore(s => s.hideToast);
 
   const [pendingTab, setPendingTab] = useState<ConfigTab | null>(null);
 
@@ -166,11 +133,6 @@ export default function ConfigPage() {
         />
       )}
 
-      <Toast
-        message={toastMessage}
-        visible={toastVisible}
-        onHide={hideToast}
-      />
     </div>
   );
 }

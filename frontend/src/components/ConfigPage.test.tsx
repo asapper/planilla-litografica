@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
-import { render, screen, fireEvent, act } from '@testing-library/react';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { useConfigStore } from '../configStore';
 
 vi.mock('./config/ShiftsTab', () => ({
@@ -24,14 +24,8 @@ beforeEach(() => {
     employees: { loading: false, data: null, dirty: false, error: null },
     holidays: { loading: false, data: null, dirty: false, error: null },
     general: { loading: false, data: null, dirty: false, error: null },
-    toastVisible: false,
-    toastMessage: '',
     holidayYear: 2026,
   });
-});
-
-afterEach(() => {
-  vi.useRealTimers();
 });
 
 // -----------------------------------------------------------------
@@ -160,37 +154,3 @@ describe('ConfigPage unsaved changes guard', () => {
   });
 });
 
-// -----------------------------------------------------------------
-// Toast
-// -----------------------------------------------------------------
-
-describe('ConfigPage toast', () => {
-  it('shows toast when toastVisible is true', () => {
-    useConfigStore.getState().showToast('Cambios guardados');
-    render(<ConfigPage />);
-    expect(screen.getByRole('status')).toBeInTheDocument();
-    expect(screen.getByText('Cambios guardados')).toBeInTheDocument();
-  });
-
-  it('does not show toast when toastVisible is false', () => {
-    render(<ConfigPage />);
-    expect(screen.queryByRole('status')).not.toBeInTheDocument();
-  });
-
-  it('toast auto-hides after 3 seconds', async () => {
-    vi.useFakeTimers();
-    useConfigStore.getState().showToast('Cambios guardados');
-    render(<ConfigPage />);
-    expect(screen.getByRole('status')).toBeInTheDocument();
-    await act(async () => { await vi.advanceTimersByTimeAsync(3_000); });
-    expect(useConfigStore.getState().toastVisible).toBe(false);
-  });
-
-  it('toast remains visible before 3 seconds', async () => {
-    vi.useFakeTimers();
-    useConfigStore.getState().showToast('msg');
-    render(<ConfigPage />);
-    await act(async () => { await vi.advanceTimersByTimeAsync(2_000); });
-    expect(screen.getByRole('status')).toBeInTheDocument();
-  });
-});
