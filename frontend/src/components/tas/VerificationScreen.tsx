@@ -4,6 +4,7 @@ import { resolveVerification } from '../../tasApi';
 import type { TasResolution } from '../../tasApi';
 import { MONTH_NAMES_ES } from '../../dateNames';
 import type { TasSession, TasFlag, TasPeriod, ShiftOption } from '../../tasTypes';
+import { useToastStore } from '../../toastStore';
 import AlertMessage from '../ui/AlertMessage';
 import EmployeeGroup from './EmployeeGroup';
 import { buildEmployeeGroups } from './verificationGrouping';
@@ -414,7 +415,6 @@ export default function VerificationScreen() {
   const setUsedFallbackHolidays  = useTasStore(s => s.setUsedFallbackHolidays);
   const setFlaggedSessions    = useTasStore(s => s.setFlaggedSessions);
   const setUploadToken        = useTasStore(s => s.setUploadToken);
-  const setError              = useTasStore(s => s.setError);
   const availablePeriods      = useTasStore(s => s.availablePeriods);
   const selectedPeriod        = useTasStore(s => s.selectedPeriod);
   const setSelectedPeriod     = useTasStore(s => s.setSelectedPeriod);
@@ -425,8 +425,6 @@ export default function VerificationScreen() {
   const setShiftAcceptance  = useTasStore(s => s.setShiftAcceptance);
   const sameDayDoubleResolutions    = useTasStore(s => s.sameDayDoubleResolutions);
   const setSameDayDoubleResolution  = useTasStore(s => s.setSameDayDoubleResolution);
-  const error                       = useTasStore(s => s.error);
-
   const scrollRef = useRef<HTMLDivElement>(null);
   useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTop = 0; }, []);
 
@@ -498,7 +496,6 @@ export default function VerificationScreen() {
 
   const handleSubmit = async () => {
     if (!uploadToken) return;
-    setError(null);
     try {
       const sessionDateById = new Map(flaggedSessions.map(s => [s.sessionId, s.date]));
       const resolutions: TasResolution[] = [
@@ -542,7 +539,7 @@ export default function VerificationScreen() {
       setTasView('review');
     } catch {
       setTasView('verification');
-      setError('Ocurrió un error al enviar. Intente nuevamente.');
+      useToastStore.getState().showToast('Ocurrió un error al enviar. Intente nuevamente.', 'error');
     }
   };
 
@@ -552,8 +549,6 @@ export default function VerificationScreen() {
         <h2 className="text-headline-sm font-medium text-on-surface mb-4">
           Verificación de marcaciones
         </h2>
-
-        {error && <AlertMessage message={error} />}
 
         {availablePeriods.length > 1 && (
           <div className="flex flex-col gap-1 mb-2">
@@ -580,9 +575,11 @@ export default function VerificationScreen() {
         </p>
 
         {allConfirmed && totalToResolve > 0 && (
-          <div className="flex items-center gap-2 rounded-shape-md border border-green-300 bg-green-50 px-4 py-3 mb-4 text-body-sm font-medium text-green-700">
-            ✓ Todos los grupos están resueltos — puede continuar y enviar.
-          </div>
+          <AlertMessage
+            variant="success"
+            message="Todos los grupos están resueltos — puede continuar y enviar."
+            className="mb-4"
+          />
         )}
 
         {totalToResolve === 0 ? (

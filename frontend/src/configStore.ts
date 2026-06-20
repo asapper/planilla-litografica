@@ -14,8 +14,6 @@ interface ConfigStore {
   employees: TabState<Employee[]>;
   holidays: TabState<Holiday[]>;
   general: TabState<GeneralConfig>;
-  toastVisible: boolean;
-  toastMessage: string;
   holidayYear: number;
 
   setActiveTab: (tab: ConfigTab) => void;
@@ -40,9 +38,6 @@ interface ConfigStore {
   setGeneralDirty: (v: boolean) => void;
   setGeneralError: (msg: string | null) => void;
 
-  showToast: (message: string) => void;
-  hideToast: () => void;
-
   setHolidayYear: (year: number) => void;
 }
 
@@ -56,8 +51,6 @@ export const useConfigStore = create<ConfigStore>(set => ({
   employees: makeTabState<Employee[]>(),
   holidays: makeTabState<Holiday[]>(),
   general: makeTabState<GeneralConfig>(),
-  toastVisible: false,
-  toastMessage: '',
   holidayYear: new Date().getFullYear(),
 
   setActiveTab: (tab) => set({ activeTab: tab }),
@@ -81,9 +74,6 @@ export const useConfigStore = create<ConfigStore>(set => ({
   setGeneralData: (data) => set(s => ({ general: { ...s.general, data, error: null } })),
   setGeneralDirty: (v) => set(s => ({ general: { ...s.general, dirty: v } })),
   setGeneralError: (msg) => set(s => ({ general: { ...s.general, error: msg } })),
-
-  showToast: (message) => set({ toastVisible: true, toastMessage: message }),
-  hideToast: () => set({ toastVisible: false }),
 
   setHolidayYear: (year) => set({ holidayYear: year }),
 }));

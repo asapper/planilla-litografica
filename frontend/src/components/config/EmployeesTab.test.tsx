@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { useConfigStore } from '../../configStore';
+import { useToastStore } from '../../toastStore';
 import * as configApi from '../../configApi';
 
 vi.mock('../../configApi');
@@ -24,10 +25,9 @@ beforeEach(() => {
     employees: { loading: false, data: null, dirty: false, error: null },
     holidays: { loading: false, data: null, dirty: false, error: null },
     general: { loading: false, data: null, dirty: false, error: null },
-    toastVisible: false,
-    toastMessage: '',
     holidayYear: 2026,
   });
+  useToastStore.setState({ toasts: [] });
   vi.clearAllMocks();
   mockGetEmployees.mockResolvedValue([emp1, emp2]);
   mockGetShifts.mockResolvedValue([shift1]);
@@ -184,7 +184,7 @@ describe('EmployeesTab bulk assign', () => {
     fireEvent.change(dropdown, { target: { value: 'manana' } });
     fireEvent.click(screen.getByRole('button', { name: /aplicar/i }));
 
-    await waitFor(() => expect(useConfigStore.getState().toastVisible).toBe(true));
+    await waitFor(() => expect(useToastStore.getState().toasts).toHaveLength(1));
   });
 });
 
@@ -208,7 +208,7 @@ describe('EmployeesTab active toggle', () => {
     render(<EmployeesTab />);
     await waitFor(() => screen.getByText('EMP001'));
     fireEvent.click(screen.getAllByRole('switch')[0]);
-    await waitFor(() => expect(useConfigStore.getState().toastVisible).toBe(true));
+    await waitFor(() => expect(useToastStore.getState().toasts).toHaveLength(1));
   });
 
   it('shows reactivation note when activating employee with no shift', async () => {
@@ -269,7 +269,7 @@ describe('EmployeesTab accrues overtime toggle', () => {
     render(<EmployeesTab />);
     await waitFor(() => screen.getByText('EMP001'));
     fireEvent.click(screen.getByLabelText('Desactivar acumulado de horas extra'));
-    await waitFor(() => expect(useConfigStore.getState().toastVisible).toBe(true));
+    await waitFor(() => expect(useToastStore.getState().toasts).toHaveLength(1));
   });
 
   it('shows error when updateAccruesOvertime fails', async () => {

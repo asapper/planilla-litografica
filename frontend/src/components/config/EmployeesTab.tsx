@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useConfigStore } from '../../configStore';
+import { useToastStore } from '../../toastStore';
 import { getEmployees, updateEmployee, bulkAssignShift, getShifts, updateAccruesOvertime } from '../../configApi';
 import type { Employee, Shift } from '../../configTypes';
 import Spinner from '../ui/Spinner';
@@ -13,7 +14,7 @@ export default function EmployeesTab() {
   const setEmployeesLoading = useConfigStore(s => s.setEmployeesLoading);
   const setEmployeesData = useConfigStore(s => s.setEmployeesData);
   const setEmployeesError = useConfigStore(s => s.setEmployeesError);
-  const showToast = useConfigStore(s => s.showToast);
+  const showToast = useToastStore(s => s.showToast);
 
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [search, setSearch] = useState('');

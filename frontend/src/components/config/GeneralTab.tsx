@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useConfigStore } from '../../configStore';
+import { useToastStore } from '../../toastStore';
 import { getGeneralConfig, updateGeneralConfig } from '../../configApi';
 import Spinner from '../ui/Spinner';
 
@@ -15,7 +16,7 @@ export default function GeneralTab() {
   const setGeneralData = useConfigStore(s => s.setGeneralData);
   const setGeneralDirty = useConfigStore(s => s.setGeneralDirty);
   const setGeneralError = useConfigStore(s => s.setGeneralError);
-  const showToast = useConfigStore(s => s.showToast);
+  const showToast = useToastStore(s => s.showToast);
 
   const [breakMinutes, setBreakMinutes] = useState(DEFAULT_BREAK);
   const [maxSpanHours, setMaxSpanHours] = useState(DEFAULT_MAX_SPAN_HOURS);

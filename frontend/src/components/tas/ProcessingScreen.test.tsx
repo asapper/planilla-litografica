@@ -45,7 +45,7 @@ describe('ProcessingScreen', () => {
   it('dismiss button hides the banner', () => {
     useTasStore.getState().setUsedFallbackHolidays(true);
     render(<ProcessingScreen fileName="reporte.csv" />);
-    const dismissBtn = screen.getByRole('button', { name: /cerrar aviso/i });
+    const dismissBtn = screen.getByRole('button', { name: /cerrar/i });
     fireEvent.click(dismissBtn);
     expect(useTasStore.getState().fallbackBannerDismissed).toBe(true);
     expect(screen.queryByText(/feriados en línea/i)).not.toBeInTheDocument();

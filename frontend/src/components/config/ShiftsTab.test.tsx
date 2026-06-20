@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { useConfigStore } from '../../configStore';
+import { useToastStore } from '../../toastStore';
 import * as configApi from '../../configApi';
 
 vi.mock('../../configApi');
@@ -22,10 +23,9 @@ beforeEach(() => {
     employees: { loading: false, data: null, dirty: false, error: null },
     holidays: { loading: false, data: null, dirty: false, error: null },
     general: { loading: false, data: null, dirty: false, error: null },
-    toastVisible: false,
-    toastMessage: '',
     holidayYear: 2026,
   });
+  useToastStore.setState({ toasts: [] });
   vi.clearAllMocks();
   mockGetShifts.mockResolvedValue([shift1]);
 });
@@ -175,8 +175,8 @@ describe('ShiftsTab save', () => {
     await waitFor(() => screen.getByDisplayValue('Diurno'));
     fireEvent.change(screen.getByLabelText('Nombre del turno'), { target: { value: 'X' } });
     fireEvent.click(screen.getByRole('button', { name: /guardar cambios/i }));
-    await waitFor(() => expect(useConfigStore.getState().toastVisible).toBe(true));
-    expect(useConfigStore.getState().toastMessage).toBe('Cambios guardados');
+    await waitFor(() => expect(useToastStore.getState().toasts).toHaveLength(1));
+    expect(useToastStore.getState().toasts[0].message).toBe('Cambios guardados');
   });
 
   it('shows error message when save fails', async () => {

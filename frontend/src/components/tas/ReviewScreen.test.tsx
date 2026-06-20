@@ -3,6 +3,7 @@ import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import { AxiosError } from 'axios';
 import ReviewScreen from './ReviewScreen';
 import { useTasStore } from '../../tasStore';
+import { useToastStore } from '../../toastStore';
 import * as tasApi from '../../tasApi';
 import * as configApi from '../../configApi';
 import * as api from '../../api';
@@ -35,6 +36,7 @@ const sessionSummaries: Record<string, SessionSummary[]> = {
 
 beforeEach(() => {
   useTasStore.getState().resetTas();
+  useToastStore.setState({ toasts: [] });
   vi.clearAllMocks();
   mockCheckDbHealth.mockResolvedValue(true);
   mockCheckDuplicates.mockResolvedValue([]);
@@ -101,7 +103,7 @@ describe('ReviewScreen submit', () => {
     expect(useTasStore.getState().jobId).toBe('job-final');
   });
 
-  it('reverts to review and sets error when submitTas throws', async () => {
+  it('reverts to review and shows toast when submitTas throws', async () => {
     useTasStore.getState().setUploadToken('tok-1');
     useTasStore.getState().setResolvedRows(rows);
     mockSubmitTas.mockRejectedValue(new Error('network error'));
@@ -110,7 +112,8 @@ describe('ReviewScreen submit', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: /enviar/i })).not.toBeDisabled());
     fireEvent.click(screen.getByRole('button', { name: /enviar/i }));
 
-    await waitFor(() => expect(useTasStore.getState().error).not.toBeNull());
+    await waitFor(() => expect(useToastStore.getState().toasts).toHaveLength(1));
+    expect(useToastStore.getState().toasts[0].variant).toBe('error');
     expect(useTasStore.getState().tasView).toBe('review');
   });
 
@@ -126,14 +129,7 @@ describe('ReviewScreen submit', () => {
 });
 
 describe('ReviewScreen error display', () => {
-  it('shows error alert when store has an error', () => {
-    useTasStore.getState().setResolvedRows(rows);
-    useTasStore.getState().setError('Ocurrió un error al enviar. Intente nuevamente.');
-    render(<ReviewScreen />);
-    expect(screen.getByText('Ocurrió un error al enviar. Intente nuevamente.')).toBeInTheDocument();
-  });
-
-  it('renders the generic error message from a failed submit', async () => {
+  it('renders the generic error message from a failed submit as a toast', async () => {
     useTasStore.getState().setUploadToken('tok-1');
     useTasStore.getState().setResolvedRows(rows);
     mockSubmitTas.mockRejectedValue(new Error('network error'));
@@ -143,11 +139,13 @@ describe('ReviewScreen error display', () => {
     fireEvent.click(screen.getByRole('button', { name: /enviar/i }));
 
     await waitFor(() => {
-      expect(screen.getByText('Ocurrió un error al enviar. Intente nuevamente.')).toBeInTheDocument();
+      expect(useToastStore.getState().toasts).toHaveLength(1);
     });
+    expect(useToastStore.getState().toasts[0].message).toBe('Ocurrió un error al enviar. Intente nuevamente.');
+    expect(useToastStore.getState().toasts[0].variant).toBe('error');
   });
 
-  it('shows backend DB error message when submit returns a 502 with message', async () => {
+  it('shows backend DB error message as a toast when submit returns a 502 with message', async () => {
     useTasStore.getState().setUploadToken('tok-1');
     useTasStore.getState().setResolvedRows(rows);
     const axiosError = new AxiosError('Request failed', '502', undefined, undefined, {
@@ -164,8 +162,10 @@ describe('ReviewScreen error display', () => {
     fireEvent.click(screen.getByRole('button', { name: /enviar/i }));
 
     await waitFor(() => {
-      expect(screen.getByText('Base de datos remota no disponible.')).toBeInTheDocument();
+      expect(useToastStore.getState().toasts).toHaveLength(1);
     });
+    expect(useToastStore.getState().toasts[0].message).toBe('Base de datos remota no disponible.');
+    expect(useToastStore.getState().toasts[0].variant).toBe('error');
     expect(useTasStore.getState().tasView).toBe('review');
   });
 });
@@ -218,18 +218,19 @@ describe('ReviewScreen accruesOvertime toggle', () => {
     expect(mockRecomputeTas).toHaveBeenCalledWith('tok-1');
   });
 
-  it('reverts and shows error when updateAccruesOvertime fails', async () => {
+  it('reverts and shows error toast when updateAccruesOvertime fails', async () => {
     mockUpdateAccruesOvertime.mockRejectedValue(new Error('network error'));
 
     render(<ReviewScreen />);
     fireEvent.click(screen.getAllByRole('switch')[0]);
 
-    await waitFor(() => expect(useTasStore.getState().error).not.toBeNull());
+    await waitFor(() => expect(useToastStore.getState().toasts).toHaveLength(1));
+    expect(useToastStore.getState().toasts[0].variant).toBe('error');
     expect(useTasStore.getState().resolvedRows).toEqual(rows);
     expect(mockRecomputeTas).not.toHaveBeenCalled();
   });
 
-  it('reverts and shows error when recomputeTas fails', async () => {
+  it('reverts and shows error toast when recomputeTas fails', async () => {
     mockUpdateAccruesOvertime.mockResolvedValue({
       id: 'E1', code: 'E1', name: 'Ana López', shiftId: null, shiftName: null, active: true, accruesOvertime: false,
     });
@@ -238,7 +239,8 @@ describe('ReviewScreen accruesOvertime toggle', () => {
     render(<ReviewScreen />);
     fireEvent.click(screen.getAllByRole('switch')[0]);
 
-    await waitFor(() => expect(useTasStore.getState().error).not.toBeNull());
+    await waitFor(() => expect(useToastStore.getState().toasts).toHaveLength(1));
+    expect(useToastStore.getState().toasts[0].variant).toBe('error');
     expect(useTasStore.getState().resolvedRows).toEqual(rows);
   });
 
@@ -264,7 +266,7 @@ describe('ReviewScreen accruesOvertime toggle', () => {
     expect(switches[1]).not.toBeDisabled();
   });
 
-  it('shows session-expired messaging when recompute fails due to expired uploadToken', async () => {
+  it('shows session-expired toast when recompute fails due to expired uploadToken', async () => {
     mockUpdateAccruesOvertime.mockResolvedValue({
       id: 'E1', code: 'E1', name: 'Ana López', shiftId: null, shiftName: null, active: true, accruesOvertime: false,
     });
@@ -273,7 +275,9 @@ describe('ReviewScreen accruesOvertime toggle', () => {
     render(<ReviewScreen />);
     fireEvent.click(screen.getAllByRole('switch')[0]);
 
-    await waitFor(() => expect(useTasStore.getState().error).toMatch(/sesión.*expir|vuelve a subir/i));
+    await waitFor(() => expect(useToastStore.getState().toasts).toHaveLength(1));
+    expect(useToastStore.getState().toasts[0].message).toMatch(/sesión.*expir|vuelve a subir/i);
+    expect(useToastStore.getState().toasts[0].variant).toBe('error');
   });
 });
 
@@ -688,12 +692,14 @@ describe('ReviewScreen duplicate detection', () => {
     }));
   });
 
-  it('shows error message when checkDuplicates fails', async () => {
+  it('shows error toast when checkDuplicates fails', async () => {
     mockCheckDuplicates.mockRejectedValue(new Error('network error'));
     render(<ReviewScreen />);
     await waitFor(() => {
-      expect(screen.getByText(/no se pudo verificar duplicados/i)).toBeInTheDocument();
+      expect(useToastStore.getState().toasts).toHaveLength(1);
     });
+    expect(useToastStore.getState().toasts[0].message).toMatch(/no se pudo verificar duplicados/i);
+    expect(useToastStore.getState().toasts[0].variant).toBe('error');
     expect(screen.queryByText(/ya registrados/i)).not.toBeInTheDocument();
   });
 

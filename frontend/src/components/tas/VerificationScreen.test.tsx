@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import VerificationScreen from './VerificationScreen';
 import { useTasStore } from '../../tasStore';
+import { useToastStore } from '../../toastStore';
 import * as tasApi from '../../tasApi';
 import type { TasSession, TasResolveResult, TasPeriod } from '../../tasTypes';
 
@@ -44,6 +45,7 @@ const mockResult: TasResolveResult = {
 
 beforeEach(() => {
   useTasStore.getState().resetTas();
+  useToastStore.setState({ toasts: [] });
   vi.clearAllMocks();
 });
 
@@ -931,22 +933,7 @@ describe('SessionCard time validation', () => {
 });
 
 describe('VerificationScreen error display', () => {
-  it('shows error alert when store has an error', () => {
-    useTasStore.getState().setFlaggedSessions([makeSession()]);
-    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
-    useTasStore.getState().setError('Ocurrió un error al enviar. Intente nuevamente.');
-    render(<VerificationScreen />);
-    expect(screen.getByText('Ocurrió un error al enviar. Intente nuevamente.')).toBeInTheDocument();
-  });
-
-  it('does not show error alert when there is no error', () => {
-    useTasStore.getState().setFlaggedSessions([makeSession()]);
-    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
-    render(<VerificationScreen />);
-    expect(screen.queryByText(/error/i)).not.toBeInTheDocument();
-  });
-
-  it('renders the error message from a failed resolve call', async () => {
+  it('shows error toast from a failed resolve call', async () => {
     useTasStore.getState().setUploadToken('tok-1');
     useTasStore.getState().setFlaggedSessions([
       makeSession({ sessionId: 1, effectiveStart: '08:00:00', lastScan: '17:00:00' }),
@@ -959,8 +946,10 @@ describe('VerificationScreen error display', () => {
     fireEvent.click(screen.getByRole('button', { name: /revisar/i }));
 
     await waitFor(() => {
-      expect(screen.getByText('Ocurrió un error al enviar. Intente nuevamente.')).toBeInTheDocument();
+      expect(useToastStore.getState().toasts).toHaveLength(1);
     });
+    expect(useToastStore.getState().toasts[0].message).toBe('Ocurrió un error al enviar. Intente nuevamente.');
+    expect(useToastStore.getState().toasts[0].variant).toBe('error');
   });
 });
 

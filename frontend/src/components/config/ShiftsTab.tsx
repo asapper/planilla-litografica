@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useConfigStore } from '../../configStore';
+import { useToastStore } from '../../toastStore';
 import { getShifts, createShift, updateShift, deleteShift } from '../../configApi';
 import type { Shift } from '../../configTypes';
 import Spinner from '../ui/Spinner';
@@ -196,7 +197,7 @@ export default function ShiftsTab() {
   const setShiftsData = useConfigStore(s => s.setShiftsData);
   const setShiftsDirty = useConfigStore(s => s.setShiftsDirty);
   const setShiftsError = useConfigStore(s => s.setShiftsError);
-  const showToast = useConfigStore(s => s.showToast);
+  const showToast = useToastStore(s => s.showToast);
 
   const [localShifts, setLocalShifts] = useState<Shift[]>([]);
   const [deleteErrors, setDeleteErrors] = useState<Record<string, string>>({});
