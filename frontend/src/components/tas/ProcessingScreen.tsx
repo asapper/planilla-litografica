@@ -17,14 +17,14 @@ export default function ProcessingScreen({ fileName }: Props) {
 
   if (error) {
     return (
-      <div className="fixed inset-0 flex flex-col items-center justify-center gap-6 bg-white px-6">
+      <div className="fixed inset-0 flex flex-col items-center justify-center gap-6 bg-surface-container-lowest px-6">
         <AlertMessage message={error} />
       </div>
     );
   }
 
   return (
-    <div className="fixed inset-0 flex flex-col items-center justify-center gap-6 bg-white px-6">
+    <div className="fixed inset-0 flex flex-col items-center justify-center gap-6 bg-surface-container-lowest px-6">
       <div className="flex items-center gap-3">
         <Spinner size="w-5 h-5" />
         <span className="text-body-md text-on-surface-variant font-medium">

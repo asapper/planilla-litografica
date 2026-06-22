@@ -48,7 +48,7 @@ export default function AbsentReviewOverlay() {
       onClick={handleClose}
     >
       <div
-        className="bg-white rounded-shape-lg shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col"
+        className="bg-surface-container-lowest rounded-shape-lg shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col"
         onClick={e => e.stopPropagation()}
       >
         <div className="px-6 py-5 border-b border-outline-variant">
@@ -84,10 +84,10 @@ export default function AbsentReviewOverlay() {
                       {isActive ? (
                         <button
                           onClick={() => handleToggle(emp.employeeId)}
-                          className="inline-flex items-center justify-center gap-2 min-w-[7rem] px-3 py-1 rounded-full border border-green-400 text-green-700 text-label-sm hover:bg-green-50 transition-colors cursor-pointer"
+                          className="inline-flex items-center justify-center gap-2 min-w-[7rem] px-3 py-1 rounded-full border border-success text-success text-label-sm hover:bg-success-container transition-colors cursor-pointer"
                           aria-label={`Desactivar ${emp.name}`}
                         >
-                          <span className="w-2 h-2 rounded-full bg-green-500" />
+                          <span className="w-2 h-2 rounded-full bg-success" />
                           Activo
                         </button>
                       ) : (

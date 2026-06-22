@@ -45,7 +45,7 @@ export default function TasUploadFlow({ fileName }: Props) {
 
   if (tasView === 'submitting') {
     return (
-      <div className="fixed inset-0 z-40 flex flex-col items-center justify-center gap-4 bg-white/80">
+      <div className="fixed inset-0 z-40 flex flex-col items-center justify-center gap-4 bg-surface-container-lowest/80">
         <Spinner size="w-10 h-10" />
         <p className="text-title-md text-primary">Enviando...</p>
       </div>

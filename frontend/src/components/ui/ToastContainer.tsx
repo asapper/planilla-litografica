@@ -3,9 +3,9 @@ import { useToastStore } from '../../toastStore';
 import type { ToastVariant } from '../../toastStore';
 
 const VARIANT_CLASSES: Record<ToastVariant, string> = {
-  success: 'bg-green-600 text-white',
+  success: 'bg-success text-on-success',
   error:   'bg-error text-on-error',
-  warning: 'bg-amber-600 text-white',
+  warning: 'bg-warning text-on-warning',
   info:    'bg-tertiary text-on-tertiary',
 };
 

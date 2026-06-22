@@ -322,8 +322,8 @@ describe('ReviewScreen overtime override', () => {
     useTasStore.getState().setOvertimeOverride('E1', 'horasExtrasSimples', 10);
     render(<ReviewScreen />);
     const inputs = screen.getAllByRole('spinbutton');
-    expect(inputs[0]).toHaveClass('bg-amber-50');
-    expect(inputs[1]).not.toHaveClass('bg-amber-50');
+    expect(inputs[0]).toHaveClass('bg-warning-container/40');
+    expect(inputs[1]).not.toHaveClass('bg-warning-container/40');
   });
 
   it('shows original computed value below overridden input with correct pluralization', () => {
@@ -652,7 +652,7 @@ describe('ReviewScreen duplicate detection', () => {
       expect(screen.getByText(/ya registrados/i)).toBeInTheDocument();
     });
     const anaRow = screen.getByText('Ana López').closest('tr')!;
-    expect(anaRow).toHaveClass('bg-amber-50');
+    expect(anaRow).toHaveClass('bg-warning-container/40');
   });
 
   it('shows duplicate tooltip on duplicate rows', async () => {

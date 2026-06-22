@@ -33,7 +33,7 @@ function SessionDetailRows({ sessions }: { sessions: SessionSummary[] }) {
   return (
     <tr>
       <td colSpan={8} className="p-0">
-        <table className="w-full border-collapse bg-gray-50">
+        <table className="w-full border-collapse bg-surface-container-low">
           <thead>
             <tr>
               <th className="py-1 px-4 text-left text-label-sm text-on-surface-variant font-medium">Fecha</th>
@@ -47,7 +47,7 @@ function SessionDetailRows({ sessions }: { sessions: SessionSummary[] }) {
           </thead>
           <tbody>
             {sessions.map((s, i) => (
-              <tr key={`${s.date}-${i}`} className="border-t border-gray-100">
+              <tr key={`${s.date}-${i}`} className="border-t border-outline-variant">
                 <td className="py-1.5 px-4 text-body-sm text-on-surface-variant">{s.date}</td>
                 <td className="py-1.5 px-4 text-body-sm text-on-surface-variant">{s.shiftName ?? '—'}</td>
                 <td className="py-1.5 px-4 text-body-sm text-on-surface-variant">{formatTime(s.entryTime)}</td>
@@ -235,7 +235,7 @@ export default function ReviewScreen() {
           )}
         </div>
 
-        <table ref={tableRef} className="w-full border-collapse bg-white rounded-shape-md overflow-hidden shadow-sm">
+        <table ref={tableRef} className="w-full border-collapse bg-surface-container-lowest rounded-shape-md overflow-hidden shadow-sm">
           <thead>
             <tr className="border-b border-outline-variant">
               <th className="w-10" />
@@ -260,7 +260,7 @@ export default function ReviewScreen() {
               const sessions = sessionSummaries[row.codigoEmpleado] ?? [];
               return (
                 <Fragment key={`${row.codigoEmpleado}-${row.anio}-${row.mes}-${row.numeroDequincena}`}>
-                  <tr className={`border-b border-outline-variant last:border-b-0 ${duplicateSet.has(row.codigoEmpleado) ? 'bg-amber-50' : ''}`}>
+                  <tr className={`border-b border-outline-variant last:border-b-0 ${duplicateSet.has(row.codigoEmpleado) ? 'bg-warning-container/40' : ''}`}>
                     <td className="py-3 px-2 text-center">
                       <button
                         onClick={() => toggleExpanded(row.codigoEmpleado)}
@@ -275,7 +275,7 @@ export default function ReviewScreen() {
                       {row.diasTurnoEstimado > 0 && (
                         <span
                           title={`${row.diasTurnoEstimado} día(s) en que las marcaciones no cayeron dentro de la ventana de detección de ningún turno. Se asignó el turno más cercano automáticamente y las horas se calcularon con base en las marcaciones reales.`}
-                          className="ml-2 text-label-sm px-2 py-0.5 rounded-full bg-amber-100 text-amber-700"
+                          className="ml-2 text-label-sm px-2 py-0.5 rounded-full bg-warning-container text-on-warning-container"
                         >
                           {row.diasTurnoEstimado} turno estimado
                         </span>
@@ -283,7 +283,7 @@ export default function ReviewScreen() {
                       {duplicateSet.has(row.codigoEmpleado) && (
                         <span
                           title="Ya registrado para esta quincena"
-                          className="ml-2 text-label-sm px-2 py-0.5 rounded-full bg-amber-200 text-amber-800"
+                          className="ml-2 text-label-sm px-2 py-0.5 rounded-full bg-warning-container text-on-warning-container font-medium"
                         >
                           ⚠ Duplicado
                         </span>
@@ -295,7 +295,7 @@ export default function ReviewScreen() {
                       const override = overtimeOverrides[row.codigoEmpleado]?.[field];
                       const isOverridden = override !== undefined;
                       return (
-                        <td key={field} className={`py-3 px-4 text-right ${isOverridden ? 'bg-amber-50' : ''}`}>
+                        <td key={field} className={`py-3 px-4 text-right ${isOverridden ? 'bg-warning-container/40' : ''}`}>
                           <input
                             type="number"
                             min="0"
@@ -305,7 +305,7 @@ export default function ReviewScreen() {
                             onChange={e => handleOvertimeChange(row.codigoEmpleado, field, e.target.value)}
                             className={`w-16 text-right text-body-md border-b focus:border-primary focus:outline-none transition-colors ${
                               isOverridden
-                                ? 'bg-amber-50 border-amber-300 text-amber-900 font-medium'
+                                ? 'bg-warning-container/40 border-warning text-on-warning-container font-medium'
                                 : 'bg-transparent border-outline-variant text-on-surface-variant'
                             }`}
                           />
@@ -325,11 +325,11 @@ export default function ReviewScreen() {
                         onClick={() => handleAccruesOvertimeToggle(row)}
                         disabled={pendingToggleId !== null}
                         className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
-                          row.accruesOvertime ? 'bg-green-500' : 'bg-gray-300'
+                          row.accruesOvertime ? 'bg-success' : 'bg-surface-container-high'
                         }`}
                       >
                         <span
-                          className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                          className={`inline-block h-3.5 w-3.5 transform rounded-full bg-surface-container-lowest transition-transform ${
                             row.accruesOvertime ? 'translate-x-4' : 'translate-x-1'
                           }`}
                         />
@@ -344,7 +344,7 @@ export default function ReviewScreen() {
         </table>
       </div>
 
-      <div className="sticky bottom-0 bg-white border-t border-outline-variant px-6 py-4 flex items-center justify-end gap-4">
+      <div className="sticky bottom-0 bg-surface-container-lowest border-t border-outline-variant px-6 py-4 flex items-center justify-end gap-4">
         {dbHealthy === false && (
           <AlertMessage
             message="No se pudo conectar a la base de datos remota. Verifique la conexión de red e intente nuevamente."
