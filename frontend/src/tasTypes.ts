@@ -55,6 +55,7 @@ export interface SessionSummary {
   workedHours: number
   simplesMinutes: number
   doblesMinutes: number
+  scans: string[]
 }
 
 export interface TasUploadResult {
