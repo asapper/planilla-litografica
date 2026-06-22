@@ -82,11 +82,31 @@ describe('ReviewListView row click', () => {
   });
 });
 
-describe('ReviewListView override indicators', () => {
+describe('ReviewListView overtime editing', () => {
+  it('renders editable overtime inputs', () => {
+    render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} />);
+    expect(screen.getByLabelText('Extras simples Ana López')).toBeInTheDocument();
+    expect(screen.getByLabelText('Extras dobles Ana López')).toBeInTheDocument();
+  });
+
+  it('updates store when overtime input changes', () => {
+    render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} />);
+    const input = screen.getByLabelText('Extras simples Ana López') as HTMLInputElement;
+    fireEvent.change(input, { target: { value: '5' } });
+    expect(useTasStore.getState().overtimeOverrides['E1']?.horasExtrasSimples).toBe(5);
+  });
+
   it('shows override annotation for adjusted employees', () => {
     useTasStore.getState().setOvertimeOverride('E1', 'horasExtrasSimples', 5);
     render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} />);
     expect(screen.getByText(/era 2/)).toBeInTheDocument();
+  });
+
+  it('does not navigate when clicking overtime input', () => {
+    render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} />);
+    const input = screen.getByLabelText('Extras simples Ana López');
+    fireEvent.click(input);
+    expect(useTasStore.getState().reviewSelectedEmployee).toBeNull();
   });
 });
 

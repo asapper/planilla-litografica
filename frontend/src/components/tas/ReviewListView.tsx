@@ -31,6 +31,7 @@ export default function ReviewListView({ dbHealthy, onSubmit }: ReviewListViewPr
   const setReviewSelectedEmployee = useTasStore(s => s.setReviewSelectedEmployee);
   const setReviewSort = useTasStore(s => s.setReviewSort);
   const setReviewActiveFilter = useTasStore(s => s.setReviewActiveFilter);
+  const setOvertimeOverride = useTasStore(s => s.setOvertimeOverride);
 
   const [search, setSearch] = useState('');
 
@@ -199,26 +200,48 @@ export default function ReviewListView({ dbHealthy, onSubmit }: ReviewListViewPr
                   </td>
                   <td className="py-3 px-4 text-body-md text-right">
                     {isDuplicate ? '—' : (
-                      <>
-                        <span className={simplesOverride !== undefined ? 'text-primary font-medium' : 'text-on-surface-variant'}>
-                          {simplesOverride ?? row.horasExtrasSimples}
-                        </span>
+                      <div className="flex items-center justify-end gap-1">
+                        <input
+                          type="number"
+                          min={0}
+                          value={simplesOverride ?? row.horasExtrasSimples}
+                          onChange={e => {
+                            const parsed = parseInt(e.target.value, 10);
+                            setOvertimeOverride(row.codigoEmpleado, 'horasExtrasSimples', Number.isNaN(parsed) || parsed < 0 ? 0 : parsed);
+                          }}
+                          onClick={e => e.stopPropagation()}
+                          aria-label={`Extras simples ${row.nombreEmpleado}`}
+                          className={`w-16 text-right border rounded-shape-sm px-1.5 py-0.5 text-body-sm focus:outline-none focus:border-primary ${
+                            simplesOverride !== undefined ? 'border-primary text-primary font-medium' : 'border-outline-variant text-on-surface-variant'
+                          }`}
+                        />
                         {simplesOverride !== undefined && (
-                          <span className="text-label-sm text-on-surface-variant ml-1">(era {row.horasExtrasSimples})</span>
+                          <span className="text-label-sm text-on-surface-variant">(era {row.horasExtrasSimples})</span>
                         )}
-                      </>
+                      </div>
                     )}
                   </td>
                   <td className="py-3 px-4 text-body-md text-right">
                     {isDuplicate ? '—' : (
-                      <>
-                        <span className={doblesOverride !== undefined ? 'text-primary font-medium' : 'text-on-surface-variant'}>
-                          {doblesOverride ?? row.horasExtrasDobles}
-                        </span>
+                      <div className="flex items-center justify-end gap-1">
+                        <input
+                          type="number"
+                          min={0}
+                          value={doblesOverride ?? row.horasExtrasDobles}
+                          onChange={e => {
+                            const parsed = parseInt(e.target.value, 10);
+                            setOvertimeOverride(row.codigoEmpleado, 'horasExtrasDobles', Number.isNaN(parsed) || parsed < 0 ? 0 : parsed);
+                          }}
+                          onClick={e => e.stopPropagation()}
+                          aria-label={`Extras dobles ${row.nombreEmpleado}`}
+                          className={`w-16 text-right border rounded-shape-sm px-1.5 py-0.5 text-body-sm focus:outline-none focus:border-primary ${
+                            doblesOverride !== undefined ? 'border-primary text-primary font-medium' : 'border-outline-variant text-on-surface-variant'
+                          }`}
+                        />
                         {doblesOverride !== undefined && (
-                          <span className="text-label-sm text-on-surface-variant ml-1">(era {row.horasExtrasDobles})</span>
+                          <span className="text-label-sm text-on-surface-variant">(era {row.horasExtrasDobles})</span>
                         )}
-                      </>
+                      </div>
                     )}
                   </td>
                   <td className="py-3 px-4 text-center">
