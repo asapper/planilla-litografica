@@ -172,31 +172,31 @@ export default function ReviewListView({ dbHealthy, onSubmit }: ReviewListViewPr
       <div className="flex-1">
         <table className="w-full border-collapse table-fixed">
           <colgroup>
-            <col />
-            <col className="w-28" />
-            <col className="w-28" />
-            <col className="w-40" />
-            <col className="w-40" />
-            <col className="w-36" />
+            <col style={{ width: '30%' }} />
+            <col style={{ width: '10%' }} />
+            <col style={{ width: '10%' }} />
+            <col style={{ width: '18%' }} />
+            <col style={{ width: '18%' }} />
+            <col style={{ width: '14%' }} />
           </colgroup>
           <thead className="sticky top-[108px] z-[5]">
             <tr className="border-b border-outline-variant bg-surface-container-lowest">
               <th
                 onClick={() => handleHeaderClick('name')}
-                className="text-left text-label-lg text-on-surface-variant py-2 px-4 cursor-pointer hover:bg-surface-container-low select-none"
+                className="text-left text-label-lg text-on-surface-variant py-2 px-4 whitespace-nowrap cursor-pointer hover:bg-surface-container-low select-none"
               >
                 Empleado <span className={`text-label-sm ml-1 ${sortColumn === 'name' ? 'text-primary' : 'text-on-surface-variant'}`}>{sortIndicator('name')}</span>
               </th>
               <th
                 onClick={() => handleHeaderClick('code')}
-                className="text-left text-label-lg text-on-surface-variant py-2 px-4 cursor-pointer hover:bg-surface-container-low select-none"
+                className="text-left text-label-lg text-on-surface-variant py-2 px-4 whitespace-nowrap cursor-pointer hover:bg-surface-container-low select-none"
               >
                 Código <span className={`text-label-sm ml-1 ${sortColumn === 'code' ? 'text-primary' : 'text-on-surface-variant'}`}>{sortIndicator('code')}</span>
               </th>
-              <th className="text-right text-label-lg text-on-surface-variant py-2 px-4">Días no lab.</th>
-              <th className="text-right text-label-lg text-on-surface-variant py-2 px-4">Extras simples</th>
-              <th className="text-right text-label-lg text-on-surface-variant py-2 px-4">Extras dobles</th>
-              <th className="text-center text-label-lg text-on-surface-variant py-2 px-4">Acumula extras</th>
+              <th className="text-right text-label-lg text-on-surface-variant py-2 px-4 whitespace-nowrap">Días no lab.</th>
+              <th className="text-right text-label-lg text-on-surface-variant py-2 px-4 whitespace-nowrap">Extras simples</th>
+              <th className="text-right text-label-lg text-on-surface-variant py-2 px-4 whitespace-nowrap">Extras dobles</th>
+              <th className="text-center text-label-lg text-on-surface-variant py-2 px-4 whitespace-nowrap">Acumula extras</th>
             </tr>
           </thead>
           <tbody>
@@ -221,7 +221,7 @@ export default function ReviewListView({ dbHealthy, onSubmit }: ReviewListViewPr
                     isDuplicate ? 'opacity-50 cursor-default' : ''
                   }`}
                 >
-                  <td className="py-3 px-4 text-body-md text-on-surface">
+                  <td className="py-3 px-4 text-body-md text-on-surface whitespace-nowrap overflow-hidden text-ellipsis">
                     {row.nombreEmpleado}
                     {row.diasTurnoEstimado > 0 && (
                       <span className="ml-2 text-label-sm px-2 py-0.5 rounded-full bg-warning-container text-on-warning-container">
