@@ -172,12 +172,12 @@ export default function ReviewListView({ dbHealthy, onSubmit }: ReviewListViewPr
       <div className="flex-1">
         <table className="w-full border-collapse table-fixed">
           <colgroup>
-            <col style={{ width: '30%' }} />
-            <col style={{ width: '10%' }} />
-            <col style={{ width: '10%' }} />
-            <col style={{ width: '18%' }} />
-            <col style={{ width: '18%' }} />
-            <col style={{ width: '14%' }} />
+            <col style={{ width: '40%' }} />
+            <col style={{ width: '9%' }} />
+            <col style={{ width: '9%' }} />
+            <col style={{ width: '15%' }} />
+            <col style={{ width: '15%' }} />
+            <col style={{ width: '12%' }} />
           </colgroup>
           <thead className="sticky top-[108px] z-[5]">
             <tr className="border-b border-outline-variant bg-surface-container-lowest">
@@ -189,7 +189,7 @@ export default function ReviewListView({ dbHealthy, onSubmit }: ReviewListViewPr
               </th>
               <th
                 onClick={() => handleHeaderClick('code')}
-                className="text-left text-label-lg text-on-surface-variant py-2 px-4 whitespace-nowrap cursor-pointer hover:bg-surface-container-low select-none"
+                className="text-right text-label-lg text-on-surface-variant py-2 px-4 whitespace-nowrap cursor-pointer hover:bg-surface-container-low select-none"
               >
                 Código <span className={`text-label-sm ml-1 ${sortColumn === 'code' ? 'text-primary' : 'text-on-surface-variant'}`}>{sortIndicator('code')}</span>
               </th>
@@ -239,7 +239,7 @@ export default function ReviewListView({ dbHealthy, onSubmit }: ReviewListViewPr
                       </span>
                     )}
                   </td>
-                  <td className="py-3 px-4 text-body-md text-on-surface-variant">{row.codigoEmpleado}</td>
+                  <td className="py-3 px-4 text-body-md text-on-surface-variant text-right">{row.codigoEmpleado}</td>
                   <td className="py-3 px-4 text-body-md text-on-surface-variant text-right">
                     {isDuplicate ? '—' : row.diasNoLaborados}
                   </td>
