@@ -1,6 +1,9 @@
 import { useState } from 'react';
 import { useTasStore } from '../../tasStore';
+import { updateAccruesOvertime } from '../../configApi';
+import { recomputeTas } from '../../tasApi';
 import { matchesSearch } from '../../textSearch';
+import { useToastStore } from '../../toastStore';
 import AlertMessage from '../ui/AlertMessage';
 import type { ResolvedRow } from '../../tasTypes';
 
@@ -32,8 +35,14 @@ export default function ReviewListView({ dbHealthy, onSubmit }: ReviewListViewPr
   const setReviewSort = useTasStore(s => s.setReviewSort);
   const setReviewActiveFilter = useTasStore(s => s.setReviewActiveFilter);
   const setOvertimeOverride = useTasStore(s => s.setOvertimeOverride);
+  const stashOvertimeOverrides = useTasStore(s => s.stashOvertimeOverrides);
+  const restoreOvertimeOverrides = useTasStore(s => s.restoreOvertimeOverrides);
+  const setResolvedRows = useTasStore(s => s.setResolvedRows);
+  const setSessionSummaries = useTasStore(s => s.setSessionSummaries);
+  const uploadToken = useTasStore(s => s.uploadToken);
 
   const [search, setSearch] = useState('');
+  const [pendingToggleId, setPendingToggleId] = useState<string | null>(null);
 
   const duplicateSet = new Set(duplicateCodes);
   const allDuplicate = resolvedRows.length > 0 && resolvedRows.every(r => duplicateSet.has(r.codigoEmpleado));
@@ -66,6 +75,34 @@ export default function ReviewListView({ dbHealthy, onSubmit }: ReviewListViewPr
       setReviewSort(col, sortDirection === 'asc' ? 'desc' : 'asc');
     } else {
       setReviewSort(col, 'asc');
+    }
+  };
+
+  const handleAccruesOvertimeToggle = async (row: ResolvedRow) => {
+    if (!uploadToken) return;
+    const newAccruesOvertime = !row.accruesOvertime;
+    setPendingToggleId(row.codigoEmpleado);
+    try {
+      try {
+        await updateAccruesOvertime(row.codigoEmpleado, newAccruesOvertime);
+      } catch {
+        useToastStore.getState().showToast('No se pudo actualizar el acumulado de horas extra del empleado.', 'error');
+        return;
+      }
+      try {
+        const result = await recomputeTas(uploadToken);
+        setResolvedRows(result.resolvedRows);
+        setSessionSummaries(result.sessionSummaries ?? {});
+        if (newAccruesOvertime) {
+          restoreOvertimeOverrides(row.codigoEmpleado);
+        } else {
+          stashOvertimeOverrides(row.codigoEmpleado);
+        }
+      } catch {
+        useToastStore.getState().showToast('La sesión de carga expiró. Vuelve a subir el archivo.', 'error');
+      }
+    } finally {
+      setPendingToggleId(null);
     }
   };
 
@@ -246,7 +283,20 @@ export default function ReviewListView({ dbHealthy, onSubmit }: ReviewListViewPr
                   </td>
                   <td className="py-3 px-4 text-center">
                     {isDuplicate ? '—' : (
-                      <span className={`inline-block w-2 h-2 rounded-full ${row.accruesOvertime ? 'bg-success' : 'bg-outline-variant'}`} />
+                      <button
+                        role="switch"
+                        aria-checked={row.accruesOvertime}
+                        aria-label={row.accruesOvertime ? `Desactivar acumulado ${row.nombreEmpleado}` : `Activar acumulado ${row.nombreEmpleado}`}
+                        onClick={e => { e.stopPropagation(); handleAccruesOvertimeToggle(row); }}
+                        disabled={pendingToggleId === row.codigoEmpleado}
+                        className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                          row.accruesOvertime ? 'bg-success' : 'bg-surface-container-high'
+                        }`}
+                      >
+                        <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-surface-container-lowest transition-transform ${
+                          row.accruesOvertime ? 'translate-x-4' : 'translate-x-1'
+                        }`} />
+                      </button>
                     )}
                   </td>
                 </tr>

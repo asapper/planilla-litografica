@@ -1,4 +1,4 @@
-import { Fragment, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { useTasStore } from '../../tasStore';
 import { updateAccruesOvertime } from '../../configApi';
 import { recomputeTas } from '../../tasApi';
@@ -46,6 +46,12 @@ export default function ReviewDetailView({ onBack }: ReviewDetailViewProps) {
   const currentIndex = resolvedRows.findIndex(r => r.codigoEmpleado === selectedEmployee);
   const row = resolvedRows[currentIndex];
   const sessions: SessionSummary[] = row ? (sessionSummaries[row.codigoEmpleado] ?? []) : [];
+
+  useEffect(() => {
+    if (row && sessions.length > 0) {
+      setAllScansExpanded(sessions.map(s => `${row.codigoEmpleado}-${s.date}`));
+    }
+  }, [selectedEmployee, sessions.length]);
 
   if (!row) return null;
 

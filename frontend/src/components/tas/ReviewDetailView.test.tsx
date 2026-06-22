@@ -51,7 +51,7 @@ describe('ReviewDetailView rendering', () => {
   it('shows session rows', () => {
     render(<ReviewDetailView onBack={onBack} />);
     expect(screen.getAllByText('Mañana')).toHaveLength(2);
-    expect(screen.getByText('07:02')).toBeInTheDocument();
+    expect(screen.getAllByText('07:02').length).toBeGreaterThanOrEqual(1);
   });
 
   it('shows position indicator', () => {
@@ -89,30 +89,31 @@ describe('ReviewDetailView rendering', () => {
 });
 
 describe('ReviewDetailView scan expansion', () => {
-  it('does not show scans by default', () => {
+  it('shows scans expanded by default', () => {
     render(<ReviewDetailView onBack={onBack} />);
-    expect(screen.queryByText('12:31')).not.toBeInTheDocument();
-  });
-
-  it('shows scans when row expand is clicked', () => {
-    render(<ReviewDetailView onBack={onBack} />);
-    const expandBtns = screen.getAllByRole('button', { name: /marcaciones/i });
-    fireEvent.click(expandBtns[0]);
     expect(screen.getByText('12:31')).toBeInTheDocument();
     expect(screen.getByText('13:05')).toBeInTheDocument();
   });
 
-  it('expand all link expands all rows', () => {
+  it('collapse all link collapses all rows', () => {
     render(<ReviewDetailView onBack={onBack} />);
+    expect(screen.getByText('12:31')).toBeInTheDocument();
+    fireEvent.click(screen.getByText(/colapsar marcaciones/i));
+    expect(screen.queryByText('12:31')).not.toBeInTheDocument();
+  });
+
+  it('expand all link re-expands collapsed rows', () => {
+    render(<ReviewDetailView onBack={onBack} />);
+    fireEvent.click(screen.getByText(/colapsar marcaciones/i));
+    expect(screen.queryByText('12:31')).not.toBeInTheDocument();
     fireEvent.click(screen.getByText(/expandir marcaciones/i));
     expect(screen.getByText('12:31')).toBeInTheDocument();
   });
 
-  it('collapse all link collapses expanded rows', () => {
+  it('individual row toggle collapses a single row', () => {
     render(<ReviewDetailView onBack={onBack} />);
-    fireEvent.click(screen.getByText(/expandir marcaciones/i));
-    expect(screen.getByText('12:31')).toBeInTheDocument();
-    fireEvent.click(screen.getByText(/colapsar marcaciones/i));
+    const expandBtns = screen.getAllByRole('button', { name: /marcaciones/i });
+    fireEvent.click(expandBtns[0]);
     expect(screen.queryByText('12:31')).not.toBeInTheDocument();
   });
 });
@@ -184,13 +185,11 @@ describe('ReviewDetailView navigation', () => {
     expect(screen.getByRole('button', { name: /siguiente/i })).toBeDisabled();
   });
 
-  it('clears expanded scans on navigation', () => {
+  it('expands scans for new employee on navigation', () => {
     render(<ReviewDetailView onBack={onBack} />);
-    const expandBtns = screen.getAllByRole('button', { name: /marcaciones/i });
-    fireEvent.click(expandBtns[0]);
     expect(screen.getByText('12:31')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /siguiente/i }));
-    expect(useTasStore.getState().reviewExpandedScans.size).toBe(0);
+    expect(useTasStore.getState().reviewExpandedScans.size).toBeGreaterThan(0);
   });
 });
 
