@@ -70,13 +70,11 @@ export default function GeneralTab() {
   return (
     <div>
       {generalError && (
-        <div className="mb-4 px-3 py-2 bg-red-50 border border-red-200 rounded text-sm text-red-700">
-          {generalError}
-        </div>
+        <div className="cfg-error-banner">{generalError}</div>
       )}
 
       <div className="max-w-md">
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label className="block text-label-lg font-medium text-on-surface mb-1">
           Tiempo de descanso no deducible
         </label>
         <div className="flex items-center gap-2">
@@ -85,21 +83,21 @@ export default function GeneralTab() {
             min={0}
             value={breakMinutes}
             onChange={e => { setBreakMinutes(Number(e.target.value)); setGeneralDirty(true); }}
-            className="w-24 border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:border-blue-500"
+            className="cfg-input w-24"
             aria-label="Tiempo de descanso no deducible en minutos"
           />
-          <span className="text-sm text-gray-600">minutos</span>
+          <span className="text-body-sm text-on-surface-variant">minutos</span>
         </div>
-        <p className="mt-1.5 text-xs text-gray-500">
+        <p className="mt-1.5 text-label-sm text-on-surface-variant">
           Tiempo de descanso diario que no se descuenta de las horas trabajadas. Mandato legal: 15 min refacción + 30 min almuerzo.
         </p>
-        <p className="mt-2 text-xs text-amber-600">
+        <p className="mt-2 text-label-sm text-warning">
           Los cambios aplican a partir del próximo archivo subido.
         </p>
       </div>
 
       <div className="max-w-md mt-6">
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label className="block text-label-lg font-medium text-on-surface mb-1">
           Duración máxima de jornada
         </label>
         <div className="flex items-center gap-2">
@@ -109,31 +107,31 @@ export default function GeneralTab() {
             max={24}
             value={maxSpanHours}
             onChange={e => { setMaxSpanHours(Number(e.target.value)); setGeneralDirty(true); }}
-            className="w-24 border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:border-blue-500"
+            className="cfg-input w-24"
             aria-label="Duración máxima de jornada en horas"
           />
-          <span className="text-sm text-gray-600">horas</span>
+          <span className="text-body-sm text-on-surface-variant">horas</span>
         </div>
-        <p className="mt-1.5 text-xs text-gray-500">
+        <p className="mt-1.5 text-label-sm text-on-surface-variant">
           Tiempo máximo entre entrada y salida que se considera una sola jornada. Scans con mayor separación se tratarán como sesiones distintas.
         </p>
-        <p className="mt-2 text-xs text-amber-600">
+        <p className="mt-2 text-label-sm text-warning">
           Los cambios aplican a partir del próximo archivo subido.
         </p>
       </div>
 
-      <div className="mt-6 pt-4 border-t border-gray-200 flex items-center gap-4">
+      <div className="cfg-footer">
         <button
           onClick={handleSave}
           disabled={!generalDirty || generalLoading}
-          className="px-5 py-2 bg-blue-600 text-white rounded font-medium text-sm hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          className="cfg-save-btn"
         >
           Guardar cambios
         </button>
         <button
           onClick={handleDiscard}
           disabled={!generalDirty}
-          className="text-sm text-gray-500 hover:text-gray-700 underline disabled:opacity-40 disabled:cursor-not-allowed disabled:no-underline"
+          className="cfg-discard-btn"
         >
           Descartar
         </button>

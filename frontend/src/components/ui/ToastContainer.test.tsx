@@ -38,7 +38,7 @@ describe('ToastContainer', () => {
     render(<ToastContainer />);
     expect(screen.getByText('Watch out')).toBeInTheDocument();
     const toast = screen.getByRole('status');
-    expect(toast.className).toContain('bg-amber-600');
+    expect(toast.className).toContain('bg-warning');
   });
 
   it('renders an info toast', () => {

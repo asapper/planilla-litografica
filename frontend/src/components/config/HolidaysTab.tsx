@@ -96,17 +96,17 @@ export default function HolidaysTab() {
           <button
             onClick={() => setHolidayYear(holidayYear - 1)}
             aria-label="Año anterior"
-            className="p-1 rounded hover:bg-gray-100 text-gray-600"
+            className="p-1 rounded-shape-xs hover:bg-surface-container-low text-on-surface-variant"
           >
             <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
             </svg>
           </button>
-          <span className="text-base font-medium text-gray-800 w-12 text-center">{holidayYear}</span>
+          <span className="text-title-md font-medium text-on-surface w-12 text-center">{holidayYear}</span>
           <button
             onClick={() => setHolidayYear(holidayYear + 1)}
             aria-label="Año siguiente"
-            className="p-1 rounded hover:bg-gray-100 text-gray-600"
+            className="p-1 rounded-shape-xs hover:bg-surface-container-low text-on-surface-variant"
           >
             <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
@@ -118,7 +118,7 @@ export default function HolidaysTab() {
           <button
             onClick={handleRefresh}
             disabled={refreshing}
-            className="flex items-center gap-2 px-4 py-2 text-sm border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="m3-btn-outlined"
           >
             {refreshing ? (
               <Spinner size="w-4 h-4" />
@@ -130,18 +130,16 @@ export default function HolidaysTab() {
             {refreshSuccess ? 'Actualizado ✓' : 'Actualizar desde internet'}
           </button>
           {refreshError && (
-            <p className="text-xs text-red-600">{refreshError}</p>
+            <p className="text-label-sm text-error">{refreshError}</p>
           )}
-          <p className="text-xs text-gray-400 max-w-xs text-right">
+          <p className="text-label-sm text-on-surface-variant max-w-xs text-right">
             Descarga el calendario oficial de feriados de Guatemala desde internet. Los feriados agregados manualmente no serán reemplazados.
           </p>
         </div>
       </div>
 
       {holidaysError && (
-        <div className="mb-4 px-3 py-2 bg-red-50 border border-red-200 rounded text-sm text-red-700">
-          {holidaysError}
-        </div>
+        <div className="cfg-error-banner">{holidaysError}</div>
       )}
 
       {holidaysLoading ? (
@@ -149,31 +147,31 @@ export default function HolidaysTab() {
           <Spinner size="w-6 h-6" />
         </div>
       ) : holidays.length === 0 ? (
-        <div className="py-12 text-center text-gray-500 text-sm">
+        <div className="py-12 text-center text-on-surface-variant text-body-sm">
           No hay feriados registrados para este año. Usa el botón 'Actualizar desde internet' para cargarlos.
         </div>
       ) : (
         <div className="overflow-x-auto mb-4">
-          <table className="w-full text-sm">
+          <table className="w-full text-body-sm">
             <thead>
-              <tr className="border-b-2 border-gray-200 bg-gray-50 text-left">
-                <th className="px-4 py-2 font-medium text-gray-700">Fecha</th>
-                <th className="px-4 py-2 font-medium text-gray-700">Nombre</th>
-                <th className="px-4 py-2 font-medium text-gray-700">Fuente</th>
+              <tr className="cfg-table-header">
+                <th className="cfg-th">Fecha</th>
+                <th className="cfg-th">Nombre</th>
+                <th className="cfg-th">Fuente</th>
                 <th className="px-4 py-2 w-12"></th>
               </tr>
             </thead>
             <tbody>
               {holidays.map(h => (
-                <tr key={h.id} className="border-b border-gray-200 hover:bg-gray-50">
-                  <td className="px-4 py-2 text-gray-700">{formatDate(h.date)}</td>
-                  <td className="px-4 py-2">{h.name}</td>
+                <tr key={h.id} className="cfg-table-row">
+                  <td className="px-4 py-2 text-on-surface">{formatDate(h.date)}</td>
+                  <td className="px-4 py-2 text-on-surface">{h.name}</td>
                   <td className="px-4 py-2">
                     <span
-                      className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                      className={`inline-flex items-center px-2 py-0.5 rounded-full text-label-sm font-medium ${
                         h.source === 'API'
-                          ? 'bg-blue-100 text-blue-700'
-                          : 'bg-gray-100 text-gray-600'
+                          ? 'bg-primary-container text-on-primary-container'
+                          : 'bg-surface-container-high text-on-surface-variant'
                       }`}
                     >
                       {h.source === 'API' ? 'API' : 'Manual'}
@@ -183,7 +181,7 @@ export default function HolidaysTab() {
                     <button
                       onClick={() => setDeleteTarget(h)}
                       aria-label="Eliminar feriado"
-                      className="text-red-600 hover:text-red-800 transition-colors"
+                      className="text-error hover:text-on-error-container transition-colors"
                     >
                       <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                         <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -197,34 +195,34 @@ export default function HolidaysTab() {
         </div>
       )}
 
-      <div className="border-t border-gray-200 pt-4">
-        <p className="text-sm font-medium text-gray-700 mb-2">+ Agregar feriado</p>
+      <div className="border-t border-outline-variant pt-4">
+        <p className="text-label-lg font-medium text-on-surface mb-2">+ Agregar feriado</p>
         <div className="flex gap-3 items-end flex-wrap">
           <div className="flex flex-col gap-1">
-            <label className="text-xs text-gray-500">Fecha</label>
+            <label className="text-label-sm text-on-surface-variant">Fecha</label>
             <input
               type="date"
               value={newDate}
               onChange={e => setNewDate(e.target.value)}
-              className="border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:border-blue-500"
+              className="cfg-input"
               aria-label="Fecha del nuevo feriado"
             />
           </div>
           <div className="flex flex-col gap-1 flex-1 min-w-40">
-            <label className="text-xs text-gray-500">Nombre</label>
+            <label className="text-label-sm text-on-surface-variant">Nombre</label>
             <input
               type="text"
               placeholder="Nombre del feriado"
               value={newName}
               onChange={e => setNewName(e.target.value)}
-              className="border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:border-blue-500"
+              className="cfg-input"
               aria-label="Nombre del nuevo feriado"
             />
           </div>
           <button
             onClick={handleAdd}
             disabled={!newDate || !newName.trim()}
-            className="px-4 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            className="m3-btn-filled"
           >
             Agregar
           </button>

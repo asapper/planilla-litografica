@@ -107,7 +107,7 @@ export default function App() {
   // ── Startup splash ──────────────────────────────────────────────────
   if (backendState === 'starting') {
     return (
-      <div className="fixed inset-0 flex flex-col items-center justify-center gap-4 bg-white">
+      <div className="fixed inset-0 flex flex-col items-center justify-center gap-4 bg-surface-container-lowest">
         <Spinner size="w-10 h-10" />
         <p className="text-title-md text-primary">Iniciando aplicación...</p>
       </div>
@@ -117,10 +117,10 @@ export default function App() {
   // ── Backend unreachable error ────────────────────────────────────────
   if (backendState === 'error') {
     return (
-      <div className="fixed inset-0 flex flex-col items-center justify-center gap-6 bg-white">
+      <div className="fixed inset-0 flex flex-col items-center justify-center gap-6 bg-surface-container-lowest">
         <p className="text-body-lg text-error">No se pudo conectar con el servicio.</p>
         <button
-          className="px-6 py-2 bg-primary text-white rounded"
+          className="m3-btn-filled"
           onClick={retry}
         >
           Reintentar

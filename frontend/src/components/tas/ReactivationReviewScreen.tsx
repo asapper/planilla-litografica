@@ -75,7 +75,7 @@ export default function ReactivationReviewScreen() {
   };
 
   return (
-    <div ref={scrollRef} className="fixed inset-0 flex flex-col bg-white overflow-auto" style={{ paddingTop: 64 }}>
+    <div ref={scrollRef} className="fixed inset-0 flex flex-col bg-surface-container-lowest overflow-auto" style={{ paddingTop: 64 }}>
       <div className="flex-1 px-6 py-8 max-w-3xl mx-auto w-full">
         <h2 className="text-headline-sm font-medium text-on-surface mb-2">
           Empleados inactivos detectados
@@ -135,8 +135,8 @@ export default function ReactivationReviewScreen() {
                         onClick={() => setInactiveDecision(emp.employeeId, 'reactivate')}
                         className={`px-3 py-1 text-label-md font-medium transition-colors cursor-pointer ${
                           decision === 'reactivate'
-                            ? 'bg-green-600 text-white'
-                            : 'bg-white text-on-surface-variant hover:bg-surface-container-low'
+                            ? 'bg-success text-on-success'
+                            : 'bg-surface-container-lowest text-on-surface-variant hover:bg-surface-container-low'
                         }`}
                       >
                         Reactivar y enviar
@@ -146,7 +146,7 @@ export default function ReactivationReviewScreen() {
                         className={`px-3 py-1 text-label-md font-medium transition-colors cursor-pointer ${
                           decision === 'ignore'
                             ? 'bg-secondary text-on-secondary'
-                            : 'bg-white text-on-surface-variant hover:bg-surface-container-low'
+                            : 'bg-surface-container-lowest text-on-surface-variant hover:bg-surface-container-low'
                         }`}
                       >
                         Ignorar
@@ -160,7 +160,7 @@ export default function ReactivationReviewScreen() {
         </table>
       </div>
 
-      <div className="sticky bottom-0 bg-white border-t border-outline-variant px-6 py-4 flex justify-end">
+      <div className="sticky bottom-0 bg-surface-container-lowest border-t border-outline-variant px-6 py-4 flex justify-end">
         <button
           onClick={handleContinue}
           className="m3-btn-filled"

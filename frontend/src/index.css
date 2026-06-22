@@ -164,6 +164,56 @@ body {
   .m3-chip-selected {
     @apply bg-secondary-container text-on-secondary-container border-transparent;
   }
+
+  /* ─── Config form components ─────────────────────────────────────────────── */
+  .cfg-input {
+    @apply border border-outline-variant rounded-shape-xs px-2 py-1.5 text-body-sm
+           bg-surface-container-lowest text-on-surface
+           focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary
+           transition-colors;
+  }
+
+  .cfg-error-banner {
+    @apply mb-4 px-3 py-2 bg-error-container border border-error rounded-shape-xs
+           text-body-sm text-on-error-container;
+  }
+
+  .cfg-table-header {
+    @apply border-b-2 border-outline-variant bg-surface-container-low text-left;
+  }
+
+  .cfg-th {
+    @apply px-4 py-2 font-medium text-on-surface-variant text-label-lg;
+  }
+
+  .cfg-table-row {
+    @apply border-b border-outline-variant hover:bg-surface-container-low;
+  }
+
+  .cfg-save-btn {
+    @apply m3-btn-filled;
+  }
+
+  .cfg-discard-btn {
+    @apply text-body-sm text-on-surface-variant hover:text-on-surface underline
+           disabled:opacity-40 disabled:cursor-not-allowed disabled:no-underline;
+  }
+
+  .cfg-footer {
+    @apply mt-6 pt-4 border-t border-outline-variant flex items-center gap-4;
+  }
+
+  .cfg-toggle-on {
+    @apply relative inline-flex h-5 w-9 items-center rounded-full transition-colors bg-success;
+  }
+
+  .cfg-toggle-off {
+    @apply relative inline-flex h-5 w-9 items-center rounded-full transition-colors bg-surface-container-high;
+  }
+
+  .cfg-toggle-thumb {
+    @apply inline-block h-3.5 w-3.5 transform rounded-full bg-surface-container-lowest transition-transform;
+  }
 }
 
 /* ─── AG Grid editable column headers ──────────────────────────────────────── */

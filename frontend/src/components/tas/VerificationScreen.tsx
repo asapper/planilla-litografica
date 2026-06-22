@@ -21,14 +21,14 @@ const FLAG_LABELS: Record<TasFlag, string> = {
 };
 
 const FLAG_COLORS: Record<TasFlag, string> = {
-  MISSING_ENTRY:   'bg-red-100 text-red-700',
-  MISSING_EXIT:    'bg-red-100 text-red-700',
-  SHIFT_MISMATCH:  'bg-amber-100 text-amber-700',
-  SAME_DAY_DOUBLE: 'bg-orange-100 text-orange-700',
-  START_CUTOFF:    'bg-blue-100 text-blue-700',
-  END_CUTOFF:      'bg-blue-100 text-blue-700',
-  BEST_FIT_SHIFT: 'bg-surface-container text-on-surface-variant',
-  SHORT_DAY:       'bg-amber-100 text-amber-700',
+  MISSING_ENTRY:   'bg-error-container text-on-error-container',
+  MISSING_EXIT:    'bg-error-container text-on-error-container',
+  SHIFT_MISMATCH:  'bg-warning-container text-on-warning-container',
+  SAME_DAY_DOUBLE: 'bg-warning-container text-on-warning-container',
+  START_CUTOFF:    'bg-primary-container text-on-primary-container',
+  END_CUTOFF:      'bg-primary-container text-on-primary-container',
+  BEST_FIT_SHIFT:  'bg-surface-container text-on-surface-variant',
+  SHORT_DAY:       'bg-warning-container text-on-warning-container',
 };
 
 function flagLabel(flag: TasFlag, session: TasSession): string {
@@ -101,7 +101,7 @@ function ShiftMismatchCard({ session, availableShifts, acceptedShiftId, onChange
   const selectedShiftTimes = selectedShift ? ` (${selectedShift.startTime}–${selectedShift.endTime})` : '';
 
   return (
-    <div className="bg-white rounded-shape-md border border-outline-variant p-4 shadow-sm">
+    <div className="bg-surface-container-lowest rounded-shape-md border border-outline-variant p-4 shadow-sm">
       <div className="flex items-center gap-3 mb-2">
         <span className="font-medium text-on-surface">{session.employeeName}</span>
         <span className="text-on-surface-variant text-body-sm">{formatDate(session.date)}</span>
@@ -124,7 +124,7 @@ function ShiftMismatchCard({ session, availableShifts, acceptedShiftId, onChange
         </div>
       )}
 
-      <div className="mb-3 rounded-shape-md border border-green-200 bg-green-50 px-3 py-2 text-body-sm">
+      <div className="mb-3 rounded-shape-md border border-success bg-success-container px-3 py-2 text-body-sm">
         {`Turno asignado: ${session.assignedShiftName ?? '—'} → se aplicará ${selectedShiftName}${selectedShiftTimes} según las marcaciones.`}
         {!choosingShift && (
           <button
@@ -142,7 +142,7 @@ function ShiftMismatchCard({ session, availableShifts, acceptedShiftId, onChange
           <select
             value={pendingShiftId}
             onChange={e => setPendingShiftId(e.target.value)}
-            className="h-9 px-3 rounded-shape-sm border border-outline bg-white text-body-md focus:outline-none focus:border-primary"
+            className="h-9 px-3 rounded-shape-sm border border-outline bg-surface-container-lowest text-body-md focus:outline-none focus:border-primary"
           >
             {availableShifts.map(shift => (
               <option key={shift.id} value={shift.id}>
@@ -184,7 +184,7 @@ function SameDayDoubleGroupCard({ sessions, choice, onChange }: SameDayDoubleGro
   const first = sessions[0];
 
   return (
-    <div className="bg-white rounded-shape-md border border-outline-variant p-4 shadow-sm">
+    <div className="bg-surface-container-lowest rounded-shape-md border border-outline-variant p-4 shadow-sm">
       <div className="flex items-center gap-3 mb-2">
         <span className="font-medium text-on-surface">{first.employeeName}</span>
         <span className="text-on-surface-variant text-body-sm">{formatDate(first.date)}</span>
@@ -235,7 +235,7 @@ function ShortDayCard({ session, onSaveOverride }: ShortDayCardProps) {
   const changed = !!exit && exit !== originalExit;
 
   return (
-    <div className="bg-white rounded-shape-md border border-outline-variant p-4 shadow-sm">
+    <div className="bg-surface-container-lowest rounded-shape-md border border-outline-variant p-4 shadow-sm">
       <div className="flex items-center gap-3 mb-2">
         <span className="font-medium text-on-surface">{session.employeeName}</span>
         <span className="text-on-surface-variant text-body-sm">{formatDate(session.date)}</span>
@@ -272,7 +272,7 @@ function ShortDayCard({ session, onSaveOverride }: ShortDayCardProps) {
             value={exit}
             onChange={e => setExit(e.target.value)}
             aria-label="Salida"
-            className="h-9 px-3 rounded-shape-sm border border-outline bg-white text-body-md focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+            className="h-9 px-3 rounded-shape-sm border border-outline bg-surface-container-lowest text-body-md focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
           />
         </div>
       </div>
@@ -310,19 +310,19 @@ function SessionCard({ session, confirmed, onConfirm }: SessionCardProps) {
 
   if (confirmed) {
     return (
-      <div className="border-l-4 border-green-500 bg-white rounded-shape-md px-4 py-3 flex items-center gap-4 shadow-sm">
+      <div className="border-l-4 border-success bg-surface-container-lowest rounded-shape-md px-4 py-3 flex items-center gap-4 shadow-sm">
         <div className="flex-1">
           <span className="font-medium text-on-surface">{session.employeeName}</span>
           <span className="mx-2 text-on-surface-variant">·</span>
           <span className="text-on-surface-variant text-body-sm">{formatDate(session.date)}</span>
         </div>
-        <span className="text-green-600 text-body-sm font-medium">Confirmado</span>
+        <span className="text-success text-body-sm font-medium">Confirmado</span>
       </div>
     );
   }
 
   return (
-    <div className="bg-white rounded-shape-md border border-outline-variant p-4 shadow-sm">
+    <div className="bg-surface-container-lowest rounded-shape-md border border-outline-variant p-4 shadow-sm">
       <div className="flex items-center gap-3 mb-2">
         <span className="font-medium text-on-surface">{session.employeeName}</span>
         <span className="text-on-surface-variant text-body-sm">{formatDate(session.date)}</span>
@@ -359,7 +359,7 @@ function SessionCard({ session, confirmed, onConfirm }: SessionCardProps) {
             className={`h-9 px-3 rounded-shape-sm border text-body-md focus:outline-none focus:border-primary transition-colors ${
               entryReadOnly
                 ? 'bg-surface-container border-outline-variant text-on-surface-variant cursor-default'
-                : 'bg-white border-outline focus:ring-1 focus:ring-primary'
+                : 'bg-surface-container-lowest border-outline focus:ring-1 focus:ring-primary'
             }`}
           />
         </div>
@@ -375,7 +375,7 @@ function SessionCard({ session, confirmed, onConfirm }: SessionCardProps) {
             className={`h-9 px-3 rounded-shape-sm border text-body-md focus:outline-none focus:border-primary transition-colors ${
               exitReadOnly
                 ? 'bg-surface-container border-outline-variant text-on-surface-variant cursor-default'
-                : 'bg-white border-outline focus:ring-1 focus:ring-primary'
+                : 'bg-surface-container-lowest border-outline focus:ring-1 focus:ring-primary'
             }`}
           />
         </div>
@@ -561,7 +561,7 @@ export default function VerificationScreen() {
                 const period = availablePeriods.find(p => periodKey(p) === e.target.value);
                 if (period) setSelectedPeriod(period);
               }}
-              className="h-9 px-3 rounded-shape-sm border border-outline bg-white text-body-md focus:outline-none focus:border-primary"
+              className="h-9 px-3 rounded-shape-sm border border-outline bg-surface-container-lowest text-body-md focus:outline-none focus:border-primary"
             >
               {availablePeriods.map(p => (
                 <option key={periodKey(p)} value={periodKey(p)}>{periodLabel(p)}</option>
@@ -583,7 +583,7 @@ export default function VerificationScreen() {
         )}
 
         {totalToResolve === 0 ? (
-          <div className="rounded-shape-md border border-outline-variant bg-white px-4 py-6 text-center">
+          <div className="rounded-shape-md border border-outline-variant bg-surface-container-lowest px-4 py-6 text-center">
             <p className="text-body-md text-on-surface">
               ✓ Este periodo no presenta inconsistencias — los datos están completos y no requieren revisión manual. Puede continuar y enviar.
             </p>
@@ -657,10 +657,10 @@ export default function VerificationScreen() {
         )}
       </div>
 
-      <div className="sticky bottom-0 bg-white border-t border-outline-variant px-6 py-4 flex items-center justify-between">
+      <div className="sticky bottom-0 bg-surface-container-lowest border-t border-outline-variant px-6 py-4 flex items-center justify-between">
         <div>
           {pendingCount > 0 && (
-            <span className="inline-flex items-center px-3 py-1 rounded-full bg-error text-white text-label-md font-medium">
+            <span className="inline-flex items-center px-3 py-1 rounded-full bg-error text-on-error text-label-md font-medium">
               {pendingCount} por resolver
             </span>
           )}
@@ -670,7 +670,7 @@ export default function VerificationScreen() {
           onClick={handleSubmit}
           className={
             allConfirmed && totalToResolve > 0
-              ? 'm3-btn-filled !bg-green-700 !text-white'
+              ? 'm3-btn-filled !bg-success !text-on-success'
               : 'm3-btn-filled disabled:opacity-40 disabled:cursor-not-allowed'
           }
         >

@@ -21,10 +21,10 @@ interface RowProps {
 function ShiftRow({ shift, onUpdate, onDetectionChange, onDelete, deleteError }: RowProps) {
   return (
     <>
-      <tr className="border-b border-gray-200 hover:bg-gray-50">
+      <tr className="cfg-table-row">
         <td className="px-4 py-2">
           <input
-            className="w-full border border-gray-200 rounded px-2 py-1 text-sm focus:outline-none focus:border-blue-500"
+            className="cfg-input w-full"
             value={shift.name}
             onChange={e => onUpdate(shift.id, 'name', e.target.value)}
             aria-label="Nombre del turno"
@@ -33,7 +33,7 @@ function ShiftRow({ shift, onUpdate, onDetectionChange, onDelete, deleteError }:
         <td className="px-4 py-2">
           <input
             type="time"
-            className="border border-gray-200 rounded px-2 py-1 text-sm focus:outline-none focus:border-blue-500"
+            className="cfg-input"
             value={shift.startTime}
             onChange={e => onUpdate(shift.id, 'startTime', e.target.value)}
             aria-label="Hora de inicio"
@@ -42,7 +42,7 @@ function ShiftRow({ shift, onUpdate, onDetectionChange, onDelete, deleteError }:
         <td className="px-4 py-2">
           <input
             type="time"
-            className="border border-gray-200 rounded px-2 py-1 text-sm focus:outline-none focus:border-blue-500"
+            className="cfg-input"
             value={shift.endTime}
             onChange={e => onUpdate(shift.id, 'endTime', e.target.value)}
             aria-label="Hora de fin"
@@ -51,7 +51,7 @@ function ShiftRow({ shift, onUpdate, onDetectionChange, onDelete, deleteError }:
         <td className="px-4 py-2">
           <input
             type="number"
-            className="w-20 border border-gray-200 rounded px-2 py-1 text-sm focus:outline-none focus:border-blue-500"
+            className="cfg-input w-20"
             value={shift.detectionBeforeMinutes}
             min={0}
             onChange={e => {
@@ -64,7 +64,7 @@ function ShiftRow({ shift, onUpdate, onDetectionChange, onDelete, deleteError }:
         <td className="px-4 py-2">
           <input
             type="number"
-            className="w-20 border border-gray-200 rounded px-2 py-1 text-sm focus:outline-none focus:border-blue-500"
+            className="cfg-input w-20"
             value={shift.detectionAfterMinutes}
             min={0}
             onChange={e => {
@@ -78,7 +78,7 @@ function ShiftRow({ shift, onUpdate, onDetectionChange, onDelete, deleteError }:
           <button
             onClick={() => onDelete(shift.id)}
             aria-label="Eliminar turno"
-            className="text-red-600 hover:text-red-800 transition-colors"
+            className="text-error hover:text-on-error-container transition-colors"
           >
             <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -89,7 +89,7 @@ function ShiftRow({ shift, onUpdate, onDetectionChange, onDelete, deleteError }:
       {deleteError && (
         <tr>
           <td colSpan={6} className="px-4 py-1">
-            <p className="text-sm text-red-600 bg-red-50 rounded px-2 py-1">{deleteError}</p>
+            <p className="text-body-sm text-error bg-error-container rounded-shape-xs px-2 py-1">{deleteError}</p>
           </td>
         </tr>
       )}
@@ -121,10 +121,10 @@ function AddShiftRow({ onAdd }: AddRowProps) {
   };
 
   return (
-    <tr className="border-t-2 border-gray-300 bg-blue-50">
+    <tr className="border-t-2 border-outline bg-primary-container/30">
       <td className="px-4 py-2">
         <input
-          className="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:border-blue-500"
+          className="cfg-input w-full"
           placeholder="Nombre del turno"
           value={name}
           onChange={e => setName(e.target.value)}
@@ -134,7 +134,7 @@ function AddShiftRow({ onAdd }: AddRowProps) {
       <td className="px-4 py-2">
         <input
           type="time"
-          className="border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:border-blue-500"
+          className="cfg-input"
           value={startTime}
           onChange={e => setStartTime(e.target.value)}
           aria-label="Hora de inicio del nuevo turno"
@@ -143,7 +143,7 @@ function AddShiftRow({ onAdd }: AddRowProps) {
       <td className="px-4 py-2">
         <input
           type="time"
-          className="border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:border-blue-500"
+          className="cfg-input"
           value={endTime}
           onChange={e => setEndTime(e.target.value)}
           aria-label="Hora de fin del nuevo turno"
@@ -152,7 +152,7 @@ function AddShiftRow({ onAdd }: AddRowProps) {
       <td className="px-4 py-2">
         <input
           type="number"
-          className="w-20 border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:border-blue-500"
+          className="cfg-input w-20"
           value={detectionBeforeMinutes}
           min={0}
           onChange={e => {
@@ -165,7 +165,7 @@ function AddShiftRow({ onAdd }: AddRowProps) {
       <td className="px-4 py-2">
         <input
           type="number"
-          className="w-20 border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:border-blue-500"
+          className="cfg-input w-20"
           value={detectionAfterMinutes}
           min={0}
           onChange={e => {
@@ -179,7 +179,7 @@ function AddShiftRow({ onAdd }: AddRowProps) {
         <button
           onClick={handleAdd}
           disabled={!canAdd}
-          className="text-sm px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          className="m3-btn-filled text-label-lg"
         >
           + Agregar turno
         </button>
@@ -310,20 +310,18 @@ export default function ShiftsTab() {
   return (
     <div>
       {shiftsError && (
-        <div className="mb-4 px-3 py-2 bg-red-50 border border-red-200 rounded text-sm text-red-700">
-          {shiftsError}
-        </div>
+        <div className="cfg-error-banner">{shiftsError}</div>
       )}
       <div className="overflow-x-auto">
-        <table className="w-full text-sm">
+        <table className="w-full text-body-sm">
           <thead>
-            <tr className="border-b-2 border-gray-200 bg-gray-50 text-left">
-              <th className="px-4 py-2 font-medium text-gray-700">Nombre</th>
-              <th className="px-4 py-2 font-medium text-gray-700">Inicio (HH:MM)</th>
-              <th className="px-4 py-2 font-medium text-gray-700">Fin (HH:MM)</th>
-              <th className="px-4 py-2 font-medium text-gray-700">Detección antes (min)</th>
-              <th className="px-4 py-2 font-medium text-gray-700">Detección después (min)</th>
-              <th className="px-4 py-2 font-medium text-gray-700 text-center w-32"></th>
+            <tr className="cfg-table-header">
+              <th className="cfg-th">Nombre</th>
+              <th className="cfg-th">Inicio (HH:MM)</th>
+              <th className="cfg-th">Fin (HH:MM)</th>
+              <th className="cfg-th">Detección antes (min)</th>
+              <th className="cfg-th">Detección después (min)</th>
+              <th className="cfg-th text-center w-32"></th>
             </tr>
           </thead>
           <tbody>
@@ -342,18 +340,18 @@ export default function ShiftsTab() {
         </table>
       </div>
 
-      <div className="mt-6 pt-4 border-t border-gray-200 flex items-center gap-4">
+      <div className="cfg-footer">
         <button
           onClick={handleSave}
           disabled={!shiftsDirty || shiftsLoading}
-          className="px-5 py-2 bg-blue-600 text-white rounded font-medium text-sm hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          className="cfg-save-btn"
         >
           Guardar cambios
         </button>
         <button
           onClick={handleDiscard}
           disabled={!shiftsDirty}
-          className="text-sm text-gray-500 hover:text-gray-700 underline disabled:opacity-40 disabled:cursor-not-allowed disabled:no-underline"
+          className="cfg-discard-btn"
         >
           Descartar
         </button>

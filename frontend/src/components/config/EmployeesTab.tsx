@@ -130,9 +130,7 @@ export default function EmployeesTab() {
   return (
     <div>
       {employeesError && (
-        <div className="mb-4 px-3 py-2 bg-red-50 border border-red-200 rounded text-sm text-red-700">
-          {employeesError}
-        </div>
+        <div className="cfg-error-banner">{employeesError}</div>
       )}
 
       <div className="mb-4 flex flex-wrap gap-3 items-center">
@@ -141,7 +139,7 @@ export default function EmployeesTab() {
           placeholder="Buscar por nombre o código"
           value={search}
           onChange={e => setSearch(e.target.value)}
-          className="border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500 w-56"
+          className="cfg-input w-56"
           aria-label="Buscar empleado"
         />
 
@@ -150,11 +148,7 @@ export default function EmployeesTab() {
             <button
               key={status}
               onClick={() => setFilterStatus(status)}
-              className={`px-3 py-1 rounded-full text-sm border transition-colors ${
-                filterStatus === status
-                  ? 'bg-blue-600 text-white border-blue-600'
-                  : 'bg-white text-gray-600 border-gray-300 hover:border-blue-400'
-              }`}
+              className={`m3-chip ${filterStatus === status ? 'm3-chip-selected' : ''}`}
             >
               {status === 'all' ? 'Todos' : status === 'active' ? 'Activos' : 'Inactivos'}
             </button>
@@ -162,11 +156,11 @@ export default function EmployeesTab() {
         </div>
 
         <div className="flex items-center gap-2">
-          <label className="text-sm text-gray-600">Turno:</label>
+          <label className="text-label-lg text-on-surface-variant">Turno:</label>
           <select
             value={filterShiftId}
             onChange={e => setFilterShiftId(e.target.value === '' ? '' : e.target.value)}
-            className="border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:border-blue-500"
+            className="cfg-input"
           >
             <option value="">Todos</option>
             {shifts.map(s => (
@@ -177,12 +171,12 @@ export default function EmployeesTab() {
       </div>
 
       {selectedIds.size > 0 && (
-        <div className="mb-3 flex items-center gap-3 px-3 py-2 bg-blue-50 border border-blue-200 rounded">
-          <span className="text-sm text-blue-700">{selectedIds.size} seleccionado(s)</span>
+        <div className="mb-3 flex items-center gap-3 px-3 py-2 bg-primary-container border border-primary rounded-shape-xs">
+          <span className="text-body-sm text-on-primary-container">{selectedIds.size} seleccionado(s)</span>
           <select
             value={bulkShiftId}
             onChange={e => setBulkShiftId(e.target.value === '' ? '' : e.target.value)}
-            className="border border-blue-300 rounded px-2 py-1 text-sm focus:outline-none focus:border-blue-500"
+            className="cfg-input"
             aria-label="Turno para asignación masiva"
           >
             <option value="">Seleccionar turno</option>
@@ -193,7 +187,7 @@ export default function EmployeesTab() {
           <button
             onClick={handleBulkAssign}
             disabled={bulkShiftId === ''}
-            className="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed"
+            className="m3-btn-filled text-label-lg"
           >
             Aplicar
           </button>
@@ -201,14 +195,14 @@ export default function EmployeesTab() {
       )}
 
       {employees.length === 0 ? (
-        <div className="py-12 text-center text-gray-500 text-sm">
+        <div className="py-12 text-center text-on-surface-variant text-body-sm">
           Aún no hay empleados registrados. Sube un archivo TAS para comenzar.
         </div>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full text-body-sm">
             <thead>
-              <tr className="border-b-2 border-gray-200 bg-gray-50 text-left">
+              <tr className="cfg-table-header">
                 <th className="px-4 py-2 w-8">
                   <input
                     type="checkbox"
@@ -217,17 +211,17 @@ export default function EmployeesTab() {
                     aria-label="Seleccionar todos"
                   />
                 </th>
-                <th className="px-4 py-2 font-medium text-gray-700">Código</th>
-                <th className="px-4 py-2 font-medium text-gray-700">Nombre</th>
-                <th className="px-4 py-2 font-medium text-gray-700">Turno asignado</th>
-                <th className="px-4 py-2 font-medium text-gray-700">Activo</th>
-                <th className="px-4 py-2 font-medium text-gray-700">Acumula horas extra</th>
+                <th className="cfg-th">Código</th>
+                <th className="cfg-th">Nombre</th>
+                <th className="cfg-th">Turno asignado</th>
+                <th className="cfg-th">Activo</th>
+                <th className="cfg-th">Acumula horas extra</th>
               </tr>
             </thead>
             <tbody>
               {filtered.map(emp => (
                 <>
-                  <tr key={emp.id} className="border-b border-gray-200 hover:bg-gray-50">
+                  <tr key={emp.id} className="cfg-table-row">
                     <td className="px-4 py-2">
                       <input
                         type="checkbox"
@@ -236,13 +230,13 @@ export default function EmployeesTab() {
                         aria-label={`Seleccionar ${emp.name}`}
                       />
                     </td>
-                    <td className="px-4 py-2 text-gray-600 font-mono">{emp.code}</td>
-                    <td className="px-4 py-2">{emp.name}</td>
+                    <td className="px-4 py-2 text-on-surface-variant font-mono">{emp.code}</td>
+                    <td className="px-4 py-2 text-on-surface">{emp.name}</td>
                     <td className="px-4 py-2">
                       <select
                         value={emp.shiftId ?? ''}
                         onChange={e => handleShiftChange(emp.id, e.target.value === '' ? null : e.target.value)}
-                        className="border border-gray-200 rounded px-2 py-1 text-sm focus:outline-none focus:border-blue-500"
+                        className="cfg-input"
                         aria-label={`Turno de ${emp.name}`}
                       >
                         <option value="">Sin turno</option>
@@ -257,14 +251,10 @@ export default function EmployeesTab() {
                         aria-checked={emp.active}
                         aria-label={emp.active ? 'Desactivar empleado' : 'Activar empleado'}
                         onClick={() => handleActiveToggle(emp)}
-                        className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
-                          emp.active ? 'bg-green-500' : 'bg-gray-300'
-                        }`}
+                        className={emp.active ? 'cfg-toggle-on' : 'cfg-toggle-off'}
                       >
                         <span
-                          className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
-                            emp.active ? 'translate-x-4' : 'translate-x-1'
-                          }`}
+                          className={`cfg-toggle-thumb ${emp.active ? 'translate-x-4' : 'translate-x-1'}`}
                         />
                       </button>
                     </td>
@@ -274,14 +264,10 @@ export default function EmployeesTab() {
                         aria-checked={emp.accruesOvertime}
                         aria-label={emp.accruesOvertime ? 'Desactivar acumulado de horas extra' : 'Activar acumulado de horas extra'}
                         onClick={() => handleAccruesOvertimeToggle(emp)}
-                        className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
-                          emp.accruesOvertime ? 'bg-green-500' : 'bg-gray-300'
-                        }`}
+                        className={emp.accruesOvertime ? 'cfg-toggle-on' : 'cfg-toggle-off'}
                       >
                         <span
-                          className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
-                            emp.accruesOvertime ? 'translate-x-4' : 'translate-x-1'
-                          }`}
+                          className={`cfg-toggle-thumb ${emp.accruesOvertime ? 'translate-x-4' : 'translate-x-1'}`}
                         />
                       </button>
                     </td>
@@ -289,12 +275,12 @@ export default function EmployeesTab() {
                   {reactivationNotes.has(emp.id) && !dismissedNotes.has(emp.id) && (
                     <tr key={`note-${emp.id}`}>
                       <td colSpan={6} className="px-4 py-1">
-                        <div className="flex items-center justify-between bg-amber-50 border border-amber-200 rounded px-3 py-1.5 text-sm text-amber-700">
+                        <div className="flex items-center justify-between bg-warning-container border border-warning rounded-shape-xs px-3 py-1.5 text-body-sm text-on-warning-container">
                           <span>Turno restablecido al turno por defecto. Verifique si corresponde.</span>
                           <button
                             onClick={() => setDismissedNotes(prev => new Set([...prev, emp.id]))}
                             aria-label="Descartar nota"
-                            className="ml-2 text-amber-500 hover:text-amber-700"
+                            className="ml-2 text-warning hover:text-on-warning-container"
                           >
                             <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -311,7 +297,7 @@ export default function EmployeesTab() {
         </div>
       )}
 
-      <p className="mt-4 text-xs text-gray-400">
+      <p className="mt-4 text-label-sm text-on-surface-variant">
         Los empleados se agregan automáticamente al subir un archivo TAS.
       </p>
     </div>
