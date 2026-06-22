@@ -170,7 +170,15 @@ export default function ReviewListView({ dbHealthy, onSubmit }: ReviewListViewPr
       </div>
 
       <div className="flex-1">
-        <table className="w-full border-collapse">
+        <table className="w-full border-collapse table-fixed">
+          <colgroup>
+            <col />
+            <col className="w-28" />
+            <col className="w-28" />
+            <col className="w-40" />
+            <col className="w-40" />
+            <col className="w-36" />
+          </colgroup>
           <thead className="sticky top-[108px] z-[5]">
             <tr className="border-b border-outline-variant bg-surface-container-lowest">
               <th
