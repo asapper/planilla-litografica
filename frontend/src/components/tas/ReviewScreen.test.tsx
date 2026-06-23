@@ -5,7 +5,7 @@ import ReviewScreen from './ReviewScreen';
 import { useTasStore } from '../../tasStore';
 import { useToastStore } from '../../toastStore';
 import * as tasApi from '../../tasApi';
-import * as configApi from '../../configApi';
+import '../../configApi';
 import * as api from '../../api';
 import type { ResolvedRow, SessionSummary } from '../../tasTypes';
 
