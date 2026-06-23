@@ -60,7 +60,8 @@ describe('ReviewListView filter chips', () => {
 describe('ReviewListView sorting', () => {
   it('sorts by name ascending by default', () => {
     render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} />);
-    const cells = screen.getAllByRole('row').slice(1).map(row => row.querySelector('td')?.textContent);
+    const rows = screen.getAllByRole('row').filter(row => row.querySelector('td'));
+    const cells = rows.map(row => row.querySelector('td')?.textContent);
     expect(cells[0]).toContain('Ana López');
     expect(cells[1]).toContain('Carlos Pérez');
     expect(cells[2]).toContain('Luis García');
@@ -69,7 +70,8 @@ describe('ReviewListView sorting', () => {
   it('toggles sort direction on header click', () => {
     render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} />);
     fireEvent.click(screen.getByText('Empleado'));
-    const cells = screen.getAllByRole('row').slice(1).map(row => row.querySelector('td')?.textContent);
+    const rows = screen.getAllByRole('row').filter(row => row.querySelector('td'));
+    const cells = rows.map(row => row.querySelector('td')?.textContent);
     expect(cells[0]).toContain('Luis García');
   });
 });

@@ -92,7 +92,7 @@ export default function ReviewListView({ dbHealthy, onSubmit }: ReviewListViewPr
       try {
         const result = await recomputeTas(uploadToken);
         setResolvedRows(result.resolvedRows);
-        setSessionSummaries(result.sessionSummaries ?? {});
+        setSessionSummaries(result.sessionSummaries);
         if (newAccruesOvertime) {
           restoreOvertimeOverrides(row.codigoEmpleado);
         } else {
@@ -167,10 +167,8 @@ export default function ReviewListView({ dbHealthy, onSubmit }: ReviewListViewPr
             )}
           </div>
         </div>
-      </div>
 
-      <div className="flex-1">
-        <table className="w-full border-collapse table-fixed">
+        <table className="w-full border-collapse table-fixed" aria-hidden="true">
           <colgroup>
             <col style={{ width: '40%' }} />
             <col style={{ width: '9%' }} />
@@ -179,7 +177,7 @@ export default function ReviewListView({ dbHealthy, onSubmit }: ReviewListViewPr
             <col style={{ width: '15%' }} />
             <col style={{ width: '12%' }} />
           </colgroup>
-          <thead className="sticky top-[108px] z-[5]">
+          <thead>
             <tr className="border-b border-outline-variant bg-surface-container-lowest">
               <th
                 onClick={() => handleHeaderClick('name')}
@@ -199,6 +197,19 @@ export default function ReviewListView({ dbHealthy, onSubmit }: ReviewListViewPr
               <th className="text-center text-label-lg text-on-surface-variant py-2 px-4 whitespace-nowrap">Acumula extras</th>
             </tr>
           </thead>
+        </table>
+      </div>
+
+      <div className="flex-1">
+        <table className="w-full border-collapse table-fixed">
+          <colgroup>
+            <col style={{ width: '40%' }} />
+            <col style={{ width: '9%' }} />
+            <col style={{ width: '9%' }} />
+            <col style={{ width: '15%' }} />
+            <col style={{ width: '15%' }} />
+            <col style={{ width: '12%' }} />
+          </colgroup>
           <tbody>
             {sorted.length === 0 && search.trim() && (
               <tr>
@@ -224,7 +235,10 @@ export default function ReviewListView({ dbHealthy, onSubmit }: ReviewListViewPr
                   <td className="py-3 px-4 text-body-md text-on-surface whitespace-nowrap overflow-hidden text-ellipsis">
                     {row.nombreEmpleado}
                     {row.diasTurnoEstimado > 0 && (
-                      <span className="ml-2 text-label-sm px-2 py-0.5 rounded-full bg-warning-container text-on-warning-container">
+                      <span
+                        title={`${row.diasTurnoEstimado} día(s) en que las marcaciones no cayeron dentro de la ventana de detección de ningún turno. Se asignó el turno más cercano automáticamente y las horas se calcularon con base en las marcaciones reales.`}
+                        className="ml-2 text-label-sm px-2 py-0.5 rounded-full bg-warning-container text-on-warning-container"
+                      >
                         {row.diasTurnoEstimado} turno est.
                       </span>
                     )}

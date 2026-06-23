@@ -20,6 +20,10 @@ function minutesToHours(minutes: number): number {
   return Math.round(Math.floor(minutes / 30) / 2 * 10) / 10;
 }
 
+function roundTotal(value: number): number {
+  return Math.round(value * 10) / 10;
+}
+
 interface ReviewDetailViewProps {
   onBack: () => void;
 }
@@ -40,18 +44,22 @@ export default function ReviewDetailView({ onBack }: ReviewDetailViewProps) {
   const uploadToken = useTasStore(s => s.uploadToken);
   const setResolvedRows = useTasStore(s => s.setResolvedRows);
   const setSessionSummaries = useTasStore(s => s.setSessionSummaries);
+  const duplicateCodes = useTasStore(s => s.duplicateCodes);
 
   const [pendingToggle, setPendingToggle] = useState(false);
 
-  const currentIndex = resolvedRows.findIndex(r => r.codigoEmpleado === selectedEmployee);
-  const row = resolvedRows[currentIndex];
+  const duplicateSet = new Set(duplicateCodes);
+  const navigableRows = resolvedRows.filter(r => !duplicateSet.has(r.codigoEmpleado));
+  const currentIndex = navigableRows.findIndex(r => r.codigoEmpleado === selectedEmployee);
+  const row = navigableRows[currentIndex];
   const sessions: SessionSummary[] = row ? (sessionSummaries[row.codigoEmpleado] ?? []) : [];
 
+  const sessionDates = sessions.map(s => s.date).join(',');
   useEffect(() => {
     if (row && sessions.length > 0) {
       setAllScansExpanded(sessions.map(s => `${row.codigoEmpleado}-${s.date}`));
     }
-  }, [selectedEmployee, sessions.length]);
+  }, [selectedEmployee, sessionDates]);
 
   if (!row) return null;
 
@@ -85,7 +93,7 @@ export default function ReviewDetailView({ onBack }: ReviewDetailViewProps) {
       try {
         const result = await recomputeTas(uploadToken);
         setResolvedRows(result.resolvedRows);
-        setSessionSummaries(result.sessionSummaries ?? {});
+        setSessionSummaries(result.sessionSummaries);
         if (newAccruesOvertime) {
           restoreOvertimeOverrides(row.codigoEmpleado);
         } else {
@@ -106,8 +114,8 @@ export default function ReviewDetailView({ onBack }: ReviewDetailViewProps) {
   const navigate = (direction: 'prev' | 'next') => {
     clearAllScansExpanded();
     const newIndex = direction === 'prev' ? currentIndex - 1 : currentIndex + 1;
-    if (newIndex >= 0 && newIndex < resolvedRows.length) {
-      setSelectedEmployee(resolvedRows[newIndex].codigoEmpleado);
+    if (newIndex >= 0 && newIndex < navigableRows.length) {
+      setSelectedEmployee(navigableRows[newIndex].codigoEmpleado);
     }
   };
 
@@ -133,10 +141,10 @@ export default function ReviewDetailView({ onBack }: ReviewDetailViewProps) {
             >
               ← Anterior
             </button>
-            <span className="text-body-sm text-on-surface-variant">{currentIndex + 1} de {resolvedRows.length}</span>
+            <span className="text-body-sm text-on-surface-variant">{currentIndex + 1} de {navigableRows.length}</span>
             <button
               onClick={() => navigate('next')}
-              disabled={currentIndex >= resolvedRows.length - 1}
+              disabled={currentIndex >= navigableRows.length - 1}
               aria-label="Siguiente"
               className="px-3 py-1 border border-outline-variant rounded-shape-md text-body-sm text-on-surface disabled:opacity-40 disabled:cursor-not-allowed hover:bg-surface-container-low"
             >
@@ -234,13 +242,13 @@ export default function ReviewDetailView({ onBack }: ReviewDetailViewProps) {
                       Totales quincena
                     </td>
                     <td className="py-2 px-3 text-body-sm font-medium text-on-surface text-right">
-                      {sessions.reduce((sum, s) => sum + s.workedHours, 0)}
+                      {roundTotal(sessions.reduce((sum, s) => sum + s.workedHours, 0))}
                     </td>
                     <td className="py-2 px-3 text-body-sm font-medium text-on-surface text-right">
-                      {sessions.reduce((sum, s) => sum + minutesToHours(s.simplesMinutes), 0)}
+                      {roundTotal(sessions.reduce((sum, s) => sum + minutesToHours(s.simplesMinutes), 0))}
                     </td>
                     <td className="py-2 px-3 text-body-sm font-medium text-on-surface text-right">
-                      {sessions.reduce((sum, s) => sum + minutesToHours(s.doblesMinutes), 0)}
+                      {roundTotal(sessions.reduce((sum, s) => sum + minutesToHours(s.doblesMinutes), 0))}
                     </td>
                   </tr>
                 )}
@@ -316,7 +324,10 @@ export default function ReviewDetailView({ onBack }: ReviewDetailViewProps) {
             </div>
 
             {row.diasTurnoEstimado > 0 && (
-              <div className="border border-warning rounded-shape-md p-4 bg-warning-container/30">
+              <div
+                title={`${row.diasTurnoEstimado} día(s) en que las marcaciones no cayeron dentro de la ventana de detección de ningún turno. Se asignó el turno más cercano automáticamente y las horas se calcularon con base en las marcaciones reales.`}
+                className="border border-warning rounded-shape-md p-4 bg-warning-container/30"
+              >
                 <h4 className="text-label-lg text-on-warning-container font-medium mb-1">Alertas</h4>
                 <p className="text-body-sm text-on-warning-container">
                   {row.diasTurnoEstimado} día(s) con turno estimado

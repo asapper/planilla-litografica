@@ -204,7 +204,7 @@ describe('ReviewDetailView accruesOvertime toggle', () => {
       id: 'E1', code: 'E1', name: 'Ana López', shiftId: null, shiftName: null, active: true, accruesOvertime: false,
     });
     const newRows = [{ ...rows[0], accruesOvertime: false, horasExtrasSimples: 0, horasExtrasDobles: 0 }, rows[1], rows[2]];
-    mockRecomputeTas.mockResolvedValue({ uploadToken: 'tok-1', resolvedRows: newRows });
+    mockRecomputeTas.mockResolvedValue({ uploadToken: 'tok-1', resolvedRows: newRows, sessionSummaries: summaries });
 
     render(<ReviewDetailView onBack={onBack} />);
     fireEvent.click(screen.getByRole('switch'));

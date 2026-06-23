@@ -50,8 +50,8 @@ export const getAbsentReview = (token: string): Promise<{ absentEmployees: Absen
 export const setAbsentEmployeesActive = (token: string, employeeIds: string[], active: boolean): Promise<void> =>
   client.post(`/tas/absent-review/${token}/deactivate`, { employeeIds, active }).then(() => undefined);
 
-export const recomputeTas = (token: string): Promise<{ uploadToken: string; resolvedRows: ResolvedRow[]; sessionSummaries?: Record<string, SessionSummary[]> }> =>
-  client.post<{ uploadToken: string; resolvedRows: ResolvedRow[]; sessionSummaries?: Record<string, SessionSummary[]> }>(`/tas/recompute/${token}`).then(r => r.data);
+export const recomputeTas = (token: string): Promise<{ uploadToken: string; resolvedRows: ResolvedRow[]; sessionSummaries: Record<string, SessionSummary[]> }> =>
+  client.post<{ uploadToken: string; resolvedRows: ResolvedRow[]; sessionSummaries: Record<string, SessionSummary[]> }>(`/tas/recompute/${token}`).then(r => r.data);
 
 export const checkDuplicates = (uploadToken: string): Promise<string[]> =>
   client.post<{ duplicates: string[] }>('/tas/check-duplicates', { uploadToken }).then(r => r.data.duplicates);
