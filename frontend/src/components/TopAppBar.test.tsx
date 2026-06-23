@@ -3,9 +3,6 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import TopAppBar from './TopAppBar';
 import type { AppView } from '../types';
 import type { TasView } from '../tasTypes';
-import { invoke } from '@tauri-apps/api/core';
-import { openPath } from '@tauri-apps/plugin-opener';
-
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn(),
 }));
@@ -170,31 +167,13 @@ describe('Ayuda button', () => {
     expect(screen.getByRole('button', { name: /ayuda/i })).toBeInTheDocument();
   });
 
-  it('calls openPath with the resolved PDF path on click', async () => {
-    vi.mocked(invoke).mockResolvedValue('/mock/resources/manual_usuario.pdf');
-    vi.mocked(openPath).mockResolvedValue(undefined);
+  it('opens the PDF in a new browser tab in dev mode', () => {
+    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
 
     render(<TopAppBar currentView="tas" onViewChange={noop} tasView="idle" onNewUpload={vi.fn()} />);
     fireEvent.click(screen.getByRole('button', { name: /ayuda/i }));
 
-    await vi.waitFor(() => {
-      expect(invoke).toHaveBeenCalledWith('resolve_manual_path');
-      expect(openPath).toHaveBeenCalledWith('/mock/resources/manual_usuario.pdf');
-    });
-  });
-
-  it('shows a toast error when openPath fails', async () => {
-    vi.mocked(invoke).mockResolvedValue('/mock/resources/manual_usuario.pdf');
-    vi.mocked(openPath).mockRejectedValue(new Error('no viewer'));
-
-    const { useToastStore } = await import('../toastStore');
-
-    render(<TopAppBar currentView="tas" onViewChange={noop} tasView="idle" onNewUpload={vi.fn()} />);
-    fireEvent.click(screen.getByRole('button', { name: /ayuda/i }));
-
-    await vi.waitFor(() => {
-      const toasts = useToastStore.getState().toasts;
-      expect(toasts.some(t => t.variant === 'error')).toBe(true);
-    });
+    expect(openSpy).toHaveBeenCalledWith('/manual_usuario.pdf', '_blank');
+    openSpy.mockRestore();
   });
 });

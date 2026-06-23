@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Generated PDF symlink for dev server
+public/manual_usuario.pdf

@@ -23,8 +23,12 @@ export default function TopAppBar({ currentView, onViewChange, tasView, onNewUpl
     if (openingManual.current) return;
     openingManual.current = true;
     try {
-      const pdfPath = await invoke<string>('resolve_manual_path');
-      await openPath(pdfPath);
+      if (import.meta.env.DEV) {
+        window.open('/manual_usuario.pdf', '_blank');
+      } else {
+        const pdfPath = await invoke<string>('resolve_manual_path');
+        await openPath(pdfPath);
+      }
     } catch (err) {
       console.error('Failed to open manual:', err);
       showToast('No se pudo abrir el manual de usuario.', 'error');
