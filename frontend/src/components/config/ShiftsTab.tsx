@@ -179,7 +179,7 @@ function AddShiftRow({ onAdd }: AddRowProps) {
         <button
           onClick={handleAdd}
           disabled={!canAdd}
-          className="m3-btn-filled text-label-lg"
+          className="m3-btn-filled text-label-lg whitespace-nowrap"
         >
           + Agregar turno
         </button>
@@ -321,7 +321,7 @@ export default function ShiftsTab() {
               <th className="cfg-th">Fin (HH:MM)</th>
               <th className="cfg-th">Detección antes (min)</th>
               <th className="cfg-th">Detección después (min)</th>
-              <th className="cfg-th text-center w-32"></th>
+              <th className="cfg-th text-center w-40"></th>
             </tr>
           </thead>
           <tbody>

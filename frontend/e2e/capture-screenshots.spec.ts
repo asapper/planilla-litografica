@@ -384,6 +384,7 @@ test('14 - absent review overlay', async ({ page }) => {
 test('15 - config: shifts tab', async ({ page }) => {
   await mockHealthEndpoints(page);
   await mockConfigEndpoints(page);
+  await page.setViewportSize({ width: 1280, height: 800 });
   await waitForApp(page);
   await page.locator('button:has-text("Configuración")').click();
   await page.waitForSelector('[aria-label="Nombre del turno"]', { timeout: 10_000 });
@@ -433,6 +434,8 @@ test('18 - config: general tab', async ({ page }) => {
   await page.locator('button[role="tab"]:has-text("General")').click();
   await page.waitForSelector('text=Tiempo de descanso no deducible', { timeout: 5_000 });
   await page.waitForSelector('button[role="tab"][aria-selected="true"]:has-text("General")');
+  await page.waitForSelector('button[role="tab"][aria-selected="false"]:has-text("Turnos")');
+  await page.waitForTimeout(200);
   await screenshot(page, '18-config-general.png');
 });
 
