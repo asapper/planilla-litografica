@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { resourceDir } from '@tauri-apps/api/path';
+import { useEffect, useRef, useState } from 'react';
+import { resolveResource } from '@tauri-apps/api/path';
 import { openPath } from '@tauri-apps/plugin-opener';
 import { APP_BAR } from '../constants/colors';
 import type { AppView } from '../types';
@@ -17,14 +17,19 @@ interface Props {
 export default function TopAppBar({ currentView, onViewChange, tasView, onNewUpload }: Props) {
   const [showConfirm, setShowConfirm] = useState(false);
   const showToast = useToastStore(s => s.showToast);
+  const openingManual = useRef(false);
 
   const handleOpenManual = async () => {
+    if (openingManual.current) return;
+    openingManual.current = true;
     try {
-      const dir = await resourceDir();
-      await openPath(`${dir}/manual_usuario.pdf`);
+      const pdfPath = await resolveResource('manual_usuario.pdf');
+      await openPath(pdfPath);
     } catch (err) {
       console.error('Failed to open manual:', err);
       showToast('No se pudo abrir el manual de usuario.', 'error');
+    } finally {
+      openingManual.current = false;
     }
   };
 
