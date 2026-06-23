@@ -25,7 +25,8 @@ const summaries: Record<string, SessionSummary[]> = {
     { date: '2026-06-03', shiftName: 'Mañana', entryTime: '2026-06-03T07:00:00', exitTime: '2026-06-03T15:00:00', workedHours: 8.0, simplesMinutes: 0, doblesMinutes: 0, scans: ['2026-06-03T07:00', '2026-06-03T15:00'] },
   ],
   E2: [
-    { date: '2026-06-02', shiftName: 'Tarde', entryTime: '2026-06-02T14:00:00', exitTime: '2026-06-02T22:00:00', workedHours: 8.0, simplesMinutes: 0, doblesMinutes: 60, scans: ['2026-06-02T14:00', '2026-06-02T22:00'] },
+    { date: '2026-06-02', shiftName: 'Tarde', entryTime: '2026-06-02T14:00:00', exitTime: '2026-06-02T22:00:00', workedHours: 8.0, simplesMinutes: 0, doblesMinutes: 60, scans: ['2026-06-02T14:00', '2026-06-02T22:00'], estimatedShift: true },
+    { date: '2026-06-03', shiftName: 'Mañana', entryTime: '2026-06-03T07:00:00', exitTime: '2026-06-03T15:00:00', workedHours: 8.0, simplesMinutes: 0, doblesMinutes: 0, scans: ['2026-06-03T07:00', '2026-06-03T15:00'], estimatedShift: true },
   ],
 };
 
@@ -80,6 +81,19 @@ describe('ReviewDetailView rendering', () => {
   it('does not show alert badge when diasTurnoEstimado is 0', () => {
     render(<ReviewDetailView onBack={onBack} />);
     expect(screen.queryByText(/día\(s\) con turno estimado/)).not.toBeInTheDocument();
+  });
+
+  it('shows est. badge on estimated shift session rows', () => {
+    useTasStore.getState().setReviewSelectedEmployee('E2');
+    render(<ReviewDetailView onBack={onBack} />);
+    const badges = screen.getAllByText('est.');
+    expect(badges).toHaveLength(2);
+    expect(badges[0].closest('tr')).toHaveClass('bg-warning-container/20');
+  });
+
+  it('does not show est. badge on normal session rows', () => {
+    render(<ReviewDetailView onBack={onBack} />);
+    expect(screen.queryByText('est.')).not.toBeInTheDocument();
   });
 
   it('shows totals row when sessions exist', () => {

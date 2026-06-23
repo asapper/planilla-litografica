@@ -56,6 +56,7 @@ export interface SessionSummary {
   simplesMinutes: number
   doblesMinutes: number
   scans: string[]
+  estimatedShift?: boolean
 }
 
 export interface TasUploadResult {

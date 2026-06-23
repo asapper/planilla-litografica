@@ -514,6 +514,7 @@ public class TasController {
                 ? s.getScans().stream().map(java.time.LocalDateTime::toString).collect(Collectors.toList())
                 : Collections.emptyList();
             entry.put("scans", scanStrings);
+            entry.put("estimatedShift", s.getFlags() != null && s.getFlags().contains(TasFlag.BEST_FIT_SHIFT));
 
             result.computeIfAbsent(s.getEmployeeId(), k -> new ArrayList<>()).add(entry);
         }

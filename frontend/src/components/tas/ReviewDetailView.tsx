@@ -196,7 +196,7 @@ export default function ReviewDetailView({ onBack }: ReviewDetailViewProps) {
                   const scans = s.scans ?? [];
                   return (
                     <Fragment key={`${s.date}-${i}`}>
-                      <tr className="border-b border-outline-variant last:border-b-0">
+                      <tr className={`border-b border-outline-variant last:border-b-0${s.estimatedShift ? ' bg-warning-container/20' : ''}`}>
                         <td className="py-2 px-2 text-center">
                           {scans.length > 0 && (
                             <button
@@ -209,7 +209,17 @@ export default function ReviewDetailView({ onBack }: ReviewDetailViewProps) {
                           )}
                         </td>
                         <td className="py-2 px-3 text-body-sm text-on-surface">{s.date}</td>
-                        <td className="py-2 px-3 text-body-sm text-on-surface-variant">{s.shiftName ?? '—'}</td>
+                        <td className="py-2 px-3 text-body-sm text-on-surface-variant">
+                          {s.shiftName ?? '—'}
+                          {s.estimatedShift && (
+                            <span
+                              title="Turno estimado: las marcaciones no cayeron dentro de la ventana de detección de ningún turno. Se asignó el turno más cercano."
+                              className="ml-1.5 inline-block bg-warning text-on-warning text-label-sm px-1.5 py-0.5 rounded-full font-medium"
+                            >
+                              est.
+                            </span>
+                          )}
+                        </td>
                         <td className="py-2 px-3 text-body-sm text-on-surface-variant">{formatTime(s.entryTime)}</td>
                         <td className="py-2 px-3 text-body-sm text-on-surface-variant">{formatTime(s.exitTime)}</td>
                         <td className="py-2 px-3 text-body-sm text-on-surface-variant text-right">{s.workedHours}</td>
