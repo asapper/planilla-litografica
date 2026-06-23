@@ -1,6 +1,33 @@
+use std::path::PathBuf;
 use std::sync::Mutex;
 
 struct BackendProcess(Mutex<Option<std::process::Child>>);
+
+#[tauri::command]
+fn open_manual(app: tauri::AppHandle) -> Result<(), String> {
+    use tauri::Manager;
+
+    let resource_dir = app
+        .path()
+        .resource_dir()
+        .map_err(|e| format!("could not resolve resource directory: {e}"))?;
+
+    let bundled = resource_dir.join("manual_usuario.pdf");
+    let dev_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("resources")
+        .join("manual_usuario.pdf");
+
+    let pdf_path = if bundled.exists() {
+        bundled
+    } else if dev_path.exists() {
+        dev_path
+    } else {
+        return Err("manual_usuario.pdf not found".into());
+    };
+
+    log::info!("open_manual: opening {}", pdf_path.display());
+    open::that(&pdf_path).map_err(|e| format!("failed to open PDF: {e}"))
+}
 
 impl Drop for BackendProcess {
     fn drop(&mut self) {
@@ -19,6 +46,7 @@ pub fn run() {
                 .level(log::LevelFilter::Info)
                 .build(),
         )
+        .invoke_handler(tauri::generate_handler![open_manual])
         .manage(BackendProcess(Mutex::new(None)))
         .setup(|app| {
             #[cfg(not(debug_assertions))]

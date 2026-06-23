@@ -37,6 +37,18 @@ describe('toastStore', () => {
     expect(a.id).not.toBe(b.id);
   });
 
+  it('limits visible toasts to 3, dropping oldest', () => {
+    const { showToast } = useToastStore.getState();
+    showToast('First');
+    showToast('Second');
+    showToast('Third');
+    showToast('Fourth');
+    const toasts = useToastStore.getState().toasts;
+    expect(toasts).toHaveLength(3);
+    expect(toasts[0].message).toBe('Second');
+    expect(toasts[2].message).toBe('Fourth');
+  });
+
   it('removes a toast by id with dismissToast', () => {
     useToastStore.getState().showToast('A');
     useToastStore.getState().showToast('B');

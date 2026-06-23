@@ -3,6 +3,9 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import TopAppBar from './TopAppBar';
 import type { AppView } from '../types';
 import type { TasView } from '../tasTypes';
+vi.mock('@tauri-apps/api/core', () => ({
+  invoke: vi.fn(),
+}));
 
 const noop = vi.fn<(view: AppView) => void>();
 
@@ -146,5 +149,46 @@ describe('Volver a la carga button (config → tas toggle)', () => {
   it('appears during submitting state on config view', () => {
     render(<TopAppBar currentView="config" onViewChange={noop} tasView="submitting" onNewUpload={vi.fn()} />);
     expect(screen.getByRole('button', { name: /volver a la carga/i })).toBeInTheDocument();
+  });
+});
+
+describe('Ayuda button', () => {
+  it('is always rendered regardless of view', () => {
+    render(<TopAppBar currentView="tas" onViewChange={noop} tasView="idle" onNewUpload={vi.fn()} />);
+    expect(screen.getByRole('button', { name: /ayuda/i })).toBeInTheDocument();
+  });
+
+  it('is rendered on config view', () => {
+    render(<TopAppBar currentView="config" onViewChange={noop} tasView="idle" onNewUpload={vi.fn()} />);
+    expect(screen.getByRole('button', { name: /ayuda/i })).toBeInTheDocument();
+  });
+
+  it('opens the PDF in a new browser tab in dev mode', () => {
+    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
+
+    render(<TopAppBar currentView="tas" onViewChange={noop} tasView="idle" onNewUpload={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: /ayuda/i }));
+
+    expect(openSpy).toHaveBeenCalledWith('/manual_usuario.pdf', '_blank');
+    openSpy.mockRestore();
+  });
+
+  it('shows a toast error when opening the manual fails', async () => {
+    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => { throw new Error('blocked'); });
+
+    const { useToastStore } = await import('../toastStore');
+    useToastStore.setState({ toasts: [] });
+
+    render(<TopAppBar currentView="tas" onViewChange={noop} tasView="idle" onNewUpload={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: /ayuda/i }));
+
+    await vi.waitFor(() => {
+      const toasts = useToastStore.getState().toasts;
+      expect(toasts).toHaveLength(1);
+      expect(toasts[0].variant).toBe('error');
+      expect(toasts[0].message).toBe('No se pudo abrir el manual de usuario.');
+    });
+
+    openSpy.mockRestore();
   });
 });
