@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { resolveResource } from '@tauri-apps/api/path';
+import { invoke } from '@tauri-apps/api/core';
 import { openPath } from '@tauri-apps/plugin-opener';
 import { APP_BAR } from '../constants/colors';
 import type { AppView } from '../types';
@@ -23,7 +23,7 @@ export default function TopAppBar({ currentView, onViewChange, tasView, onNewUpl
     if (openingManual.current) return;
     openingManual.current = true;
     try {
-      const pdfPath = await resolveResource('manual_usuario.pdf');
+      const pdfPath = await invoke<string>('resolve_manual_path');
       await openPath(pdfPath);
     } catch (err) {
       console.error('Failed to open manual:', err);
@@ -60,6 +60,17 @@ export default function TopAppBar({ currentView, onViewChange, tasView, onNewUpl
 
       {/* Trailing: session actions + navigation */}
       <div className="flex items-center gap-2 shrink-0">
+        <button
+          onClick={handleOpenManual}
+          className="inline-flex items-center gap-1.5 px-4 h-8 rounded-shape-full text-label-lg font-medium text-white hover:bg-white/15 transition-colors duration-150 cursor-pointer"
+        >
+          <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path strokeLinecap="round" strokeLinejoin="round"
+              d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M12 18.75h.007v.008H12v-.008z" />
+            <circle cx="12" cy="12" r="10" />
+          </svg>
+          Ayuda
+        </button>
         {currentView === 'config' && tasView === 'idle' && (
           <button
             onClick={onNewUpload}
@@ -83,17 +94,6 @@ export default function TopAppBar({ currentView, onViewChange, tasView, onNewUpl
             Nueva carga
           </button>
         )}
-        <button
-          onClick={handleOpenManual}
-          className="inline-flex items-center gap-1.5 px-4 h-8 rounded-shape-full text-label-lg font-medium text-white hover:bg-white/15 transition-colors duration-150 cursor-pointer"
-        >
-          <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path strokeLinecap="round" strokeLinejoin="round"
-              d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M12 18.75h.007v.008H12v-.008z" />
-            <circle cx="12" cy="12" r="10" />
-          </svg>
-          Ayuda
-        </button>
         {currentView === 'config' && tasView !== 'idle' ? (
           <button
             onClick={() => onViewChange('tas')}

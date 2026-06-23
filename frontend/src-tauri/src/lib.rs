@@ -1,6 +1,37 @@
+use std::path::PathBuf;
 use std::sync::Mutex;
 
 struct BackendProcess(Mutex<Option<std::process::Child>>);
+
+#[tauri::command]
+fn resolve_manual_path(app: tauri::AppHandle) -> Result<String, String> {
+    use tauri::Manager;
+
+    let resource_dir = app
+        .path()
+        .resource_dir()
+        .map_err(|e| format!("could not resolve resource directory: {e}"))?;
+
+    let bundled = resource_dir.join("manual_usuario.pdf");
+    if bundled.exists() {
+        return path_to_string(&bundled);
+    }
+
+    let dev_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("resources")
+        .join("manual_usuario.pdf");
+    if dev_path.exists() {
+        return path_to_string(&dev_path);
+    }
+
+    Err("manual_usuario.pdf not found".into())
+}
+
+fn path_to_string(p: &PathBuf) -> Result<String, String> {
+    p.to_str()
+        .map(|s| s.to_string())
+        .ok_or_else(|| "path contains invalid UTF-8".into())
+}
 
 impl Drop for BackendProcess {
     fn drop(&mut self) {
@@ -20,6 +51,7 @@ pub fn run() {
                 .build(),
         )
         .plugin(tauri_plugin_opener::init())
+        .invoke_handler(tauri::generate_handler![resolve_manual_path])
         .manage(BackendProcess(Mutex::new(None)))
         .setup(|app| {
             #[cfg(not(debug_assertions))]
