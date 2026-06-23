@@ -172,4 +172,23 @@ describe('Ayuda button', () => {
     expect(openSpy).toHaveBeenCalledWith('/manual_usuario.pdf', '_blank');
     openSpy.mockRestore();
   });
+
+  it('shows a toast error when opening the manual fails', async () => {
+    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => { throw new Error('blocked'); });
+
+    const { useToastStore } = await import('../toastStore');
+    useToastStore.setState({ toasts: [] });
+
+    render(<TopAppBar currentView="tas" onViewChange={noop} tasView="idle" onNewUpload={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: /ayuda/i }));
+
+    await vi.waitFor(() => {
+      const toasts = useToastStore.getState().toasts;
+      expect(toasts).toHaveLength(1);
+      expect(toasts[0].variant).toBe('error');
+      expect(toasts[0].message).toBe('No se pudo abrir el manual de usuario.');
+    });
+
+    openSpy.mockRestore();
+  });
 });

@@ -31,7 +31,7 @@ export default function TopAppBar({ currentView, onViewChange, tasView, onNewUpl
       console.error('Failed to open manual:', err);
       showToast('No se pudo abrir el manual de usuario.', 'error');
     } finally {
-      openingManual.current = false;
+      setTimeout(() => { openingManual.current = false; }, 1500);
     }
   };
 

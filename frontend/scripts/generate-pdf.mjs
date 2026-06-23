@@ -4,7 +4,6 @@ import { mdToPdf } from 'md-to-pdf';
 
 const ROOT = resolve(dirname(new URL(import.meta.url).pathname), '..', '..');
 const MANUAL_PATH = join(ROOT, 'docs', 'manual_usuario.md');
-const SCREENSHOTS_DIR = join(ROOT, 'docs', 'screenshots');
 const OUTPUT_PATH = join(ROOT, 'frontend', 'src-tauri', 'resources', 'manual_usuario.pdf');
 
 mkdirSync(dirname(OUTPUT_PATH), { recursive: true });
