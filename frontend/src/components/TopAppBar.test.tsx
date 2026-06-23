@@ -7,10 +7,6 @@ vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn(),
 }));
 
-vi.mock('@tauri-apps/plugin-opener', () => ({
-  openPath: vi.fn(),
-}));
-
 const noop = vi.fn<(view: AppView) => void>();
 
 describe('TopAppBar', () => {

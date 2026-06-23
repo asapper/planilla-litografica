@@ -4,7 +4,7 @@ use std::sync::Mutex;
 struct BackendProcess(Mutex<Option<std::process::Child>>);
 
 #[tauri::command]
-fn resolve_manual_path(app: tauri::AppHandle) -> Result<String, String> {
+fn open_manual(app: tauri::AppHandle) -> Result<(), String> {
     use tauri::Manager;
 
     let resource_dir = app
@@ -13,24 +13,20 @@ fn resolve_manual_path(app: tauri::AppHandle) -> Result<String, String> {
         .map_err(|e| format!("could not resolve resource directory: {e}"))?;
 
     let bundled = resource_dir.join("manual_usuario.pdf");
-    if bundled.exists() {
-        return path_to_string(&bundled);
-    }
-
     let dev_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("resources")
         .join("manual_usuario.pdf");
-    if dev_path.exists() {
-        return path_to_string(&dev_path);
-    }
 
-    Err("manual_usuario.pdf not found".into())
-}
+    let pdf_path = if bundled.exists() {
+        bundled
+    } else if dev_path.exists() {
+        dev_path
+    } else {
+        return Err("manual_usuario.pdf not found".into());
+    };
 
-fn path_to_string(p: &PathBuf) -> Result<String, String> {
-    p.to_str()
-        .map(|s| s.to_string())
-        .ok_or_else(|| "path contains invalid UTF-8".into())
+    log::info!("open_manual: opening {}", pdf_path.display());
+    open::that(&pdf_path).map_err(|e| format!("failed to open PDF: {e}"))
 }
 
 impl Drop for BackendProcess {
@@ -50,8 +46,7 @@ pub fn run() {
                 .level(log::LevelFilter::Info)
                 .build(),
         )
-        .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![resolve_manual_path])
+        .invoke_handler(tauri::generate_handler![open_manual])
         .manage(BackendProcess(Mutex::new(None)))
         .setup(|app| {
             #[cfg(not(debug_assertions))]

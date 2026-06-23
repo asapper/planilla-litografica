@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { openPath } from '@tauri-apps/plugin-opener';
 import { APP_BAR } from '../constants/colors';
 import type { AppView } from '../types';
 import type { TasView } from '../tasTypes';
@@ -26,8 +25,7 @@ export default function TopAppBar({ currentView, onViewChange, tasView, onNewUpl
       if (import.meta.env.DEV) {
         window.open('/manual_usuario.pdf', '_blank');
       } else {
-        const pdfPath = await invoke<string>('resolve_manual_path');
-        await openPath(pdfPath);
+        await invoke('open_manual');
       }
     } catch (err) {
       console.error('Failed to open manual:', err);
