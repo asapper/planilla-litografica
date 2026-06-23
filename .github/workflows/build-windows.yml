@@ -2,6 +2,9 @@ name: Build Windows Installer
 
 on:
   workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
 
 jobs:
   build-windows:
@@ -73,10 +76,20 @@ jobs:
         working-directory: frontend
         run: npx tauri build --bundles msi
 
-      # ── Upload ───────────────────────────────────────────────
+      # ── Upload artifact (always) ─────────────────────────────
       - name: Upload MSI artifact
         uses: actions/upload-artifact@v4
         with:
           name: windows-msi
           path: frontend/src-tauri/target/release/bundle/msi/*.msi
           if-no-files-found: error
+
+      # ── Create GitHub Release (only on tag push) ─────────────
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $msi = Get-ChildItem -Path frontend/src-tauri/target/release/bundle/msi/*.msi | Select-Object -First 1
+          gh release create $tag $msi.FullName --title "$tag — Cargador de Planilla" --generate-notes
