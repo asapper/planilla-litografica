@@ -32,6 +32,11 @@ interface TasStore {
   stashedOvertimeOverrides: Record<string, { horasExtrasSimples?: number; horasExtrasDobles?: number }>;
   duplicateCodes: string[];
   duplicatesLoading: boolean;
+  reviewSelectedEmployee: string | null;
+  reviewSortColumn: 'name' | 'code';
+  reviewSortDirection: 'asc' | 'desc';
+  reviewActiveFilter: 'all' | 'estimated' | 'duplicate' | 'adjusted';
+  reviewExpandedScans: Set<string>;
 
   setWarnings: (warnings: string[]) => void;
   setTasView: (view: TasView) => void;
@@ -63,6 +68,12 @@ interface TasStore {
   restoreOvertimeOverrides: (codigoEmpleado: string) => void;
   setDuplicateCodes: (codes: string[]) => void;
   setDuplicatesLoading: (loading: boolean) => void;
+  setReviewSelectedEmployee: (code: string | null) => void;
+  setReviewSort: (column: 'name' | 'code', direction: 'asc' | 'desc') => void;
+  setReviewActiveFilter: (filter: 'all' | 'estimated' | 'duplicate' | 'adjusted') => void;
+  toggleReviewScanExpanded: (dateKey: string) => void;
+  setAllScansExpanded: (keys: string[]) => void;
+  clearAllScansExpanded: () => void;
   resetTas: () => void;
 }
 
@@ -93,6 +104,11 @@ const initialState = {
   stashedOvertimeOverrides: {} as Record<string, { horasExtrasSimples?: number; horasExtrasDobles?: number }>,
   duplicateCodes: [] as string[],
   duplicatesLoading: false,
+  reviewSelectedEmployee: null,
+  reviewSortColumn: 'name' as const,
+  reviewSortDirection: 'asc' as const,
+  reviewActiveFilter: 'all' as const,
+  reviewExpandedScans: new Set<string>(),
 };
 
 export const useTasStore = create<TasStore>(set => ({
@@ -166,5 +182,16 @@ export const useTasStore = create<TasStore>(set => ({
   }),
   setDuplicateCodes: (codes) => set({ duplicateCodes: codes }),
   setDuplicatesLoading: (loading) => set({ duplicatesLoading: loading }),
+  setReviewSelectedEmployee: (code) => set({ reviewSelectedEmployee: code }),
+  setReviewSort: (column, direction) => set({ reviewSortColumn: column, reviewSortDirection: direction }),
+  setReviewActiveFilter: (filter) => set({ reviewActiveFilter: filter }),
+  toggleReviewScanExpanded: (dateKey) => set(s => {
+    const next = new Set(s.reviewExpandedScans);
+    if (next.has(dateKey)) next.delete(dateKey);
+    else next.add(dateKey);
+    return { reviewExpandedScans: next };
+  }),
+  setAllScansExpanded: (keys) => set({ reviewExpandedScans: new Set(keys) }),
+  clearAllScansExpanded: () => set({ reviewExpandedScans: new Set() }),
   resetTas: () => set({ ...initialState }),
 }));

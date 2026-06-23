@@ -510,6 +510,10 @@ public class TasController {
             entry.put("workedHours", s.getWorkedHours());
             entry.put("simplesMinutes", s.getSimplesMinutes());
             entry.put("doblesMinutes", s.getDoblesMinutes());
+            List<String> scanStrings = s.getScans() != null
+                ? s.getScans().stream().map(java.time.LocalDateTime::toString).collect(Collectors.toList())
+                : Collections.emptyList();
+            entry.put("scans", scanStrings);
 
             result.computeIfAbsent(s.getEmployeeId(), k -> new ArrayList<>()).add(entry);
         }

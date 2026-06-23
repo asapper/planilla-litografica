@@ -461,6 +461,58 @@ class TasControllerTest {
     }
 
     @Test
+    void resolve_sessionSummariesIncludeRawScans() throws Exception {
+        TasSession session = new TasSession();
+        session.setSessionId(1);
+        session.setEmployeeId("E1");
+        session.setEmployeeName("Ana");
+        session.setDate(java.time.LocalDate.of(2026, 6, 2));
+        session.setMatchedShiftName("Mañana");
+        session.setEffectiveStart(java.time.LocalDateTime.of(2026, 6, 2, 7, 2));
+        session.setLastScan(java.time.LocalDateTime.of(2026, 6, 2, 15, 5));
+        session.setScans(List.of(
+            java.time.LocalDateTime.of(2026, 6, 2, 7, 2),
+            java.time.LocalDateTime.of(2026, 6, 2, 12, 31),
+            java.time.LocalDateTime.of(2026, 6, 2, 13, 5),
+            java.time.LocalDateTime.of(2026, 6, 2, 15, 5)
+        ));
+        session.setWorkedHours(8.0);
+        session.setSimplesMinutes(30);
+        session.setDoblesMinutes(0);
+        session.setNeedsResolution(false);
+        session.setFlags(new ArrayList<>());
+
+        TasUploadResult result = emptyResult();
+        result.setAllSessions(List.of(session));
+        when(parserService.parse(any())).thenReturn(emptyParseResult());
+        when(uploadService.processScans(any(), any(), any())).thenReturn(result);
+
+        MockMultipartFile file = new MockMultipartFile("file", "test.csv", "text/csv", "data".getBytes());
+        String uploadResponse = mvc.perform(multipart("/api/tas/upload").file(file))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        String token = (String) mapper.readValue(uploadResponse, Map.class).get("uploadToken");
+
+        when(shiftConfigService.getAllShifts()).thenReturn(new ArrayList<>());
+        when(reportBuilder.build(any(), any(), any(), any(), any()))
+                .thenReturn(new TasReportBuilder.BuildResult(new ArrayList<>(), new LinkedHashMap<>()));
+
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("uploadToken", token);
+        body.put("resolutions", List.of());
+
+        mvc.perform(post("/api/tas/resolve")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(body)))
+           .andExpect(status().isOk())
+           .andExpect(jsonPath("$.sessionSummaries.E1[0].scans").isArray())
+           .andExpect(jsonPath("$.sessionSummaries.E1[0].scans.length()").value(4))
+           .andExpect(jsonPath("$.sessionSummaries.E1[0].scans[0]").value("2026-06-02T07:02"))
+           .andExpect(jsonPath("$.sessionSummaries.E1[0].scans[1]").value("2026-06-02T12:31"))
+           .andExpect(jsonPath("$.sessionSummaries.E1[0].scans[3]").value("2026-06-02T15:05"));
+    }
+
+    @Test
     void resolve_sessionSummariesFilteredByPeriod() throws Exception {
         TasSession q1Session = new TasSession();
         q1Session.setSessionId(1);
