@@ -77,3 +77,7 @@ export const useConfigStore = create<ConfigStore>(set => ({
 
   setHolidayYear: (year) => set({ holidayYear: year }),
 }));
+
+if (import.meta.env.DEV) {
+  (window as any).__ZUSTAND_CONFIG_STORE__ = useConfigStore;
+}

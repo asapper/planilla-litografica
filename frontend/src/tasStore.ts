@@ -195,3 +195,7 @@ export const useTasStore = create<TasStore>(set => ({
   clearAllScansExpanded: () => set({ reviewExpandedScans: new Set() }),
   resetTas: () => set({ ...initialState }),
 }));
+
+if (import.meta.env.DEV) {
+  (window as any).__ZUSTAND_TAS_STORE__ = useTasStore;
+}
