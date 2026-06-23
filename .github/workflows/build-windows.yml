@@ -1,0 +1,77 @@
+name: Build Windows Installer
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ── Backend ──────────────────────────────────────────────
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Build backend JAR
+        working-directory: backend
+        shell: cmd
+        run: mvnw.cmd -B package -DPOSTGRES_DB_USERNAME="${{ secrets.POSTGRES_DB_USERNAME }}" -DPOSTGRES_DB_PASSWORD="${{ secrets.POSTGRES_DB_PASSWORD }}"
+
+      - name: Copy backend JAR to Tauri binaries
+        run: |
+          New-Item -ItemType Directory -Force -Path frontend/src-tauri/binaries
+          Copy-Item backend/target/planilla-backend-0.0.1-SNAPSHOT.jar frontend/src-tauri/binaries/backend.jar
+
+      # ── JRE for bundling ─────────────────────────────────────
+      - name: Download Windows JRE 21
+        run: |
+          $jreUrl = "https://api.adoptium.net/v3/binary/latest/21/ga/windows/x64/jre/hotspot/normal/eclipse"
+          Invoke-WebRequest -Uri $jreUrl -OutFile jre.zip -MaximumRetryCount 3
+
+      - name: Extract JRE to Tauri binaries
+        run: |
+          Expand-Archive -Path jre.zip -DestinationPath jre-temp
+          $jreRoot = Get-ChildItem -Path jre-temp -Directory | Select-Object -First 1
+          $dest = "frontend/src-tauri/binaries/jre"
+          New-Item -ItemType Directory -Force -Path $dest
+          Copy-Item -Path "$($jreRoot.FullName)/*" -Destination $dest -Recurse -Force
+          Remove-Item -Recurse -Force jre-temp, jre.zip
+
+      # ── Frontend ─────────────────────────────────────────────
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      # ── Rust / Tauri ─────────────────────────────────────────
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: frontend/src-tauri -> target
+
+      - name: Build Tauri (Windows MSI)
+        working-directory: frontend
+        run: npx tauri build --bundles msi
+
+      # ── Upload ───────────────────────────────────────────────
+      - name: Upload MSI artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-msi
+          path: frontend/src-tauri/target/release/bundle/msi/*.msi
+          if-no-files-found: error
