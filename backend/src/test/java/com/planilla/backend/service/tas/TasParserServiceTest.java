@@ -3,10 +3,6 @@ package com.planilla.backend.service.tas;
 import com.planilla.backend.model.tas.TasScanRecord;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockMultipartFile;
-
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -137,29 +133,28 @@ class TasParserServiceTest {
         assertThat(result.scans.get(0).getEmployeeName()).isEqualTo("Morales Cifuentes Roberto");
     }
 
-    private MockMultipartFile fileFromDocs(String filename) throws Exception {
-        Path path = Paths.get("../docs/" + filename);
-        byte[] bytes = Files.readAllBytes(path);
+    private MockMultipartFile fixtureFile(String filename) throws Exception {
+        byte[] bytes = getClass().getResourceAsStream("/fixtures/" + filename).readAllBytes();
         return new MockMultipartFile("file", filename, "text/csv", bytes);
     }
 
     @Test
-    void parse_realTasFile_danielMorales() throws Exception {
-        TasParserService.ParseResult result = service.parse(fileFromDocs("Reporte TAS Daniel Morales.csv"));
+    void parse_realTasFile_singleEmployee() throws Exception {
+        TasParserService.ParseResult result = service.parse(fixtureFile("single-employee-report.csv"));
         assertThat(result.scans).hasSize(28);
         assertThat(result.warnings).isEmpty();
-        assertThat(result.scans.get(0).getEmployeeId()).isEqualTo("134");
+        assertThat(result.scans.get(0).getEmployeeId()).isEqualTo("1");
     }
 
     @Test
-    void parse_realTasFile_marzo2026() throws Exception {
-        TasParserService.ParseResult result = service.parse(fileFromDocs("Reporte TAS Marzo 2026.csv"));
+    void parse_realTasFile_multiEmployeeMarch() throws Exception {
+        TasParserService.ParseResult result = service.parse(fixtureFile("multi-employee-march.csv"));
         assertThat(result.scans).isNotEmpty();
     }
 
     @Test
-    void parse_realTasFile_marzoYAbril2026() throws Exception {
-        TasParserService.ParseResult result = service.parse(fileFromDocs("Reporte TAS Marzo y Abril 2026.csv"));
+    void parse_realTasFile_multiEmployeeMarchApril() throws Exception {
+        TasParserService.ParseResult result = service.parse(fixtureFile("multi-employee-march-april.csv"));
         assertThat(result.scans).isNotEmpty();
     }
 
