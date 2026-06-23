@@ -400,6 +400,9 @@ test('16 - config: employees tab', async ({ page }) => {
   await page.waitForSelector('[aria-label="Nombre del turno"]', { timeout: 10_000 });
   await page.locator('button[role="tab"]:has-text("Empleados")').click();
   await page.waitForSelector('[aria-label="Buscar empleado"]', { timeout: 5_000 });
+  await page.waitForSelector('button[role="tab"][aria-selected="true"]:has-text("Empleados")');
+  await page.waitForSelector('button[role="tab"][aria-selected="false"]:has-text("Turnos")');
+  await page.waitForTimeout(200);
   await screenshot(page, '16-config-employees.png');
 });
 
@@ -413,6 +416,9 @@ test('17 - config: holidays tab', async ({ page }) => {
   await page.waitForSelector('[aria-label="Nombre del turno"]', { timeout: 10_000 });
   await page.locator('button[role="tab"]:has-text("Feriados")').click();
   await page.waitForSelector('text=Agregar feriado', { timeout: 5_000 });
+  await page.waitForSelector('button[role="tab"][aria-selected="true"]:has-text("Feriados")');
+  await page.waitForSelector('button[role="tab"][aria-selected="false"]:has-text("Turnos")');
+  await page.waitForTimeout(200);
   await screenshot(page, '17-config-holidays.png');
 });
 
@@ -426,6 +432,7 @@ test('18 - config: general tab', async ({ page }) => {
   await page.waitForSelector('[aria-label="Nombre del turno"]', { timeout: 10_000 });
   await page.locator('button[role="tab"]:has-text("General")').click();
   await page.waitForSelector('text=Tiempo de descanso no deducible', { timeout: 5_000 });
+  await page.waitForSelector('button[role="tab"][aria-selected="true"]:has-text("General")');
   await screenshot(page, '18-config-general.png');
 });
 
