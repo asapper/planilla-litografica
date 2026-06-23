@@ -3,6 +3,16 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import TopAppBar from './TopAppBar';
 import type { AppView } from '../types';
 import type { TasView } from '../tasTypes';
+import { resourceDir } from '@tauri-apps/api/path';
+import { openPath } from '@tauri-apps/plugin-opener';
+
+vi.mock('@tauri-apps/api/path', () => ({
+  resourceDir: vi.fn(),
+}));
+
+vi.mock('@tauri-apps/plugin-opener', () => ({
+  openPath: vi.fn(),
+}));
 
 const noop = vi.fn<(view: AppView) => void>();
 
@@ -146,5 +156,45 @@ describe('Volver a la carga button (config → tas toggle)', () => {
   it('appears during submitting state on config view', () => {
     render(<TopAppBar currentView="config" onViewChange={noop} tasView="submitting" onNewUpload={vi.fn()} />);
     expect(screen.getByRole('button', { name: /volver a la carga/i })).toBeInTheDocument();
+  });
+});
+
+describe('Ayuda button', () => {
+  it('is always rendered regardless of view', () => {
+    render(<TopAppBar currentView="tas" onViewChange={noop} tasView="idle" onNewUpload={vi.fn()} />);
+    expect(screen.getByRole('button', { name: /ayuda/i })).toBeInTheDocument();
+  });
+
+  it('is rendered on config view', () => {
+    render(<TopAppBar currentView="config" onViewChange={noop} tasView="idle" onNewUpload={vi.fn()} />);
+    expect(screen.getByRole('button', { name: /ayuda/i })).toBeInTheDocument();
+  });
+
+  it('calls openPath with the resolved PDF path on click', async () => {
+    vi.mocked(resourceDir).mockResolvedValue('/mock/resources');
+    vi.mocked(openPath).mockResolvedValue(undefined);
+
+    render(<TopAppBar currentView="tas" onViewChange={noop} tasView="idle" onNewUpload={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: /ayuda/i }));
+
+    await vi.waitFor(() => {
+      expect(resourceDir).toHaveBeenCalled();
+      expect(openPath).toHaveBeenCalledWith('/mock/resources/manual_usuario.pdf');
+    });
+  });
+
+  it('shows a toast error when openPath fails', async () => {
+    vi.mocked(resourceDir).mockResolvedValue('/mock/resources');
+    vi.mocked(openPath).mockRejectedValue(new Error('no viewer'));
+
+    const { useToastStore } = await import('../toastStore');
+
+    render(<TopAppBar currentView="tas" onViewChange={noop} tasView="idle" onNewUpload={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: /ayuda/i }));
+
+    await vi.waitFor(() => {
+      const toasts = useToastStore.getState().toasts;
+      expect(toasts.some(t => t.variant === 'error')).toBe(true);
+    });
   });
 });

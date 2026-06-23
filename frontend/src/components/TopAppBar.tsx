@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react';
+import { resourceDir } from '@tauri-apps/api/path';
+import { openPath } from '@tauri-apps/plugin-opener';
 import { APP_BAR } from '../constants/colors';
 import type { AppView } from '../types';
 import type { TasView } from '../tasTypes';
 import ConfirmModal from './ui/ConfirmModal';
+import { useToastStore } from '../toastStore';
 
 interface Props {
   currentView: AppView;
@@ -13,6 +16,17 @@ interface Props {
 
 export default function TopAppBar({ currentView, onViewChange, tasView, onNewUpload }: Props) {
   const [showConfirm, setShowConfirm] = useState(false);
+  const showToast = useToastStore(s => s.showToast);
+
+  const handleOpenManual = async () => {
+    try {
+      const dir = await resourceDir();
+      await openPath(`${dir}/manual_usuario.pdf`);
+    } catch (err) {
+      console.error('Failed to open manual:', err);
+      showToast('No se pudo abrir el manual de usuario.', 'error');
+    }
+  };
 
   useEffect(() => {
     if (tasView === 'submitting') setShowConfirm(false);
@@ -64,6 +78,17 @@ export default function TopAppBar({ currentView, onViewChange, tasView, onNewUpl
             Nueva carga
           </button>
         )}
+        <button
+          onClick={handleOpenManual}
+          className="inline-flex items-center gap-1.5 px-4 h-8 rounded-shape-full text-label-lg font-medium text-white hover:bg-white/15 transition-colors duration-150 cursor-pointer"
+        >
+          <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path strokeLinecap="round" strokeLinejoin="round"
+              d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M12 18.75h.007v.008H12v-.008z" />
+            <circle cx="12" cy="12" r="10" />
+          </svg>
+          Ayuda
+        </button>
         {currentView === 'config' && tasView !== 'idle' ? (
           <button
             onClick={() => onViewChange('tas')}
