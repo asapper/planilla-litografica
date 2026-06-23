@@ -39,7 +39,8 @@
       "binaries/jre/lib/**/*": "jre/lib",
       "binaries/jre/lib/server/**/*": "jre/lib/server",
       "binaries/jre/lib/security/**/*": "jre/lib/security",
-      "binaries/jre/release": "jre/release"
+      "binaries/jre/release": "jre/release",
+      "resources/manual_usuario.pdf": "manual_usuario.pdf"
     },
     "icon": [
       "icons/32x32.png",

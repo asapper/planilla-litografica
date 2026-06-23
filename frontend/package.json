@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "npm run generate:pdf && tsc -b && vite build",
+    "generate:pdf": "md-to-pdf ../docs/manual_usuario.md && mv ../docs/manual_usuario.pdf src-tauri/resources/manual_usuario.pdf",
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
@@ -41,6 +42,7 @@
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17.5.0",
     "jsdom": "^26.1.0",
+    "md-to-pdf": "^5.2.5",
     "postcss": "^8.5.10",
     "tailwindcss": "^3.4.19",
     "typescript": "~6.0.2",
