@@ -724,6 +724,54 @@ El empleado 999 no existe → se crea automáticamente con:
 
 ---
 
+## 18 — Noche Missing Exit (Cross-Midnight Exit Input)
+**Archivo:** `18-noche-missing-exit.csv`
+**Empleado:** Delgado Raul (ID 118)
+**Turno asignado:** Noche (19:00–07:00, cross-midnight)
+
+### Pre-requisito
+- Empleado 118 **debe existir con turno Noche**. Si no existe, se crea con Mañana → SHIFT_MISMATCH → auto-resolve → skip verificación, y el test pierde su propósito.
+
+### Flujo esperado
+1. **Verificación:** **SÍ** — START_CUTOFF en Jul 1 + MISSING_EXIT en Jul 3 → 2 sesiones con needsResolution.
+
+### Análisis
+
+**Session 1 (Jul 1):** Scans [19:00, Jul 2 07:00] → cross-midnight, 2 scans (even).
+- Jul 1 = reportStart, isCrossMidnight=true → **START_CUTOFF** → needsResolution=true
+- Worked: 720 min, 12.0h
+
+**Session 2 (Jul 2):** Scans [19:05, Jul 3 06:55] → cross-midnight, 2 scans (even).
+- Normal ✓
+- Worked: 710 min, 11.5h
+
+**Session 3 (Jul 3):** Scans [19:00] → cross-midnight, 1 scan (odd) → **MISSING_EXIT** → needsResolution=true
+- Solo 1 scan → detectBestFitMissingScanFlags no aplica (no es BEST_FIT). detectMissingScansFlags: lastScan=19:00, shift end=07:00 (next day), missingExitThreshold = 06:00. 19:00 is before 06:00 (next day) → MISSING_EXIT
+- Worked: 0 (blocking flag)
+
+### Resumen esperado
+- **Sesiones:** 3
+- **Días no laborados:** 10 (3 días trabajados: Jul 1, 2, 3; de 13 no-domingo en Q1)
+- **Flags:** START_CUTOFF (Jul 1), MISSING_EXIT (Jul 3)
+- **needsResolution:** 2 sesiones
+- **Pantalla:** Verificación
+
+### UI esperada en verificación
+- **Jul 1 (START_CUTOFF):** Muestra entrada 19:00 y salida 07:00 (pre-llenados). El usuario puede confirmar o ajustar.
+- **Jul 3 (MISSING_EXIT):** Muestra entrada 19:00 (pre-llenado), salida vacía. El usuario debe ingresar la hora de salida.
+  - **Punto clave:** La salida es en la **madrugada del día siguiente** (ej. 07:00). El campo acepta horas AM aunque sean "antes" de la entrada porque el turno es cross-midnight. No debe mostrar error "La entrada debe ser antes de la salida".
+  - Al ingresar 07:00 como salida, las horas calculadas deben mostrar **12.0h** (720 min).
+- El botón "Confirmar" se habilita solo cuando la salida está llena y las horas son válidas.
+- Después de confirmar ambas sesiones, el botón "Revisar" se habilita.
+
+### Después de verificación → revisión
+- **3 sesiones** en detalle
+- Jul 1: 12.0h, Jul 2: 11.5h, Jul 3: depende de la salida ingresada (12.0h si se pone 07:00)
+- **Extras simples:** 0 (turno Noche = 12h, ninguna sesión excede 12h)
+- **Días no laborados:** 10
+
+---
+
 ## Resumen: ¿A qué pantalla va cada test?
 
 | Test | Archivo | Va a verificación? | Razón |
@@ -745,6 +793,7 @@ El empleado 999 no existe → se crea automáticamente con:
 | 15   | grace-period | **NO** → Review directo | 0 flags |
 | 16   | same-day-double | **SÍ** | SAME_DAY_DOUBLE + MISSING_EXIT |
 | 17   | new-employee | **NO** → Review directo | 0 flags, empleado nuevo |
+| 18   | noche-missing-exit | **SÍ** (requiere Noche pre-config) | START_CUTOFF + MISSING_EXIT; ejercita input de salida cross-midnight |
 
 ## Checklist General de Verificación
 
@@ -765,5 +814,6 @@ Para cada archivo, verificar:
   - [ ] Pill de deducción de break (ej. "Almuerzo −45m") a la izquierda de las horas trabajadas en sesiones con break deducido
 - [ ] Las sesiones flaggeadas aparecen en verificación con las flags correctas
 - [ ] SHIFT_MISMATCH 100% consistente se auto-resuelve (empleado salta verificación)
+- [ ] En verificación, el input de salida para turnos cross-midnight acepta horas AM (ej. 07:00 para turno Noche) — test 18
 - [ ] Navegación entre empleados funciona (anterior/siguiente) y respeta el orden visual de la tabla (por nombre o código según la columna de ordenamiento activa) — test 11
 - [ ] El submit final **fallará** sin PostgreSQL — esto es esperado
