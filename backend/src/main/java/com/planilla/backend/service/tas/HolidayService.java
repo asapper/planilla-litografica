@@ -16,8 +16,8 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.time.LocalDate;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 public class HolidayService {
@@ -27,6 +27,7 @@ public class HolidayService {
     private final int timeoutSeconds;
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
+    private final Set<Integer> apiAttemptedYears = ConcurrentHashMap.newKeySet();
 
     @Autowired
     public HolidayService(
@@ -75,8 +76,13 @@ public class HolidayService {
     }
 
     public boolean refreshFromApi(int year) {
+        if (!apiAttemptedYears.add(year)) {
+            Integer count = jdbc.queryForObject(
+                    "SELECT COUNT(*) FROM holiday_cache WHERE holiday_year = ? AND source = 'API'", Integer.class, year);
+            return count != null && count > 0;
+        }
         String url = apiUrl.replace("{year}", String.valueOf(year));
-        int[] backoffSeconds = {1, 3};
+        int[] backoffSeconds = {1};
 
         for (int attempt = 0; attempt <= backoffSeconds.length; attempt++) {
             try {

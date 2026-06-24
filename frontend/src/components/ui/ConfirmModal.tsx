@@ -1,3 +1,5 @@
+import { useEffect, useRef } from 'react';
+
 interface ConfirmModalProps {
   title: string;
   message: string;
@@ -15,11 +17,23 @@ export default function ConfirmModal({
   onConfirm,
   onCancel,
 }: ConfirmModalProps) {
+  const backdropRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    backdropRef.current?.focus();
+  }, []);
+
   return (
     <div
+      ref={backdropRef}
+      tabIndex={-1}
       data-testid="confirm-modal-backdrop"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 outline-none"
       onClick={onCancel}
+      onKeyDown={e => {
+        if (e.key === 'Enter') { e.preventDefault(); onConfirm(); }
+        else if (e.key === 'Escape') { e.preventDefault(); onCancel(); }
+      }}
     >
       <div
         className="bg-surface-container-lowest rounded-shape-lg shadow-lg max-w-sm w-full mx-4 p-6"

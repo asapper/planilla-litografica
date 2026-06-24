@@ -194,6 +194,7 @@ public class TasHoursCalculator {
         long workedMinutes = totalSpan - deductibleBreak;
         if (workedMinutes < 0) workedMinutes = 0;
 
+        session.setBreakDeductionMinutes((int) deductibleBreak);
         session.setWorkedMinutes((int) workedMinutes);
         session.setWorkedHours(roundToHalfHour((int) workedMinutes));
         session.setLastScan(lastScanDt);

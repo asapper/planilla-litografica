@@ -70,7 +70,7 @@ public class TasSessionGrouper {
         for (TasScanRecord scan : scans) {
             String id = scan.getEmployeeId();
             LocalDateTime prev = lastKept.get(id);
-            if (prev == null || scan.getTimestamp().isAfter(prev.plusMinutes(DEDUP_WINDOW_MINUTES))) {
+            if (prev == null || !scan.getTimestamp().isBefore(prev.plusMinutes(DEDUP_WINDOW_MINUTES))) {
                 result.add(scan);
                 lastKept.put(id, scan.getTimestamp());
             }

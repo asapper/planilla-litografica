@@ -572,7 +572,6 @@ describe('VerificationScreen same-day double group', () => {
 
   it('renders one group card for both sessions on the same employee/date', () => {
     render(<VerificationScreen />);
-    fireEvent.click(screen.getByRole('button', { name: /Ana López/ }));
     expect(screen.getAllByText(/Ana López/).length).toBeGreaterThan(0);
     expect(screen.getByText(/Manana/)).toBeInTheDocument();
     expect(screen.getByText(/Tarde/)).toBeInTheDocument();
@@ -580,7 +579,6 @@ describe('VerificationScreen same-day double group', () => {
 
   it('renders a radio per session plus "Mantener todas", defaulting to "Mantener todas"', () => {
     render(<VerificationScreen />);
-    fireEvent.click(screen.getByRole('button', { name: /Ana López/ }));
     const keepAllRadio = screen.getByRole('radio', { name: /mantener todas/i });
     expect(keepAllRadio).toBeChecked();
     expect(screen.getAllByRole('radio')).toHaveLength(3);
@@ -588,7 +586,6 @@ describe('VerificationScreen same-day double group', () => {
 
   it('shows a note that the default selection will apply automatically unless changed', () => {
     render(<VerificationScreen />);
-    fireEvent.click(screen.getByRole('button', { name: /Ana López/ }));
     expect(screen.getByText(/se aplicará automáticamente si no realiza ningún cambio/i)).toBeInTheDocument();
   });
 
@@ -599,35 +596,27 @@ describe('VerificationScreen same-day double group', () => {
 
   it('selecting a specific session records that session id', () => {
     render(<VerificationScreen />);
-    fireEvent.click(screen.getByRole('button', { name: /Ana López/ }));
     const radios = screen.getAllByRole('radio');
-    fireEvent.click(radios[0]); // first session-specific radio
+    fireEvent.click(radios[0]);
     expect(useTasStore.getState().sameDayDoubleResolutions['E1|2026-03-15']).toBe(1);
   });
 
-  it('Revisar stays enabled with the default same-day-double selection', () => {
-    useTasStore.getState().setFlaggedSessions([
-      doubleSession({ sessionId: 1, matchedShiftId: 'manana', matchedShiftName: 'Manana' }),
-      doubleSession({
-        sessionId: 2,
-        scans: ['2026-03-15T15:02:00', '2026-03-15T23:00:00'],
-        effectiveStart: '2026-03-15T15:02:00',
-        lastScan: '2026-03-15T23:00:00',
-        matchedShiftId: 'tarde',
-        matchedShiftName: 'Tarde',
-      }),
-    ]);
-
+  it('Revisar is disabled until same-day-double is resolved', () => {
     render(<VerificationScreen />);
+    expect(screen.getByRole('button', { name: /revisar/i })).toBeDisabled();
 
+    const radios = screen.getAllByRole('radio');
+    fireEvent.click(radios[0]);
     expect(screen.getByRole('button', { name: /revisar/i })).not.toBeDisabled();
   });
 
-  it('includes employeeId/date/keepSessionId in resolveVerification payload on submit by default', async () => {
+  it('includes employeeId/date/keepSessionId in resolveVerification payload on submit', async () => {
     useTasStore.getState().setUploadToken('tok-1');
+    useTasStore.getState().setSameDayDoubleResolution('E1|2026-03-15', 'all');
     mockResolveVerification.mockResolvedValue(mockResult);
 
     render(<VerificationScreen />);
+
     fireEvent.click(screen.getByRole('button', { name: /revisar/i }));
 
     await waitFor(() => expect(useTasStore.getState().tasView).toBe('review'));
@@ -894,7 +883,22 @@ describe('SessionCard time validation', () => {
     const exitInput = screen.getByLabelText('Salida');
     fireEvent.change(entryInput, { target: { value: '19:00' } });
     fireEvent.change(exitInput, { target: { value: '05:00' } });
-    expect(screen.getByText('La entrada debe ser antes de la salida')).toBeInTheDocument();
+    expect(screen.getByText(/La entrada debe ser antes de la salida/)).toBeInTheDocument();
+  });
+
+  it('allows inverted times for cross-midnight shifts', () => {
+    useTasStore.getState().setFlaggedSessions([
+      makeSession({ flags: ['MISSING_EXIT'], matchedShiftId: 'noche', effectiveStart: '2026-03-15T19:00:00', lastScan: null }),
+    ]);
+    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
+    useTasStore.getState().setAvailableShifts([
+      { id: 'noche', name: 'Noche', startTime: '19:00', endTime: '07:00', crossMidnight: true },
+    ]);
+    render(<VerificationScreen />);
+    const exitInput = screen.getByLabelText('Salida');
+    fireEvent.change(exitInput, { target: { value: '07:00' } });
+    expect(screen.queryByText(/La entrada debe ser antes de la salida/)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /confirmar/i })).not.toBeDisabled();
   });
 
   it('does not show inline hint when times are valid', () => {
@@ -907,7 +911,7 @@ describe('SessionCard time validation', () => {
     const exitInput = screen.getByLabelText('Salida');
     fireEvent.change(entryInput, { target: { value: '08:00' } });
     fireEvent.change(exitInput, { target: { value: '17:00' } });
-    expect(screen.queryByText('La entrada debe ser antes de la salida')).not.toBeInTheDocument();
+    expect(screen.queryByText(/La entrada debe ser antes de la salida/)).not.toBeInTheDocument();
   });
 
   it('enables Confirmar when entry < exit with both fields filled', () => {

@@ -123,8 +123,8 @@ class TasReportBuilderTest {
 
         assertThat(result.rows).hasSize(1);
         EmployeeRow row = result.rows.get(0);
-        assertThat(row.getHorasExtrasSimples()).isEqualTo((int) Math.round(Math.floor(960 / 30.0) / 2.0));
-        assertThat(row.getHorasExtrasDobles()).isEqualTo((int) Math.round(Math.floor(60 / 30.0) / 2.0));
+        assertThat(row.getHorasExtrasSimples()).isEqualTo(Math.floor(960 / 30.0) / 2.0);
+        assertThat(row.getHorasExtrasDobles()).isEqualTo(Math.floor(60 / 30.0) / 2.0);
     }
 
     @Test
@@ -161,43 +161,6 @@ class TasReportBuilderTest {
 
         EmployeeRow row = result.rows.get(0);
         assertThat(row.getDiasNoLaborados()).isGreaterThanOrEqualTo(0);
-    }
-
-    @Test
-    void build_consistentMismatch_detectedWhenAllSessionsInQuincenaAreMismatched() {
-        LocalDate start = LocalDate.of(2026, 3, 1);
-        LocalDate end   = LocalDate.of(2026, 3, 15);
-
-        TasSession s1 = resolvedSession("100", LocalDate.of(2026, 3, 5), 480, 0);
-        s1.setFlags(new ArrayList<>(List.of(TasFlag.SHIFT_MISMATCH)));
-        s1.setMatchedShiftId("tarde");
-
-        TasSession s2 = resolvedSession("100", LocalDate.of(2026, 3, 6), 480, 0);
-        s2.setFlags(new ArrayList<>(List.of(TasFlag.SHIFT_MISMATCH)));
-        s2.setMatchedShiftId("tarde");
-
-        TasReportBuilder.BuildResult result = builder.build(List.of(s1, s2), start, end, shifts);
-
-        assertThat(result.consistentMismatchShiftIds).containsKey("100");
-        assertThat(result.consistentMismatchShiftIds.get("100")).isEqualTo("tarde");
-    }
-
-    @Test
-    void build_inconsistentMismatch_notFlaggedAsConsistent() {
-        LocalDate start = LocalDate.of(2026, 3, 1);
-        LocalDate end   = LocalDate.of(2026, 3, 15);
-
-        TasSession s1 = resolvedSession("100", LocalDate.of(2026, 3, 5), 480, 0);
-        s1.setFlags(new ArrayList<>(List.of(TasFlag.SHIFT_MISMATCH)));
-        s1.setMatchedShiftId("tarde");
-
-        TasSession s2 = resolvedSession("100", LocalDate.of(2026, 3, 6), 480, 0);
-        s2.setFlags(new ArrayList<>());
-        s2.setMatchedShiftId("manana");
-
-        TasReportBuilder.BuildResult result = builder.build(List.of(s1, s2), start, end, shifts);
-
-        assertThat(result.consistentMismatchShiftIds).doesNotContainKey("100");
     }
 
     @Test

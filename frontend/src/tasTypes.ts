@@ -23,6 +23,7 @@ export interface ShiftOption {
   name: string
   startTime: string
   endTime: string
+  crossMidnight?: boolean
 }
 
 export interface TasPeriod {
@@ -57,6 +58,7 @@ export interface SessionSummary {
   doblesMinutes: number
   scans: string[]
   estimatedShift?: boolean
+  breakDeductionMinutes?: number
 }
 
 export interface TasUploadResult {

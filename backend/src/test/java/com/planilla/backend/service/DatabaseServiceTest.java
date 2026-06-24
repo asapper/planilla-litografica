@@ -110,15 +110,15 @@ class DatabaseServiceTest {
     void submitRow_callsStoredProcOnPostgres() {
         EmployeeRow r = row("10", 1, 12, 2024);
         r.setDiasNoLaborados(2);
-        r.setHorasExtrasSimples(3);
-        r.setHorasExtrasDobles(1);
+        r.setHorasExtrasSimples(3.0);
+        r.setHorasExtrasDobles(1.5);
 
         service.submitRow(r);
 
         verify(postgresJdbc).queryForObject(
             contains("SELECT public.carga_datos_empleados"),
             eq(Integer.class),
-            eq("10"), eq(2), eq(3), eq(1), eq(1), eq(12), eq(2024)
+            eq("10"), eq(2), eq(3.0), eq(1.5), eq(1), eq(12), eq(2024)
         );
     }
 

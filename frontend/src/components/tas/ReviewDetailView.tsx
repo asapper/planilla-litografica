@@ -45,11 +45,19 @@ export default function ReviewDetailView({ onBack }: ReviewDetailViewProps) {
   const setResolvedRows = useTasStore(s => s.setResolvedRows);
   const setSessionSummaries = useTasStore(s => s.setSessionSummaries);
   const duplicateCodes = useTasStore(s => s.duplicateCodes);
+  const sortColumn = useTasStore(s => s.reviewSortColumn);
+  const sortDirection = useTasStore(s => s.reviewSortDirection);
 
   const [pendingToggle, setPendingToggle] = useState(false);
 
   const duplicateSet = new Set(duplicateCodes);
-  const navigableRows = resolvedRows.filter(r => !duplicateSet.has(r.codigoEmpleado));
+  const filtered = resolvedRows.filter(r => !duplicateSet.has(r.codigoEmpleado));
+  const navigableRows = [...filtered].sort((a, b) => {
+    const aVal = sortColumn === 'name' ? a.nombreEmpleado : a.codigoEmpleado;
+    const bVal = sortColumn === 'name' ? b.nombreEmpleado : b.codigoEmpleado;
+    const cmp = aVal.localeCompare(bVal, 'es');
+    return sortDirection === 'desc' ? -cmp : cmp;
+  });
   const currentIndex = navigableRows.findIndex(r => r.codigoEmpleado === selectedEmployee);
   const row = navigableRows[currentIndex];
   const sessions: SessionSummary[] = row ? (sessionSummaries[row.codigoEmpleado] ?? []) : [];
@@ -74,8 +82,8 @@ export default function ReviewDetailView({ onBack }: ReviewDetailViewProps) {
   };
 
   const handleOvertimeChange = (field: 'horasExtrasSimples' | 'horasExtrasDobles', raw: string) => {
-    const parsed = parseInt(raw, 10);
-    const value = Number.isNaN(parsed) || parsed < 0 ? 0 : parsed;
+    const parsed = parseFloat(raw);
+    const value = Number.isNaN(parsed) || parsed < 0 ? 0 : Math.round(parsed * 2) / 2;
     setOvertimeOverride(row.codigoEmpleado, field, value);
   };
 
@@ -222,7 +230,17 @@ export default function ReviewDetailView({ onBack }: ReviewDetailViewProps) {
                         </td>
                         <td className="py-2 px-3 text-body-sm text-on-surface-variant">{formatTime(s.entryTime)}</td>
                         <td className="py-2 px-3 text-body-sm text-on-surface-variant">{formatTime(s.exitTime)}</td>
-                        <td className="py-2 px-3 text-body-sm text-on-surface-variant text-right">{s.workedHours}</td>
+                        <td className="py-2 px-3 text-body-sm text-on-surface-variant text-right">
+                          {(s.breakDeductionMinutes ?? 0) > 0 && (
+                            <span
+                              title={`Se dedujo ${s.breakDeductionMinutes} min de almuerzo porque el descanso excedió los 45 min legales permitidos`}
+                              className="mr-1 inline-block bg-tertiary-container text-on-tertiary-container text-label-sm px-1.5 py-0.5 rounded-full"
+                            >
+                              Almuerzo −{s.breakDeductionMinutes}m
+                            </span>
+                          )}
+                          {s.workedHours}
+                        </td>
                         <td className="py-2 px-3 text-body-sm text-on-surface-variant text-right">{minutesToHours(s.simplesMinutes)}</td>
                         <td className="py-2 px-3 text-body-sm text-on-surface-variant text-right">{minutesToHours(s.doblesMinutes)}</td>
                       </tr>
@@ -278,7 +296,7 @@ export default function ReviewDetailView({ onBack }: ReviewDetailViewProps) {
                   <input
                     type="number"
                     min="0"
-                    step="1"
+                    step="0.5"
                     value={simplesValue}
                     onChange={e => handleOvertimeChange('horasExtrasSimples', e.target.value)}
                     className={`w-full text-right text-body-md border rounded-shape-sm px-3 py-1.5 focus:outline-none focus:border-primary transition-colors ${
@@ -296,7 +314,7 @@ export default function ReviewDetailView({ onBack }: ReviewDetailViewProps) {
                   <input
                     type="number"
                     min="0"
-                    step="1"
+                    step="0.5"
                     value={doblesValue}
                     onChange={e => handleOvertimeChange('horasExtrasDobles', e.target.value)}
                     className={`w-full text-right text-body-md border rounded-shape-sm px-3 py-1.5 focus:outline-none focus:border-primary transition-colors ${

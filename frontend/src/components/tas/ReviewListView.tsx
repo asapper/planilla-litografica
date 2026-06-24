@@ -4,6 +4,7 @@ import { updateAccruesOvertime } from '../../configApi';
 import { recomputeTas } from '../../tasApi';
 import { matchesSearch } from '../../textSearch';
 import { useToastStore } from '../../toastStore';
+import { MONTH_NAMES_ES } from '../../dateNames';
 import AlertMessage from '../ui/AlertMessage';
 import type { ResolvedRow } from '../../tasTypes';
 
@@ -38,6 +39,9 @@ export default function ReviewListView({ dbHealthy, onSubmit }: ReviewListViewPr
   const stashOvertimeOverrides = useTasStore(s => s.stashOvertimeOverrides);
   const restoreOvertimeOverrides = useTasStore(s => s.restoreOvertimeOverrides);
   const setResolvedRows = useTasStore(s => s.setResolvedRows);
+  const availablePeriods = useTasStore(s => s.availablePeriods);
+  const selectedPeriod = useTasStore(s => s.selectedPeriod);
+  const setTasView = useTasStore(s => s.setTasView);
   const setSessionSummaries = useTasStore(s => s.setSessionSummaries);
   const uploadToken = useTasStore(s => s.uploadToken);
 
@@ -115,14 +119,31 @@ export default function ReviewListView({ dbHealthy, onSubmit }: ReviewListViewPr
     <>
       <div className="sticky top-0 z-10 bg-surface-container-lowest">
         <div className="px-6 pt-4 pb-2">
-          <h2 className="text-headline-sm font-medium text-on-surface">
-            Revisión de registros procesados
-          </h2>
-          <p className="text-body-md text-on-surface-variant mt-1">
-            {resolvedRows.length === 1
-              ? 'Se procesó 1 registro. Haz clic en un empleado para revisar detalles.'
-              : `Se procesaron ${resolvedRows.length} registros. Haz clic en un empleado para revisar detalles.`}
-          </p>
+          <div className="flex items-center gap-3">
+            <h2 className="text-headline-sm font-medium text-on-surface">
+              Revisión de registros procesados
+            </h2>
+            {selectedPeriod && (
+              <span className="text-label-sm px-2.5 py-1 rounded-full bg-primary-container text-on-primary-container whitespace-nowrap">
+                {MONTH_NAMES_ES[selectedPeriod.mes].charAt(0).toUpperCase() + MONTH_NAMES_ES[selectedPeriod.mes].slice(1)} {selectedPeriod.anio} · Q{selectedPeriod.numeroDequincena}
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-3 mt-1">
+            <p className="text-body-md text-on-surface-variant">
+              {resolvedRows.length === 1
+                ? 'Se procesó 1 registro. Haz clic en un empleado para revisar detalles.'
+                : `Se procesaron ${resolvedRows.length} registros. Haz clic en un empleado para revisar detalles.`}
+            </p>
+            {availablePeriods.length > 1 && (
+              <button
+                onClick={() => setTasView('verification')}
+                className="text-label-sm text-primary hover:text-primary/80 underline whitespace-nowrap"
+              >
+                Cambiar quincena
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="flex items-center gap-2 px-6 py-2 border-b border-outline-variant flex-wrap">
@@ -263,10 +284,11 @@ export default function ReviewListView({ dbHealthy, onSubmit }: ReviewListViewPr
                         <input
                           type="number"
                           min={0}
+                          step={0.5}
                           value={simplesOverride ?? row.horasExtrasSimples}
                           onChange={e => {
-                            const parsed = parseInt(e.target.value, 10);
-                            setOvertimeOverride(row.codigoEmpleado, 'horasExtrasSimples', Number.isNaN(parsed) || parsed < 0 ? 0 : parsed);
+                            const parsed = parseFloat(e.target.value);
+                            setOvertimeOverride(row.codigoEmpleado, 'horasExtrasSimples', Number.isNaN(parsed) || parsed < 0 ? 0 : Math.round(parsed * 2) / 2);
                           }}
                           onClick={e => e.stopPropagation()}
                           aria-label={`Extras simples ${row.nombreEmpleado}`}
@@ -286,10 +308,11 @@ export default function ReviewListView({ dbHealthy, onSubmit }: ReviewListViewPr
                         <input
                           type="number"
                           min={0}
+                          step={0.5}
                           value={doblesOverride ?? row.horasExtrasDobles}
                           onChange={e => {
-                            const parsed = parseInt(e.target.value, 10);
-                            setOvertimeOverride(row.codigoEmpleado, 'horasExtrasDobles', Number.isNaN(parsed) || parsed < 0 ? 0 : parsed);
+                            const parsed = parseFloat(e.target.value);
+                            setOvertimeOverride(row.codigoEmpleado, 'horasExtrasDobles', Number.isNaN(parsed) || parsed < 0 ? 0 : Math.round(parsed * 2) / 2);
                           }}
                           onClick={e => e.stopPropagation()}
                           aria-label={`Extras dobles ${row.nombreEmpleado}`}

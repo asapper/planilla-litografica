@@ -180,7 +180,7 @@ class TasControllerTest {
         manana.put("endTime", "15:00");
         when(shiftConfigService.getAllShifts()).thenReturn(List.of(manana));
         when(reportBuilder.build(any(), any(), any(), any(), any()))
-                .thenReturn(new TasReportBuilder.BuildResult(new ArrayList<>(), new LinkedHashMap<>()));
+                .thenReturn(new TasReportBuilder.BuildResult(new ArrayList<>()));
 
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("uploadToken", token);
@@ -229,7 +229,7 @@ class TasControllerTest {
         String token = (String) mapper.readValue(uploadResponse, Map.class).get("uploadToken");
 
         when(shiftConfigService.getAllShifts()).thenReturn(new ArrayList<>());
-        TasReportBuilder.BuildResult buildResult = new TasReportBuilder.BuildResult(new ArrayList<>(), new LinkedHashMap<>());
+        TasReportBuilder.BuildResult buildResult = new TasReportBuilder.BuildResult(new ArrayList<>());
         when(reportBuilder.build(any(), any(), any(), any(), any())).thenReturn(buildResult);
 
         Map<String, Object> resolution = new LinkedHashMap<>();
@@ -280,7 +280,7 @@ class TasControllerTest {
         String token = (String) mapper.readValue(uploadResponse, Map.class).get("uploadToken");
 
         when(shiftConfigService.getAllShifts()).thenReturn(new ArrayList<>());
-        TasReportBuilder.BuildResult buildResult = new TasReportBuilder.BuildResult(new ArrayList<>(), new LinkedHashMap<>());
+        TasReportBuilder.BuildResult buildResult = new TasReportBuilder.BuildResult(new ArrayList<>());
         when(reportBuilder.build(any(), any(), any(), any(), any())).thenReturn(buildResult);
 
         Map<String, Object> resolution = new LinkedHashMap<>();
@@ -334,7 +334,7 @@ class TasControllerTest {
         String token = (String) mapper.readValue(uploadResponse, Map.class).get("uploadToken");
 
         when(shiftConfigService.getAllShifts()).thenReturn(new ArrayList<>());
-        TasReportBuilder.BuildResult buildResult = new TasReportBuilder.BuildResult(new ArrayList<>(), new LinkedHashMap<>());
+        TasReportBuilder.BuildResult buildResult = new TasReportBuilder.BuildResult(new ArrayList<>());
         when(reportBuilder.build(any(), any(), any(), any(), any())).thenReturn(buildResult);
 
         Map<String, Object> resolution = new LinkedHashMap<>();
@@ -391,7 +391,7 @@ class TasControllerTest {
         String token = (String) mapper.readValue(uploadResponse, Map.class).get("uploadToken");
 
         when(shiftConfigService.getAllShifts()).thenReturn(new ArrayList<>());
-        TasReportBuilder.BuildResult buildResult = new TasReportBuilder.BuildResult(new ArrayList<>(), new LinkedHashMap<>());
+        TasReportBuilder.BuildResult buildResult = new TasReportBuilder.BuildResult(new ArrayList<>());
         when(reportBuilder.build(any(), any(), any(), any(), any())).thenReturn(buildResult);
 
         Map<String, Object> resolution = new LinkedHashMap<>();
@@ -444,7 +444,7 @@ class TasControllerTest {
 
         when(shiftConfigService.getAllShifts()).thenReturn(new ArrayList<>());
         when(reportBuilder.build(any(), any(), any(), any(), any()))
-                .thenReturn(new TasReportBuilder.BuildResult(new ArrayList<>(), new LinkedHashMap<>()));
+                .thenReturn(new TasReportBuilder.BuildResult(new ArrayList<>()));
 
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("uploadToken", token);
@@ -495,7 +495,7 @@ class TasControllerTest {
 
         when(shiftConfigService.getAllShifts()).thenReturn(new ArrayList<>());
         when(reportBuilder.build(any(), any(), any(), any(), any()))
-                .thenReturn(new TasReportBuilder.BuildResult(new ArrayList<>(), new LinkedHashMap<>()));
+                .thenReturn(new TasReportBuilder.BuildResult(new ArrayList<>()));
 
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("uploadToken", token);
@@ -555,7 +555,7 @@ class TasControllerTest {
 
         when(shiftConfigService.getAllShifts()).thenReturn(new ArrayList<>());
         when(reportBuilder.build(any(), any(), any(), any(), any()))
-                .thenReturn(new TasReportBuilder.BuildResult(new ArrayList<>(), new LinkedHashMap<>()));
+                .thenReturn(new TasReportBuilder.BuildResult(new ArrayList<>()));
 
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("uploadToken", token);
@@ -611,7 +611,7 @@ class TasControllerTest {
 
         when(shiftConfigService.getAllShifts()).thenReturn(new ArrayList<>());
         when(reportBuilder.build(any(), any(), any(), any(), any()))
-                .thenReturn(new TasReportBuilder.BuildResult(new ArrayList<>(), new LinkedHashMap<>()));
+                .thenReturn(new TasReportBuilder.BuildResult(new ArrayList<>()));
 
         Map<String, Object> resolveBody = new LinkedHashMap<>();
         resolveBody.put("uploadToken", token);
@@ -799,7 +799,7 @@ class TasControllerTest {
         // Simulate resolve for period 2 (quincena 2, March 16-31)
         when(shiftConfigService.getAllShifts()).thenReturn(List.of());
         when(reportBuilder.build(any(), any(), any(), any(), any()))
-            .thenReturn(new com.planilla.backend.service.tas.TasReportBuilder.BuildResult(List.of(row), Map.of()));
+            .thenReturn(new com.planilla.backend.service.tas.TasReportBuilder.BuildResult(List.of(row)));
         mvc.perform(post("/api/tas/resolve")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of(
@@ -846,7 +846,7 @@ class TasControllerTest {
 
         when(shiftConfigService.getAllShifts()).thenReturn(new ArrayList<>());
         when(reportBuilder.build(any(), any(), any(), any(), isNull()))
-                .thenReturn(new TasReportBuilder.BuildResult(List.of(recomputedRow), new LinkedHashMap<>()));
+                .thenReturn(new TasReportBuilder.BuildResult(List.of(recomputedRow)));
 
         mvc.perform(post("/api/tas/recompute/" + token))
            .andExpect(status().isOk())
@@ -869,7 +869,7 @@ class TasControllerTest {
 
         when(shiftConfigService.getAllShifts()).thenReturn(new ArrayList<>());
         when(reportBuilder.build(any(), any(), any(), any(), any()))
-                .thenReturn(new TasReportBuilder.BuildResult(new ArrayList<>(), new LinkedHashMap<>()));
+                .thenReturn(new TasReportBuilder.BuildResult(new ArrayList<>()));
 
         // /resolve with period filter 2026-Q1-1 — should persist the filter
         Map<String, Object> resolveBody = new LinkedHashMap<>();
@@ -888,7 +888,7 @@ class TasControllerTest {
         EmployeeRow recomputedRow = new EmployeeRow();
         recomputedRow.setCodigoEmpleado("E1");
         when(reportBuilder.build(any(), any(), any(), any(), eq(new TasPeriod(2026, 3, 1))))
-                .thenReturn(new TasReportBuilder.BuildResult(List.of(recomputedRow), new LinkedHashMap<>()));
+                .thenReturn(new TasReportBuilder.BuildResult(List.of(recomputedRow)));
 
         // /recompute must pass the stored period filter, not null
         mvc.perform(post("/api/tas/recompute/" + token))
@@ -914,7 +914,7 @@ class TasControllerTest {
 
         when(shiftConfigService.getAllShifts()).thenReturn(new ArrayList<>());
         when(reportBuilder.build(any(), any(), any(), any(), any()))
-                .thenReturn(new TasReportBuilder.BuildResult(new ArrayList<>(), new LinkedHashMap<>()));
+                .thenReturn(new TasReportBuilder.BuildResult(new ArrayList<>()));
 
         // First /resolve: with period
         Map<String, Object> resolveWithPeriod = new LinkedHashMap<>();
@@ -970,7 +970,7 @@ class TasControllerTest {
 
         when(shiftConfigService.getAllShifts()).thenReturn(new ArrayList<>());
         when(reportBuilder.build(any(), any(), any(), any(), isNull()))
-                .thenReturn(new TasReportBuilder.BuildResult(new ArrayList<>(), new LinkedHashMap<>()));
+                .thenReturn(new TasReportBuilder.BuildResult(new ArrayList<>()));
 
         mvc.perform(post("/api/tas/recompute/" + token))
            .andExpect(status().isOk())
@@ -1015,7 +1015,7 @@ class TasControllerTest {
 
         when(shiftConfigService.getAllShifts()).thenReturn(new ArrayList<>());
         when(reportBuilder.build(any(), any(), any(), any(), any()))
-                .thenReturn(new TasReportBuilder.BuildResult(new ArrayList<>(), new LinkedHashMap<>()));
+                .thenReturn(new TasReportBuilder.BuildResult(new ArrayList<>()));
 
         Map<String, Object> resolution = new LinkedHashMap<>();
         resolution.put("employeeId", "100");
@@ -1058,7 +1058,7 @@ class TasControllerTest {
 
         when(shiftConfigService.getAllShifts()).thenReturn(new ArrayList<>());
         when(reportBuilder.build(any(), any(), any(), any(), any()))
-                .thenReturn(new TasReportBuilder.BuildResult(new ArrayList<>(), new LinkedHashMap<>()));
+                .thenReturn(new TasReportBuilder.BuildResult(new ArrayList<>()));
 
         Map<String, Object> resolution = new LinkedHashMap<>();
         resolution.put("employeeId", "100");
@@ -1101,7 +1101,7 @@ class TasControllerTest {
 
         when(shiftConfigService.getAllShifts()).thenReturn(new ArrayList<>());
         when(reportBuilder.build(any(), any(), any(), any(), any()))
-                .thenReturn(new TasReportBuilder.BuildResult(new ArrayList<>(), new LinkedHashMap<>()));
+                .thenReturn(new TasReportBuilder.BuildResult(new ArrayList<>()));
 
         Map<String, Object> resolution = new LinkedHashMap<>();
         resolution.put("employeeId", "100");
@@ -1551,7 +1551,7 @@ class TasControllerTest {
         when(parserService.parse(any())).thenReturn(emptyParseResult());
         when(uploadService.processScans(any(), any(), any())).thenReturn(result);
         when(reportBuilder.build(any(), any(), any(), any(), any()))
-                .thenReturn(new TasReportBuilder.BuildResult(new ArrayList<>(), Map.of()));
+                .thenReturn(new TasReportBuilder.BuildResult(new ArrayList<>()));
 
         // Upload first to get a token
         MockMultipartFile file = new MockMultipartFile("file", "test.csv", "text/csv", "data".getBytes());

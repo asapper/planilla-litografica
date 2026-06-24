@@ -22,6 +22,7 @@ public class TasSession {
     private double workedHours;
     private int simplesMinutes;
     private int doblesMinutes;
+    private int breakDeductionMinutes;
     private boolean needsResolution;
     private String sessionAnchor;
     private List<TasFlag> flags;
@@ -75,6 +76,9 @@ public class TasSession {
 
     public int getDoblesMinutes() { return doblesMinutes; }
     public void setDoblesMinutes(int doblesMinutes) { this.doblesMinutes = doblesMinutes; }
+
+    public int getBreakDeductionMinutes() { return breakDeductionMinutes; }
+    public void setBreakDeductionMinutes(int breakDeductionMinutes) { this.breakDeductionMinutes = breakDeductionMinutes; }
 
     public boolean isNeedsResolution() { return needsResolution; }
     public void setNeedsResolution(boolean needsResolution) { this.needsResolution = needsResolution; }

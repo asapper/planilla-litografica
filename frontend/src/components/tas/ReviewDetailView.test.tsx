@@ -175,17 +175,17 @@ describe('ReviewDetailView navigation', () => {
     expect(onBack).toHaveBeenCalled();
   });
 
-  it('navigates to next employee', () => {
+  it('navigates to next employee in sort order', () => {
     render(<ReviewDetailView onBack={onBack} />);
     fireEvent.click(screen.getByRole('button', { name: /siguiente/i }));
-    expect(useTasStore.getState().reviewSelectedEmployee).toBe('E2');
+    expect(useTasStore.getState().reviewSelectedEmployee).toBe('E3');
   });
 
-  it('navigates to previous employee', () => {
+  it('navigates to previous employee in sort order', () => {
     useTasStore.getState().setReviewSelectedEmployee('E2');
     render(<ReviewDetailView onBack={onBack} />);
     fireEvent.click(screen.getByRole('button', { name: /anterior/i }));
-    expect(useTasStore.getState().reviewSelectedEmployee).toBe('E1');
+    expect(useTasStore.getState().reviewSelectedEmployee).toBe('E3');
   });
 
   it('disables previous on first employee', () => {
@@ -194,15 +194,16 @@ describe('ReviewDetailView navigation', () => {
   });
 
   it('disables next on last employee', () => {
-    useTasStore.getState().setReviewSelectedEmployee('E3');
+    useTasStore.getState().setReviewSelectedEmployee('E2');
     render(<ReviewDetailView onBack={onBack} />);
     expect(screen.getByRole('button', { name: /siguiente/i })).toBeDisabled();
   });
 
   it('expands scans for new employee on navigation', () => {
+    useTasStore.getState().setReviewSelectedEmployee('E3');
     render(<ReviewDetailView onBack={onBack} />);
-    expect(screen.getByText('12:31')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /siguiente/i }));
+    expect(useTasStore.getState().reviewSelectedEmployee).toBe('E2');
     expect(useTasStore.getState().reviewExpandedScans.size).toBeGreaterThan(0);
   });
 });
@@ -252,5 +253,18 @@ describe('ReviewDetailView accruesOvertime toggle', () => {
       const toasts = useToastStore.getState().toasts;
       expect(toasts.some(t => t.variant === 'error')).toBe(true);
     });
+  });
+
+  it('shows break deduction pill when breakDeductionMinutes > 0', () => {
+    const summariesWithBreak: Record<string, SessionSummary[]> = {
+      E1: [
+        { date: '2026-06-02', shiftName: 'Mañana', entryTime: '2026-06-02T07:00:00', exitTime: '2026-06-02T15:00:00', workedHours: 7.0, simplesMinutes: 0, doblesMinutes: 0, scans: ['2026-06-02T07:00', '2026-06-02T11:30', '2026-06-02T13:00', '2026-06-02T15:00'], breakDeductionMinutes: 45 },
+      ],
+    };
+    useTasStore.getState().setSessionSummaries(summariesWithBreak);
+
+    render(<ReviewDetailView onBack={onBack} />);
+
+    expect(screen.getByText('Almuerzo −45m')).toBeInTheDocument();
   });
 });

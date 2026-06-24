@@ -1,6 +1,7 @@
 package com.planilla.backend.service.tas;
 
 import com.planilla.backend.model.EmployeeRow;
+import com.planilla.backend.model.tas.TasFlag;
 import com.planilla.backend.model.tas.TasInactiveEmployee;
 import com.planilla.backend.model.tas.TasScanRecord;
 import com.planilla.backend.model.tas.TasSession;
@@ -54,8 +55,11 @@ public class TasUploadService {
                 .map(TasScanRecord::getEmployeeId)
                 .collect(Collectors.toSet());
 
+        Set<String> upserted = new HashSet<>();
         for (TasScanRecord scan : allScans) {
-            registryService.upsertEmployee(scan.getEmployeeId(), scan.getEmployeeName());
+            if (upserted.add(scan.getEmployeeId())) {
+                registryService.upsertEmployee(scan.getEmployeeId(), scan.getEmployeeName());
+            }
         }
 
         List<TasInactiveEmployee> inactiveFound = registryService.getInactiveEmployeesPresent(presentIds);
@@ -91,6 +95,8 @@ public class TasUploadService {
         List<TasSession> sessions = sessionGrouper.group(scans, shifts, employeeShiftAssignments);
         hoursCalculator.calculate(sessions, reportStart, reportEnd);
 
+        autoResolveConsistentMismatches(sessions, shifts);
+
         TasReportBuilder.BuildResult buildResult = reportBuilder.build(sessions, reportStart, reportEnd, shifts);
         List<EmployeeRow> resolvedRows = buildResult.rows;
 
@@ -115,6 +121,42 @@ public class TasUploadService {
         result.setReportStart(reportStart);
         result.setReportEnd(reportEnd);
         return result;
+    }
+
+    private void autoResolveConsistentMismatches(
+            List<TasSession> sessions,
+            List<Map<String, Object>> shifts) {
+
+        Map<String, List<TasSession>> byEmployee = new LinkedHashMap<>();
+        for (TasSession s : sessions) {
+            byEmployee.computeIfAbsent(s.getEmployeeId(), k -> new ArrayList<>()).add(s);
+        }
+
+        for (Map.Entry<String, List<TasSession>> entry : byEmployee.entrySet()) {
+            List<TasSession> empSessions = entry.getValue();
+            List<TasSession> pureShiftMismatch = empSessions.stream()
+                    .filter(s -> s.isNeedsResolution()
+                            && s.getFlags() != null
+                            && s.getFlags().size() == 1
+                            && s.getFlags().get(0) == TasFlag.SHIFT_MISMATCH)
+                    .collect(Collectors.toList());
+            if (pureShiftMismatch.isEmpty()) continue;
+
+            Set<String> matchedShiftIds = pureShiftMismatch.stream()
+                    .map(TasSession::getMatchedShiftId)
+                    .filter(java.util.Objects::nonNull)
+                    .collect(Collectors.toSet());
+            if (matchedShiftIds.size() != 1) continue;
+
+            String newShiftId = matchedShiftIds.iterator().next();
+            for (TasSession s : pureShiftMismatch) {
+                s.getFlags().clear();
+                s.setAssignedShiftId(newShiftId);
+                s.setAssignedShiftName(s.getMatchedShiftName());
+                s.setNeedsResolution(false);
+                hoursCalculator.recompute(s, shifts);
+            }
+        }
     }
 
     private Map<String, String> buildShiftAssignments() {

@@ -326,7 +326,7 @@ public class TasController {
                                 "code", "INVALID_OVERRIDE",
                                 "message", "Formato de horas extra inválido."));
                         }
-                        int val = ((Number) raw).intValue();
+                        double val = Math.round(((Number) raw).doubleValue() * 2) / 2.0;
                         if (val < 0) {
                             return ResponseEntity.badRequest().body(Map.of(
                                 "code", "INVALID_OVERRIDE",
@@ -341,7 +341,7 @@ public class TasController {
                                 "code", "INVALID_OVERRIDE",
                                 "message", "Formato de horas extra inválido."));
                         }
-                        int val = ((Number) raw).intValue();
+                        double val = Math.round(((Number) raw).doubleValue() * 2) / 2.0;
                         if (val < 0) {
                             return ResponseEntity.badRequest().body(Map.of(
                                 "code", "INVALID_OVERRIDE",
@@ -484,6 +484,7 @@ public class TasController {
             dto.put("name", shift.get("name"));
             dto.put("startTime", shift.get("startTime"));
             dto.put("endTime", shift.get("endTime"));
+            dto.put("crossMidnight", Boolean.TRUE.equals(shift.get("crossMidnight")));
             result.add(dto);
         }
         return result;
@@ -515,6 +516,7 @@ public class TasController {
                 : Collections.emptyList();
             entry.put("scans", scanStrings);
             entry.put("estimatedShift", s.getFlags() != null && s.getFlags().contains(TasFlag.BEST_FIT_SHIFT));
+            entry.put("breakDeductionMinutes", s.getBreakDeductionMinutes());
 
             result.computeIfAbsent(s.getEmployeeId(), k -> new ArrayList<>()).add(entry);
         }

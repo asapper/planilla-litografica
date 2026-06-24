@@ -5,8 +5,8 @@ public class EmployeeRow {
     private String codigoEmpleado;
     private String nombreEmpleado;
     private int diasNoLaborados;
-    private int horasExtrasSimples;
-    private int horasExtrasDobles;
+    private double horasExtrasSimples;
+    private double horasExtrasDobles;
     private int mes;
     private int anio;
     private Integer numeroDequincena; // set by user after upload
@@ -24,11 +24,11 @@ public class EmployeeRow {
     public int getDiasNoLaborados() { return diasNoLaborados; }
     public void setDiasNoLaborados(int diasNoLaborados) { this.diasNoLaborados = diasNoLaborados; }
 
-    public int getHorasExtrasSimples() { return horasExtrasSimples; }
-    public void setHorasExtrasSimples(int horasExtrasSimples) { this.horasExtrasSimples = horasExtrasSimples; }
+    public double getHorasExtrasSimples() { return horasExtrasSimples; }
+    public void setHorasExtrasSimples(double horasExtrasSimples) { this.horasExtrasSimples = horasExtrasSimples; }
 
-    public int getHorasExtrasDobles() { return horasExtrasDobles; }
-    public void setHorasExtrasDobles(int horasExtrasDobles) { this.horasExtrasDobles = horasExtrasDobles; }
+    public double getHorasExtrasDobles() { return horasExtrasDobles; }
+    public void setHorasExtrasDobles(double horasExtrasDobles) { this.horasExtrasDobles = horasExtrasDobles; }
 
     public int getMes() { return mes; }
     public void setMes(int mes) { this.mes = mes; }
