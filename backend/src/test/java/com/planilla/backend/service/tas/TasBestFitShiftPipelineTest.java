@@ -141,22 +141,22 @@ class TasBestFitShiftPipelineTest {
         assertThat(flagged).hasSize(6);
 
         TasSession apr01 = findByDate(flagged, LocalDate.of(2026, 4, 1));
-        assertThat(apr01.getFlags()).contains(TasFlag.MISSING_ENTRY);
+        assertThat(apr01.getFlags()).contains(TasFlag.MISSING_EXIT);
 
         TasSession apr09 = findByDate(flagged, LocalDate.of(2026, 4, 9));
         assertThat(apr09.getFlags()).contains(TasFlag.MISSING_EXIT);
 
         TasSession apr11 = findByDate(flagged, LocalDate.of(2026, 4, 11));
-        assertThat(apr11.getFlags()).contains(TasFlag.MISSING_ENTRY);
+        assertThat(apr11.getFlags()).contains(TasFlag.MISSING_EXIT);
 
         TasSession apr14 = findByDate(flagged, LocalDate.of(2026, 4, 14));
-        assertThat(apr14.getFlags()).contains(TasFlag.MISSING_ENTRY);
+        assertThat(apr14.getFlags()).contains(TasFlag.MISSING_EXIT);
 
         TasSession apr21 = findByDate(flagged, LocalDate.of(2026, 4, 21));
         assertThat(apr21.getFlags()).contains(TasFlag.MISSING_EXIT);
 
         TasSession apr27 = findByDate(flagged, LocalDate.of(2026, 4, 27));
-        assertThat(apr27.getFlags()).contains(TasFlag.MISSING_ENTRY);
+        assertThat(apr27.getFlags()).contains(TasFlag.MISSING_EXIT);
     }
 
     private TasSession findByDate(List<TasSession> sessions, LocalDate date) {

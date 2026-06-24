@@ -136,11 +136,12 @@ public class TasHoursCalculator {
     }
 
     private TasFlag detectMissingScanType(TasSession session, List<Map<String, Object>> shifts) {
-        Map<String, Object> assignedShift = findShiftById(shifts, session.getAssignedShiftId());
-        if (assignedShift == null) return TasFlag.MISSING_EXIT;
+        Map<String, Object> shift = findShiftById(shifts, session.getMatchedShiftId());
+        if (shift == null) shift = findShiftById(shifts, session.getAssignedShiftId());
+        if (shift == null) return TasFlag.MISSING_EXIT;
 
-        LocalTime shiftStart = parseTime(assignedShift.get("startTime"));
-        LocalTime shiftEnd   = parseTime(assignedShift.get("endTime"));
+        LocalTime shiftStart = parseTime(shift.get("startTime"));
+        LocalTime shiftEnd   = parseTime(shift.get("endTime"));
         LocalTime scanTime   = session.getScans().get(0).toLocalTime();
 
         int scanMin  = scanTime.getHour()   * 60 + scanTime.getMinute();
