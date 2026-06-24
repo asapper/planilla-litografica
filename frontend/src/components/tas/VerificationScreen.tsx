@@ -513,9 +513,9 @@ export default function VerificationScreen() {
           const [xh] = resolved.resolvedEnd.split(':').map(Number);
           let endDate = date;
           if (isCrossMidnight && xh < eh && date) {
-            const d = new Date(date);
-            d.setDate(d.getDate() + 1);
-            endDate = d.toISOString().slice(0, 10);
+            const [y, m, day] = date.split('-').map(Number);
+            const nd = new Date(y, m - 1, day + 1);
+            endDate = `${nd.getFullYear()}-${String(nd.getMonth() + 1).padStart(2, '0')}-${String(nd.getDate()).padStart(2, '0')}`;
           }
           return {
             sessionId: Number(id),

@@ -194,6 +194,28 @@ class TasUploadServiceTest {
     }
 
     @Test
+    void process_upsertDeduplicatedPerEmployee() throws Exception {
+        List<TasScanRecord> scans = List.of(
+            scan("100", "2026-03-10T07:00"),
+            scan("100", "2026-03-10T15:00"),
+            scan("100", "2026-03-11T07:00")
+        );
+        when(parserService.parse(any())).thenReturn(new TasParserService.ParseResult(scans, List.of()));
+        when(registryService.getInactiveEmployeesPresent(any())).thenReturn(Collections.emptyList());
+        when(registryService.getAll(any(), any(), any())).thenReturn(Collections.emptyList());
+        when(shiftConfigService.getAllShifts()).thenReturn(shifts);
+        when(holidayService.fetchForDateRange(any(), any())).thenReturn(true);
+        when(sessionGrouper.group(any(), any(), any())).thenReturn(Collections.emptyList());
+        when(reportBuilder.build(any(), any(), any(), any()))
+                .thenReturn(new TasReportBuilder.BuildResult(Collections.emptyList()));
+        when(registryService.getAbsentActiveEmployees(any())).thenReturn(Collections.emptyList());
+
+        service.process(dummyFile, Collections.emptySet());
+
+        verify(registryService, times(1)).upsertEmployee("100", "Employee 100");
+    }
+
+    @Test
     void process_consistentShiftMismatch_autoResolvesAndRecomputes() throws Exception {
         List<TasScanRecord> scans = List.of(
             scan("100", "2026-03-10T14:55"),
