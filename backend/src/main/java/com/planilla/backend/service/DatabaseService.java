@@ -46,7 +46,7 @@ public class DatabaseService {
     public void submitRow(EmployeeRow row) {
         // Execute stored procedure on remote PostgreSQL
         postgresJdbc.queryForObject(
-            "SELECT public.carga_datos_empleados(?::varchar, ?::integer, ?::integer, ?::integer, ?::integer, ?::integer, ?::integer)",
+            "SELECT public.carga_datos_empleados(?::varchar, ?::integer, ?::numeric, ?::numeric, ?::integer, ?::integer, ?::integer)",
             Integer.class,
             row.getCodigoEmpleado(),
             row.getDiasNoLaborados(),

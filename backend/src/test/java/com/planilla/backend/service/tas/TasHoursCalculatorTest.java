@@ -659,9 +659,9 @@ class TasHoursCalculatorTest {
     }
 
     @Test
-    void calculate_oddScans_shiftMismatch_eveningScan_assignedManana_emitsMissingEntry() {
+    void calculate_oddScans_shiftMismatch_eveningScan_assignedManana_emitsMissingExit() {
         // 04/01 19:20 matched Noche via detection window but employee assigned Mañana.
-        // Single scan is closer to Mañana end (15:00) than start (07:00) → MISSING_ENTRY
+        // Single scan is closer to Noche start (19:00) than end (07:00) → MISSING_EXIT
         LocalDate date = LocalDate.of(2026, 4, 1);
         TasSession s = session(date,
             LocalDateTime.of(2026, 4, 1, 19, 20)
@@ -681,8 +681,8 @@ class TasHoursCalculatorTest {
 
         calculator.calculate(List.of(s), LocalDate.of(2026, 4, 1), LocalDate.of(2026, 4, 15));
 
-        assertThat(s.getFlags()).contains(TasFlag.MISSING_ENTRY);
-        assertThat(s.getFlags()).doesNotContain(TasFlag.MISSING_EXIT);
+        assertThat(s.getFlags()).contains(TasFlag.MISSING_EXIT);
+        assertThat(s.getFlags()).doesNotContain(TasFlag.MISSING_ENTRY);
         assertThat(s.isNeedsResolution()).isTrue();
     }
 

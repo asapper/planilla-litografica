@@ -118,6 +118,20 @@ class TasSessionGrouperTest {
     }
 
     @Test
+    void group_deduplication_keepsScanAtExactly5Minutes() {
+        List<TasScanRecord> scans = List.of(
+            scan("100", LocalDateTime.of(2026, 3, 10, 7, 0)),
+            scan("100", LocalDateTime.of(2026, 3, 10, 7, 5)),
+            scan("100", LocalDateTime.of(2026, 3, 10, 15, 0))
+        );
+
+        List<TasSession> sessions = grouper.group(scans, shifts, assignManana("100"));
+
+        assertThat(sessions).hasSize(1);
+        assertThat(sessions.get(0).getScans()).hasSize(3);
+    }
+
+    @Test
     void group_crossMidnightSession_stitchedCorrectly() {
         List<TasScanRecord> scans = List.of(
             scan("300", LocalDateTime.of(2026, 3, 10, 19, 3)),

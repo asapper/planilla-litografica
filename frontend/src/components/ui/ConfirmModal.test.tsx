@@ -45,4 +45,18 @@ describe('ConfirmModal', () => {
     fireEvent.click(screen.getByText('Iniciar nueva carga'));
     expect(onCancel).not.toHaveBeenCalled();
   });
+
+  it('calls onConfirm when Enter is pressed', () => {
+    const onConfirm = vi.fn();
+    render(<ConfirmModal {...baseProps} onConfirm={onConfirm} onCancel={vi.fn()} />);
+    fireEvent.keyDown(screen.getByTestId('confirm-modal-backdrop'), { key: 'Enter' });
+    expect(onConfirm).toHaveBeenCalledTimes(1);
+  });
+
+  it('calls onCancel when Escape is pressed', () => {
+    const onCancel = vi.fn();
+    render(<ConfirmModal {...baseProps} onConfirm={vi.fn()} onCancel={onCancel} />);
+    fireEvent.keyDown(screen.getByTestId('confirm-modal-backdrop'), { key: 'Escape' });
+    expect(onCancel).toHaveBeenCalledTimes(1);
+  });
 });

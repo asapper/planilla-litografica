@@ -73,7 +73,6 @@ public class TasReportBuilder {
         }
 
         Map<String, String> employeeNamesFromScans = buildEmployeeNamesMap(filteredSessions);
-        Map<String, String> consistentMismatchShiftIds = detectConsistentMismatches(filteredSessions);
 
         Map<String, Boolean> accruesOvertimeFlags =
                 employeeRegistryService.getAccruesOvertimeFlags(minutesByEmployeePeriod.keySet());
@@ -89,8 +88,8 @@ public class TasReportBuilder {
                 TasPeriod period = pEntry.getKey();
                 int[] minutes = pEntry.getValue();
 
-                int simplesHours = (int) Math.round(Math.floor(minutes[0] / 30.0) / 2.0);
-                int doblesHours  = (int) Math.round(Math.floor(minutes[1] / 30.0) / 2.0);
+                double simplesHours = Math.floor(minutes[0] / 30.0) / 2.0;
+                double doblesHours  = Math.floor(minutes[1] / 30.0) / 2.0;
 
                 LocalDate qStart = period.numeroDequincena() == 1
                         ? LocalDate.of(period.anio(), period.mes(), 1)
@@ -98,9 +97,6 @@ public class TasReportBuilder {
                 LocalDate qEnd = period.numeroDequincena() == 1
                         ? LocalDate.of(period.anio(), period.mes(), 15)
                         : qStart.withDayOfMonth(qStart.lengthOfMonth());
-
-                if (qStart.isBefore(reportStart)) qStart = reportStart;
-                if (qEnd.isAfter(reportEnd)) qEnd = reportEnd;
 
                 int nonWorkedDays = countNonWorkedDays(qStart, qEnd, workedDays);
 
@@ -131,7 +127,7 @@ public class TasReportBuilder {
             }
         }
 
-        return new BuildResult(rows, consistentMismatchShiftIds);
+        return new BuildResult(rows);
     }
 
     public List<TasPeriod> computeAvailablePeriods(List<TasSession> sessions) {
@@ -168,58 +164,11 @@ public class TasReportBuilder {
         return names;
     }
 
-    private Map<String, String> detectConsistentMismatches(List<TasSession> sessions) {
-        Map<String, Map<TasPeriod, Set<String>>> mismatchShiftsByEmpPeriod = new LinkedHashMap<>();
-        Map<String, Integer> totalSessionsByEmpPeriod = new LinkedHashMap<>();
-        Map<String, Integer> mismatchSessionsByEmpPeriod = new LinkedHashMap<>();
-
-        for (TasSession session : sessions) {
-            String empId  = session.getEmployeeId();
-            TasPeriod period = TasPeriod.of(session.getDate());
-            String key = empId + ":" + period;
-
-            totalSessionsByEmpPeriod.merge(key, 1, Integer::sum);
-
-            if (session.getFlags() != null && session.getFlags().contains(TasFlag.SHIFT_MISMATCH)) {
-                mismatchSessionsByEmpPeriod.merge(key, 1, Integer::sum);
-                if (session.getMatchedShiftId() != null) {
-                    mismatchShiftsByEmpPeriod
-                            .computeIfAbsent(empId, k -> new LinkedHashMap<>())
-                            .computeIfAbsent(period, k -> new HashSet<>())
-                            .add(session.getMatchedShiftId());
-                }
-            }
-        }
-
-        Map<String, String> result = new LinkedHashMap<>();
-
-        for (Map.Entry<String, Map<TasPeriod, Set<String>>> empEntry : mismatchShiftsByEmpPeriod.entrySet()) {
-            String empId = empEntry.getKey();
-            for (Map.Entry<TasPeriod, Set<String>> pEntry : empEntry.getValue().entrySet()) {
-                TasPeriod period = pEntry.getKey();
-                Set<String> altShifts = pEntry.getValue();
-                if (altShifts.size() != 1) continue;
-
-                String key = empId + ":" + period;
-                int total      = totalSessionsByEmpPeriod.getOrDefault(key, 0);
-                int mismatched = mismatchSessionsByEmpPeriod.getOrDefault(key, 0);
-
-                if (total > 0 && total == mismatched) {
-                    result.put(empId, altShifts.iterator().next());
-                }
-            }
-        }
-
-        return result;
-    }
-
     public static class BuildResult {
         public final List<EmployeeRow> rows;
-        public final Map<String, String> consistentMismatchShiftIds;
 
-        public BuildResult(List<EmployeeRow> rows, Map<String, String> consistentMismatchShiftIds) {
-            this.rows                      = rows;
-            this.consistentMismatchShiftIds = consistentMismatchShiftIds;
+        public BuildResult(List<EmployeeRow> rows) {
+            this.rows = rows;
         }
     }
 }

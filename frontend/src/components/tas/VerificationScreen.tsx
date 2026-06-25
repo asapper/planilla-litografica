@@ -53,14 +53,18 @@ function toHHMM(timeStr: string | null): string {
   return timePart.slice(0, 5);
 }
 
-function calcHours(entry: string, exit: string): string {
+function calcHours(entry: string, exit: string, crossMidnight: boolean): string {
   if (!entry || !exit) return '—';
   const [eh, em] = entry.split(':').map(Number);
   const [xh, xm] = exit.split(':').map(Number);
   const entryMin = eh * 60 + em;
   const exitMin  = xh * 60 + xm;
-  if (exitMin <= entryMin) return '—';
-  const hours = Math.floor((exitMin - entryMin) / 30) / 2;
+  let diff = exitMin - entryMin;
+  if (diff <= 0) {
+    if (!crossMidnight) return '—';
+    diff += 1440;
+  }
+  const hours = Math.floor(diff / 30) / 2;
   return `${hours.toFixed(1)}h`;
 }
 
@@ -292,10 +296,11 @@ function ShortDayCard({ session, onSaveOverride }: ShortDayCardProps) {
 interface SessionCardProps {
   session: TasSession;
   confirmed: boolean;
+  crossMidnight: boolean;
   onConfirm: (resolvedStart: string, resolvedEnd: string) => void;
 }
 
-function SessionCard({ session, confirmed, onConfirm }: SessionCardProps) {
+function SessionCard({ session, confirmed, crossMidnight, onConfirm }: SessionCardProps) {
   const [entry, setEntry] = useState(toHHMM(session.effectiveStart));
   const [exit,  setExit]  = useState(session.flags.includes('MISSING_EXIT') ? '' : toHHMM(session.lastScan));
 
@@ -304,7 +309,7 @@ function SessionCard({ session, confirmed, onConfirm }: SessionCardProps) {
   const entryReadOnly = !needsEntry && !!session.effectiveStart;
   const exitReadOnly  = !needsExit  && !!session.lastScan;
 
-  const hoursPreview = calcHours(entry, exit);
+  const hoursPreview = calcHours(entry, exit, crossMidnight);
   const timesInverted = !!entry && !!exit && hoursPreview === '—';
   const canConfirm = (!needsEntry || !!entry) && (!needsExit || !!exit) && !timesInverted;
 
@@ -388,7 +393,7 @@ function SessionCard({ session, confirmed, onConfirm }: SessionCardProps) {
       </div>
 
       {timesInverted && (
-        <p className="text-body-sm text-error mb-2">La entrada debe ser antes de la salida</p>
+        <p className="text-body-sm text-error mb-2">La entrada debe ser antes de la salida{crossMidnight ? '' : ' (mismo día)'}</p>
       )}
 
       <button
@@ -497,14 +502,25 @@ export default function VerificationScreen() {
   const handleSubmit = async () => {
     if (!uploadToken) return;
     try {
-      const sessionDateById = new Map(flaggedSessions.map(s => [s.sessionId, s.date]));
+      const sessionById = new Map(flaggedSessions.map(s => [s.sessionId, s]));
       const resolutions: TasResolution[] = [
-        ...Object.entries(resolvedSessions).map(([id, entry]) => {
-          const date = sessionDateById.get(Number(id)) ?? '';
+        ...Object.entries(resolvedSessions).map(([id, resolved]) => {
+          const session = sessionById.get(Number(id));
+          const date = session?.date ?? '';
+          const matchedShift = availableShifts.find(s => s.id === session?.matchedShiftId);
+          const isCrossMidnight = !!matchedShift?.crossMidnight;
+          const [eh] = resolved.resolvedStart.split(':').map(Number);
+          const [xh] = resolved.resolvedEnd.split(':').map(Number);
+          let endDate = date;
+          if (isCrossMidnight && xh < eh && date) {
+            const [y, m, day] = date.split('-').map(Number);
+            const nd = new Date(y, m - 1, day + 1);
+            endDate = `${nd.getFullYear()}-${String(nd.getMonth() + 1).padStart(2, '0')}-${String(nd.getDate()).padStart(2, '0')}`;
+          }
           return {
             sessionId: Number(id),
-            resolvedStart: `${date} ${entry.resolvedStart}`,
-            resolvedEnd:   `${date} ${entry.resolvedEnd}`,
+            resolvedStart: `${date} ${resolved.resolvedStart}`,
+            resolvedEnd:   `${endDate} ${resolved.resolvedEnd}`,
           };
         }),
         ...allShiftMismatchOnly.map(session => ({
@@ -602,17 +618,20 @@ export default function VerificationScreen() {
               >
                 {group.items.map(item => {
                   switch (item.type) {
-                    case 'session':
+                    case 'session': {
+                      const matchedShift = availableShifts.find(s => s.id === item.session.matchedShiftId);
                       return (
                         <SessionCard
                           key={item.session.sessionId}
                           session={item.session}
                           confirmed={!!resolvedSessions[item.session.sessionId]}
+                          crossMidnight={matchedShift?.crossMidnight ?? item.session.crossMidnight}
                           onConfirm={(resolvedStart, resolvedEnd) =>
                             setResolvedSession(item.session.sessionId, { resolvedStart, resolvedEnd })
                           }
                         />
                       );
+                    }
                     case 'shift_mismatch':
                       return (
                         <ShiftMismatchCard

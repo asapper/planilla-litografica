@@ -133,4 +133,31 @@ describe('ReviewListView submit', () => {
     fireEvent.click(screen.getByRole('button', { name: /enviar/i }));
     expect(onSubmit).toHaveBeenCalled();
   });
+
+  it('shows "Cambiar quincena" button when multiple periods available', () => {
+    useTasStore.getState().setAvailablePeriods([
+      { anio: 2026, mes: 7, numeroDequincena: 1 },
+      { anio: 2026, mes: 7, numeroDequincena: 2 },
+    ]);
+    render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} />);
+    expect(screen.getByText('Cambiar quincena')).toBeInTheDocument();
+  });
+
+  it('hides "Cambiar quincena" button when single period', () => {
+    useTasStore.getState().setAvailablePeriods([
+      { anio: 2026, mes: 7, numeroDequincena: 1 },
+    ]);
+    render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} />);
+    expect(screen.queryByText('Cambiar quincena')).not.toBeInTheDocument();
+  });
+
+  it('"Cambiar quincena" navigates to verification', () => {
+    useTasStore.getState().setAvailablePeriods([
+      { anio: 2026, mes: 7, numeroDequincena: 1 },
+      { anio: 2026, mes: 7, numeroDequincena: 2 },
+    ]);
+    render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} />);
+    fireEvent.click(screen.getByText('Cambiar quincena'));
+    expect(useTasStore.getState().tasView).toBe('verification');
+  });
 });

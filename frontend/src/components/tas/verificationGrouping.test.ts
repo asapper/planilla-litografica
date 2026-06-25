@@ -72,7 +72,7 @@ describe('buildEmployeeGroups', () => {
     expect(groups[0].pendingCount).toBe(1);
   });
 
-  it('shift-mismatch-only and same-day-double items never count toward pendingCount', () => {
+  it('shift-mismatch items never count toward pendingCount, unresolved same-day-double items do', () => {
     const mismatchSession = makeSession({
       sessionId: 3, employeeId: 'E3', employeeName: 'Carlos Ruiz',
       flags: ['SHIFT_MISMATCH'], date: '2026-03-07',
@@ -94,9 +94,29 @@ describe('buildEmployeeGroups', () => {
     const carlos = groups.find(g => g.employeeId === 'E3')!;
     const eva = groups.find(g => g.employeeId === 'E4')!;
     expect(carlos.pendingCount).toBe(0);
-    expect(eva.pendingCount).toBe(0);
+    expect(eva.pendingCount).toBe(1);
     expect(carlos.items).toEqual([{ type: 'shift_mismatch', session: mismatchSession, date: '2026-03-07' }]);
     expect(eva.items).toEqual([{ type: 'same_day_double', groupKey: 'E4|2026-03-08', sessions: [doubleA, doubleB], date: '2026-03-08' }]);
+  });
+
+  it('resolved same-day-double items do not count toward pendingCount', () => {
+    const doubleA = makeSession({
+      sessionId: 4, employeeId: 'E4', employeeName: 'Eva Díaz',
+      flags: ['SAME_DAY_DOUBLE'], date: '2026-03-08',
+    });
+    const doubleB = makeSession({
+      sessionId: 5, employeeId: 'E4', employeeName: 'Eva Díaz',
+      flags: ['SAME_DAY_DOUBLE'], date: '2026-03-08',
+    });
+    const groups = buildEmployeeGroups(
+      [],
+      [],
+      new Map([['E4|2026-03-08', [doubleA, doubleB]]]),
+      noResolved,
+      { 'E4|2026-03-08': 4 },
+    );
+    const eva = groups.find(g => g.employeeId === 'E4')!;
+    expect(eva.pendingCount).toBe(0);
   });
 
   it('orders pending groups before resolved groups, alphabetical within each bucket', () => {

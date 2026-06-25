@@ -86,7 +86,7 @@ class TasUploadServiceTest {
         when(holidayService.fetchForDateRange(any(), any())).thenReturn(true);
         when(sessionGrouper.group(any(), any(), any())).thenReturn(Collections.emptyList());
         when(reportBuilder.build(any(), any(), any(), any()))
-                .thenReturn(new TasReportBuilder.BuildResult(Collections.emptyList(), Collections.emptyMap()));
+                .thenReturn(new TasReportBuilder.BuildResult(Collections.emptyList()));
         when(registryService.getAbsentActiveEmployees(any())).thenReturn(Collections.emptyList());
 
         TasUploadResult result = service.process(dummyFile, Set.of("100"));
@@ -114,7 +114,7 @@ class TasUploadServiceTest {
         EmployeeRow row = new EmployeeRow();
         row.setCodigoEmpleado("100");
         when(reportBuilder.build(any(), any(), any(), any()))
-                .thenReturn(new TasReportBuilder.BuildResult(List.of(row), Collections.emptyMap()));
+                .thenReturn(new TasReportBuilder.BuildResult(List.of(row)));
         when(registryService.getAbsentActiveEmployees(any())).thenReturn(Collections.emptyList());
 
         TasUploadResult result = service.process(dummyFile, Collections.emptySet());
@@ -135,7 +135,7 @@ class TasUploadServiceTest {
         when(holidayService.fetchForDateRange(any(), any())).thenReturn(false);
         when(sessionGrouper.group(any(), any(), any())).thenReturn(Collections.emptyList());
         when(reportBuilder.build(any(), any(), any(), any()))
-                .thenReturn(new TasReportBuilder.BuildResult(Collections.emptyList(), Collections.emptyMap()));
+                .thenReturn(new TasReportBuilder.BuildResult(Collections.emptyList()));
         when(registryService.getAbsentActiveEmployees(any())).thenReturn(Collections.emptyList());
 
         TasUploadResult result = service.process(dummyFile, Collections.emptySet());
@@ -161,7 +161,7 @@ class TasUploadServiceTest {
         session.setFlags(Collections.emptyList());
         when(sessionGrouper.group(any(), any(), any())).thenReturn(List.of(session));
         when(reportBuilder.build(any(), any(), any(), any()))
-                .thenReturn(new TasReportBuilder.BuildResult(Collections.emptyList(), Collections.emptyMap()));
+                .thenReturn(new TasReportBuilder.BuildResult(Collections.emptyList()));
         when(registryService.getAbsentActiveEmployees(any())).thenReturn(Collections.emptyList());
 
         TasUploadResult result = service.processScans(scans, Collections.emptyList(), Collections.emptySet());
@@ -184,12 +184,83 @@ class TasUploadServiceTest {
         when(holidayService.fetchForDateRange(any(), any())).thenReturn(true);
         when(sessionGrouper.group(any(), any(), any())).thenReturn(Collections.emptyList());
         when(reportBuilder.build(any(), any(), any(), any()))
-                .thenReturn(new TasReportBuilder.BuildResult(Collections.emptyList(), Collections.emptyMap()));
+                .thenReturn(new TasReportBuilder.BuildResult(Collections.emptyList()));
         when(registryService.getAbsentActiveEmployees(any())).thenReturn(Collections.emptyList());
 
         service.process(dummyFile, Collections.emptySet());
 
         verify(registryService).upsertEmployee("100", "Employee 100");
         verify(registryService).upsertEmployee("200", "Employee 200");
+    }
+
+    @Test
+    void process_upsertDeduplicatedPerEmployee() throws Exception {
+        List<TasScanRecord> scans = List.of(
+            scan("100", "2026-03-10T07:00"),
+            scan("100", "2026-03-10T15:00"),
+            scan("100", "2026-03-11T07:00")
+        );
+        when(parserService.parse(any())).thenReturn(new TasParserService.ParseResult(scans, List.of()));
+        when(registryService.getInactiveEmployeesPresent(any())).thenReturn(Collections.emptyList());
+        when(registryService.getAll(any(), any(), any())).thenReturn(Collections.emptyList());
+        when(shiftConfigService.getAllShifts()).thenReturn(shifts);
+        when(holidayService.fetchForDateRange(any(), any())).thenReturn(true);
+        when(sessionGrouper.group(any(), any(), any())).thenReturn(Collections.emptyList());
+        when(reportBuilder.build(any(), any(), any(), any()))
+                .thenReturn(new TasReportBuilder.BuildResult(Collections.emptyList()));
+        when(registryService.getAbsentActiveEmployees(any())).thenReturn(Collections.emptyList());
+
+        service.process(dummyFile, Collections.emptySet());
+
+        verify(registryService, times(1)).upsertEmployee("100", "Employee 100");
+    }
+
+    @Test
+    void process_consistentShiftMismatch_autoResolvesAndRecomputes() throws Exception {
+        List<TasScanRecord> scans = List.of(
+            scan("100", "2026-03-10T14:55"),
+            scan("100", "2026-03-10T23:00"),
+            scan("100", "2026-03-11T14:50"),
+            scan("100", "2026-03-11T23:05")
+        );
+        when(parserService.parse(any())).thenReturn(new TasParserService.ParseResult(scans, List.of()));
+        when(registryService.getInactiveEmployeesPresent(any())).thenReturn(Collections.emptyList());
+        when(registryService.getAll(any(), any(), any())).thenReturn(Collections.emptyList());
+        when(shiftConfigService.getAllShifts()).thenReturn(shifts);
+        when(holidayService.fetchForDateRange(any(), any())).thenReturn(true);
+
+        TasSession s1 = new TasSession();
+        s1.setEmployeeId("100");
+        s1.setDate(LocalDate.of(2026, 3, 10));
+        s1.setMatchedShiftId("tarde");
+        s1.setMatchedShiftName("Tarde");
+        s1.setAssignedShiftId("manana");
+        s1.setAssignedShiftName("Manana");
+        s1.setFlags(new ArrayList<>(List.of(TasFlag.SHIFT_MISMATCH)));
+        s1.setNeedsResolution(true);
+
+        TasSession s2 = new TasSession();
+        s2.setEmployeeId("100");
+        s2.setDate(LocalDate.of(2026, 3, 11));
+        s2.setMatchedShiftId("tarde");
+        s2.setMatchedShiftName("Tarde");
+        s2.setAssignedShiftId("manana");
+        s2.setAssignedShiftName("Manana");
+        s2.setFlags(new ArrayList<>(List.of(TasFlag.SHIFT_MISMATCH)));
+        s2.setNeedsResolution(true);
+
+        when(sessionGrouper.group(any(), any(), any())).thenReturn(new ArrayList<>(List.of(s1, s2)));
+        when(reportBuilder.build(any(), any(), any(), any()))
+                .thenReturn(new TasReportBuilder.BuildResult(Collections.emptyList()));
+        when(registryService.getAbsentActiveEmployees(any())).thenReturn(Collections.emptyList());
+
+        TasUploadResult result = service.process(dummyFile, Collections.emptySet());
+
+        assertThat(s1.isNeedsResolution()).isFalse();
+        assertThat(s1.getFlags()).isEmpty();
+        assertThat(s1.getAssignedShiftId()).isEqualTo("tarde");
+        assertThat(s2.isNeedsResolution()).isFalse();
+        assertThat(result.getFlaggedSessions()).isEmpty();
+        verify(hoursCalculator, times(2)).recompute(any(), any());
     }
 }

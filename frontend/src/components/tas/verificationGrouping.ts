@@ -46,17 +46,18 @@ export function buildEmployeeGroups(
     const first = sessions[0];
     const group = getGroup(first.employeeId, first.employeeName);
     group.items.push({ type: 'same_day_double', groupKey, sessions, date: first.date });
+    if (sameDayDoubleResolutions[groupKey] === undefined) group.pendingCount += 1;
   }
 
   for (const group of groups.values()) {
     group.items.sort((a, b) => {
       const aPending =
         a.type === 'session' ? !resolvedSessions[a.session.sessionId] :
-        a.type === 'same_day_double' ? !sameDayDoubleResolutions[a.groupKey] :
+        a.type === 'same_day_double' ? sameDayDoubleResolutions[a.groupKey] === undefined :
         false;
       const bPending =
         b.type === 'session' ? !resolvedSessions[b.session.sessionId] :
-        b.type === 'same_day_double' ? !sameDayDoubleResolutions[b.groupKey] :
+        b.type === 'same_day_double' ? sameDayDoubleResolutions[b.groupKey] === undefined :
         false;
       if (aPending !== bPending) return aPending ? -1 : 1;
       return a.date.localeCompare(b.date);
