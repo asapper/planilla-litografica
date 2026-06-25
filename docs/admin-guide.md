@@ -44,7 +44,7 @@ To change any value you must rebuild and redeploy the application. There is no e
 | `socketTimeout` (JDBC) | `30` s | Per-socket read timeout |
 | `h2.datasource.url` | `jdbc:h2:file:${user.home}/.planilla/data/planilla-log` | Local H2 database path |
 | `holiday.api.url` | `https://date.nager.at/api/v3/PublicHolidays/{year}/GT` | Public holiday API |
-| `holiday.api.timeout-seconds` | `3` | Timeout for holiday API requests |
+| `holiday.api.timeout-seconds` | `5` | Timeout for holiday API requests |
 | `logging.file.name` | `logs/planilla.log` | Log file location (relative to working dir) |
 
 **Credentials** are injected at build time from GitHub repository secrets (`POSTGRES_DB_USERNAME`, `POSTGRES_DB_PASSWORD`). To rotate credentials: update the secrets in GitHub → Actions → Secrets, then trigger a new release build.
@@ -59,8 +59,8 @@ The app calls a single stored procedure on the remote database:
 SELECT public.carga_datos_empleados(
     codigo_empleado  ::varchar,
     dias_no_laborados::integer,
-    horas_extras_simples::numeric,
-    horas_extras_dobles ::numeric,
+    horas_extras_simples::integer,
+    horas_extras_dobles ::integer,
     numero_de_quincena  ::integer,
     mes                 ::integer,
     anio                ::integer
@@ -155,7 +155,7 @@ Work sessions on holiday dates are flagged as `HOLIDAY` and all worked hours are
 | Setting | Default | Purpose |
 |---------|---------|---------|
 | Tiempo de descanso no deducible | 45 min | Legal break allowance not deducted from worked hours (15 min snack + 30 min lunch) |
-| Duración máxima de jornada | 14 h | Maximum time between entry and exit scans considered a single session. Gaps exceeding this create two separate sessions. |
+| Duración máxima de jornada | 14 h (code default; saved to DB only after first save) | Maximum time between entry and exit scans considered a single session. Gaps exceeding this create two separate sessions. |
 
 Changes on this tab take effect starting with the next CSV upload.
 
