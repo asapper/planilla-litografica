@@ -522,6 +522,46 @@ describe('overtimeOverrides', () => {
 });
 
 // -----------------------------------------------------------------
+// diasNoLaboradosOverrides
+// -----------------------------------------------------------------
+
+describe('diasNoLaboradosOverrides', () => {
+  it('starts empty', () => {
+    expect(useTasStore.getState().diasNoLaboradosOverrides).toEqual({});
+  });
+
+  it('setDiasNoLaboradosOverride stores value for employee', () => {
+    useTasStore.getState().setDiasNoLaboradosOverride('E1', 3);
+    expect(useTasStore.getState().diasNoLaboradosOverrides).toEqual({ E1: 3 });
+  });
+
+  it('setDiasNoLaboradosOverride overwrites previous value', () => {
+    useTasStore.getState().setDiasNoLaboradosOverride('E1', 3);
+    useTasStore.getState().setDiasNoLaboradosOverride('E1', 5);
+    expect(useTasStore.getState().diasNoLaboradosOverrides).toEqual({ E1: 5 });
+  });
+
+  it('setDiasNoLaboradosOverride keeps other employees untouched', () => {
+    useTasStore.getState().setDiasNoLaboradosOverride('E1', 2);
+    useTasStore.getState().setDiasNoLaboradosOverride('E2', 4);
+    expect(useTasStore.getState().diasNoLaboradosOverrides.E1).toBe(2);
+    expect(useTasStore.getState().diasNoLaboradosOverrides.E2).toBe(4);
+  });
+
+  it('clearDiasNoLaboradosOverrides resets to empty', () => {
+    useTasStore.getState().setDiasNoLaboradosOverride('E1', 2);
+    useTasStore.getState().clearDiasNoLaboradosOverrides();
+    expect(useTasStore.getState().diasNoLaboradosOverrides).toEqual({});
+  });
+
+  it('resetTas clears diasNoLaboradosOverrides', () => {
+    useTasStore.getState().setDiasNoLaboradosOverride('E1', 2);
+    useTasStore.getState().resetTas();
+    expect(useTasStore.getState().diasNoLaboradosOverrides).toEqual({});
+  });
+});
+
+// -----------------------------------------------------------------
 // resetTas
 // -----------------------------------------------------------------
 

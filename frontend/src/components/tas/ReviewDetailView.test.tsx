@@ -132,38 +132,80 @@ describe('ReviewDetailView scan expansion', () => {
   });
 });
 
+describe('ReviewDetailView días no laborados adjustment', () => {
+  it('renders días no laborados input with computed value', () => {
+    render(<ReviewDetailView onBack={onBack} />);
+    const inputs = screen.getAllByRole('spinbutton');
+    expect(inputs).toHaveLength(3);
+    expect(inputs[0]).toHaveValue(0);
+  });
+
+  it('updates store when días no laborados is changed', () => {
+    render(<ReviewDetailView onBack={onBack} />);
+    const inputs = screen.getAllByRole('spinbutton');
+    fireEvent.change(inputs[0], { target: { value: '3' } });
+    expect(useTasStore.getState().diasNoLaboradosOverrides).toEqual({ E1: 3 });
+  });
+
+  it('shows computed label for días no laborados', () => {
+    render(<ReviewDetailView onBack={onBack} />);
+    expect(screen.getAllByText(/calculado: 0/).length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('clamps negative días no laborados to 0', () => {
+    render(<ReviewDetailView onBack={onBack} />);
+    const inputs = screen.getAllByRole('spinbutton');
+    fireEvent.change(inputs[0], { target: { value: '-2' } });
+    expect(useTasStore.getState().diasNoLaboradosOverrides).toEqual({ E1: 0 });
+  });
+
+  it('clamps NaN días no laborados to 0', () => {
+    render(<ReviewDetailView onBack={onBack} />);
+    const inputs = screen.getAllByRole('spinbutton');
+    fireEvent.change(inputs[0], { target: { value: 'abc' } });
+    expect(useTasStore.getState().diasNoLaboradosOverrides).toEqual({ E1: 0 });
+  });
+
+  it('shows override value when set', () => {
+    useTasStore.getState().setDiasNoLaboradosOverride('E1', 4);
+    render(<ReviewDetailView onBack={onBack} />);
+    const inputs = screen.getAllByRole('spinbutton');
+    expect(inputs[0]).toHaveValue(4);
+  });
+});
+
 describe('ReviewDetailView overtime adjustment', () => {
   it('renders overtime inputs with computed values', () => {
     render(<ReviewDetailView onBack={onBack} />);
     const inputs = screen.getAllByRole('spinbutton');
-    expect(inputs).toHaveLength(2);
-    expect(inputs[0]).toHaveValue(2);
-    expect(inputs[1]).toHaveValue(0);
+    expect(inputs).toHaveLength(3);
+    expect(inputs[1]).toHaveValue(2);
+    expect(inputs[2]).toHaveValue(0);
   });
 
   it('updates store when overtime is changed', () => {
     render(<ReviewDetailView onBack={onBack} />);
     const inputs = screen.getAllByRole('spinbutton');
-    fireEvent.change(inputs[0], { target: { value: '5' } });
+    fireEvent.change(inputs[1], { target: { value: '5' } });
     expect(useTasStore.getState().overtimeOverrides).toEqual({ E1: { horasExtrasSimples: 5 } });
   });
 
-  it('shows computed label next to input', () => {
+  it('shows computed label next to overtime input', () => {
     render(<ReviewDetailView onBack={onBack} />);
     expect(screen.getByText(/calculado: 2/)).toBeInTheDocument();
   });
 
-  it('clamps negative values to 0', () => {
+  it('clamps negative overtime values to 0', () => {
     render(<ReviewDetailView onBack={onBack} />);
     const inputs = screen.getAllByRole('spinbutton');
-    fireEvent.change(inputs[0], { target: { value: '-3' } });
+    fireEvent.change(inputs[1], { target: { value: '-3' } });
     expect(useTasStore.getState().overtimeOverrides).toEqual({ E1: { horasExtrasSimples: 0 } });
   });
 
-  it('clamps NaN values to 0', () => {
+  it('clamps NaN overtime values to 0', () => {
     render(<ReviewDetailView onBack={onBack} />);
     const inputs = screen.getAllByRole('spinbutton');
-    fireEvent.change(inputs[0], { target: { value: 'abc' } });
+    fireEvent.change(inputs[1], { target: { value: 'abc' } });
     expect(useTasStore.getState().overtimeOverrides).toEqual({ E1: { horasExtrasSimples: 0 } });
   });
 });

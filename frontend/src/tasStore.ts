@@ -30,6 +30,7 @@ interface TasStore {
   sessionSummaries: Record<string, SessionSummary[]>;
   overtimeOverrides: Record<string, { horasExtrasSimples?: number; horasExtrasDobles?: number }>;
   stashedOvertimeOverrides: Record<string, { horasExtrasSimples?: number; horasExtrasDobles?: number }>;
+  diasNoLaboradosOverrides: Record<string, number>;
   duplicateCodes: string[];
   duplicatesLoading: boolean;
   reviewSelectedEmployee: string | null;
@@ -64,6 +65,8 @@ interface TasStore {
   setSessionSummaries: (summaries: Record<string, SessionSummary[]>) => void;
   setOvertimeOverride: (codigoEmpleado: string, field: 'horasExtrasSimples' | 'horasExtrasDobles', value: number) => void;
   clearOvertimeOverrides: () => void;
+  setDiasNoLaboradosOverride: (codigoEmpleado: string, value: number) => void;
+  clearDiasNoLaboradosOverrides: () => void;
   stashOvertimeOverrides: (codigoEmpleado: string) => void;
   restoreOvertimeOverrides: (codigoEmpleado: string) => void;
   setDuplicateCodes: (codes: string[]) => void;
@@ -102,6 +105,7 @@ const initialState = {
   sessionSummaries: {} as Record<string, SessionSummary[]>,
   overtimeOverrides: {} as Record<string, { horasExtrasSimples?: number; horasExtrasDobles?: number }>,
   stashedOvertimeOverrides: {} as Record<string, { horasExtrasSimples?: number; horasExtrasDobles?: number }>,
+  diasNoLaboradosOverrides: {} as Record<string, number>,
   duplicateCodes: [] as string[],
   duplicatesLoading: false,
   reviewSelectedEmployee: null,
@@ -162,6 +166,10 @@ export const useTasStore = create<TasStore>(set => ({
     },
   })),
   clearOvertimeOverrides: () => set({ overtimeOverrides: {} }),
+  setDiasNoLaboradosOverride: (codigoEmpleado, value) => set(s => ({
+    diasNoLaboradosOverrides: { ...s.diasNoLaboradosOverrides, [codigoEmpleado]: value },
+  })),
+  clearDiasNoLaboradosOverrides: () => set({ diasNoLaboradosOverrides: {} }),
   stashOvertimeOverrides: (codigoEmpleado) => set(s => {
     const current = s.overtimeOverrides[codigoEmpleado];
     if (!current) return s;

@@ -35,6 +35,8 @@ export default function ReviewDetailView({ onBack }: ReviewDetailViewProps) {
   const setSelectedEmployee = useTasStore(s => s.setReviewSelectedEmployee);
   const overtimeOverrides = useTasStore(s => s.overtimeOverrides);
   const setOvertimeOverride = useTasStore(s => s.setOvertimeOverride);
+  const diasNoLaboradosOverrides = useTasStore(s => s.diasNoLaboradosOverrides);
+  const setDiasNoLaboradosOverride = useTasStore(s => s.setDiasNoLaboradosOverride);
   const stashOvertimeOverrides = useTasStore(s => s.stashOvertimeOverrides);
   const restoreOvertimeOverrides = useTasStore(s => s.restoreOvertimeOverrides);
   const expandedScans = useTasStore(s => s.reviewExpandedScans);
@@ -118,6 +120,13 @@ export default function ReviewDetailView({ onBack }: ReviewDetailViewProps) {
   const override = overtimeOverrides[row.codigoEmpleado];
   const simplesValue = override?.horasExtrasSimples ?? row.horasExtrasSimples;
   const doblesValue = override?.horasExtrasDobles ?? row.horasExtrasDobles;
+  const diasOverride = diasNoLaboradosOverrides[row.codigoEmpleado];
+  const diasValue = diasOverride ?? row.diasNoLaborados;
+
+  const handleDiasNoLaboradosChange = (raw: string) => {
+    const parsed = parseInt(raw, 10);
+    setDiasNoLaboradosOverride(row.codigoEmpleado, Number.isNaN(parsed) || parsed < 0 ? 0 : parsed);
+  };
 
   const navigate = (direction: 'prev' | 'next') => {
     clearAllScansExpanded();
@@ -286,8 +295,26 @@ export default function ReviewDetailView({ onBack }: ReviewDetailViewProps) {
 
           <div className="w-60 flex-shrink-0 space-y-4">
             <div className="border border-outline-variant rounded-shape-md p-4 bg-surface-container-lowest">
-              <h4 className="text-label-lg text-on-surface font-medium mb-3">Ajuste de horas extra</h4>
+              <h4 className="text-label-lg text-on-surface font-medium mb-3">Ajustes manuales</h4>
               <div className="space-y-3">
+                <div>
+                  <label className="text-label-sm text-on-surface-variant block mb-1">
+                    Días no laborados
+                    <span className="text-label-sm text-on-surface-variant/60 ml-1">calculado: {row.diasNoLaborados}</span>
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={diasValue}
+                    onChange={e => handleDiasNoLaboradosChange(e.target.value)}
+                    className={`w-full text-right text-body-md border rounded-shape-sm px-3 py-1.5 focus:outline-none focus:border-primary transition-colors ${
+                      diasOverride !== undefined
+                        ? 'bg-warning-container/40 border-warning font-medium'
+                        : 'bg-surface-container-lowest border-outline-variant'
+                    }`}
+                  />
+                </div>
                 <div>
                   <label className="text-label-sm text-on-surface-variant block mb-1">
                     Extras simples
@@ -345,9 +372,6 @@ export default function ReviewDetailView({ onBack }: ReviewDetailViewProps) {
                     row.accruesOvertime ? 'translate-x-4' : 'translate-x-1'
                   }`} />
                 </button>
-              </div>
-              <div className="mt-2 text-body-sm text-on-surface-variant">
-                Días no laborados: {row.diasNoLaborados}
               </div>
             </div>
 

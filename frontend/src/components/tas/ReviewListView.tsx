@@ -27,6 +27,7 @@ function sortRows(rows: ResolvedRow[], column: 'name' | 'code', direction: 'asc'
 export default function ReviewListView({ dbHealthy, onSubmit }: ReviewListViewProps) {
   const resolvedRows = useTasStore(s => s.resolvedRows);
   const overtimeOverrides = useTasStore(s => s.overtimeOverrides);
+  const diasNoLaboradosOverrides = useTasStore(s => s.diasNoLaboradosOverrides);
   const duplicateCodes = useTasStore(s => s.duplicateCodes);
   const duplicatesLoading = useTasStore(s => s.duplicatesLoading);
   const sortColumn = useTasStore(s => s.reviewSortColumn);
@@ -36,6 +37,7 @@ export default function ReviewListView({ dbHealthy, onSubmit }: ReviewListViewPr
   const setReviewSort = useTasStore(s => s.setReviewSort);
   const setReviewActiveFilter = useTasStore(s => s.setReviewActiveFilter);
   const setOvertimeOverride = useTasStore(s => s.setOvertimeOverride);
+  const setDiasNoLaboradosOverride = useTasStore(s => s.setDiasNoLaboradosOverride);
   const stashOvertimeOverrides = useTasStore(s => s.stashOvertimeOverrides);
   const restoreOvertimeOverrides = useTasStore(s => s.restoreOvertimeOverrides);
   const setResolvedRows = useTasStore(s => s.setResolvedRows);
@@ -53,7 +55,7 @@ export default function ReviewListView({ dbHealthy, onSubmit }: ReviewListViewPr
 
   const estimatedCount = resolvedRows.filter(r => r.diasTurnoEstimado > 0).length;
   const duplicateCount = duplicateCodes.length;
-  const adjustedCount = Object.keys(overtimeOverrides).length;
+  const adjustedCount = new Set([...Object.keys(overtimeOverrides), ...Object.keys(diasNoLaboradosOverrides)]).size;
 
   const chips: { key: FilterType; label: string; count: number; warn: boolean }[] = [
     { key: 'all', label: 'Todos', count: resolvedRows.length, warn: false },
@@ -65,7 +67,7 @@ export default function ReviewListView({ dbHealthy, onSubmit }: ReviewListViewPr
   let filtered = resolvedRows;
   if (activeFilter === 'estimated') filtered = resolvedRows.filter(r => r.diasTurnoEstimado > 0);
   else if (activeFilter === 'duplicate') filtered = resolvedRows.filter(r => duplicateSet.has(r.codigoEmpleado));
-  else if (activeFilter === 'adjusted') filtered = resolvedRows.filter(r => overtimeOverrides[r.codigoEmpleado] !== undefined);
+  else if (activeFilter === 'adjusted') filtered = resolvedRows.filter(r => overtimeOverrides[r.codigoEmpleado] !== undefined || diasNoLaboradosOverrides[r.codigoEmpleado] !== undefined);
 
   if (search.trim()) {
     filtered = filtered.filter(r =>
@@ -191,12 +193,12 @@ export default function ReviewListView({ dbHealthy, onSubmit }: ReviewListViewPr
 
         <table className="w-full border-collapse table-fixed" aria-hidden="true">
           <colgroup>
-            <col style={{ width: '40%' }} />
+            <col style={{ width: '38%' }} />
             <col style={{ width: '9%' }} />
-            <col style={{ width: '9%' }} />
-            <col style={{ width: '15%' }} />
-            <col style={{ width: '15%' }} />
             <col style={{ width: '12%' }} />
+            <col style={{ width: '14%' }} />
+            <col style={{ width: '14%' }} />
+            <col style={{ width: '13%' }} />
           </colgroup>
           <thead>
             <tr className="border-b border-outline-variant bg-surface-container-lowest">
@@ -224,12 +226,12 @@ export default function ReviewListView({ dbHealthy, onSubmit }: ReviewListViewPr
       <div className="flex-1">
         <table className="w-full border-collapse table-fixed">
           <colgroup>
-            <col style={{ width: '40%' }} />
+            <col style={{ width: '38%' }} />
             <col style={{ width: '9%' }} />
-            <col style={{ width: '9%' }} />
-            <col style={{ width: '15%' }} />
-            <col style={{ width: '15%' }} />
             <col style={{ width: '12%' }} />
+            <col style={{ width: '14%' }} />
+            <col style={{ width: '14%' }} />
+            <col style={{ width: '13%' }} />
           </colgroup>
           <tbody>
             {sorted.length === 0 && search.trim() && (
@@ -244,6 +246,8 @@ export default function ReviewListView({ dbHealthy, onSubmit }: ReviewListViewPr
               const override = overtimeOverrides[row.codigoEmpleado];
               const simplesOverride = override?.horasExtrasSimples;
               const doblesOverride = override?.horasExtrasDobles;
+              const diasOverride = diasNoLaboradosOverrides[row.codigoEmpleado];
+              const isAdjusted = override !== undefined || diasOverride !== undefined;
 
               return (
                 <tr
@@ -268,15 +272,36 @@ export default function ReviewListView({ dbHealthy, onSubmit }: ReviewListViewPr
                         ⚠ Duplicado
                       </span>
                     )}
-                    {override !== undefined && (
+                    {isAdjusted && (
                       <span className="ml-2 text-label-sm px-2 py-0.5 rounded-full bg-tertiary-container text-on-tertiary-container">
                         ✎ ajustado
                       </span>
                     )}
                   </td>
                   <td className="py-3 px-4 text-body-md text-on-surface-variant text-right">{row.codigoEmpleado}</td>
-                  <td className="py-3 px-4 text-body-md text-on-surface-variant text-right">
-                    {isDuplicate ? '—' : row.diasNoLaborados}
+                  <td className="py-3 px-4 text-body-md text-right">
+                    {isDuplicate ? '—' : (
+                      <div className="flex items-center justify-end gap-1">
+                        <input
+                          type="number"
+                          min={0}
+                          step={1}
+                          value={diasOverride ?? row.diasNoLaborados}
+                          onChange={e => {
+                            const parsed = parseInt(e.target.value, 10);
+                            setDiasNoLaboradosOverride(row.codigoEmpleado, Number.isNaN(parsed) || parsed < 0 ? 0 : parsed);
+                          }}
+                          onClick={e => e.stopPropagation()}
+                          aria-label={`Días no laborados ${row.nombreEmpleado}`}
+                          className={`w-14 text-right border rounded-shape-sm px-1.5 py-0.5 text-body-sm focus:outline-none focus:border-primary ${
+                            diasOverride !== undefined ? 'border-primary text-primary font-medium' : 'border-outline-variant text-on-surface-variant'
+                          }`}
+                        />
+                        {diasOverride !== undefined && (
+                          <span className="text-label-sm text-on-surface-variant">(era {row.diasNoLaborados})</span>
+                        )}
+                      </div>
+                    )}
                   </td>
                   <td className="py-3 px-4 text-body-md text-right">
                     {isDuplicate ? '—' : (

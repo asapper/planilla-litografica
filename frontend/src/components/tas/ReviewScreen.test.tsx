@@ -98,7 +98,7 @@ describe('ReviewScreen submit', () => {
     fireEvent.click(screen.getByRole('button', { name: /enviar/i }));
 
     await waitFor(() => expect(useTasStore.getState().tasView).toBe('polling'));
-    expect(mockSubmitTas).toHaveBeenCalledWith('tok-1', {});
+    expect(mockSubmitTas).toHaveBeenCalledWith('tok-1', {}, {});
     expect(useTasStore.getState().jobId).toBe('job-final');
   });
 
@@ -138,7 +138,7 @@ describe('ReviewScreen submit', () => {
 
     await waitFor(() => expect(mockSubmitTas).toHaveBeenCalledWith('tok-1', {
       E1: { horasExtrasSimples: 10 },
-    }));
+    }, {}));
   });
 
   it('does not send stashed overrides in submit payload', async () => {
@@ -152,7 +152,20 @@ describe('ReviewScreen submit', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: /enviar/i })).not.toBeDisabled());
     fireEvent.click(screen.getByRole('button', { name: /enviar/i }));
 
-    await waitFor(() => expect(mockSubmitTas).toHaveBeenCalledWith('tok-1', {}));
+    await waitFor(() => expect(mockSubmitTas).toHaveBeenCalledWith('tok-1', {}, {}));
+  });
+
+  it('sends diasNoLaborados overrides in submit payload', async () => {
+    useTasStore.getState().setUploadToken('tok-1');
+    useTasStore.getState().setResolvedRows(rows);
+    useTasStore.getState().setDiasNoLaboradosOverride('E1', 3);
+    mockSubmitTas.mockResolvedValue({ jobId: 'job-dias' });
+
+    render(<ReviewScreen />);
+    await waitFor(() => expect(screen.getByRole('button', { name: /enviar/i })).not.toBeDisabled());
+    fireEvent.click(screen.getByRole('button', { name: /enviar/i }));
+
+    await waitFor(() => expect(mockSubmitTas).toHaveBeenCalledWith('tok-1', {}, { E1: 3 }));
   });
 });
 
@@ -309,7 +322,21 @@ describe('ReviewScreen duplicate detection', () => {
 
     await waitFor(() => expect(mockSubmitTas).toHaveBeenCalledWith('tok-1', {
       E2: { horasExtrasDobles: 5 },
-    }));
+    }, {}));
+  });
+
+  it('excludes duplicate employee codes from diasNoLaborados submit payload', async () => {
+    mockCheckDuplicates.mockResolvedValue(['E1']);
+    useTasStore.getState().setDiasNoLaboradosOverride('E1', 2);
+    useTasStore.getState().setDiasNoLaboradosOverride('E2', 4);
+    mockSubmitTas.mockResolvedValue({ jobId: 'job-dup-dias' });
+
+    render(<ReviewScreen />);
+    await waitFor(() => expect(mockCheckDuplicates).toHaveBeenCalled());
+    await waitFor(() => expect(screen.getByRole('button', { name: /enviar/i })).not.toBeDisabled());
+    fireEvent.click(screen.getByRole('button', { name: /enviar/i }));
+
+    await waitFor(() => expect(mockSubmitTas).toHaveBeenCalledWith('tok-1', {}, { E2: 4 }));
   });
 
   it('shows error toast when checkDuplicates fails', async () => {

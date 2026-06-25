@@ -84,6 +84,46 @@ describe('ReviewListView row click', () => {
   });
 });
 
+describe('ReviewListView días no laborados editing', () => {
+  it('renders editable días no laborados input', () => {
+    render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} />);
+    expect(screen.getByLabelText('Días no laborados Ana López')).toBeInTheDocument();
+  });
+
+  it('pre-populates input with computed value', () => {
+    render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} />);
+    const input = screen.getByLabelText('Días no laborados Ana López') as HTMLInputElement;
+    expect(input.value).toBe('0');
+  });
+
+  it('updates store when días no laborados input changes', () => {
+    render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} />);
+    const input = screen.getByLabelText('Días no laborados Ana López') as HTMLInputElement;
+    fireEvent.change(input, { target: { value: '3' } });
+    expect(useTasStore.getState().diasNoLaboradosOverrides['E1']).toBe(3);
+  });
+
+  it('shows override annotation when días no laborados overridden', () => {
+    useTasStore.getState().setDiasNoLaboradosOverride('E1', 3);
+    render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} />);
+    expect(screen.getByText(/era 0/)).toBeInTheDocument();
+  });
+
+  it('uses override value in input when set', () => {
+    useTasStore.getState().setDiasNoLaboradosOverride('E1', 5);
+    render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} />);
+    const input = screen.getByLabelText('Días no laborados Ana López') as HTMLInputElement;
+    expect(input.value).toBe('5');
+  });
+
+  it('does not navigate when clicking días no laborados input', () => {
+    render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} />);
+    const input = screen.getByLabelText('Días no laborados Ana López');
+    fireEvent.click(input);
+    expect(useTasStore.getState().reviewSelectedEmployee).toBeNull();
+  });
+});
+
 describe('ReviewListView overtime editing', () => {
   it('renders editable overtime inputs', () => {
     render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} />);
@@ -109,6 +149,45 @@ describe('ReviewListView overtime editing', () => {
     const input = screen.getByLabelText('Extras simples Ana López');
     fireEvent.click(input);
     expect(useTasStore.getState().reviewSelectedEmployee).toBeNull();
+  });
+});
+
+describe('ReviewListView adjusted chip and badge', () => {
+  it('counts overtime-only override in adjusted chip', () => {
+    useTasStore.getState().setOvertimeOverride('E1', 'horasExtrasSimples', 5);
+    render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} />);
+    const chip = screen.getByText('Ajustados').closest('button')!;
+    expect(chip.textContent).toContain('1');
+  });
+
+  it('counts diasNoLaborados-only override in adjusted chip', () => {
+    useTasStore.getState().setDiasNoLaboradosOverride('E2', 3);
+    render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} />);
+    const chip = screen.getByText('Ajustados').closest('button')!;
+    expect(chip.textContent).toContain('1');
+  });
+
+  it('counts employee with both override types only once in adjusted chip', () => {
+    useTasStore.getState().setOvertimeOverride('E1', 'horasExtrasSimples', 5);
+    useTasStore.getState().setDiasNoLaboradosOverride('E1', 3);
+    render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} />);
+    const chip = screen.getByText('Ajustados').closest('button')!;
+    expect(chip.textContent).toContain('1');
+  });
+
+  it('shows ajustado badge when only diasNoLaborados is overridden', () => {
+    useTasStore.getState().setDiasNoLaboradosOverride('E1', 3);
+    render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} />);
+    const badges = screen.getAllByText(/ajustado/i);
+    expect(badges.some(el => el.tagName === 'SPAN')).toBe(true);
+  });
+
+  it('adjusted filter includes rows with diasNoLaborados-only override', () => {
+    useTasStore.getState().setDiasNoLaboradosOverride('E2', 3);
+    useTasStore.getState().setReviewActiveFilter('adjusted');
+    render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} />);
+    expect(screen.getByText('Luis García')).toBeInTheDocument();
+    expect(screen.queryByText('Ana López')).not.toBeInTheDocument();
   });
 });
 
