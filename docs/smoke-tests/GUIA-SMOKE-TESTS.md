@@ -201,8 +201,8 @@ Las sesiones se anclan en la fecha de **entrada**. Cada sesión cruza medianoche
 
 **Jul 2:** Solo scan 15:05. ¿Cómo se agrupa?
 - 15:05 cae en ventana de Tarde [14:00, 15:10] → abre sesión como Tarde con SHIFT_MISMATCH (asignado=Mañana, matched=Tarde)
-- Solo 1 scan, es impar → `detectMissingScanType`: distancia al start de Mañana (07:00) = |905-420| = 485; distancia al end de Mañana (15:00) = |905-900| = 5. Más cerca del end → **MISSING_ENTRY**
-- Flags: **SHIFT_MISMATCH**, **MISSING_ENTRY** → `needsResolution=true`
+- Solo 1 scan, es impar → `detectMissingScanType` usa **turno matcheado** (Tarde 15:00-23:00): distancia al start de Tarde (15:00) = |905-900| = 5; distancia al end de Tarde (23:00) = |905-1380| = 475. Más cerca del start → **MISSING_EXIT**
+- Flags: **SHIFT_MISMATCH**, **MISSING_EXIT** → `needsResolution=true`
 
 **Jul 3:** Solo scan 07:02.
 - 07:02 cae en ventana de Mañana [06:00, 07:10] → abre sesión como Mañana
@@ -226,7 +226,7 @@ Las sesiones se anclan en la fecha de **entrada**. Cada sesión cruza medianoche
 
 ### UI esperada en verificación
 - 3 filas en la lista de sesiones flaggeadas
-- Jul 2: flags "SHIFT_MISMATCH" + "MISSING_ENTRY" → necesita resolución manual
+- Jul 2: flags "SHIFT_MISMATCH" + "MISSING_EXIT" → necesita resolución manual
 - Jul 3: flag "MISSING_EXIT" → necesita resolución
 - Jul 4: flag "MISSING_EXIT" → necesita resolución
 - Cada fila debe tener controles para resolver (reasignar turno, agregar scan manual, o ignorar)
@@ -574,7 +574,7 @@ Todas las sesiones son normales (07:00-15:00), no hay flags.
 **Turno asignado:** Noche (si pre-configurado)
 
 ### Flujo esperado
-- **Si empleado tiene turno Noche:** START_CUTOFF en Jul 1 + END_CUTOFF en Jul 15 → **verificación** con 2 flags.
+- **Si empleado tiene turno Noche:** START_CUTOFF en Jul 1 → **verificación** con 1 flag.
 - **Si empleado creado con turno Mañana (default):** todas las sesiones son SHIFT_MISMATCH puro → Noche → **auto-resolve → directo a revisión**. No hay START_CUTOFF porque crossMidnight proviene del turno asignado (Mañana=false).
 
 ### Análisis
@@ -588,15 +588,15 @@ Todas las sesiones se anclan en Q1 (Jul 1, Jul 2, Jul 15). El scan de Jul 16 07:
 - Normal ✓
 
 **Session 3 (Jul 15):** 19:00 → Jul 16 07:00 = 720 min, 12.0h
-- session.date = Jul 15, reportEnd (Q1) = Jul 15, isCrossMidnight → **END_CUTOFF** → needsResolution=true
+- session.date = Jul 15, pero reportEnd = Jul 16 (fecha max de scans, no límite de quincena) → **no END_CUTOFF**
 - La salida (Jul 16 07:00) está en Q2 pero la sesión se ancla en Jul 15 (Q1)
 
 ### Resumen esperado (con turno Noche pre-asignado)
 - **Sesiones:** 3
 - **Días no laborados:** 10 (solo 3 días trabajados de 13: Jul 1, 2, 15)
-- **Flags:** START_CUTOFF (Jul 1), END_CUTOFF (Jul 15)
-- **needsResolution:** 2 sesiones
-- **Pantalla:** Verificación (blocking flags)
+- **Flags:** START_CUTOFF (Jul 1)
+- **needsResolution:** 1 sesión
+- **Pantalla:** Verificación (blocking flag)
 
 ### Resumen esperado (con turno Mañana default)
 - **Sesiones:** 3
@@ -727,45 +727,55 @@ El empleado 999 no existe → se crea automáticamente con:
 ## 18 — Noche Missing Exit (Cross-Midnight Exit Input)
 **Archivo:** `18-noche-missing-exit.csv`
 **Empleado:** Delgado Raul (ID 118)
-**Turno asignado:** Noche (19:00–07:00, cross-midnight)
 
-### Pre-requisito
-- Empleado 118 **debe existir con turno Noche**. Si no existe, se crea con Mañana → SHIFT_MISMATCH → auto-resolve → skip verificación, y el test pierde su propósito.
+### Camino A — Empleado nuevo (turno Mañana por defecto)
+Si el empleado 118 no existe, se crea automáticamente con turno Mañana.
 
-### Flujo esperado
-1. **Verificación:** **SÍ** — START_CUTOFF en Jul 1 + MISSING_EXIT en Jul 3 → 2 sesiones con needsResolution.
+**Flujo esperado:**
+1. **Verificación:** **SÍ** — solo 1 sesión con needsResolution (Jul 3 MISSING_EXIT).
 
-### Análisis
+**Análisis:**
+- Todas las sesiones matchean Noche → SHIFT_MISMATCH en las 3 sesiones.
+- Sesiones 1 y 2 son SHIFT_MISMATCH puro (2 scans, sin otros flags) → auto-resueltas (swap a Noche).
+- Sesión 3 tiene [SHIFT_MISMATCH, MISSING_EXIT] → NO auto-resuelta.
+- No hay START_CUTOFF porque el turno **asignado** (Mañana) no es cross-midnight.
 
-**Session 1 (Jul 1):** Scans [19:00, Jul 2 07:00] → cross-midnight, 2 scans (even).
-- Jul 1 = reportStart, isCrossMidnight=true → **START_CUTOFF** → needsResolution=true
-- Worked: 720 min, 12.0h
+**Sessions después de auto-resolve:**
+| Sesión | Fecha | Scans | Flags post-resolve | needsRes |
+|--------|-------|-------|--------------------|----------|
+| 1 (Jul 1) | 19:00, Jul 2 07:00 | _(cleared)_ | No |
+| 2 (Jul 2) | 19:05, Jul 3 06:55 | _(cleared)_ | No |
+| 3 (Jul 3) | 19:00 | SHIFT_MISMATCH, MISSING_EXIT | **Sí** |
 
-**Session 2 (Jul 2):** Scans [19:05, Jul 3 06:55] → cross-midnight, 2 scans (even).
-- Normal ✓
-- Worked: 710 min, 11.5h
+**UI en verificación:**
+- **Jul 3:** Muestra pill "Cambio de turno" y "Salida faltante". Entrada 19:00 (pre-llenado), salida vacía.
+  - La salida es en la **madrugada del día siguiente** (ej. 07:00). El campo acepta horas AM porque el turno matcheado (Noche) es cross-midnight.
+  - Al ingresar 07:00 como salida → **12.0h** (720 min).
 
-**Session 3 (Jul 3):** Scans [19:00] → cross-midnight, 1 scan (odd) → **MISSING_EXIT** → needsResolution=true
-- Solo 1 scan → detectBestFitMissingScanFlags no aplica (no es BEST_FIT). detectMissingScansFlags: lastScan=19:00, shift end=07:00 (next day), missingExitThreshold = 06:00. 19:00 is before 06:00 (next day) → MISSING_EXIT
-- Worked: 0 (blocking flag)
+### Camino B — Empleado pre-configurado con turno Noche
+**Pre-requisito:** Empleado 118 **debe existir con turno Noche** antes de la carga.
 
-### Resumen esperado
+**Flujo esperado:**
+1. **Verificación:** **SÍ** — 2 sesiones con needsResolution: START_CUTOFF (Jul 1) + MISSING_EXIT (Jul 3).
+
+**Análisis:**
+- No hay SHIFT_MISMATCH (asignado = matcheado = Noche).
+- Jul 1 = reportStart, turno asignado es cross-midnight → **START_CUTOFF** → needsResolution.
+- Jul 3: 1 scan (odd) → **MISSING_EXIT** → needsResolution.
+
+| Sesión | Fecha | Scans | Flags | needsRes |
+|--------|-------|-------|-------|----------|
+| 1 (Jul 1) | 19:00, Jul 2 07:00 | START_CUTOFF | **Sí** |
+| 2 (Jul 2) | 19:05, Jul 3 06:55 | _(none)_ | No |
+| 3 (Jul 3) | 19:00 | MISSING_EXIT | **Sí** |
+
+**UI en verificación:**
+- **Jul 1 (START_CUTOFF):** Muestra entrada 19:00 y salida 07:00 (pre-llenados). El usuario confirma o ajusta.
+- **Jul 3 (MISSING_EXIT):** Igual que Camino A — entrada 19:00, salida vacía, acepta AM.
+
+### Resumen esperado (ambos caminos, post-verificación)
 - **Sesiones:** 3
 - **Días no laborados:** 10 (3 días trabajados: Jul 1, 2, 3; de 13 no-domingo en Q1)
-- **Flags:** START_CUTOFF (Jul 1), MISSING_EXIT (Jul 3)
-- **needsResolution:** 2 sesiones
-- **Pantalla:** Verificación
-
-### UI esperada en verificación
-- **Jul 1 (START_CUTOFF):** Muestra entrada 19:00 y salida 07:00 (pre-llenados). El usuario puede confirmar o ajustar.
-- **Jul 3 (MISSING_EXIT):** Muestra entrada 19:00 (pre-llenado), salida vacía. El usuario debe ingresar la hora de salida.
-  - **Punto clave:** La salida es en la **madrugada del día siguiente** (ej. 07:00). El campo acepta horas AM aunque sean "antes" de la entrada porque el turno es cross-midnight. No debe mostrar error "La entrada debe ser antes de la salida".
-  - Al ingresar 07:00 como salida, las horas calculadas deben mostrar **12.0h** (720 min).
-- El botón "Confirmar" se habilita solo cuando la salida está llena y las horas son válidas.
-- Después de confirmar ambas sesiones, el botón "Revisar" se habilita.
-
-### Después de verificación → revisión
-- **3 sesiones** en detalle
 - Jul 1: 12.0h, Jul 2: 11.5h, Jul 3: depende de la salida ingresada (12.0h si se pone 07:00)
 - **Extras simples:** 0 (turno Noche = 12h, ninguna sesión excede 12h)
 - **Días no laborados:** 10
@@ -789,11 +799,11 @@ El empleado 999 no existe → se crea automáticamente con:
 | 11   | multi-employee | **NO** (Mañana default) / **SÍ** (Noche pre-config) | SHIFT_MISMATCH auto-resuelto; START_CUTOFF solo si Rosa tiene Noche pre-asignado |
 | 12   | quincena-boundary | **SÍ** | 2 quincenas disponibles |
 | 13   | break-scans | **NO** → Review directo | 0 flags |
-| 14   | noche-cutoff | **NO** (Mañana default) / **SÍ** (Noche pre-config) | SHIFT_MISMATCH auto-resuelto si turno=Mañana; START_CUTOFF + END_CUTOFF si turno=Noche |
+| 14   | noche-cutoff | **NO** (Mañana default) / **SÍ** (Noche pre-config) | SHIFT_MISMATCH auto-resuelto si turno=Mañana; START_CUTOFF si turno=Noche (no END_CUTOFF: reportEnd=Jul 16) |
 | 15   | grace-period | **NO** → Review directo | 0 flags |
 | 16   | same-day-double | **SÍ** | SAME_DAY_DOUBLE + MISSING_EXIT |
 | 17   | new-employee | **NO** → Review directo | 0 flags, empleado nuevo |
-| 18   | noche-missing-exit | **SÍ** (requiere Noche pre-config) | START_CUTOFF + MISSING_EXIT; ejercita input de salida cross-midnight |
+| 18   | noche-missing-exit | **SÍ** (Mañana default: solo MISSING_EXIT; Noche pre-config: START_CUTOFF + MISSING_EXIT) | Ejercita input de salida cross-midnight |
 
 ## Checklist General de Verificación
 

@@ -625,7 +625,7 @@ export default function VerificationScreen() {
                           key={item.session.sessionId}
                           session={item.session}
                           confirmed={!!resolvedSessions[item.session.sessionId]}
-                          crossMidnight={!!matchedShift?.crossMidnight}
+                          crossMidnight={matchedShift?.crossMidnight ?? item.session.crossMidnight}
                           onConfirm={(resolvedStart, resolvedEnd) =>
                             setResolvedSession(item.session.sessionId, { resolvedStart, resolvedEnd })
                           }

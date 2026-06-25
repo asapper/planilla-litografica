@@ -14,6 +14,7 @@ export interface TasSession {
   lastScan: string | null
   workedMinutes: number
   workedHours: number
+  crossMidnight: boolean
   needsResolution: boolean
   flags: TasFlag[]
 }

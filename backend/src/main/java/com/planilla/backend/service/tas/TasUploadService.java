@@ -96,6 +96,7 @@ public class TasUploadService {
         hoursCalculator.calculate(sessions, reportStart, reportEnd);
 
         autoResolveConsistentMismatches(sessions, shifts);
+        applyCrossMidnightFromMatchedShift(sessions, shifts);
 
         TasReportBuilder.BuildResult buildResult = reportBuilder.build(sessions, reportStart, reportEnd, shifts);
         List<EmployeeRow> resolvedRows = buildResult.rows;
@@ -155,6 +156,27 @@ public class TasUploadService {
                 s.setAssignedShiftName(s.getMatchedShiftName());
                 s.setNeedsResolution(false);
                 hoursCalculator.recompute(s, shifts);
+            }
+        }
+    }
+
+    private void applyCrossMidnightFromMatchedShift(
+            List<TasSession> sessions,
+            List<Map<String, Object>> shifts) {
+        Map<String, Boolean> crossMidnightByShiftId = new HashMap<>();
+        for (Map<String, Object> shift : shifts) {
+            Object id = shift.get("id");
+            if (id != null) {
+                crossMidnightByShiftId.put(id.toString(),
+                        Boolean.TRUE.equals(shift.get("crossMidnight")));
+            }
+        }
+        for (TasSession session : sessions) {
+            if (session.getMatchedShiftId() != null) {
+                Boolean cm = crossMidnightByShiftId.get(session.getMatchedShiftId());
+                if (cm != null) {
+                    session.setCrossMidnight(cm);
+                }
             }
         }
     }
