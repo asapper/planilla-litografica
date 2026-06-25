@@ -207,9 +207,12 @@ class TasSmokeTest {
     void test03_nocheCrossMidnight_defaultManana() throws Exception {
         TasUploadResult result = processFile("03-noche-cross-midnight.csv");
 
-        assertThat(goesToVerification(result)).isFalse();
+        // Jul 1 = reportStart, auto-resolved to Noche → START_CUTOFF
+        assertThat(goesToVerification(result)).isTrue();
         assertThat(result.getAllSessions()).hasSize(10);
-        assertThat(flaggedSessions(result)).isEmpty();
+        assertThat(sessionsWithFlag(result, TasFlag.START_CUTOFF)).hasSize(1);
+        assertThat(sessionsWithFlag(result, TasFlag.START_CUTOFF).get(0).getDate())
+                .isEqualTo(LocalDate.of(2026, 7, 1));
 
         EmployeeRow emp = findEmployee(result, "102");
         assertThat(emp.getDiasNoLaborados()).isEqualTo(3);
@@ -323,7 +326,9 @@ class TasSmokeTest {
     void test11_multiEmployee_defaultManana() throws Exception {
         TasUploadResult result = processFile("11-multi-employee-mixed.csv");
 
-        assertThat(goesToVerification(result)).isFalse();
+        // Employee 112 (Noche) on Jul 1 = reportStart → START_CUTOFF after auto-resolve
+        assertThat(goesToVerification(result)).isTrue();
+        assertThat(sessionsWithFlag(result, TasFlag.START_CUTOFF)).hasSize(1);
 
         Set<String> employeeIds = result.getAllSessions().stream()
                 .map(TasSession::getEmployeeId)
@@ -386,9 +391,11 @@ class TasSmokeTest {
     void test14_nocheCutoff_defaultManana() throws Exception {
         TasUploadResult result = processFile("14-noche-cross-midnight-cutoff.csv");
 
-        assertThat(goesToVerification(result)).isFalse();
+        // Jul 1 = reportStart, auto-resolved to Noche → START_CUTOFF (same as preConfigNoche)
+        assertThat(goesToVerification(result)).isTrue();
         assertThat(result.getAllSessions()).hasSize(3);
-        assertThat(flaggedSessions(result)).isEmpty();
+        assertThat(sessionsWithFlag(result, TasFlag.START_CUTOFF)).hasSize(1);
+        // No END_CUTOFF: reportEnd = Jul 16 (max scan date), session date Jul 15 ≠ reportEnd
 
         EmployeeRow emp = findEmployee(result, "115");
         assertThat(emp.getDiasNoLaborados()).isEqualTo(10);
@@ -454,10 +461,15 @@ class TasSmokeTest {
         assertThat(result.getAllSessions()).hasSize(3);
 
         List<TasSession> flagged = flaggedSessions(result);
-        assertThat(flagged).hasSize(1);
+        assertThat(flagged).hasSize(2);
 
-        TasSession missingExit = flagged.get(0);
-        assertThat(missingExit.getFlags()).contains(TasFlag.MISSING_EXIT);
+        // Jul 1 auto-resolved to Noche on reportStart → START_CUTOFF
+        assertThat(sessionsWithFlag(result, TasFlag.START_CUTOFF)).hasSize(1);
+        assertThat(sessionsWithFlag(result, TasFlag.START_CUTOFF).get(0).getDate())
+                .isEqualTo(LocalDate.of(2026, 7, 1));
+
+        // Jul 3 single scan → MISSING_EXIT + SHIFT_MISMATCH (not auto-resolved)
+        TasSession missingExit = sessionsWithFlag(result, TasFlag.MISSING_EXIT).get(0);
         assertThat(missingExit.getFlags()).contains(TasFlag.SHIFT_MISMATCH);
         assertThat(missingExit.getDate()).isEqualTo(LocalDate.of(2026, 7, 3));
         assertThat(missingExit.isCrossMidnight()).isTrue();
@@ -497,9 +509,12 @@ class TasSmokeTest {
     void test20_nocheClean_defaultManana() throws Exception {
         TasUploadResult result = processFile("20-noche-clean.csv");
 
-        assertThat(goesToVerification(result)).isFalse();
+        // Jul 2 = reportStart, auto-resolved to Noche → START_CUTOFF
+        assertThat(goesToVerification(result)).isTrue();
         assertThat(result.getAllSessions()).hasSize(2);
-        assertThat(flaggedSessions(result)).isEmpty();
+        assertThat(sessionsWithFlag(result, TasFlag.START_CUTOFF)).hasSize(1);
+        assertThat(sessionsWithFlag(result, TasFlag.START_CUTOFF).get(0).getDate())
+                .isEqualTo(LocalDate.of(2026, 7, 2));
 
         assertThat(totalHours(result)).isEqualTo(24.0);
 
@@ -512,8 +527,10 @@ class TasSmokeTest {
     void test21_nocheOvertime() throws Exception {
         TasUploadResult result = processFile("21-noche-overtime.csv");
 
-        assertThat(goesToVerification(result)).isFalse();
+        // Jul 2 = reportStart, auto-resolved to Noche → START_CUTOFF
+        assertThat(goesToVerification(result)).isTrue();
         assertThat(result.getAllSessions()).hasSize(2);
+        assertThat(sessionsWithFlag(result, TasFlag.START_CUTOFF)).hasSize(1);
 
         List<TasSession> sessions = result.getAllSessions().stream()
                 .sorted(Comparator.comparing(s -> s.getDate().toString()))
@@ -528,8 +545,9 @@ class TasSmokeTest {
         assertThat(sessions.get(1).getSimplesMinutes()).isEqualTo(60);
 
         EmployeeRow emp = findEmployee(result, "121");
-        // Total simples = 30+60=90 min → floor(90/30)/2 = 1.5
-        assertThat(emp.getHorasExtrasSimples()).isEqualTo(1.5);
+        // Jul 2 session is START_CUTOFF (needsResolution=true) → excluded from report
+        // Only Jul 3 simples (60 min) counted: floor(60/30)/2 = 1.0
+        assertThat(emp.getHorasExtrasSimples()).isEqualTo(1.0);
         assertThat(emp.getDiasNoLaborados()).isEqualTo(11);
     }
 

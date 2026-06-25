@@ -97,6 +97,7 @@ public class TasUploadService {
 
         autoResolveConsistentMismatches(sessions, shifts);
         applyCrossMidnightFromMatchedShift(sessions, shifts);
+        applyMissedCutoffFlags(sessions, reportStart, reportEnd);
 
         TasReportBuilder.BuildResult buildResult = reportBuilder.build(sessions, reportStart, reportEnd, shifts);
         List<EmployeeRow> resolvedRows = buildResult.rows;
@@ -177,6 +178,28 @@ public class TasUploadService {
                 if (cm != null) {
                     session.setCrossMidnight(cm);
                 }
+            }
+        }
+    }
+
+    private void applyMissedCutoffFlags(
+            List<TasSession> sessions,
+            LocalDate reportStart,
+            LocalDate reportEnd) {
+        for (TasSession s : sessions) {
+            if (!s.isCrossMidnight()) continue;
+            List<TasFlag> flags = s.getFlags();
+            if (flags != null && flags.contains(TasFlag.SHIFT_MISMATCH)) continue;
+            LocalDate date = s.getDate();
+            if (date.equals(reportStart) && (flags == null || !flags.contains(TasFlag.START_CUTOFF))) {
+                if (flags == null) { flags = new ArrayList<>(); s.setFlags(flags); }
+                flags.add(TasFlag.START_CUTOFF);
+                s.setNeedsResolution(true);
+            }
+            if (date.equals(reportEnd) && (flags == null || !flags.contains(TasFlag.END_CUTOFF))) {
+                if (flags == null) { flags = new ArrayList<>(); s.setFlags(flags); }
+                flags.add(TasFlag.END_CUTOFF);
+                s.setNeedsResolution(true);
             }
         }
     }
