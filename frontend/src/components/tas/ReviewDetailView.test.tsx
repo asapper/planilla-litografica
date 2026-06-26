@@ -270,7 +270,7 @@ describe('ReviewDetailView accruesOvertime toggle', () => {
     await waitFor(() => expect(mockRecomputeTas).toHaveBeenCalledWith('tok-1'));
   });
 
-  it('clears nonWorkedDaysOverride when accruesOvertime is toggled off', async () => {
+  it('stashes nonWorkedDaysOverride when accruesOvertime is toggled off', async () => {
     useTasStore.getState().setNonWorkedDaysOverride('E1', 3);
     mockUpdateAccruesOvertime.mockResolvedValue({
       id: 'E1', code: 'E1', name: 'Ana López', shiftId: null, shiftName: null, active: true, accruesOvertime: false,
@@ -281,7 +281,35 @@ describe('ReviewDetailView accruesOvertime toggle', () => {
     render(<ReviewDetailView onBack={onBack} />);
     fireEvent.click(screen.getByRole('switch'));
 
-    await waitFor(() => expect(useTasStore.getState().nonWorkedDaysOverrides['E1']).toBeUndefined());
+    await waitFor(() => {
+      expect(useTasStore.getState().nonWorkedDaysOverrides['E1']).toBeUndefined();
+      expect(useTasStore.getState().stashedNonWorkedDaysOverrides['E1']).toBe(3);
+    });
+  });
+
+  it('restores nonWorkedDaysOverride when accruesOvertime is toggled back on', async () => {
+    useTasStore.getState().setNonWorkedDaysOverride('E1', 3);
+    mockUpdateAccruesOvertime.mockResolvedValue({
+      id: 'E1', code: 'E1', name: 'Ana López', shiftId: null, shiftName: null, active: true, accruesOvertime: false,
+    });
+    const offRows = [{ ...rows[0], accruesOvertime: false, horasExtrasSimples: 0, horasExtrasDobles: 0 }, rows[1], rows[2]];
+    mockRecomputeTas.mockResolvedValue({ uploadToken: 'tok-1', resolvedRows: offRows, sessionSummaries: summaries });
+
+    render(<ReviewDetailView onBack={onBack} />);
+    fireEvent.click(screen.getByRole('switch'));
+    await waitFor(() => expect(useTasStore.getState().stashedNonWorkedDaysOverrides['E1']).toBe(3));
+
+    mockUpdateAccruesOvertime.mockResolvedValue({
+      id: 'E1', code: 'E1', name: 'Ana López', shiftId: null, shiftName: null, active: true, accruesOvertime: true,
+    });
+    const onRows = [{ ...rows[0], accruesOvertime: true }, rows[1], rows[2]];
+    mockRecomputeTas.mockResolvedValue({ uploadToken: 'tok-1', resolvedRows: onRows, sessionSummaries: summaries });
+
+    fireEvent.click(screen.getByRole('switch'));
+    await waitFor(() => {
+      expect(useTasStore.getState().nonWorkedDaysOverrides['E1']).toBe(3);
+      expect(useTasStore.getState().stashedNonWorkedDaysOverrides['E1']).toBeUndefined();
+    });
   });
 
   it('shows error toast when updateAccruesOvertime fails', async () => {

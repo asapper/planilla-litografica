@@ -39,6 +39,8 @@ export default function ReviewListView({ dbHealthy, onSubmit }: ReviewListViewPr
   const setOvertimeOverride = useTasStore(s => s.setOvertimeOverride);
   const setNonWorkedDaysOverride = useTasStore(s => s.setNonWorkedDaysOverride);
   const removeNonWorkedDaysOverride = useTasStore(s => s.removeNonWorkedDaysOverride);
+  const stashNonWorkedDaysOverride = useTasStore(s => s.stashNonWorkedDaysOverride);
+  const restoreNonWorkedDaysOverride = useTasStore(s => s.restoreNonWorkedDaysOverride);
   const stashOvertimeOverrides = useTasStore(s => s.stashOvertimeOverrides);
   const restoreOvertimeOverrides = useTasStore(s => s.restoreOvertimeOverrides);
   const setResolvedRows = useTasStore(s => s.setResolvedRows);
@@ -102,9 +104,10 @@ export default function ReviewListView({ dbHealthy, onSubmit }: ReviewListViewPr
         setSessionSummaries(result.sessionSummaries);
         if (newAccruesOvertime) {
           restoreOvertimeOverrides(row.codigoEmpleado);
+          restoreNonWorkedDaysOverride(row.codigoEmpleado);
         } else {
           stashOvertimeOverrides(row.codigoEmpleado);
-          removeNonWorkedDaysOverride(row.codigoEmpleado);
+          stashNonWorkedDaysOverride(row.codigoEmpleado);
         }
       } catch {
         useToastStore.getState().showToast('La sesión de carga expiró. Vuelve a subir el archivo.', 'error');

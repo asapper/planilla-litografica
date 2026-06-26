@@ -252,7 +252,7 @@ describe('ReviewListView submit', () => {
 });
 
 describe('ReviewListView accruesOvertime toggle', () => {
-  it('clears nonWorkedDaysOverride when accruesOvertime is toggled off', async () => {
+  it('stashes nonWorkedDaysOverride when accruesOvertime is toggled off', async () => {
     useTasStore.getState().setNonWorkedDaysOverride('E1', 3);
     mockUpdateAccruesOvertime.mockResolvedValue({
       id: 'E1', code: 'E1', name: 'Ana López', shiftId: null, shiftName: null, active: true, accruesOvertime: false,
@@ -263,6 +263,9 @@ describe('ReviewListView accruesOvertime toggle', () => {
     render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} />);
     fireEvent.click(screen.getByLabelText(/desactivar acumulado Ana López/i));
 
-    await waitFor(() => expect(useTasStore.getState().nonWorkedDaysOverrides['E1']).toBeUndefined());
+    await waitFor(() => {
+      expect(useTasStore.getState().nonWorkedDaysOverrides['E1']).toBeUndefined();
+      expect(useTasStore.getState().stashedNonWorkedDaysOverrides['E1']).toBe(3);
+    });
   });
 });

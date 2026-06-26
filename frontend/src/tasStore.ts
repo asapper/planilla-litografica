@@ -31,6 +31,7 @@ interface TasStore {
   overtimeOverrides: Record<string, { horasExtrasSimples?: number; horasExtrasDobles?: number }>;
   stashedOvertimeOverrides: Record<string, { horasExtrasSimples?: number; horasExtrasDobles?: number }>;
   nonWorkedDaysOverrides: Record<string, number>;
+  stashedNonWorkedDaysOverrides: Record<string, number>;
   duplicateCodes: string[];
   duplicatesLoading: boolean;
   reviewSelectedEmployee: string | null;
@@ -68,6 +69,8 @@ interface TasStore {
   setNonWorkedDaysOverride: (codigoEmpleado: string, value: number) => void;
   removeNonWorkedDaysOverride: (codigoEmpleado: string) => void;
   clearNonWorkedDaysOverrides: () => void;
+  stashNonWorkedDaysOverride: (codigoEmpleado: string) => void;
+  restoreNonWorkedDaysOverride: (codigoEmpleado: string) => void;
   stashOvertimeOverrides: (codigoEmpleado: string) => void;
   restoreOvertimeOverrides: (codigoEmpleado: string) => void;
   setDuplicateCodes: (codes: string[]) => void;
@@ -107,6 +110,7 @@ const initialState = {
   overtimeOverrides: {} as Record<string, { horasExtrasSimples?: number; horasExtrasDobles?: number }>,
   stashedOvertimeOverrides: {} as Record<string, { horasExtrasSimples?: number; horasExtrasDobles?: number }>,
   nonWorkedDaysOverrides: {} as Record<string, number>,
+  stashedNonWorkedDaysOverrides: {} as Record<string, number>,
   duplicateCodes: [] as string[],
   duplicatesLoading: false,
   reviewSelectedEmployee: null,
@@ -175,6 +179,24 @@ export const useTasStore = create<TasStore>(set => ({
     return { nonWorkedDaysOverrides: rest };
   }),
   clearNonWorkedDaysOverrides: () => set({ nonWorkedDaysOverrides: {} }),
+  stashNonWorkedDaysOverride: (codigoEmpleado) => set(s => {
+    const current = s.nonWorkedDaysOverrides[codigoEmpleado];
+    if (current === undefined) return s;
+    const { [codigoEmpleado]: _, ...rest } = s.nonWorkedDaysOverrides;
+    return {
+      nonWorkedDaysOverrides: rest,
+      stashedNonWorkedDaysOverrides: { ...s.stashedNonWorkedDaysOverrides, [codigoEmpleado]: current },
+    };
+  }),
+  restoreNonWorkedDaysOverride: (codigoEmpleado) => set(s => {
+    const stashed = s.stashedNonWorkedDaysOverrides[codigoEmpleado];
+    if (stashed === undefined) return s;
+    const { [codigoEmpleado]: _, ...rest } = s.stashedNonWorkedDaysOverrides;
+    return {
+      nonWorkedDaysOverrides: { ...s.nonWorkedDaysOverrides, [codigoEmpleado]: stashed },
+      stashedNonWorkedDaysOverrides: rest,
+    };
+  }),
   stashOvertimeOverrides: (codigoEmpleado) => set(s => {
     const current = s.overtimeOverrides[codigoEmpleado];
     if (!current) return s;
