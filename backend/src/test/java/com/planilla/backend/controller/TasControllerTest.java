@@ -1685,6 +1685,39 @@ class TasControllerTest {
     }
 
     @Test
+    void submit_withOverflowDiasNoLaboradosOverride_returns400() throws Exception {
+        EmployeeRow row = new EmployeeRow();
+        row.setCodigoEmpleado("100");
+        row.setNombreEmpleado("Test");
+        row.setDiasNoLaborados(0);
+        row.setHorasExtrasSimples(0);
+        row.setHorasExtrasDobles(0);
+        row.setMes(3);
+        row.setAnio(2026);
+        row.setNumeroDequincena(1);
+
+        TasUploadResult result = emptyResult();
+        result.setResolvedRows(List.of(row));
+        when(parserService.parse(any())).thenReturn(emptyParseResult());
+        when(uploadService.processScans(any(), any(), any())).thenReturn(result);
+
+        MockMultipartFile file = new MockMultipartFile("file", "test.csv", "text/csv", "data".getBytes());
+        String uploadResponse = mvc.perform(multipart("/api/tas/upload").file(file))
+           .andExpect(status().isOk())
+           .andReturn().getResponse().getContentAsString();
+        String token = (String) mapper.readValue(uploadResponse, Map.class).get("uploadToken");
+
+        // 4294967296 = 2^32; would silently truncate to 0 without toIntExact guard
+        String reqBody = "{\"uploadToken\":\"" + token + "\",\"overtimeOverrides\":{},\"nonWorkedDaysOverrides\":{\"100\":4294967296}}";
+
+        mvc.perform(post("/api/tas/submit")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(reqBody))
+           .andExpect(status().isBadRequest())
+           .andExpect(jsonPath("$.code").value("INVALID_OVERRIDE"));
+    }
+
+    @Test
     void recompute_responseIncludesSessionSummaries() throws Exception {
         TasUploadResult result = emptyResult();
 

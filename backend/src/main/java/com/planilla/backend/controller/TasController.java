@@ -371,7 +371,14 @@ public class TasController {
                     "code", "INVALID_OVERRIDE",
                     "message", "Formato de días no laborados inválido."));
             }
-            int val = (int) Math.round(((Number) raw).doubleValue());
+            int val;
+            try {
+                val = Math.toIntExact(Math.round(((Number) raw).doubleValue()));
+            } catch (ArithmeticException e) {
+                return ResponseEntity.badRequest().body(Map.of(
+                    "code", "INVALID_OVERRIDE",
+                    "message", "Formato de días no laborados inválido."));
+            }
             if (val < 0) {
                 return ResponseEntity.badRequest().body(Map.of(
                     "code", "INVALID_OVERRIDE",

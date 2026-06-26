@@ -109,6 +109,7 @@ export default function ReviewDetailView({ onBack }: ReviewDetailViewProps) {
           restoreOvertimeOverrides(row.codigoEmpleado);
         } else {
           stashOvertimeOverrides(row.codigoEmpleado);
+          removeNonWorkedDaysOverride(row.codigoEmpleado);
         }
       } catch {
         useToastStore.getState().showToast('La sesión de carga expiró. Vuelve a subir el archivo.', 'error');

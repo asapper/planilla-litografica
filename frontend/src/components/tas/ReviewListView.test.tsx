@@ -1,8 +1,16 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import ReviewListView from './ReviewListView';
 import { useTasStore } from '../../tasStore';
+import * as configApi from '../../configApi';
+import * as tasApi from '../../tasApi';
 import type { ResolvedRow } from '../../tasTypes';
+
+vi.mock('../../configApi');
+vi.mock('../../tasApi');
+
+const mockUpdateAccruesOvertime = vi.mocked(configApi.updateAccruesOvertime);
+const mockRecomputeTas = vi.mocked(tasApi.recomputeTas);
 
 const rows: ResolvedRow[] = [
   { codigoEmpleado: 'E1', nombreEmpleado: 'Ana López', diasNoLaborados: 0, horasExtrasSimples: 2, horasExtrasDobles: 0, mes: 6, anio: 2026, numeroDequincena: 1, diasTurnoEstimado: 0, accruesOvertime: true },
@@ -13,6 +21,8 @@ const rows: ResolvedRow[] = [
 beforeEach(() => {
   useTasStore.getState().resetTas();
   useTasStore.getState().setResolvedRows(rows);
+  useTasStore.getState().setUploadToken('tok-1');
+  vi.clearAllMocks();
 });
 
 describe('ReviewListView rendering', () => {
@@ -238,5 +248,21 @@ describe('ReviewListView submit', () => {
     render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} />);
     fireEvent.click(screen.getByText('Cambiar quincena'));
     expect(useTasStore.getState().tasView).toBe('verification');
+  });
+});
+
+describe('ReviewListView accruesOvertime toggle', () => {
+  it('clears nonWorkedDaysOverride when accruesOvertime is toggled off', async () => {
+    useTasStore.getState().setNonWorkedDaysOverride('E1', 3);
+    mockUpdateAccruesOvertime.mockResolvedValue({
+      id: 'E1', code: 'E1', name: 'Ana López', shiftId: null, shiftName: null, active: true, accruesOvertime: false,
+    });
+    const newRows = [{ ...rows[0], accruesOvertime: false, horasExtrasSimples: 0, horasExtrasDobles: 0 }, rows[1], rows[2]];
+    mockRecomputeTas.mockResolvedValue({ uploadToken: 'tok-1', resolvedRows: newRows, sessionSummaries: {} });
+
+    render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} />);
+    fireEvent.click(screen.getByLabelText(/desactivar acumulado Ana López/i));
+
+    await waitFor(() => expect(useTasStore.getState().nonWorkedDaysOverrides['E1']).toBeUndefined());
   });
 });

@@ -104,6 +104,7 @@ export default function ReviewListView({ dbHealthy, onSubmit }: ReviewListViewPr
           restoreOvertimeOverrides(row.codigoEmpleado);
         } else {
           stashOvertimeOverrides(row.codigoEmpleado);
+          removeNonWorkedDaysOverride(row.codigoEmpleado);
         }
       } catch {
         useToastStore.getState().showToast('La sesión de carga expiró. Vuelve a subir el archivo.', 'error');

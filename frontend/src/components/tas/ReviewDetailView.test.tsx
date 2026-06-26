@@ -270,6 +270,20 @@ describe('ReviewDetailView accruesOvertime toggle', () => {
     await waitFor(() => expect(mockRecomputeTas).toHaveBeenCalledWith('tok-1'));
   });
 
+  it('clears nonWorkedDaysOverride when accruesOvertime is toggled off', async () => {
+    useTasStore.getState().setNonWorkedDaysOverride('E1', 3);
+    mockUpdateAccruesOvertime.mockResolvedValue({
+      id: 'E1', code: 'E1', name: 'Ana López', shiftId: null, shiftName: null, active: true, accruesOvertime: false,
+    });
+    const newRows = [{ ...rows[0], accruesOvertime: false, horasExtrasSimples: 0, horasExtrasDobles: 0 }, rows[1], rows[2]];
+    mockRecomputeTas.mockResolvedValue({ uploadToken: 'tok-1', resolvedRows: newRows, sessionSummaries: summaries });
+
+    render(<ReviewDetailView onBack={onBack} />);
+    fireEvent.click(screen.getByRole('switch'));
+
+    await waitFor(() => expect(useTasStore.getState().nonWorkedDaysOverrides['E1']).toBeUndefined());
+  });
+
   it('shows error toast when updateAccruesOvertime fails', async () => {
     mockUpdateAccruesOvertime.mockRejectedValue(new Error('network'));
 
