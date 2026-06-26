@@ -782,6 +782,35 @@ Si el empleado 118 no existe, se crea automáticamente con turno Mañana.
 
 ---
 
+## 27 — Decimal Overtime (Half-Hour Precision)
+**Archivo:** `27-decimal-overtime.csv`
+**Empleado:** Garcia Luis (ID 127)
+**Turno asignado:** Mañana (07:00–15:00)
+
+### Pre-requisito
+- Empleado 127 nuevo → se crea automáticamente con turno Mañana.
+
+### Flujo esperado
+1. **Verificación:** Se **SALTA** (sin flags bloqueantes)
+2. **→ Directo a revisión**
+
+### Análisis detallado
+
+| Fecha | Día  | Scans        | effectiveStart | Span | Worked min | Worked h | Simp. min | Dobl. min | Notas |
+|-------|------|--------------|----------------|------|-----------|----------|-----------|-----------|-------|
+| Jul 1 | Miér | 07:00, 15:30 | 07:00          | 510  | 510       | 8.5      | 30        | 0         | Overtime = 510-480 = 30 min simples |
+
+### Resumen esperado
+- **Sesiones:** 1
+- **Días no laborados:** 12 (Q1 = 13 no-domingos; solo Jul 1 trabajado → 12 no laborados)
+- **Horas extras simples:** 0.5 — `floor(30/30)/2 = 0.5`. Detalle y resumen muestran **0.5**, no 0 ni 1.
+- **Horas extras dobles:** 0.0
+
+### Propósito
+Verifica que la media hora de overtime (30 min) produce `0.5` y no se trunca a entero. Este es el caso que la conversión a `numeric` en el SP desbloquea: anteriormente el SP recibiría `0` o `1` por el cast implícito de `numeric→integer`.
+
+---
+
 ## Resumen: ¿A qué pantalla va cada test?
 
 | Test | Archivo | Va a verificación? | Razón |
@@ -804,6 +833,7 @@ Si el empleado 118 no existe, se crea automáticamente con turno Mañana.
 | 16   | same-day-double | **SÍ** | SAME_DAY_DOUBLE + MISSING_EXIT |
 | 17   | new-employee | **NO** → Review directo | 0 flags, empleado nuevo |
 | 18   | noche-missing-exit | **SÍ** (Mañana default: solo MISSING_EXIT; Noche pre-config: START_CUTOFF + MISSING_EXIT) | Ejercita input de salida cross-midnight |
+| 27   | decimal-overtime | **NO** → Review directo | 0.5h simples (30 min), verifica precisión decimal en extras |
 
 ## Checklist General de Verificación
 
