@@ -11,6 +11,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import java.util.Collections;
 import java.util.List;
 
+import org.mockito.ArgumentCaptor;
+
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
@@ -120,6 +122,29 @@ class DatabaseServiceTest {
             eq(Integer.class),
             eq("10"), eq(2), eq(3.0), eq(1.5), eq(1), eq(12), eq(2024)
         );
+    }
+
+    @Test
+    void submitRow_sqlUsesNumericCastForOvertimeFields() {
+        EmployeeRow r = row("10", 1, 12, 2024);
+        r.setHorasExtrasSimples(0.5);
+        r.setHorasExtrasDobles(1.5);
+
+        ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+        service.submitRow(r);
+
+        verify(postgresJdbc).queryForObject(
+            sqlCaptor.capture(),
+            eq(Integer.class),
+            any(), any(), eq(0.5), eq(1.5), any(), any(), any()
+        );
+        // Positions 3 and 4 (horas_extras_simples, horas_extras_dobles) must be ::numeric,
+        // not ::integer, so decimal values are not truncated at the SP boundary.
+        String sql = sqlCaptor.getValue();
+        int simplesPos = sql.indexOf("::numeric");
+        int doblesPos  = sql.indexOf("::numeric", simplesPos + 1);
+        assertThat(simplesPos).isGreaterThan(0);
+        assertThat(doblesPos).isGreaterThan(simplesPos);
     }
 
     @Test

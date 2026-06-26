@@ -13,15 +13,15 @@
     },
     "horas_extras_simples": {
       "required": true,
-      "type": "integer",
+      "type": "number",
       "min": 0,
-      "description": "Simple overtime hours, converted from HH:MM:SS and rounded to nearest integer"
+      "description": "Simple overtime hours as decimal (0.5 precision), computed from minutes via floor(minutes/30)/2"
     },
     "horas_extras_dobles": {
       "required": true,
-      "type": "integer",
+      "type": "number",
       "min": 0,
-      "description": "Double overtime hours, converted from HH:MM:SS and rounded to nearest integer"
+      "description": "Double overtime hours as decimal (0.5 precision), computed from minutes via floor(minutes/30)/2"
     },
     "numero_de_quincena": {
       "required": true,

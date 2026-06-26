@@ -648,6 +648,21 @@ class TasSmokeTest {
     }
 
     @Test
+    void test27_decimalOvertime_halfHourProducesPointFive() throws Exception {
+        TasUploadResult result = processFile("27-decimal-overtime.csv");
+
+        assertThat(goesToVerification(result)).isFalse();
+        assertThat(result.getAllSessions()).hasSize(1);
+
+        // Jul 1: 07:00–15:30 = 510 min, overtime = 30 min → floor(30/30)/2 = 0.5h
+        // Previously integer rounding would have produced 0 or 1; decimal must be 0.5.
+        EmployeeRow emp = findEmployee(result, "127");
+        assertThat(emp.getHorasExtrasSimples()).isEqualTo(0.5);
+        assertThat(emp.getHorasExtrasDobles()).isEqualTo(0.0);
+        assertThat(emp.getDiasNoLaborados()).isEqualTo(12);
+    }
+
+    @Test
     void test26_singleScan() throws Exception {
         TasUploadResult result = processFile("26-single-scan.csv");
 

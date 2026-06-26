@@ -59,8 +59,8 @@ The app calls a single stored procedure on the remote database:
 SELECT public.carga_datos_empleados(
     codigo_empleado  ::varchar,
     dias_no_laborados::integer,
-    horas_extras_simples::integer,
-    horas_extras_dobles ::integer,
+    horas_extras_simples::numeric,
+    horas_extras_dobles ::numeric,
     numero_de_quincena  ::integer,
     mes                 ::integer,
     anio                ::integer
@@ -174,8 +174,8 @@ Current rules:
 |-------|------|-------------|
 | `codigo_empleado` | string | required |
 | `dias_no_laborados` | integer | required, min 0 |
-| `horas_extras_simples` | integer | required, min 0 |
-| `horas_extras_dobles` | integer | required, min 0 |
+| `horas_extras_simples` | number (numeric) | required, min 0, 0.5 precision |
+| `horas_extras_dobles` | number (numeric) | required, min 0, 0.5 precision |
 | `numero_de_quincena` | integer | required, 1 or 2 |
 | `mes` | integer | required, 1–12 |
 | `anio` | integer | required, 2000–2100 |
