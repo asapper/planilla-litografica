@@ -10,6 +10,7 @@ import ReviewDetailView from './ReviewDetailView';
 export default function ReviewScreen() {
   const uploadToken = useTasStore(s => s.uploadToken);
   const overtimeOverrides = useTasStore(s => s.overtimeOverrides);
+  const nonWorkedDaysOverrides = useTasStore(s => s.nonWorkedDaysOverrides);
   const setTasView = useTasStore(s => s.setTasView);
   const setJobId = useTasStore(s => s.setJobId);
   const duplicateCodes = useTasStore(s => s.duplicateCodes);
@@ -53,11 +54,13 @@ export default function ReviewScreen() {
       setTasView('submitting');
       const filteredOverrides: Record<string, { horasExtrasSimples?: number; horasExtrasDobles?: number }> = {};
       for (const [code, val] of Object.entries(overtimeOverrides)) {
-        if (!duplicateSet.has(code)) {
-          filteredOverrides[code] = val;
-        }
+        if (!duplicateSet.has(code)) filteredOverrides[code] = val;
       }
-      const { jobId } = await submitTas(uploadToken, filteredOverrides);
+      const filteredNonWorkedDaysOverrides: Record<string, number> = {};
+      for (const [code, val] of Object.entries(nonWorkedDaysOverrides)) {
+        if (!duplicateSet.has(code)) filteredNonWorkedDaysOverrides[code] = val;
+      }
+      const { jobId } = await submitTas(uploadToken, filteredOverrides, filteredNonWorkedDaysOverrides);
       setJobId(jobId);
       setTasView('polling');
     } catch (err) {

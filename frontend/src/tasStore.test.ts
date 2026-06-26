@@ -522,6 +522,84 @@ describe('overtimeOverrides', () => {
 });
 
 // -----------------------------------------------------------------
+// nonWorkedDaysOverrides
+// -----------------------------------------------------------------
+
+describe('nonWorkedDaysOverrides', () => {
+  it('starts empty', () => {
+    expect(useTasStore.getState().nonWorkedDaysOverrides).toEqual({});
+  });
+
+  it('setNonWorkedDaysOverride stores value for employee', () => {
+    useTasStore.getState().setNonWorkedDaysOverride('E1', 3);
+    expect(useTasStore.getState().nonWorkedDaysOverrides).toEqual({ E1: 3 });
+  });
+
+  it('setNonWorkedDaysOverride overwrites previous value', () => {
+    useTasStore.getState().setNonWorkedDaysOverride('E1', 3);
+    useTasStore.getState().setNonWorkedDaysOverride('E1', 5);
+    expect(useTasStore.getState().nonWorkedDaysOverrides).toEqual({ E1: 5 });
+  });
+
+  it('setNonWorkedDaysOverride keeps other employees untouched', () => {
+    useTasStore.getState().setNonWorkedDaysOverride('E1', 2);
+    useTasStore.getState().setNonWorkedDaysOverride('E2', 4);
+    expect(useTasStore.getState().nonWorkedDaysOverrides.E1).toBe(2);
+    expect(useTasStore.getState().nonWorkedDaysOverrides.E2).toBe(4);
+  });
+
+  it('removeNonWorkedDaysOverride deletes the key for that employee', () => {
+    useTasStore.getState().setNonWorkedDaysOverride('E1', 3);
+    useTasStore.getState().setNonWorkedDaysOverride('E2', 5);
+    useTasStore.getState().removeNonWorkedDaysOverride('E1');
+    expect(useTasStore.getState().nonWorkedDaysOverrides).toEqual({ E2: 5 });
+  });
+
+  it('removeNonWorkedDaysOverride is a no-op for a key that does not exist', () => {
+    useTasStore.getState().setNonWorkedDaysOverride('E1', 3);
+    useTasStore.getState().removeNonWorkedDaysOverride('E99');
+    expect(useTasStore.getState().nonWorkedDaysOverrides).toEqual({ E1: 3 });
+  });
+
+  it('clearNonWorkedDaysOverrides resets to empty', () => {
+    useTasStore.getState().setNonWorkedDaysOverride('E1', 2);
+    useTasStore.getState().clearNonWorkedDaysOverrides();
+    expect(useTasStore.getState().nonWorkedDaysOverrides).toEqual({});
+  });
+
+  it('resetTas clears nonWorkedDaysOverrides', () => {
+    useTasStore.getState().setNonWorkedDaysOverride('E1', 2);
+    useTasStore.getState().resetTas();
+    expect(useTasStore.getState().nonWorkedDaysOverrides).toEqual({});
+  });
+
+  it('stashNonWorkedDaysOverride moves value to stash and removes from active', () => {
+    useTasStore.getState().setNonWorkedDaysOverride('E1', 3);
+    useTasStore.getState().stashNonWorkedDaysOverride('E1');
+    expect(useTasStore.getState().nonWorkedDaysOverrides['E1']).toBeUndefined();
+    expect(useTasStore.getState().stashedNonWorkedDaysOverrides['E1']).toBe(3);
+  });
+
+  it('stashNonWorkedDaysOverride is a no-op when no override exists', () => {
+    useTasStore.getState().stashNonWorkedDaysOverride('E1');
+    expect(useTasStore.getState().stashedNonWorkedDaysOverrides).toEqual({});
+  });
+
+  it('restoreNonWorkedDaysOverride moves value back to active', () => {
+    useTasStore.getState().setNonWorkedDaysOverride('E1', 3);
+    useTasStore.getState().stashNonWorkedDaysOverride('E1');
+    useTasStore.getState().restoreNonWorkedDaysOverride('E1');
+    expect(useTasStore.getState().nonWorkedDaysOverrides['E1']).toBe(3);
+    expect(useTasStore.getState().stashedNonWorkedDaysOverrides['E1']).toBeUndefined();
+  });
+
+  it('restoreNonWorkedDaysOverride is a no-op when nothing is stashed', () => {
+    useTasStore.getState().restoreNonWorkedDaysOverride('E1');
+    expect(useTasStore.getState().nonWorkedDaysOverrides).toEqual({});
+  });
+});
+
+// -----------------------------------------------------------------
 // resetTas
 // -----------------------------------------------------------------
 

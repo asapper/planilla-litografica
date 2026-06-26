@@ -354,6 +354,44 @@ public class TasController {
             }
         }
 
+        Object rawNonWorkedDaysOverrides = body.getOrDefault("nonWorkedDaysOverrides", Collections.emptyMap());
+        if (!(rawNonWorkedDaysOverrides instanceof Map)) {
+            return ResponseEntity.badRequest().body(Map.of(
+                "code", "INVALID_OVERRIDE",
+                "message", "Formato de días no laborados inválido."));
+        }
+        @SuppressWarnings("unchecked")
+        Map<String, Object> nonWorkedDaysOverrides = (Map<String, Object>) rawNonWorkedDaysOverrides;
+
+        for (Map.Entry<String, Object> entry : nonWorkedDaysOverrides.entrySet()) {
+            String empId = entry.getKey();
+            Object raw = entry.getValue();
+            if (!(raw instanceof Number)) {
+                return ResponseEntity.badRequest().body(Map.of(
+                    "code", "INVALID_OVERRIDE",
+                    "message", "Formato de días no laborados inválido."));
+            }
+            int val;
+            try {
+                val = Math.toIntExact(Math.round(((Number) raw).doubleValue()));
+            } catch (ArithmeticException e) {
+                return ResponseEntity.badRequest().body(Map.of(
+                    "code", "INVALID_OVERRIDE",
+                    "message", "Formato de días no laborados inválido."));
+            }
+            if (val < 0) {
+                return ResponseEntity.badRequest().body(Map.of(
+                    "code", "INVALID_OVERRIDE",
+                    "message", "Los días no laborados no pueden ser negativos."));
+            }
+            for (EmployeeRow r : rows) {
+                if (r.getCodigoEmpleado().equals(empId)) {
+                    r.setDiasNoLaborados(val);
+                    break;
+                }
+            }
+        }
+
         String jobId = jobService.createJob(rows);
         jobService.processJobAsync(jobId, token, stateStore);
         return ResponseEntity.status(202).body(Map.of("jobId", jobId));

@@ -132,38 +132,80 @@ describe('ReviewDetailView scan expansion', () => {
   });
 });
 
+describe('ReviewDetailView días no laborados adjustment', () => {
+  it('renders días no laborados input with computed value', () => {
+    render(<ReviewDetailView onBack={onBack} />);
+    const inputs = screen.getAllByRole('spinbutton');
+    expect(inputs).toHaveLength(3);
+    expect(inputs[0]).toHaveValue(0);
+  });
+
+  it('updates store when días no laborados is changed', () => {
+    render(<ReviewDetailView onBack={onBack} />);
+    const inputs = screen.getAllByRole('spinbutton');
+    fireEvent.change(inputs[0], { target: { value: '3' } });
+    expect(useTasStore.getState().nonWorkedDaysOverrides).toEqual({ E1: 3 });
+  });
+
+  it('shows computed label for días no laborados', () => {
+    render(<ReviewDetailView onBack={onBack} />);
+    expect(screen.getAllByText(/calculado: 0/).length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('clamps negative días no laborados to 0', () => {
+    render(<ReviewDetailView onBack={onBack} />);
+    const inputs = screen.getAllByRole('spinbutton');
+    fireEvent.change(inputs[0], { target: { value: '-2' } });
+    expect(useTasStore.getState().nonWorkedDaysOverrides).toEqual({ E1: 0 });
+  });
+
+  it('removes override when días no laborados input is cleared', () => {
+    render(<ReviewDetailView onBack={onBack} />);
+    const inputs = screen.getAllByRole('spinbutton');
+    fireEvent.change(inputs[0], { target: { value: 'abc' } });
+    expect(useTasStore.getState().nonWorkedDaysOverrides).toEqual({});
+  });
+
+  it('shows override value when set', () => {
+    useTasStore.getState().setNonWorkedDaysOverride('E1', 4);
+    render(<ReviewDetailView onBack={onBack} />);
+    const inputs = screen.getAllByRole('spinbutton');
+    expect(inputs[0]).toHaveValue(4);
+  });
+});
+
 describe('ReviewDetailView overtime adjustment', () => {
   it('renders overtime inputs with computed values', () => {
     render(<ReviewDetailView onBack={onBack} />);
     const inputs = screen.getAllByRole('spinbutton');
-    expect(inputs).toHaveLength(2);
-    expect(inputs[0]).toHaveValue(2);
-    expect(inputs[1]).toHaveValue(0);
+    expect(inputs).toHaveLength(3);
+    expect(inputs[1]).toHaveValue(2);
+    expect(inputs[2]).toHaveValue(0);
   });
 
   it('updates store when overtime is changed', () => {
     render(<ReviewDetailView onBack={onBack} />);
     const inputs = screen.getAllByRole('spinbutton');
-    fireEvent.change(inputs[0], { target: { value: '5' } });
+    fireEvent.change(inputs[1], { target: { value: '5' } });
     expect(useTasStore.getState().overtimeOverrides).toEqual({ E1: { horasExtrasSimples: 5 } });
   });
 
-  it('shows computed label next to input', () => {
+  it('shows computed label next to overtime input', () => {
     render(<ReviewDetailView onBack={onBack} />);
     expect(screen.getByText(/calculado: 2/)).toBeInTheDocument();
   });
 
-  it('clamps negative values to 0', () => {
+  it('clamps negative overtime values to 0', () => {
     render(<ReviewDetailView onBack={onBack} />);
     const inputs = screen.getAllByRole('spinbutton');
-    fireEvent.change(inputs[0], { target: { value: '-3' } });
+    fireEvent.change(inputs[1], { target: { value: '-3' } });
     expect(useTasStore.getState().overtimeOverrides).toEqual({ E1: { horasExtrasSimples: 0 } });
   });
 
-  it('clamps NaN values to 0', () => {
+  it('clamps NaN overtime values to 0', () => {
     render(<ReviewDetailView onBack={onBack} />);
     const inputs = screen.getAllByRole('spinbutton');
-    fireEvent.change(inputs[0], { target: { value: 'abc' } });
+    fireEvent.change(inputs[1], { target: { value: 'abc' } });
     expect(useTasStore.getState().overtimeOverrides).toEqual({ E1: { horasExtrasSimples: 0 } });
   });
 });
@@ -226,6 +268,48 @@ describe('ReviewDetailView accruesOvertime toggle', () => {
 
     await waitFor(() => expect(mockUpdateAccruesOvertime).toHaveBeenCalledWith('E1', false));
     await waitFor(() => expect(mockRecomputeTas).toHaveBeenCalledWith('tok-1'));
+  });
+
+  it('stashes nonWorkedDaysOverride when accruesOvertime is toggled off', async () => {
+    useTasStore.getState().setNonWorkedDaysOverride('E1', 3);
+    mockUpdateAccruesOvertime.mockResolvedValue({
+      id: 'E1', code: 'E1', name: 'Ana López', shiftId: null, shiftName: null, active: true, accruesOvertime: false,
+    });
+    const newRows = [{ ...rows[0], accruesOvertime: false, horasExtrasSimples: 0, horasExtrasDobles: 0 }, rows[1], rows[2]];
+    mockRecomputeTas.mockResolvedValue({ uploadToken: 'tok-1', resolvedRows: newRows, sessionSummaries: summaries });
+
+    render(<ReviewDetailView onBack={onBack} />);
+    fireEvent.click(screen.getByRole('switch'));
+
+    await waitFor(() => {
+      expect(useTasStore.getState().nonWorkedDaysOverrides['E1']).toBeUndefined();
+      expect(useTasStore.getState().stashedNonWorkedDaysOverrides['E1']).toBe(3);
+    });
+  });
+
+  it('restores nonWorkedDaysOverride when accruesOvertime is toggled back on', async () => {
+    useTasStore.getState().setNonWorkedDaysOverride('E1', 3);
+    mockUpdateAccruesOvertime.mockResolvedValue({
+      id: 'E1', code: 'E1', name: 'Ana López', shiftId: null, shiftName: null, active: true, accruesOvertime: false,
+    });
+    const offRows = [{ ...rows[0], accruesOvertime: false, horasExtrasSimples: 0, horasExtrasDobles: 0 }, rows[1], rows[2]];
+    mockRecomputeTas.mockResolvedValue({ uploadToken: 'tok-1', resolvedRows: offRows, sessionSummaries: summaries });
+
+    render(<ReviewDetailView onBack={onBack} />);
+    fireEvent.click(screen.getByRole('switch'));
+    await waitFor(() => expect(useTasStore.getState().stashedNonWorkedDaysOverrides['E1']).toBe(3));
+
+    mockUpdateAccruesOvertime.mockResolvedValue({
+      id: 'E1', code: 'E1', name: 'Ana López', shiftId: null, shiftName: null, active: true, accruesOvertime: true,
+    });
+    const onRows = [{ ...rows[0], accruesOvertime: true }, rows[1], rows[2]];
+    mockRecomputeTas.mockResolvedValue({ uploadToken: 'tok-1', resolvedRows: onRows, sessionSummaries: summaries });
+
+    fireEvent.click(screen.getByRole('switch'));
+    await waitFor(() => {
+      expect(useTasStore.getState().nonWorkedDaysOverrides['E1']).toBe(3);
+      expect(useTasStore.getState().stashedNonWorkedDaysOverrides['E1']).toBeUndefined();
+    });
   });
 
   it('shows error toast when updateAccruesOvertime fails', async () => {

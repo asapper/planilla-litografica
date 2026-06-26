@@ -248,7 +248,7 @@ La tabla muestra un registro por cada empleado con las siguientes columnas:
 |---------|-------------|
 | **Empleado** | Nombre del empleado. Puede incluir etiquetas como "turno est." (naranja) o "Duplicado" (rojo) |
 | **Código** | Código del empleado en el sistema |
-| **Días no lab.** | Cantidad de días que el empleado no trabajó en el período |
+| **Días no lab.** | Cantidad de días que el empleado no trabajó en el período (campo editable) |
 | **Extras simples** | Horas extras simples calculadas (campo editable) |
 | **Extras dobles** | Horas extras dobles calculadas (campo editable) |
 | **Acumula extras** | Interruptor para indicar si el empleado acumula horas extra |
@@ -260,7 +260,7 @@ En la parte superior de la tabla hay botones de filtro con contadores:
 - **Todos** — Muestra todos los empleados procesados
 - **Turno estimado** — Muestra solo empleados que tienen al menos un día con turno estimado (asignado automáticamente)
 - **Duplicados** — Muestra solo empleados cuyo registro ya existe en la base de datos
-- **Ajustados** — Muestra solo empleados cuyas horas extras fueron modificadas manualmente
+- **Ajustados** — Muestra solo empleados con algún valor modificado manualmente (días no laborados u horas extras)
 
 ##### Búsqueda y ordenamiento
 
@@ -274,9 +274,9 @@ En la parte superior de la tabla hay botones de filtro con contadores:
 
 ![Vista de lista mostrando un registro duplicado](screenshots/10-review-duplicate.png)
 
-##### Editar horas extras
+##### Editar campos en la tabla
 
-Los campos de **Extras simples** y **Extras dobles** son editables directamente en la tabla. Haga clic sobre el campo, modifique el valor y presione Enter o haga clic fuera para confirmar.
+Los campos de **Días no lab.**, **Extras simples** y **Extras dobles** son editables directamente en la tabla. Haga clic sobre el campo, modifique el valor y presione Enter o haga clic fuera para confirmar. El campo modificado se resaltará con un borde azul y mostrará el valor original entre paréntesis (por ejemplo, "era 3"). Los cambios solo aplican a la sesión de carga actual.
 
 ##### Interruptor "Acumula extras"
 
@@ -335,14 +335,14 @@ Los días donde el turno fue asignado automáticamente (turno estimado) se muest
 
 A la derecha de la tabla de sesiones encontrará tres secciones:
 
-**Ajuste de horas extra:**
-- Muestra el valor calculado por el sistema (por ejemplo, "Extras simples calculado: 4") y un campo editable debajo donde puede modificar el valor final.
-- Lo mismo para extras dobles.
-- Si modifica un valor, el campo se resaltará en amarillo para indicar que fue ajustado manualmente.
+**Ajustes manuales:**
+- Muestra campos editables para corregir los valores calculados por el sistema antes de enviar.
+- **Días no laborados:** número de días en la quincena en que el empleado no registró asistencia, calculado automáticamente. Si el valor está incorrecto (por ejemplo, por un día festivo no configurado), puede corregirlo aquí. El cambio aplica únicamente a la sesión de carga actual; la próxima carga calculará el valor de nuevo desde los registros de marcación.
+- **Extras simples / Extras dobles:** horas extra calculadas por el sistema. Puede corregirlos si es necesario.
+- Si modifica algún valor, el campo se resaltará en amarillo para indicar que fue ajustado manualmente.
 
 **Configuración:**
 - **Acumula horas extra:** Interruptor para activar o desactivar si el empleado acumula horas extras.
-- **Días no laborados:** Muestra el conteo de días que el empleado no trabajó.
 
 **Alertas:**
 - Si el empleado tiene días con turno estimado, aparece una tarjeta de alerta indicando cuántos días fueron afectados (por ejemplo, "1 día(s) con turno estimado").

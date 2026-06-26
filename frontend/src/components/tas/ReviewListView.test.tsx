@@ -1,8 +1,16 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import ReviewListView from './ReviewListView';
 import { useTasStore } from '../../tasStore';
+import * as configApi from '../../configApi';
+import * as tasApi from '../../tasApi';
 import type { ResolvedRow } from '../../tasTypes';
+
+vi.mock('../../configApi');
+vi.mock('../../tasApi');
+
+const mockUpdateAccruesOvertime = vi.mocked(configApi.updateAccruesOvertime);
+const mockRecomputeTas = vi.mocked(tasApi.recomputeTas);
 
 const rows: ResolvedRow[] = [
   { codigoEmpleado: 'E1', nombreEmpleado: 'Ana López', diasNoLaborados: 0, horasExtrasSimples: 2, horasExtrasDobles: 0, mes: 6, anio: 2026, numeroDequincena: 1, diasTurnoEstimado: 0, accruesOvertime: true },
@@ -13,6 +21,8 @@ const rows: ResolvedRow[] = [
 beforeEach(() => {
   useTasStore.getState().resetTas();
   useTasStore.getState().setResolvedRows(rows);
+  useTasStore.getState().setUploadToken('tok-1');
+  vi.clearAllMocks();
 });
 
 describe('ReviewListView rendering', () => {
@@ -84,6 +94,46 @@ describe('ReviewListView row click', () => {
   });
 });
 
+describe('ReviewListView días no laborados editing', () => {
+  it('renders editable días no laborados input', () => {
+    render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} />);
+    expect(screen.getByLabelText('Días no laborados Ana López')).toBeInTheDocument();
+  });
+
+  it('pre-populates input with computed value', () => {
+    render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} />);
+    const input = screen.getByLabelText('Días no laborados Ana López') as HTMLInputElement;
+    expect(input.value).toBe('0');
+  });
+
+  it('updates store when días no laborados input changes', () => {
+    render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} />);
+    const input = screen.getByLabelText('Días no laborados Ana López') as HTMLInputElement;
+    fireEvent.change(input, { target: { value: '3' } });
+    expect(useTasStore.getState().nonWorkedDaysOverrides['E1']).toBe(3);
+  });
+
+  it('shows override annotation when días no laborados overridden', () => {
+    useTasStore.getState().setNonWorkedDaysOverride('E1', 3);
+    render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} />);
+    expect(screen.getByText(/era 0/)).toBeInTheDocument();
+  });
+
+  it('uses override value in input when set', () => {
+    useTasStore.getState().setNonWorkedDaysOverride('E1', 5);
+    render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} />);
+    const input = screen.getByLabelText('Días no laborados Ana López') as HTMLInputElement;
+    expect(input.value).toBe('5');
+  });
+
+  it('does not navigate when clicking días no laborados input', () => {
+    render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} />);
+    const input = screen.getByLabelText('Días no laborados Ana López');
+    fireEvent.click(input);
+    expect(useTasStore.getState().reviewSelectedEmployee).toBeNull();
+  });
+});
+
 describe('ReviewListView overtime editing', () => {
   it('renders editable overtime inputs', () => {
     render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} />);
@@ -109,6 +159,45 @@ describe('ReviewListView overtime editing', () => {
     const input = screen.getByLabelText('Extras simples Ana López');
     fireEvent.click(input);
     expect(useTasStore.getState().reviewSelectedEmployee).toBeNull();
+  });
+});
+
+describe('ReviewListView adjusted chip and badge', () => {
+  it('counts overtime-only override in adjusted chip', () => {
+    useTasStore.getState().setOvertimeOverride('E1', 'horasExtrasSimples', 5);
+    render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} />);
+    const chip = screen.getByText('Ajustados').closest('button')!;
+    expect(chip.textContent).toContain('1');
+  });
+
+  it('counts diasNoLaborados-only override in adjusted chip', () => {
+    useTasStore.getState().setNonWorkedDaysOverride('E2', 3);
+    render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} />);
+    const chip = screen.getByText('Ajustados').closest('button')!;
+    expect(chip.textContent).toContain('1');
+  });
+
+  it('counts employee with both override types only once in adjusted chip', () => {
+    useTasStore.getState().setOvertimeOverride('E1', 'horasExtrasSimples', 5);
+    useTasStore.getState().setNonWorkedDaysOverride('E1', 3);
+    render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} />);
+    const chip = screen.getByText('Ajustados').closest('button')!;
+    expect(chip.textContent).toContain('1');
+  });
+
+  it('shows ajustado badge when only diasNoLaborados is overridden', () => {
+    useTasStore.getState().setNonWorkedDaysOverride('E1', 3);
+    render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} />);
+    const badges = screen.getAllByText(/ajustado/i);
+    expect(badges.some(el => el.tagName === 'SPAN')).toBe(true);
+  });
+
+  it('adjusted filter includes rows with diasNoLaborados-only override', () => {
+    useTasStore.getState().setNonWorkedDaysOverride('E2', 3);
+    useTasStore.getState().setReviewActiveFilter('adjusted');
+    render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} />);
+    expect(screen.getByText('Luis García')).toBeInTheDocument();
+    expect(screen.queryByText('Ana López')).not.toBeInTheDocument();
   });
 });
 
@@ -159,5 +248,24 @@ describe('ReviewListView submit', () => {
     render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} />);
     fireEvent.click(screen.getByText('Cambiar quincena'));
     expect(useTasStore.getState().tasView).toBe('verification');
+  });
+});
+
+describe('ReviewListView accruesOvertime toggle', () => {
+  it('stashes nonWorkedDaysOverride when accruesOvertime is toggled off', async () => {
+    useTasStore.getState().setNonWorkedDaysOverride('E1', 3);
+    mockUpdateAccruesOvertime.mockResolvedValue({
+      id: 'E1', code: 'E1', name: 'Ana López', shiftId: null, shiftName: null, active: true, accruesOvertime: false,
+    });
+    const newRows = [{ ...rows[0], accruesOvertime: false, horasExtrasSimples: 0, horasExtrasDobles: 0 }, rows[1], rows[2]];
+    mockRecomputeTas.mockResolvedValue({ uploadToken: 'tok-1', resolvedRows: newRows, sessionSummaries: {} });
+
+    render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} />);
+    fireEvent.click(screen.getByLabelText(/desactivar acumulado Ana López/i));
+
+    await waitFor(() => {
+      expect(useTasStore.getState().nonWorkedDaysOverrides['E1']).toBeUndefined();
+      expect(useTasStore.getState().stashedNonWorkedDaysOverrides['E1']).toBe(3);
+    });
   });
 });

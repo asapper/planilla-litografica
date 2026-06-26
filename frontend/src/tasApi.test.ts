@@ -135,14 +135,14 @@ describe('resolveVerification', () => {
 describe('submitTas', () => {
   it('posts to /tas/submit with token and returns jobId', async () => {
     mockPost.mockResolvedValue({ data: { jobId: 'job-123' } });
-    const result = await submitTas('tok-abc', {});
-    expect(mockPost).toHaveBeenCalledWith('/tas/submit', { uploadToken: 'tok-abc', overtimeOverrides: {} });
+    const result = await submitTas('tok-abc', {}, {});
+    expect(mockPost).toHaveBeenCalledWith('/tas/submit', { uploadToken: 'tok-abc', overtimeOverrides: {}, nonWorkedDaysOverrides: {} });
     expect(result).toEqual({ jobId: 'job-123' });
   });
 
   it('propagates errors', async () => {
     mockPost.mockRejectedValue(new Error('failed'));
-    await expect(submitTas('tok', {})).rejects.toThrow('failed');
+    await expect(submitTas('tok', {}, {})).rejects.toThrow('failed');
   });
 });
 

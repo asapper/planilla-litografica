@@ -1530,6 +1530,193 @@ class TasControllerTest {
            .andExpect(jsonPath("$.code").value("INVALID_OVERRIDE"));
     }
 
+    // ── POST /api/tas/submit — nonWorkedDays overrides ─────────────
+
+    @Test
+    void submit_withDiasNoLaboradosOverride_appliesOverrideToRow() throws Exception {
+        EmployeeRow row = new EmployeeRow();
+        row.setCodigoEmpleado("100");
+        row.setNombreEmpleado("Test");
+        row.setDiasNoLaborados(3);
+        row.setHorasExtrasSimples(0);
+        row.setHorasExtrasDobles(0);
+        row.setMes(3);
+        row.setAnio(2026);
+        row.setNumeroDequincena(1);
+
+        TasUploadResult result = emptyResult();
+        result.setResolvedRows(List.of(row));
+        when(parserService.parse(any())).thenReturn(emptyParseResult());
+        when(uploadService.processScans(any(), any(), any())).thenReturn(result);
+
+        MockMultipartFile file = new MockMultipartFile("file", "test.csv", "text/csv", "data".getBytes());
+        String uploadResponse = mvc.perform(multipart("/api/tas/upload").file(file))
+           .andExpect(status().isOk())
+           .andReturn().getResponse().getContentAsString();
+        String token = (String) mapper.readValue(uploadResponse, Map.class).get("uploadToken");
+
+        when(jobService.createJob(any())).thenReturn("job-dias");
+
+        Map<String, Object> body = Map.of(
+            "uploadToken", token,
+            "overtimeOverrides", Map.of(),
+            "nonWorkedDaysOverrides", Map.of("100", 5)
+        );
+
+        mvc.perform(post("/api/tas/submit")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(body)))
+           .andExpect(status().isAccepted());
+
+        var captor = org.mockito.ArgumentCaptor.forClass(List.class);
+        verify(jobService).createJob(captor.capture());
+        List<EmployeeRow> submitted = captor.getValue();
+        assertThat(submitted.get(0).getDiasNoLaborados()).isEqualTo(5);
+    }
+
+    @Test
+    void submit_withNegativeDiasNoLaboradosOverride_returns400() throws Exception {
+        EmployeeRow row = new EmployeeRow();
+        row.setCodigoEmpleado("100");
+        row.setNombreEmpleado("Test");
+        row.setDiasNoLaborados(0);
+        row.setHorasExtrasSimples(0);
+        row.setHorasExtrasDobles(0);
+        row.setMes(3);
+        row.setAnio(2026);
+        row.setNumeroDequincena(1);
+
+        TasUploadResult result = emptyResult();
+        result.setResolvedRows(List.of(row));
+        when(parserService.parse(any())).thenReturn(emptyParseResult());
+        when(uploadService.processScans(any(), any(), any())).thenReturn(result);
+
+        MockMultipartFile file = new MockMultipartFile("file", "test.csv", "text/csv", "data".getBytes());
+        String uploadResponse = mvc.perform(multipart("/api/tas/upload").file(file))
+           .andExpect(status().isOk())
+           .andReturn().getResponse().getContentAsString();
+        String token = (String) mapper.readValue(uploadResponse, Map.class).get("uploadToken");
+
+        Map<String, Object> body = Map.of(
+            "uploadToken", token,
+            "overtimeOverrides", Map.of(),
+            "nonWorkedDaysOverrides", Map.of("100", -1)
+        );
+
+        mvc.perform(post("/api/tas/submit")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(body)))
+           .andExpect(status().isBadRequest())
+           .andExpect(jsonPath("$.code").value("INVALID_OVERRIDE"));
+    }
+
+    @Test
+    void submit_withStringDiasNoLaboradosOverride_returns400() throws Exception {
+        EmployeeRow row = new EmployeeRow();
+        row.setCodigoEmpleado("100");
+        row.setNombreEmpleado("Test");
+        row.setDiasNoLaborados(0);
+        row.setHorasExtrasSimples(0);
+        row.setHorasExtrasDobles(0);
+        row.setMes(3);
+        row.setAnio(2026);
+        row.setNumeroDequincena(1);
+
+        TasUploadResult result = emptyResult();
+        result.setResolvedRows(List.of(row));
+        when(parserService.parse(any())).thenReturn(emptyParseResult());
+        when(uploadService.processScans(any(), any(), any())).thenReturn(result);
+
+        MockMultipartFile file = new MockMultipartFile("file", "test.csv", "text/csv", "data".getBytes());
+        String uploadResponse = mvc.perform(multipart("/api/tas/upload").file(file))
+           .andExpect(status().isOk())
+           .andReturn().getResponse().getContentAsString();
+        String token = (String) mapper.readValue(uploadResponse, Map.class).get("uploadToken");
+
+        String reqBody = "{\"uploadToken\":\"" + token + "\",\"overtimeOverrides\":{},\"nonWorkedDaysOverrides\":{\"100\":\"notanumber\"}}";
+
+        mvc.perform(post("/api/tas/submit")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(reqBody))
+           .andExpect(status().isBadRequest())
+           .andExpect(jsonPath("$.code").value("INVALID_OVERRIDE"));
+    }
+
+    @Test
+    void submit_withEmptyDiasNoLaboradosOverrides_passesRowUnchanged() throws Exception {
+        EmployeeRow row = new EmployeeRow();
+        row.setCodigoEmpleado("100");
+        row.setNombreEmpleado("Test");
+        row.setDiasNoLaborados(4);
+        row.setHorasExtrasSimples(0);
+        row.setHorasExtrasDobles(0);
+        row.setMes(3);
+        row.setAnio(2026);
+        row.setNumeroDequincena(1);
+
+        TasUploadResult result = emptyResult();
+        result.setResolvedRows(List.of(row));
+        when(parserService.parse(any())).thenReturn(emptyParseResult());
+        when(uploadService.processScans(any(), any(), any())).thenReturn(result);
+
+        MockMultipartFile file = new MockMultipartFile("file", "test.csv", "text/csv", "data".getBytes());
+        String uploadResponse = mvc.perform(multipart("/api/tas/upload").file(file))
+           .andExpect(status().isOk())
+           .andReturn().getResponse().getContentAsString();
+        String token = (String) mapper.readValue(uploadResponse, Map.class).get("uploadToken");
+
+        when(jobService.createJob(any())).thenReturn("job-nochange-dias");
+
+        Map<String, Object> body = Map.of(
+            "uploadToken", token,
+            "overtimeOverrides", Map.of(),
+            "nonWorkedDaysOverrides", Map.of()
+        );
+
+        mvc.perform(post("/api/tas/submit")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(body)))
+           .andExpect(status().isAccepted());
+
+        var captor = org.mockito.ArgumentCaptor.forClass(List.class);
+        verify(jobService).createJob(captor.capture());
+        List<EmployeeRow> submitted = captor.getValue();
+        assertThat(submitted.get(0).getDiasNoLaborados()).isEqualTo(4);
+    }
+
+    @Test
+    void submit_withOverflowDiasNoLaboradosOverride_returns400() throws Exception {
+        EmployeeRow row = new EmployeeRow();
+        row.setCodigoEmpleado("100");
+        row.setNombreEmpleado("Test");
+        row.setDiasNoLaborados(0);
+        row.setHorasExtrasSimples(0);
+        row.setHorasExtrasDobles(0);
+        row.setMes(3);
+        row.setAnio(2026);
+        row.setNumeroDequincena(1);
+
+        TasUploadResult result = emptyResult();
+        result.setResolvedRows(List.of(row));
+        when(parserService.parse(any())).thenReturn(emptyParseResult());
+        when(uploadService.processScans(any(), any(), any())).thenReturn(result);
+
+        MockMultipartFile file = new MockMultipartFile("file", "test.csv", "text/csv", "data".getBytes());
+        String uploadResponse = mvc.perform(multipart("/api/tas/upload").file(file))
+           .andExpect(status().isOk())
+           .andReturn().getResponse().getContentAsString();
+        String token = (String) mapper.readValue(uploadResponse, Map.class).get("uploadToken");
+
+        // 4294967296 = 2^32; would silently truncate to 0 without toIntExact guard
+        String reqBody = "{\"uploadToken\":\"" + token + "\",\"overtimeOverrides\":{},\"nonWorkedDaysOverrides\":{\"100\":4294967296}}";
+
+        mvc.perform(post("/api/tas/submit")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(reqBody))
+           .andExpect(status().isBadRequest())
+           .andExpect(jsonPath("$.code").value("INVALID_OVERRIDE"));
+    }
+
     @Test
     void recompute_responseIncludesSessionSummaries() throws Exception {
         TasUploadResult result = emptyResult();
