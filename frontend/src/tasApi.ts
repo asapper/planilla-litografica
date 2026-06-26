@@ -41,9 +41,9 @@ export const resolveVerification = (
 export const submitTas = (
   token: string,
   overtimeOverrides: Record<string, { horasExtrasSimples?: number; horasExtrasDobles?: number }>,
-  diasNoLaboradosOverrides: Record<string, number>,
+  nonWorkedDaysOverrides: Record<string, number>,
 ): Promise<{ jobId: string }> =>
-  client.post<{ jobId: string }>('/tas/submit', { uploadToken: token, overtimeOverrides, diasNoLaboradosOverrides }).then(r => r.data);
+  client.post<{ jobId: string }>('/tas/submit', { uploadToken: token, overtimeOverrides, nonWorkedDaysOverrides }).then(r => r.data);
 
 export const getAbsentReview = (token: string): Promise<{ absentEmployees: AbsentEmployee[] }> =>
   client.get<{ absentEmployees: AbsentEmployee[] }>(`/tas/absent-review/${token}`).then(r => r.data);

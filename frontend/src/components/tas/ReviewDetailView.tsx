@@ -35,8 +35,9 @@ export default function ReviewDetailView({ onBack }: ReviewDetailViewProps) {
   const setSelectedEmployee = useTasStore(s => s.setReviewSelectedEmployee);
   const overtimeOverrides = useTasStore(s => s.overtimeOverrides);
   const setOvertimeOverride = useTasStore(s => s.setOvertimeOverride);
-  const diasNoLaboradosOverrides = useTasStore(s => s.diasNoLaboradosOverrides);
-  const setDiasNoLaboradosOverride = useTasStore(s => s.setDiasNoLaboradosOverride);
+  const nonWorkedDaysOverrides = useTasStore(s => s.nonWorkedDaysOverrides);
+  const setNonWorkedDaysOverride = useTasStore(s => s.setNonWorkedDaysOverride);
+  const removeNonWorkedDaysOverride = useTasStore(s => s.removeNonWorkedDaysOverride);
   const stashOvertimeOverrides = useTasStore(s => s.stashOvertimeOverrides);
   const restoreOvertimeOverrides = useTasStore(s => s.restoreOvertimeOverrides);
   const expandedScans = useTasStore(s => s.reviewExpandedScans);
@@ -120,12 +121,16 @@ export default function ReviewDetailView({ onBack }: ReviewDetailViewProps) {
   const override = overtimeOverrides[row.codigoEmpleado];
   const simplesValue = override?.horasExtrasSimples ?? row.horasExtrasSimples;
   const doblesValue = override?.horasExtrasDobles ?? row.horasExtrasDobles;
-  const diasOverride = diasNoLaboradosOverrides[row.codigoEmpleado];
-  const diasValue = diasOverride ?? row.diasNoLaborados;
+  const nonWorkedDaysOverride = nonWorkedDaysOverrides[row.codigoEmpleado];
+  const nonWorkedDaysValue = nonWorkedDaysOverride ?? row.diasNoLaborados;
 
-  const handleDiasNoLaboradosChange = (raw: string) => {
+  const handleNonWorkedDaysChange = (raw: string) => {
     const parsed = parseInt(raw, 10);
-    setDiasNoLaboradosOverride(row.codigoEmpleado, Number.isNaN(parsed) || parsed < 0 ? 0 : parsed);
+    if (Number.isNaN(parsed)) {
+      removeNonWorkedDaysOverride(row.codigoEmpleado);
+    } else {
+      setNonWorkedDaysOverride(row.codigoEmpleado, parsed < 0 ? 0 : parsed);
+    }
   };
 
   const navigate = (direction: 'prev' | 'next') => {
@@ -306,10 +311,10 @@ export default function ReviewDetailView({ onBack }: ReviewDetailViewProps) {
                     type="number"
                     min="0"
                     step="1"
-                    value={diasValue}
-                    onChange={e => handleDiasNoLaboradosChange(e.target.value)}
+                    value={nonWorkedDaysValue}
+                    onChange={e => handleNonWorkedDaysChange(e.target.value)}
                     className={`w-full text-right text-body-md border rounded-shape-sm px-3 py-1.5 focus:outline-none focus:border-primary transition-colors ${
-                      diasOverride !== undefined
+                      nonWorkedDaysOverride !== undefined
                         ? 'bg-warning-container/40 border-warning font-medium'
                         : 'bg-surface-container-lowest border-outline-variant'
                     }`}

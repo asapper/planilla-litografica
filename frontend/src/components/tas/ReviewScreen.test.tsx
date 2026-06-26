@@ -158,7 +158,7 @@ describe('ReviewScreen submit', () => {
   it('sends diasNoLaborados overrides in submit payload', async () => {
     useTasStore.getState().setUploadToken('tok-1');
     useTasStore.getState().setResolvedRows(rows);
-    useTasStore.getState().setDiasNoLaboradosOverride('E1', 3);
+    useTasStore.getState().setNonWorkedDaysOverride('E1', 3);
     mockSubmitTas.mockResolvedValue({ jobId: 'job-dias' });
 
     render(<ReviewScreen />);
@@ -327,8 +327,8 @@ describe('ReviewScreen duplicate detection', () => {
 
   it('excludes duplicate employee codes from diasNoLaborados submit payload', async () => {
     mockCheckDuplicates.mockResolvedValue(['E1']);
-    useTasStore.getState().setDiasNoLaboradosOverride('E1', 2);
-    useTasStore.getState().setDiasNoLaboradosOverride('E2', 4);
+    useTasStore.getState().setNonWorkedDaysOverride('E1', 2);
+    useTasStore.getState().setNonWorkedDaysOverride('E2', 4);
     mockSubmitTas.mockResolvedValue({ jobId: 'job-dup-dias' });
 
     render(<ReviewScreen />);

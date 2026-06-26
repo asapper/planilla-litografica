@@ -27,7 +27,7 @@ function sortRows(rows: ResolvedRow[], column: 'name' | 'code', direction: 'asc'
 export default function ReviewListView({ dbHealthy, onSubmit }: ReviewListViewProps) {
   const resolvedRows = useTasStore(s => s.resolvedRows);
   const overtimeOverrides = useTasStore(s => s.overtimeOverrides);
-  const diasNoLaboradosOverrides = useTasStore(s => s.diasNoLaboradosOverrides);
+  const nonWorkedDaysOverrides = useTasStore(s => s.nonWorkedDaysOverrides);
   const duplicateCodes = useTasStore(s => s.duplicateCodes);
   const duplicatesLoading = useTasStore(s => s.duplicatesLoading);
   const sortColumn = useTasStore(s => s.reviewSortColumn);
@@ -37,7 +37,8 @@ export default function ReviewListView({ dbHealthy, onSubmit }: ReviewListViewPr
   const setReviewSort = useTasStore(s => s.setReviewSort);
   const setReviewActiveFilter = useTasStore(s => s.setReviewActiveFilter);
   const setOvertimeOverride = useTasStore(s => s.setOvertimeOverride);
-  const setDiasNoLaboradosOverride = useTasStore(s => s.setDiasNoLaboradosOverride);
+  const setNonWorkedDaysOverride = useTasStore(s => s.setNonWorkedDaysOverride);
+  const removeNonWorkedDaysOverride = useTasStore(s => s.removeNonWorkedDaysOverride);
   const stashOvertimeOverrides = useTasStore(s => s.stashOvertimeOverrides);
   const restoreOvertimeOverrides = useTasStore(s => s.restoreOvertimeOverrides);
   const setResolvedRows = useTasStore(s => s.setResolvedRows);
@@ -55,7 +56,7 @@ export default function ReviewListView({ dbHealthy, onSubmit }: ReviewListViewPr
 
   const estimatedCount = resolvedRows.filter(r => r.diasTurnoEstimado > 0).length;
   const duplicateCount = duplicateCodes.length;
-  const adjustedCount = new Set([...Object.keys(overtimeOverrides), ...Object.keys(diasNoLaboradosOverrides)]).size;
+  const adjustedCount = new Set([...Object.keys(overtimeOverrides), ...Object.keys(nonWorkedDaysOverrides)]).size;
 
   const chips: { key: FilterType; label: string; count: number; warn: boolean }[] = [
     { key: 'all', label: 'Todos', count: resolvedRows.length, warn: false },
@@ -67,7 +68,7 @@ export default function ReviewListView({ dbHealthy, onSubmit }: ReviewListViewPr
   let filtered = resolvedRows;
   if (activeFilter === 'estimated') filtered = resolvedRows.filter(r => r.diasTurnoEstimado > 0);
   else if (activeFilter === 'duplicate') filtered = resolvedRows.filter(r => duplicateSet.has(r.codigoEmpleado));
-  else if (activeFilter === 'adjusted') filtered = resolvedRows.filter(r => overtimeOverrides[r.codigoEmpleado] !== undefined || diasNoLaboradosOverrides[r.codigoEmpleado] !== undefined);
+  else if (activeFilter === 'adjusted') filtered = resolvedRows.filter(r => overtimeOverrides[r.codigoEmpleado] !== undefined || nonWorkedDaysOverrides[r.codigoEmpleado] !== undefined);
 
   if (search.trim()) {
     filtered = filtered.filter(r =>
@@ -246,8 +247,8 @@ export default function ReviewListView({ dbHealthy, onSubmit }: ReviewListViewPr
               const override = overtimeOverrides[row.codigoEmpleado];
               const simplesOverride = override?.horasExtrasSimples;
               const doblesOverride = override?.horasExtrasDobles;
-              const diasOverride = diasNoLaboradosOverrides[row.codigoEmpleado];
-              const isAdjusted = override !== undefined || diasOverride !== undefined;
+              const nonWorkedDaysOverride = nonWorkedDaysOverrides[row.codigoEmpleado];
+              const isAdjusted = override !== undefined || nonWorkedDaysOverride !== undefined;
 
               return (
                 <tr
@@ -286,18 +287,22 @@ export default function ReviewListView({ dbHealthy, onSubmit }: ReviewListViewPr
                           type="number"
                           min={0}
                           step={1}
-                          value={diasOverride ?? row.diasNoLaborados}
+                          value={nonWorkedDaysOverride ?? row.diasNoLaborados}
                           onChange={e => {
                             const parsed = parseInt(e.target.value, 10);
-                            setDiasNoLaboradosOverride(row.codigoEmpleado, Number.isNaN(parsed) || parsed < 0 ? 0 : parsed);
+                            if (Number.isNaN(parsed)) {
+                              removeNonWorkedDaysOverride(row.codigoEmpleado);
+                            } else {
+                              setNonWorkedDaysOverride(row.codigoEmpleado, parsed < 0 ? 0 : parsed);
+                            }
                           }}
                           onClick={e => e.stopPropagation()}
                           aria-label={`Días no laborados ${row.nombreEmpleado}`}
                           className={`w-14 text-right border rounded-shape-sm px-1.5 py-0.5 text-body-sm focus:outline-none focus:border-primary ${
-                            diasOverride !== undefined ? 'border-primary text-primary font-medium' : 'border-outline-variant text-on-surface-variant'
+                            nonWorkedDaysOverride !== undefined ? 'border-primary text-primary font-medium' : 'border-outline-variant text-on-surface-variant'
                           }`}
                         />
-                        {diasOverride !== undefined && (
+                        {nonWorkedDaysOverride !== undefined && (
                           <span className="text-label-sm text-on-surface-variant">(era {row.diasNoLaborados})</span>
                         )}
                       </div>

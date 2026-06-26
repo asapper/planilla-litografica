@@ -1530,7 +1530,7 @@ class TasControllerTest {
            .andExpect(jsonPath("$.code").value("INVALID_OVERRIDE"));
     }
 
-    // ── POST /api/tas/submit — diasNoLaborados overrides ─────────────
+    // ── POST /api/tas/submit — nonWorkedDays overrides ─────────────
 
     @Test
     void submit_withDiasNoLaboradosOverride_appliesOverrideToRow() throws Exception {
@@ -1560,7 +1560,7 @@ class TasControllerTest {
         Map<String, Object> body = Map.of(
             "uploadToken", token,
             "overtimeOverrides", Map.of(),
-            "diasNoLaboradosOverrides", Map.of("100", 5)
+            "nonWorkedDaysOverrides", Map.of("100", 5)
         );
 
         mvc.perform(post("/api/tas/submit")
@@ -1600,7 +1600,7 @@ class TasControllerTest {
         Map<String, Object> body = Map.of(
             "uploadToken", token,
             "overtimeOverrides", Map.of(),
-            "diasNoLaboradosOverrides", Map.of("100", -1)
+            "nonWorkedDaysOverrides", Map.of("100", -1)
         );
 
         mvc.perform(post("/api/tas/submit")
@@ -1633,7 +1633,7 @@ class TasControllerTest {
            .andReturn().getResponse().getContentAsString();
         String token = (String) mapper.readValue(uploadResponse, Map.class).get("uploadToken");
 
-        String reqBody = "{\"uploadToken\":\"" + token + "\",\"overtimeOverrides\":{},\"diasNoLaboradosOverrides\":{\"100\":\"notanumber\"}}";
+        String reqBody = "{\"uploadToken\":\"" + token + "\",\"overtimeOverrides\":{},\"nonWorkedDaysOverrides\":{\"100\":\"notanumber\"}}";
 
         mvc.perform(post("/api/tas/submit")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -1670,7 +1670,7 @@ class TasControllerTest {
         Map<String, Object> body = Map.of(
             "uploadToken", token,
             "overtimeOverrides", Map.of(),
-            "diasNoLaboradosOverrides", Map.of()
+            "nonWorkedDaysOverrides", Map.of()
         );
 
         mvc.perform(post("/api/tas/submit")

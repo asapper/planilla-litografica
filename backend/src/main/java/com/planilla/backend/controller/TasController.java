@@ -354,16 +354,16 @@ public class TasController {
             }
         }
 
-        Object rawDiasOverrides = body.getOrDefault("diasNoLaboradosOverrides", Collections.emptyMap());
-        if (!(rawDiasOverrides instanceof Map)) {
+        Object rawNonWorkedDaysOverrides = body.getOrDefault("nonWorkedDaysOverrides", Collections.emptyMap());
+        if (!(rawNonWorkedDaysOverrides instanceof Map)) {
             return ResponseEntity.badRequest().body(Map.of(
                 "code", "INVALID_OVERRIDE",
                 "message", "Formato de días no laborados inválido."));
         }
         @SuppressWarnings("unchecked")
-        Map<String, Object> diasNoLaboradosOverrides = (Map<String, Object>) rawDiasOverrides;
+        Map<String, Object> nonWorkedDaysOverrides = (Map<String, Object>) rawNonWorkedDaysOverrides;
 
-        for (Map.Entry<String, Object> entry : diasNoLaboradosOverrides.entrySet()) {
+        for (Map.Entry<String, Object> entry : nonWorkedDaysOverrides.entrySet()) {
             String empId = entry.getKey();
             Object raw = entry.getValue();
             if (!(raw instanceof Number)) {

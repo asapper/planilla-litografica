@@ -144,7 +144,7 @@ describe('ReviewDetailView días no laborados adjustment', () => {
     render(<ReviewDetailView onBack={onBack} />);
     const inputs = screen.getAllByRole('spinbutton');
     fireEvent.change(inputs[0], { target: { value: '3' } });
-    expect(useTasStore.getState().diasNoLaboradosOverrides).toEqual({ E1: 3 });
+    expect(useTasStore.getState().nonWorkedDaysOverrides).toEqual({ E1: 3 });
   });
 
   it('shows computed label for días no laborados', () => {
@@ -156,18 +156,18 @@ describe('ReviewDetailView días no laborados adjustment', () => {
     render(<ReviewDetailView onBack={onBack} />);
     const inputs = screen.getAllByRole('spinbutton');
     fireEvent.change(inputs[0], { target: { value: '-2' } });
-    expect(useTasStore.getState().diasNoLaboradosOverrides).toEqual({ E1: 0 });
+    expect(useTasStore.getState().nonWorkedDaysOverrides).toEqual({ E1: 0 });
   });
 
-  it('clamps NaN días no laborados to 0', () => {
+  it('removes override when días no laborados input is cleared', () => {
     render(<ReviewDetailView onBack={onBack} />);
     const inputs = screen.getAllByRole('spinbutton');
     fireEvent.change(inputs[0], { target: { value: 'abc' } });
-    expect(useTasStore.getState().diasNoLaboradosOverrides).toEqual({ E1: 0 });
+    expect(useTasStore.getState().nonWorkedDaysOverrides).toEqual({});
   });
 
   it('shows override value when set', () => {
-    useTasStore.getState().setDiasNoLaboradosOverride('E1', 4);
+    useTasStore.getState().setNonWorkedDaysOverride('E1', 4);
     render(<ReviewDetailView onBack={onBack} />);
     const inputs = screen.getAllByRole('spinbutton');
     expect(inputs[0]).toHaveValue(4);
