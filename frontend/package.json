@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "npm run generate:pdf && tsc -b && vite build",
-    "generate:pdf": "node scripts/generate-pdf.mjs && ln -sf ../src-tauri/resources/manual_usuario.pdf public/manual_usuario.pdf",
+    "generate:pdf": "node scripts/generate-pdf.mjs",
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",

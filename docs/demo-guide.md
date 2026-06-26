@@ -68,7 +68,7 @@ Si el reporte contiene marcajes de más de una quincena, el sistema pregunta cu�
 
 ## Paso 5 — Pantalla de revisión: empleado sin problemas
 
-![Revisión sin problemas](demo-data/screenshots/05-revision-limpia.png)
+![Revisión sin problemas](demo-data/screenshots/05-revision-sin-alertas.png)
 
 La pantalla de revisión muestra el resumen de todos los empleados del período seleccionado.
 
@@ -81,7 +81,7 @@ La pantalla de revisión muestra el resumen de todos los empleados del período 
 
 ## Paso 6 — Pantalla de revisión: empleados con alertas
 
-![Revisión con alertas](demo-data/screenshots/06-revision-alertas.png)
+![Revisión con alertas](demo-data/screenshots/06-revision-con-alertas.png)
 
 Las filas con problemas detectados muestran insignias de colores junto al nombre del empleado.
 
@@ -143,7 +143,7 @@ Una vez revisadas y resueltas todas las alertas, aparece el botón **"Enviar"**.
 
 ## Paso 11 — Pantalla de éxito
 
-![Pantalla de éxito](demo-data/screenshots/11-exito.png)
+![Pantalla de éxito](demo-data/screenshots/11-pantalla-exito.png)
 
 Al completarse el envío, el sistema muestra una pantalla verde de confirmación.
 
@@ -203,7 +203,7 @@ La pestaña **General** contiene parámetros globales que afectan todos los cál
 
 ## Paso 16 — Botón de ayuda: manual en PDF
 
-![Botón de ayuda](demo-data/screenshots/16-ayuda-pdf.png)
+![Botón de ayuda](demo-data/screenshots/16-boton-ayuda.png)
 
 El ícono de interrogación (?) en la barra superior abre el manual de usuario en formato PDF.
 
@@ -212,13 +212,10 @@ El ícono de interrogación (?) en la barra superior abre el manual de usuario e
 
 ---
 
-## Notas sobre las capturas de pantalla
+## Capturas de pantalla
 
-Las imágenes en `demo-data/screenshots/` son capturas en bruto (sin anotaciones).
-Las versiones con flechas y recuadros anotados se encuentran en `demo-data/screenshots/annotated/`.
+Las imágenes en `demo-data/screenshots/` son generadas automáticamente por el script de Playwright (`e2e/demo-screenshots.spec.ts`) ejecutado con mocks de API. Para regenerarlas:
 
-Para tomar las capturas:
-1. Asegurarse de que la aplicación esté en modo demostración (`demo.mode=true`).
-2. Cargar el archivo `docs/demo-data/demo-reporte.csv`.
-3. Seleccionar **segunda quincena, junio 2026**.
-4. Capturar cada pantalla a resolución **1280 × 800 píxeles**.
+```bash
+cd frontend && npx playwright test e2e/demo-screenshots.spec.ts
+```
