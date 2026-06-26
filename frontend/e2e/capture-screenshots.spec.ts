@@ -235,6 +235,7 @@ test('08 - review list view', async ({ page }) => {
   await waitForApp(page);
   await uploadFile(page);
   await page.waitForSelector('text=Revisión de registros procesados', { timeout: 10_000 });
+  await page.waitForSelector('[aria-label^="Días no laborados"]', { timeout: 5_000 });
   await page.waitForTimeout(500);
   await screenshot(page, '08-review-list.png');
 });
@@ -258,6 +259,7 @@ test('09 - review detail view', async ({ page }) => {
   // Click on first employee to open detail
   await page.locator('text=García López, María Elena').first().click();
   await page.waitForSelector('text=Volver a lista', { timeout: 5_000 });
+  await page.waitForSelector('text=Ajustes manuales', { timeout: 5_000 });
   await page.waitForTimeout(500);
   await screenshot(page, '09-review-detail.png');
 });
