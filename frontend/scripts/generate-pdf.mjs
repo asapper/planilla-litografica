@@ -1,8 +1,9 @@
-import { readFileSync, mkdirSync } from 'node:fs';
+import { readFileSync, mkdirSync, copyFileSync } from 'node:fs';
 import { resolve, dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { mdToPdf } from 'md-to-pdf';
 
-const ROOT = resolve(dirname(new URL(import.meta.url).pathname), '..', '..');
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const MANUAL_PATH = join(ROOT, 'docs', 'manual_usuario.md');
 const OUTPUT_PATH = join(ROOT, 'frontend', 'src-tauri', 'resources', 'manual_usuario.pdf');
 
@@ -39,6 +40,11 @@ if (pdf.content) {
   const { writeFileSync } = await import('node:fs');
   writeFileSync(OUTPUT_PATH, pdf.content);
   console.log(`PDF generated: ${OUTPUT_PATH}`);
+  // Copy to public/ so the dev server can serve it (cross-platform; replaces ln -sf)
+  const PUBLIC_PDF = join(ROOT, 'frontend', 'public', 'manual_usuario.pdf');
+  mkdirSync(dirname(PUBLIC_PDF), { recursive: true });
+  copyFileSync(OUTPUT_PATH, PUBLIC_PDF);
+  console.log(`PDF copied to: ${PUBLIC_PDF}`);
 } else {
   console.error('PDF generation failed');
   process.exit(1);

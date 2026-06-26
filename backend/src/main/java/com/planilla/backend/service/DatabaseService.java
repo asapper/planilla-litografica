@@ -1,7 +1,10 @@
 package com.planilla.backend.service;
 
 import com.planilla.backend.model.EmployeeRow;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
@@ -11,14 +14,19 @@ import java.util.List;
 @Service
 public class DatabaseService {
 
+    private static final Logger log = LoggerFactory.getLogger(DatabaseService.class);
+
     private final JdbcTemplate postgresJdbc;
     private final JdbcTemplate h2Jdbc;
+    private final boolean demoMode;
 
     public DatabaseService(
             @Qualifier("postgresJdbcTemplate") JdbcTemplate postgresJdbc,
-            @Qualifier("h2JdbcTemplate") JdbcTemplate h2Jdbc) {
+            @Qualifier("h2JdbcTemplate") JdbcTemplate h2Jdbc,
+            @Value("${demo.mode:false}") boolean demoMode) {
         this.postgresJdbc = postgresJdbc;
         this.h2Jdbc = h2Jdbc;
+        this.demoMode = demoMode;
     }
 
     public boolean isDuplicate(EmployeeRow row) {
@@ -44,7 +52,11 @@ public class DatabaseService {
     }
 
     public void submitRow(EmployeeRow row) {
-        // Execute stored procedure on remote PostgreSQL
+        if (demoMode) {
+            log.info("DEMO MODE: submission skipped for employee {}", row.getCodigoEmpleado());
+            return;
+        }
+
         postgresJdbc.queryForObject(
             "SELECT public.carga_datos_empleados(?::varchar, ?::integer, ?::numeric, ?::numeric, ?::integer, ?::integer, ?::integer)",
             Integer.class,
@@ -57,7 +69,6 @@ public class DatabaseService {
             row.getAnio()
         );
 
-        // Record successful submission in local H2 log
         h2Jdbc.update(
             "INSERT INTO carga_log (codigo_empleado, numero_quincena, mes, anio) VALUES (?, ?, ?, ?)",
             row.getCodigoEmpleado(),

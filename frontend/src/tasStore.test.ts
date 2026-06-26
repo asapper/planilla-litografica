@@ -17,6 +17,7 @@ function makeSession(id: number): TasSession {
     lastScan: null,
     workedMinutes: 0,
     workedHours: 0,
+    crossMidnight: false,
     needsResolution: true,
     flags: ['MISSING_ENTRY'],
   };
