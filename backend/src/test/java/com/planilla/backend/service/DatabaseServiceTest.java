@@ -35,7 +35,11 @@ class DatabaseServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new DatabaseService(postgresJdbc, h2Jdbc);
+        service = new DatabaseService(postgresJdbc, h2Jdbc, false);
+    }
+
+    private DatabaseService demoService() {
+        return new DatabaseService(postgresJdbc, h2Jdbc, true);
     }
 
     private EmployeeRow row(String codigo, int quincena, int mes, int anio) {
@@ -217,5 +221,26 @@ class DatabaseServiceTest {
         List<String> result = service.checkDuplicates(Collections.emptyList());
 
         assertThat(result).isEmpty();
+    }
+
+    // -----------------------------------------------------------------
+    // demo mode
+    // -----------------------------------------------------------------
+
+    @Test
+    void submitRow_demoMode_skipsPostgres() {
+        demoService().submitRow(row("10", 1, 6, 2026));
+
+        verifyNoInteractions(postgresJdbc);
+    }
+
+    @Test
+    void submitRow_demoMode_stillWritesToH2Log() {
+        demoService().submitRow(row("10", 1, 6, 2026));
+
+        verify(h2Jdbc).update(
+            contains("INSERT INTO carga_log"),
+            eq("10"), eq(1), eq(6), eq(2026)
+        );
     }
 }
