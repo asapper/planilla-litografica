@@ -178,7 +178,7 @@ describe('ReactivationReviewScreen continue', () => {
           scans: [], matchedShiftId: null, matchedShiftName: null,
           assignedShiftId: null, assignedShiftName: null,
           effectiveStart: null, lastScan: null, workedMinutes: 0, workedHours: 0,
-          needsResolution: true, flags: ['MISSING_ENTRY'],
+          crossMidnight: false, needsResolution: true, flags: ['MISSING_ENTRY'],
         },
       ],
     });
