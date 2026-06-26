@@ -32,6 +32,10 @@ frontend/src-tauri/gen/
 .DS_Store
 Thumbs.db
 
+# ── Local test data (internal, not for version control) ──────────────────────
+docs/Reporte TAS *.csv
+frontend/test-results/
+
 # ── Runtime / logs ───────────────────────────────────────────────────────────
 logs/
 *.log
