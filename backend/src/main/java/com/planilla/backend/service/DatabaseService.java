@@ -54,21 +54,21 @@ public class DatabaseService {
     public void submitRow(EmployeeRow row) {
         if (demoMode) {
             log.info("DEMO MODE: submission skipped for employee {}", row.getCodigoEmpleado());
-        } else {
-            postgresJdbc.queryForObject(
-                "SELECT public.carga_datos_empleados(?::varchar, ?::integer, ?::numeric, ?::numeric, ?::integer, ?::integer, ?::integer)",
-                Integer.class,
-                row.getCodigoEmpleado(),
-                row.getDiasNoLaborados(),
-                row.getHorasExtrasSimples(),
-                row.getHorasExtrasDobles(),
-                row.getNumeroDequincena(),
-                row.getMes(),
-                row.getAnio()
-            );
+            return;
         }
 
-        // Record successful submission in local H2 log (runs in both normal and demo mode)
+        postgresJdbc.queryForObject(
+            "SELECT public.carga_datos_empleados(?::varchar, ?::integer, ?::numeric, ?::numeric, ?::integer, ?::integer, ?::integer)",
+            Integer.class,
+            row.getCodigoEmpleado(),
+            row.getDiasNoLaborados(),
+            row.getHorasExtrasSimples(),
+            row.getHorasExtrasDobles(),
+            row.getNumeroDequincena(),
+            row.getMes(),
+            row.getAnio()
+        );
+
         h2Jdbc.update(
             "INSERT INTO carga_log (codigo_empleado, numero_quincena, mes, anio) VALUES (?, ?, ?, ?)",
             row.getCodigoEmpleado(),

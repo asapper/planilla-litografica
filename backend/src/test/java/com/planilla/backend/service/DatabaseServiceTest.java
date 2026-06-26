@@ -235,12 +235,9 @@ class DatabaseServiceTest {
     }
 
     @Test
-    void submitRow_demoMode_stillWritesToH2Log() {
+    void submitRow_demoMode_skipsH2Log() {
         demoService().submitRow(row("10", 1, 6, 2026));
 
-        verify(h2Jdbc).update(
-            contains("INSERT INTO carga_log"),
-            eq("10"), eq(1), eq(6), eq(2026)
-        );
+        verifyNoInteractions(h2Jdbc);
     }
 }
