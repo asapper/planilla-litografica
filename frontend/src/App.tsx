@@ -22,6 +22,7 @@ type BackendState = 'starting' | 'ready' | 'error';
 export default function App() {
   const [backendState, setBackendState] = useState<BackendState>('starting');
   const [retryKey, setRetryKey] = useState(0);
+  const [startAttempts, setStartAttempts] = useState(0);
   const [currentView, setCurrentView] = useState<AppView>('tas');
   const [tasFileName, setTasFileName] = useState('');
 
@@ -91,6 +92,7 @@ export default function App() {
         if (!cancelled) setBackendState('ready');
       } catch {
         attempts++;
+        setStartAttempts(attempts);
         if (attempts >= MAX_ATTEMPTS) {
           if (!cancelled) setBackendState('error');
         } else {
@@ -105,6 +107,7 @@ export default function App() {
 
   const retry = () => {
     setBackendState('starting');
+    setStartAttempts(0);
     setRetryKey(k => k + 1);
   };
 
@@ -114,6 +117,11 @@ export default function App() {
       <div className="fixed inset-0 flex flex-col items-center justify-center gap-4 bg-surface-container-lowest">
         <Spinner size="w-10 h-10" />
         <p className="text-title-md text-primary">Iniciando aplicación...</p>
+        {startAttempts >= 4 && (
+          <p className="text-body-sm text-on-surface-variant">
+            Esto puede tomar hasta 20 segundos la primera vez.
+          </p>
+        )}
       </div>
     );
   }
