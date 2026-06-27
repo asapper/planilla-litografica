@@ -34,9 +34,11 @@ class CorsConfigTest {
     void allowedOriginReturnsAccessControlHeaders(String origin) throws Exception {
         mvc.perform(options("/api/health")
                 .header("Origin", origin)
-                .header("Access-Control-Request-Method", "GET"))
+                .header("Access-Control-Request-Method", "GET")
+                .header("Access-Control-Request-Headers", "Content-Type,Accept"))
            .andExpect(status().isOk())
-           .andExpect(header().string("Access-Control-Allow-Origin", origin));
+           .andExpect(header().string("Access-Control-Allow-Origin", origin))
+           .andExpect(header().string("Access-Control-Allow-Headers", "Content-Type, Accept"));
     }
 
     @ParameterizedTest
