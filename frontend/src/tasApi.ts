@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { API_BASE } from './constants/api';
 import type { TasUploadResult, TasResolveResult, AbsentEmployee, TasPeriod, ResolvedRow, SessionSummary, JobStatus } from './tasTypes';
 
 export type TasResolution =
@@ -7,7 +8,7 @@ export type TasResolution =
   | { employeeId: string; date: string; keepSessionId: number | 'all' };
 
 const client = axios.create({
-  baseURL: 'http://localhost:49301/api',
+  baseURL: API_BASE,
   timeout: 30_000,
 });
 
