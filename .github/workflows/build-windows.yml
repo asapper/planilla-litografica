@@ -74,16 +74,16 @@ jobs:
         with:
           workspaces: frontend/src-tauri -> target
 
-      - name: Build Tauri (Windows MSI)
+      - name: Build Tauri (Windows NSIS)
         working-directory: frontend
-        run: npx tauri build --bundles msi
+        run: npx tauri build --bundles nsis
 
       # ── Upload artifact (always) ─────────────────────────────
-      - name: Upload MSI artifact
+      - name: Upload installer artifact
         uses: actions/upload-artifact@v4
         with:
-          name: windows-msi
-          path: frontend/src-tauri/target/release/bundle/msi/*.msi
+          name: windows-installer
+          path: frontend/src-tauri/target/release/bundle/nsis/*.exe
           if-no-files-found: error
 
       # ── Create GitHub Release (only on tag push) ─────────────
@@ -93,5 +93,5 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           $tag = "${{ github.ref_name }}"
-          $msi = Get-ChildItem -Path frontend/src-tauri/target/release/bundle/msi/*.msi | Select-Object -First 1
-          gh release create $tag $msi.FullName --title "$tag — Cargador de Planilla" --generate-notes
+          $exe = Get-ChildItem -Path frontend/src-tauri/target/release/bundle/nsis/*.exe | Select-Object -First 1
+          gh release create $tag $exe.FullName --title "$tag — Cargador de Planilla" --generate-notes
