@@ -15,6 +15,19 @@ public class EmployeeRow {
 
     public EmployeeRow() {}
 
+    public EmployeeRow(EmployeeRow other) {
+        this.codigoEmpleado    = other.codigoEmpleado;
+        this.nombreEmpleado    = other.nombreEmpleado;
+        this.diasNoLaborados   = other.diasNoLaborados;
+        this.horasExtrasSimples = other.horasExtrasSimples;
+        this.horasExtrasDobles  = other.horasExtrasDobles;
+        this.mes               = other.mes;
+        this.anio              = other.anio;
+        this.numeroDequincena  = other.numeroDequincena;
+        this.diasTurnoEstimado = other.diasTurnoEstimado;
+        this.accruesOvertime   = other.accruesOvertime;
+    }
+
     public String getCodigoEmpleado() { return codigoEmpleado; }
     public void setCodigoEmpleado(String codigoEmpleado) { this.codigoEmpleado = codigoEmpleado; }
 

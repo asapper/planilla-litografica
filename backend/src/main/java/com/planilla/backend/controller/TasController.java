@@ -33,7 +33,7 @@ public class TasController {
     private final TasHoursCalculator      hoursCalculator;
     private final DatabaseService         databaseService;
 
-    private final ConcurrentHashMap<String, TasUploadState> stateStore = new ConcurrentHashMap<>();
+    final ConcurrentHashMap<String, TasUploadState> stateStore = new ConcurrentHashMap<>();
 
     public TasController(
             TasParserService parserService,
@@ -89,8 +89,11 @@ public class TasController {
     @PostMapping("/inactive-review")
     public ResponseEntity<?> inactiveReview(@RequestBody Map<String, Object> body) {
         String token = (String) body.get("uploadToken");
+        if (token == null) {
+            return ResponseEntity.badRequest().body(Map.of("code", "INVALID_TOKEN", "message", "Token inválido."));
+        }
         TasUploadState existing = stateStore.get(token);
-        if (token == null || existing == null) {
+        if (existing == null) {
             return ResponseEntity.badRequest().body(Map.of("code", "INVALID_TOKEN", "message", "Token inválido."));
         }
 
@@ -294,10 +297,11 @@ public class TasController {
             ));
         }
 
-        List<EmployeeRow> rows = state.getResolvedRows();
-        if (rows == null || rows.isEmpty()) {
+        List<EmployeeRow> storedRows = state.getResolvedRows();
+        if (storedRows == null || storedRows.isEmpty()) {
             return ResponseEntity.badRequest().body(Map.of("code", "NO_ROWS", "message", "No hay filas para enviar."));
         }
+        List<EmployeeRow> rows = storedRows.stream().map(EmployeeRow::new).collect(Collectors.toList());
 
         Object rawOverrides = body.getOrDefault("overtimeOverrides", Collections.emptyMap());
         if (!(rawOverrides instanceof Map)) {
@@ -435,6 +439,11 @@ public class TasController {
     public ResponseEntity<?> deactivateAbsent(
             @PathVariable String uploadToken,
             @RequestBody Map<String, Object> body) {
+
+        TasUploadState state = stateStore.get(uploadToken);
+        if (state == null) {
+            return ResponseEntity.notFound().build();
+        }
 
         @SuppressWarnings("unchecked")
         List<String> employeeIds = (List<String>) body.getOrDefault("employeeIds", Collections.emptyList());

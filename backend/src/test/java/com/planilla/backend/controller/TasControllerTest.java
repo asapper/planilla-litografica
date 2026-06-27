@@ -656,29 +656,86 @@ class TasControllerTest {
     // ── POST /api/tas/absent-review/{token}/deactivate ───────────────────────
 
     @Test
-    void deactivateAbsent_afterUploadStateRemoved_succeeds() throws Exception {
-        // The upload state is removed once /submit completes, but the
-        // absent-review modal is shown afterwards on the result screen.
+    void deactivateAbsent_validToken_deactivatesEmployee() throws Exception {
+        TasUploadState state = new TasUploadState();
+        state.setUploadToken("tok-deact");
+        tasController.stateStore.put("tok-deact", state);
+
         Map<String, Object> body = Map.of("employeeIds", List.of("100"));
 
-        mvc.perform(post("/api/tas/absent-review/nonexistent/deactivate")
+        mvc.perform(post("/api/tas/absent-review/tok-deact/deactivate")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(body)))
            .andExpect(status().isOk());
 
         verify(registryService).setActive("100", false);
+        tasController.stateStore.remove("tok-deact");
     }
 
     @Test
     void deactivateAbsent_withActiveTrue_reactivatesEmployee() throws Exception {
+        TasUploadState state = new TasUploadState();
+        state.setUploadToken("tok-react");
+        tasController.stateStore.put("tok-react", state);
+
         Map<String, Object> body = Map.of("employeeIds", List.of("100"), "active", true);
 
-        mvc.perform(post("/api/tas/absent-review/nonexistent/deactivate")
+        mvc.perform(post("/api/tas/absent-review/tok-react/deactivate")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(body)))
            .andExpect(status().isOk());
 
         verify(registryService).setActive("100", true);
+        tasController.stateStore.remove("tok-react");
+    }
+
+    // ── ERR-1: null token in inactiveReview must not NPE ──────────────────────
+
+    @Test
+    void inactiveReview_nullToken_returns400WithoutNpe() throws Exception {
+        Map<String, Object> body = new java.util.LinkedHashMap<>();
+        body.put("reactivate", List.of());
+        body.put("ignore", List.of());
+        // deliberately omit "uploadToken"
+
+        mvc.perform(post("/api/tas/inactive-review")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(body)))
+           .andExpect(status().isBadRequest())
+           .andExpect(jsonPath("$.code").value("INVALID_TOKEN"));
+    }
+
+    // ── SEC-3: deactivateAbsent must validate the upload token ────────────────
+
+    @Test
+    void deactivateAbsent_unknownToken_returns404() throws Exception {
+        Map<String, Object> body = Map.of("employeeIds", List.of("emp1"), "active", false);
+
+        mvc.perform(post("/api/tas/absent-review/unknown-token/deactivate")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(body)))
+           .andExpect(status().isNotFound());
+
+        verify(registryService, never()).setActive(anyString(), anyBoolean());
+    }
+
+    @Test
+    void deactivateAbsent_validTokenFromStore_deactivatesEmployees() throws Exception {
+        TasUploadState state = new TasUploadState();
+        state.setUploadToken("tok");
+        tasController.stateStore.put("tok", state);
+
+        Map<String, Object> body = Map.of("employeeIds", List.of("emp1"), "active", false);
+        when(registryService.setActive("emp1", false)).thenReturn(Map.of("id", "emp1"));
+
+        mvc.perform(post("/api/tas/absent-review/tok/deactivate")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(body)))
+           .andExpect(status().isOk());
+
+        verify(registryService).setActive("emp1", false);
+
+        tasController.stateStore.remove("tok");
     }
 
     // ── POST /api/tas/inactive-review ────────────────────────────────────────
