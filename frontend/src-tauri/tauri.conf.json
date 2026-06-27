@@ -32,13 +32,7 @@
       "binaries/backend.jar": "backend.jar",
       "binaries/jre/bin/**/*": "jre/bin",
       "binaries/jre/conf/**/*": "jre/conf",
-      "binaries/jre/conf/security/**/*": "jre/conf/security",
-      "binaries/jre/conf/security/policy/**/*": "jre/conf/security/policy",
-      "binaries/jre/conf/security/policy/limited/**/*": "jre/conf/security/policy/limited",
-      "binaries/jre/conf/security/policy/unlimited/**/*": "jre/conf/security/policy/unlimited",
       "binaries/jre/lib/**/*": "jre/lib",
-      "binaries/jre/lib/server/**/*": "jre/lib/server",
-      "binaries/jre/lib/security/**/*": "jre/lib/security",
       "binaries/jre/release": "jre/release",
       "resources/manual_usuario.pdf": "manual_usuario.pdf"
     },
