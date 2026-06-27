@@ -22,7 +22,8 @@ export default function AbsentReviewOverlay() {
     try {
       const result = await setAbsentEmployeesActive(uploadToken, [employeeId], nextActive);
       if (result.notFound.length > 0) {
-        showToast(`${result.notFound.length} empleados no encontrados en el registro`, 'warning');
+        const n = result.notFound.length;
+        showToast(`${n} ${n === 1 ? 'empleado no encontrado' : 'empleados no encontrados'} en el registro`, 'warning');
       }
       const latest = useTasStore.getState().absentEmployees;
       setAbsentEmployees(latest.map(e =>

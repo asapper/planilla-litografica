@@ -140,7 +140,7 @@ describe('AbsentReviewOverlay deactivate', () => {
 
     await waitFor(() => {
       expect(showToast).toHaveBeenCalledWith(
-        '1 empleados no encontrados en el registro',
+        '1 empleado no encontrado en el registro',
         'warning',
       );
     });
