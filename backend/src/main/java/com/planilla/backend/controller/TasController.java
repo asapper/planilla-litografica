@@ -10,10 +10,14 @@ import com.planilla.backend.service.DatabaseService;
 import com.planilla.backend.service.JobNotFoundException;
 import com.planilla.backend.service.JobService;
 import com.planilla.backend.service.tas.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
@@ -23,6 +27,8 @@ import java.util.stream.Collectors;
 @RestController
 @RequestMapping("/api/tas")
 public class TasController {
+
+    private static final Logger log = LoggerFactory.getLogger(TasController.class);
 
     private final TasParserService        parserService;
     private final TasUploadService        uploadService;
@@ -52,6 +58,13 @@ public class TasController {
         this.shiftConfigService = shiftConfigService;
         this.hoursCalculator    = hoursCalculator;
         this.databaseService    = databaseService;
+    }
+
+    @Scheduled(fixedRate = 600_000)   // runs every 10 minutes
+    void evictStaleStates() {
+        Instant cutoff = Instant.now().minusSeconds(1800); // 30-minute TTL
+        stateStore.entrySet().removeIf(e -> e.getValue().getCreatedAt().isBefore(cutoff));
+        log.debug("stateStore eviction pass complete; entries remaining: {}", stateStore.size());
     }
 
     @PostMapping(value = "/upload", consumes = "multipart/form-data")

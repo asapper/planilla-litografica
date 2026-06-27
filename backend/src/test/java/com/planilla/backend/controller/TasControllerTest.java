@@ -2013,4 +2013,28 @@ class TasControllerTest {
 
         tasController.stateStore.remove("res-tok");
     }
+
+    // ── SEC-2: stateStore TTL eviction ───────────────────────────────────────
+
+    @Test
+    void evictStaleStates_removesEntriesOlderThan30Minutes() {
+        TasUploadState stale = new TasUploadState() {
+            @Override public java.time.Instant getCreatedAt() {
+                return java.time.Instant.now().minusSeconds(1900); // >31 min ago
+            }
+        };
+        stale.setUploadToken("stale-token");
+        tasController.stateStore.put("stale-token", stale);
+
+        TasUploadState fresh = new TasUploadState();
+        fresh.setUploadToken("fresh-token");
+        tasController.stateStore.put("fresh-token", fresh);
+
+        tasController.evictStaleStates();
+
+        assertThat(tasController.stateStore).doesNotContainKey("stale-token");
+        assertThat(tasController.stateStore).containsKey("fresh-token");
+
+        tasController.stateStore.remove("fresh-token");
+    }
 }
