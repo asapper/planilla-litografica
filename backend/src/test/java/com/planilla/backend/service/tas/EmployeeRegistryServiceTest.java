@@ -132,6 +132,11 @@ class EmployeeRegistryServiceTest {
 
     @Test
     void updateEmployee_bothParams_returnsUpdatedDto() {
+        when(jdbc.queryForObject(
+                eq("SELECT COUNT(*) FROM shift_config WHERE id = ?"),
+                eq(Integer.class),
+                eq("tarde")))
+            .thenReturn(1);
         Map<String, Object> row = new java.util.HashMap<>();
         row.put("EMPLOYEE_ID", "emp1");
         row.put("NAME", "Ana");
@@ -148,6 +153,11 @@ class EmployeeRegistryServiceTest {
 
     @Test
     void updateEmployee_shiftIdOnly_returnsUpdatedDto() {
+        when(jdbc.queryForObject(
+                eq("SELECT COUNT(*) FROM shift_config WHERE id = ?"),
+                eq(Integer.class),
+                eq("tarde")))
+            .thenReturn(1);
         Map<String, Object> row = new java.util.HashMap<>();
         row.put("EMPLOYEE_ID", "emp1");
         row.put("NAME", "Ana");
@@ -367,5 +377,41 @@ class EmployeeRegistryServiceTest {
         assertThat(result).hasSize(1);
         assertThat(result.get(0).getEmployeeId()).isEqualTo("emp4");
         assertThat(result.get(0).getName()).isEqualTo("Diego");
+    }
+
+    @Test
+    void updateEmployee_unknownShiftId_throwsIllegalArgument() {
+        when(jdbc.queryForObject(
+                eq("SELECT COUNT(*) FROM shift_config WHERE id = ?"),
+                eq(Integer.class),
+                eq("nonexistent")))
+            .thenReturn(0);
+
+        assertThatThrownBy(() -> service.updateEmployee("emp1", "nonexistent", null))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessage("SHIFT_NOT_FOUND");
+    }
+
+    @Test
+    void updateEmployee_validShiftId_proceedsWithUpdate() {
+        when(jdbc.queryForObject(
+                eq("SELECT COUNT(*) FROM shift_config WHERE id = ?"),
+                eq(Integer.class),
+                eq("manana")))
+            .thenReturn(1);
+        when(jdbc.update(anyString(), eq("manana"), eq("emp1"))).thenReturn(1);
+
+        // getById call after update
+        Map<String, Object> row = new java.util.HashMap<>();
+        row.put("EMPLOYEE_ID", "emp1");
+        row.put("NAME", "Ana");
+        row.put("SHIFT_ID", "manana");
+        row.put("ACTIVE", true);
+        row.put("SHIFT_NAME", "Mañana");
+        row.put("ACCRUES_OVERTIME", true);
+        when(jdbc.queryForList(anyString(), eq("emp1"))).thenReturn(List.of(row));
+
+        assertThatCode(() -> service.updateEmployee("emp1", "manana", null))
+            .doesNotThrowAnyException();
     }
 }

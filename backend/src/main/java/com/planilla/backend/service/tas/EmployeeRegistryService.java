@@ -72,6 +72,13 @@ public class EmployeeRegistryService {
         if (shiftId == null && active == null) {
             return null;
         }
+        if (shiftId != null) {
+            Integer count = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM shift_config WHERE id = ?", Integer.class, shiftId);
+            if (count == null || count == 0) {
+                throw new IllegalArgumentException("SHIFT_NOT_FOUND");
+            }
+        }
         if (shiftId != null && active != null) {
             jdbc.update(
                 "UPDATE employee_registry SET shift_id = ?, active = ? WHERE employee_id = ?",
