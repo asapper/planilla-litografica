@@ -726,7 +726,6 @@ class TasControllerTest {
         tasController.stateStore.put("tok", state);
 
         Map<String, Object> body = Map.of("employeeIds", List.of("emp1"), "active", false);
-        when(registryService.setActive("emp1", false)).thenReturn(Map.of("id", "emp1"));
 
         mvc.perform(post("/api/tas/absent-review/tok/deactivate")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -1019,11 +1018,7 @@ class TasControllerTest {
 
         String token = (String) mapper.readValue(uploadResponse, Map.class).get("uploadToken");
 
-        java.lang.reflect.Field stateStoreField = TasController.class.getDeclaredField("stateStore");
-        stateStoreField.setAccessible(true);
-        @SuppressWarnings("unchecked")
-        Map<String, TasUploadState> stateStore = (Map<String, TasUploadState>) stateStoreField.get(tasController);
-        stateStore.get(token).setSessions(null);
+        tasController.stateStore.get(token).setSessions(null);
 
         when(shiftConfigService.getAllShifts()).thenReturn(new ArrayList<>());
         when(reportBuilder.build(any(), any(), any(), any(), isNull()))
@@ -1518,6 +1513,45 @@ class TasControllerTest {
         List<EmployeeRow> submitted = captor.getValue();
         assertThat(submitted.get(0).getHorasExtrasSimples()).isEqualTo(20);
         assertThat(submitted.get(0).getHorasExtrasDobles()).isEqualTo(2);
+    }
+
+    // ── INT-3 regression: second submit must not see mutated stored rows ──────
+
+    @Test
+    void submit_calledTwice_doesNotMutateStoredRows() throws Exception {
+        EmployeeRow row = new EmployeeRow();
+        row.setCodigoEmpleado("emp1");
+        row.setNombreEmpleado("Test");
+        row.setHorasExtrasSimples(2.0);
+        row.setHorasExtrasDobles(0);
+        row.setDiasNoLaborados(0);
+        row.setMes(3);
+        row.setAnio(2026);
+        row.setNumeroDequincena(1);
+
+        TasUploadState state = new TasUploadState();
+        state.setUploadToken("tok-int3");
+        state.setResolvedRows(new ArrayList<>(List.of(row)));
+        tasController.stateStore.put("tok-int3", state);
+
+        when(jobService.createJob(any())).thenReturn("job-int3-1", "job-int3-2");
+
+        Map<String, Object> overrides = Map.of("emp1", Map.of("horasExtrasSimples", 5.0));
+        Map<String, Object> body = Map.of("uploadToken", "tok-int3", "overtimeOverrides", overrides);
+
+        mvc.perform(post("/api/tas/submit")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(body)))
+           .andExpect(status().isAccepted());
+
+        mvc.perform(post("/api/tas/submit")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(body)))
+           .andExpect(status().isAccepted());
+
+        assertThat(state.getResolvedRows().get(0).getHorasExtrasSimples()).isEqualTo(2.0);
+
+        tasController.stateStore.remove("tok-int3");
     }
 
     @Test
