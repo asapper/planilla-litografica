@@ -154,8 +154,17 @@ public class TasController {
             Object dateObj = res.get("date");
             Object keepSessionIdObj = res.get("keepSessionId");
             if (employeeIdObj != null && dateObj != null && keepSessionIdObj != null) {
+                java.time.LocalDate resolutionDate;
+                try {
+                    resolutionDate = java.time.LocalDate.parse((String) dateObj);
+                } catch (java.time.format.DateTimeParseException e) {
+                    return ResponseEntity.badRequest().body(Map.of(
+                        "code", "INVALID_TIME_FORMAT",
+                        "message", "Formato de fecha inválido. Use yyyy-MM-dd."
+                    ));
+                }
                 applySameDayDoubleResolution(sessions, (String) employeeIdObj,
-                        java.time.LocalDate.parse((String) dateObj), keepSessionIdObj, shifts);
+                        resolutionDate, keepSessionIdObj, shifts);
                 continue;
             }
 
@@ -170,8 +179,24 @@ public class TasController {
             String acceptedShiftId = (String) res.get("acceptedShiftId");
 
             if (resolvedStart != null && resolvedEnd != null) {
-                LocalDateTime start = LocalDateTime.parse(resolvedStart, dtf);
-                LocalDateTime end   = LocalDateTime.parse(resolvedEnd, dtf);
+                LocalDateTime start;
+                LocalDateTime end;
+                try {
+                    start = LocalDateTime.parse(resolvedStart, dtf);
+                    end   = LocalDateTime.parse(resolvedEnd, dtf);
+                } catch (java.time.format.DateTimeParseException e) {
+                    return ResponseEntity.badRequest().body(Map.of(
+                        "code", "INVALID_TIME_FORMAT",
+                        "message", "Formato de hora inválido. Use yyyy-MM-dd HH:mm."
+                    ));
+                }
+
+                if (!end.isAfter(start)) {
+                    return ResponseEntity.badRequest().body(Map.of(
+                        "code", "INVALID_TIME_RANGE",
+                        "message", "La hora de salida debe ser posterior a la hora de entrada."
+                    ));
+                }
 
                 session.setEffectiveStart(start);
                 session.setLastScan(end);
@@ -180,7 +205,6 @@ public class TasController {
                 session.setNeedsResolution(false);
 
                 long workedMinutes = java.time.temporal.ChronoUnit.MINUTES.between(start, end);
-                if (workedMinutes < 0) workedMinutes = 0;
                 session.setWorkedMinutes((int) workedMinutes);
                 session.setWorkedHours(TasHoursCalculator.roundToHalfHour((int) workedMinutes));
                 hoursCalculator.classifyHours(session, shifts);

@@ -1936,4 +1936,81 @@ class TasControllerTest {
            .andExpect(status().isOk())
            .andExpect(jsonPath("$.duplicates").isEmpty());
     }
+
+    // ── Helper: seed stateStore with a minimal flagged session ───────────────
+
+    private String seedResolveState(int sessionId) {
+        TasSession session = new TasSession();
+        session.setSessionId(sessionId);
+        session.setEmployeeId("emp1");
+        session.setDate(java.time.LocalDate.of(2026, 1, 1));
+        session.setNeedsResolution(true);
+        session.setFlags(new java.util.ArrayList<>(List.of(com.planilla.backend.model.tas.TasFlag.MISSING_EXIT)));
+
+        TasUploadState state = new TasUploadState();
+        state.setUploadToken("res-tok");
+        state.setSessions(new java.util.ArrayList<>(List.of(session)));
+        state.setReportStart(java.time.LocalDate.of(2026, 1, 1));
+        state.setReportEnd(java.time.LocalDate.of(2026, 1, 15));
+        tasController.stateStore.put("res-tok", state);
+        return "res-tok";
+    }
+
+    // ── ERR-2: malformed date string → 400, not 500 ──────────────────────────
+
+    @Test
+    void resolve_malformedDate_returns400() throws Exception {
+        seedResolveState(42);
+        when(shiftConfigService.getAllShifts()).thenReturn(List.of());
+        when(reportBuilder.build(any(), any(), any(), any(), any()))
+            .thenReturn(new TasReportBuilder.BuildResult(List.of()));
+        when(reportBuilder.computeAvailablePeriods(any())).thenReturn(List.of());
+
+        Map<String, Object> res = new java.util.LinkedHashMap<>();
+        res.put("sessionId", 42);
+        res.put("resolvedStart", "NOT-A-DATE");
+        res.put("resolvedEnd",   "ALSO-BAD");
+
+        Map<String, Object> body = Map.of(
+            "uploadToken", "res-tok",
+            "resolutions", List.of(res)
+        );
+
+        mvc.perform(post("/api/tas/resolve")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(body)))
+           .andExpect(status().isBadRequest())
+           .andExpect(jsonPath("$.code").value("INVALID_TIME_FORMAT"));
+
+        tasController.stateStore.remove("res-tok");
+    }
+
+    // ── INT-1: end-before-start → 400 ────────────────────────────────────────
+
+    @Test
+    void resolve_endBeforeStart_returns400() throws Exception {
+        seedResolveState(43);
+        when(shiftConfigService.getAllShifts()).thenReturn(List.of());
+        when(reportBuilder.build(any(), any(), any(), any(), any()))
+            .thenReturn(new TasReportBuilder.BuildResult(List.of()));
+        when(reportBuilder.computeAvailablePeriods(any())).thenReturn(List.of());
+
+        Map<String, Object> res = new java.util.LinkedHashMap<>();
+        res.put("sessionId", 43);
+        res.put("resolvedStart", "2026-01-01 17:00");
+        res.put("resolvedEnd",   "2026-01-01 08:00");
+
+        Map<String, Object> body = Map.of(
+            "uploadToken", "res-tok",
+            "resolutions", List.of(res)
+        );
+
+        mvc.perform(post("/api/tas/resolve")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(body)))
+           .andExpect(status().isBadRequest())
+           .andExpect(jsonPath("$.code").value("INVALID_TIME_RANGE"));
+
+        tasController.stateStore.remove("res-tok");
+    }
 }
