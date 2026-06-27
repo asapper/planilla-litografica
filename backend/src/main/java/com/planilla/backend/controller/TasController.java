@@ -485,10 +485,20 @@ public class TasController {
         @SuppressWarnings("unchecked")
         List<String> employeeIds = (List<String>) body.getOrDefault("employeeIds", Collections.emptyList());
         boolean active = (boolean) body.getOrDefault("active", false);
+
+        List<String> unknown = new ArrayList<>();
         for (String empId : employeeIds) {
-            registryService.setActive(empId, active);
+            if (registryService.isNewEmployee(empId)) {
+                unknown.add(empId);
+            } else {
+                registryService.setActive(empId, active);
+            }
         }
-        return ResponseEntity.ok().build();
+
+        Map<String, Object> resp = new LinkedHashMap<>();
+        resp.put("updated", employeeIds.size() - unknown.size());
+        resp.put("notFound", unknown);
+        return ResponseEntity.ok(resp);
     }
 
     private TasParserService.ParseResult parseFile(MultipartFile file) throws Exception {

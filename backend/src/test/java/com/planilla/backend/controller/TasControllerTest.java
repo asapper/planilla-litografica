@@ -661,12 +661,17 @@ class TasControllerTest {
         state.setUploadToken("tok-deact");
         tasController.stateStore.put("tok-deact", state);
 
+        when(registryService.isNewEmployee("100")).thenReturn(false);
+
         Map<String, Object> body = Map.of("employeeIds", List.of("100"));
 
         mvc.perform(post("/api/tas/absent-review/tok-deact/deactivate")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(body)))
-           .andExpect(status().isOk());
+           .andExpect(status().isOk())
+           .andExpect(jsonPath("$.updated").value(1))
+           .andExpect(jsonPath("$.notFound").isArray())
+           .andExpect(jsonPath("$.notFound").isEmpty());
 
         verify(registryService).setActive("100", false);
         tasController.stateStore.remove("tok-deact");
@@ -678,15 +683,66 @@ class TasControllerTest {
         state.setUploadToken("tok-react");
         tasController.stateStore.put("tok-react", state);
 
+        when(registryService.isNewEmployee("100")).thenReturn(false);
+
         Map<String, Object> body = Map.of("employeeIds", List.of("100"), "active", true);
 
         mvc.perform(post("/api/tas/absent-review/tok-react/deactivate")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(body)))
-           .andExpect(status().isOk());
+           .andExpect(status().isOk())
+           .andExpect(jsonPath("$.updated").value(1))
+           .andExpect(jsonPath("$.notFound").isArray())
+           .andExpect(jsonPath("$.notFound").isEmpty());
 
         verify(registryService).setActive("100", true);
         tasController.stateStore.remove("tok-react");
+    }
+
+    @Test
+    void deactivateAbsent_unknownEmployeeId_skipsAndReportsNotFound() throws Exception {
+        TasUploadState state = new TasUploadState();
+        state.setUploadToken("tok-unk");
+        tasController.stateStore.put("tok-unk", state);
+
+        when(registryService.isNewEmployee("ghost")).thenReturn(true);
+
+        Map<String, Object> body = Map.of("employeeIds", List.of("ghost"), "active", false);
+
+        mvc.perform(post("/api/tas/absent-review/tok-unk/deactivate")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(body)))
+           .andExpect(status().isOk())
+           .andExpect(jsonPath("$.updated").value(0))
+           .andExpect(jsonPath("$.notFound[0]").value("ghost"));
+
+        verify(registryService, never()).setActive(anyString(), anyBoolean());
+        tasController.stateStore.remove("tok-unk");
+    }
+
+    @Test
+    void deactivateAbsent_mixedKnownAndUnknown_updatesKnownReportsUnknown() throws Exception {
+        TasUploadState state = new TasUploadState();
+        state.setUploadToken("tok-mix");
+        tasController.stateStore.put("tok-mix", state);
+
+        when(registryService.isNewEmployee("known")).thenReturn(false);
+        when(registryService.isNewEmployee("ghost")).thenReturn(true);
+
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("employeeIds", List.of("known", "ghost"));
+        body.put("active", false);
+
+        mvc.perform(post("/api/tas/absent-review/tok-mix/deactivate")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(body)))
+           .andExpect(status().isOk())
+           .andExpect(jsonPath("$.updated").value(1))
+           .andExpect(jsonPath("$.notFound[0]").value("ghost"));
+
+        verify(registryService).setActive("known", false);
+        verify(registryService, never()).setActive(eq("ghost"), anyBoolean());
+        tasController.stateStore.remove("tok-mix");
     }
 
     // ── ERR-1: null token in inactiveReview must not NPE ──────────────────────
@@ -725,12 +781,16 @@ class TasControllerTest {
         state.setUploadToken("tok");
         tasController.stateStore.put("tok", state);
 
+        when(registryService.isNewEmployee("emp1")).thenReturn(false);
+
         Map<String, Object> body = Map.of("employeeIds", List.of("emp1"), "active", false);
 
         mvc.perform(post("/api/tas/absent-review/tok/deactivate")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(mapper.writeValueAsString(body)))
-           .andExpect(status().isOk());
+           .andExpect(status().isOk())
+           .andExpect(jsonPath("$.updated").value(1))
+           .andExpect(jsonPath("$.notFound").isArray());
 
         verify(registryService).setActive("emp1", false);
 
