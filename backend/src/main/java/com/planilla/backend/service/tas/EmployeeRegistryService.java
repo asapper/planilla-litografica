@@ -41,8 +41,12 @@ public class EmployeeRegistryService {
             params.add(shiftId);
         }
         if (search != null && !search.isBlank()) {
-            sql.append(" AND (LOWER(r.name) LIKE ? OR LOWER(r.employee_id) LIKE ?)");
-            String pattern = "%" + search.toLowerCase() + "%";
+            sql.append(" AND (LOWER(r.name) LIKE ? ESCAPE '\\' OR LOWER(r.employee_id) LIKE ? ESCAPE '\\')");
+            String escaped = search.toLowerCase()
+                .replace("\\", "\\\\")
+                .replace("%", "\\%")
+                .replace("_", "\\_");
+            String pattern = "%" + escaped + "%";
             params.add(pattern);
             params.add(pattern);
         }

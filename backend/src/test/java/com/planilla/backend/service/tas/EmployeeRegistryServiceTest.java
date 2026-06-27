@@ -5,6 +5,7 @@ import com.planilla.backend.model.tas.TasInactiveEmployee;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -114,6 +115,34 @@ class EmployeeRegistryServiceTest {
         service.getAll(null, null, "ana");
 
         verify(jdbc).queryForList(contains("LIKE ?"), any(Object[].class));
+    }
+
+    @Test
+    void getAll_searchWithPercentSign_doesNotMatchAll() {
+        when(jdbc.queryForList(anyString(), any(Object[].class))).thenReturn(List.of());
+
+        service.getAll(null, null, "%");
+
+        ArgumentCaptor<Object[]> paramsCaptor = ArgumentCaptor.forClass(Object[].class);
+        ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+        verify(jdbc).queryForList(sqlCaptor.capture(), paramsCaptor.capture());
+
+        Object[] params = paramsCaptor.getValue();
+        assertThat(params[0]).isEqualTo("%\\%%");
+        assertThat(sqlCaptor.getValue()).contains("ESCAPE");
+    }
+
+    @Test
+    void getAll_searchWithUnderscore_escapedInPattern() {
+        when(jdbc.queryForList(anyString(), any(Object[].class))).thenReturn(List.of());
+
+        service.getAll(null, null, "a_b");
+
+        ArgumentCaptor<Object[]> paramsCaptor = ArgumentCaptor.forClass(Object[].class);
+        verify(jdbc).queryForList(anyString(), paramsCaptor.capture());
+
+        Object[] params = paramsCaptor.getValue();
+        assertThat(params[0]).isEqualTo("%a\\_b%");
     }
 
     @Test
