@@ -27,7 +27,7 @@ import static org.mockito.Mockito.*;
  * - updateEmployee: partial update with non-null params only
  * - bulkAssignShift: updates all listed employee IDs
  * - setActive: sets shift_id='manana' when activating employee with null shift
- * - isNewEmployee: returns true when not in registry
+ * - employeeNotInRegistry: returns true when not in registry
  * - getAbsentActiveEmployees: excludes present employees and brand-new ones
  * - getInactiveEmployeesPresent: returns inactive employees that are in the present set
  */
@@ -325,17 +325,17 @@ class EmployeeRegistryServiceTest {
     }
 
     @Test
-    void isNewEmployee_trueWhenNotFound() {
+    void employeeNotInRegistry_trueWhenNotFound() {
         when(jdbc.queryForObject(anyString(), eq(Integer.class), any())).thenReturn(0);
 
-        assertThat(service.isNewEmployee("newEmp")).isTrue();
+        assertThat(service.employeeNotInRegistry("newEmp")).isTrue();
     }
 
     @Test
-    void isNewEmployee_falseWhenFound() {
+    void employeeNotInRegistry_falseWhenFound() {
         when(jdbc.queryForObject(anyString(), eq(Integer.class), any())).thenReturn(1);
 
-        assertThat(service.isNewEmployee("existingEmp")).isFalse();
+        assertThat(service.employeeNotInRegistry("existingEmp")).isFalse();
     }
 
     @Test

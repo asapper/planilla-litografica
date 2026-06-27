@@ -49,8 +49,8 @@ export const submitTas = (
 export const getAbsentReview = (token: string): Promise<{ absentEmployees: AbsentEmployee[] }> =>
   client.get<{ absentEmployees: AbsentEmployee[] }>(`/tas/absent-review/${token}`).then(r => r.data);
 
-export const setAbsentEmployeesActive = (token: string, employeeIds: string[], active: boolean): Promise<void> =>
-  client.post(`/tas/absent-review/${token}/deactivate`, { employeeIds, active }).then(() => undefined);
+export const setAbsentEmployeesActive = (token: string, employeeIds: string[], active: boolean): Promise<{ updated: number; notFound: string[] }> =>
+  client.post<{ updated: number; notFound: string[] }>(`/tas/absent-review/${token}/deactivate`, { employeeIds, active }).then(r => r.data);
 
 export const recomputeTas = (token: string): Promise<{ uploadToken: string; resolvedRows: ResolvedRow[]; sessionSummaries: Record<string, SessionSummary[]> }> =>
   client.post<{ uploadToken: string; resolvedRows: ResolvedRow[]; sessionSummaries: Record<string, SessionSummary[]> }>(`/tas/recompute/${token}`).then(r => r.data);

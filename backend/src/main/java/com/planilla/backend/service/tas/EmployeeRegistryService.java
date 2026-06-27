@@ -140,7 +140,7 @@ public class EmployeeRegistryService {
         return getById(employeeId);
     }
 
-    public boolean isNewEmployee(String employeeId) {
+    public boolean employeeNotInRegistry(String employeeId) {
         Integer count = jdbc.queryForObject(
             "SELECT COUNT(*) FROM employee_registry WHERE employee_id = ?",
             Integer.class, employeeId

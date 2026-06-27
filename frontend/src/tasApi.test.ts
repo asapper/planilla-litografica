@@ -171,7 +171,7 @@ describe('getAbsentReview', () => {
 
 describe('setAbsentEmployeesActive', () => {
   it('posts to /tas/absent-review/:token/deactivate with employeeIds and active', async () => {
-    mockPost.mockResolvedValue({ data: undefined });
+    mockPost.mockResolvedValue({ data: { updated: 2, notFound: [] } });
     await setAbsentEmployeesActive('tok-abc', ['E1', 'E2'], false);
     expect(mockPost).toHaveBeenCalledWith('/tas/absent-review/tok-abc/deactivate', {
       employeeIds: ['E1', 'E2'],
@@ -179,9 +179,9 @@ describe('setAbsentEmployeesActive', () => {
     });
   });
 
-  it('resolves to undefined on success', async () => {
-    mockPost.mockResolvedValue({ data: null });
-    await expect(setAbsentEmployeesActive('tok', ['E1'], true)).resolves.toBeUndefined();
+  it('resolves with updated count and notFound list', async () => {
+    mockPost.mockResolvedValue({ data: { updated: 1, notFound: [] } });
+    await expect(setAbsentEmployeesActive('tok', ['E1'], true)).resolves.toEqual({ updated: 1, notFound: [] });
   });
 
   it('propagates errors', async () => {

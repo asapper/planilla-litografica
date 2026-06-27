@@ -661,7 +661,7 @@ class TasControllerTest {
         state.setUploadToken("tok-deact");
         tasController.stateStore.put("tok-deact", state);
 
-        when(registryService.isNewEmployee("100")).thenReturn(false);
+        when(registryService.employeeNotInRegistry("100")).thenReturn(false);
 
         Map<String, Object> body = Map.of("employeeIds", List.of("100"));
 
@@ -683,7 +683,7 @@ class TasControllerTest {
         state.setUploadToken("tok-react");
         tasController.stateStore.put("tok-react", state);
 
-        when(registryService.isNewEmployee("100")).thenReturn(false);
+        when(registryService.employeeNotInRegistry("100")).thenReturn(false);
 
         Map<String, Object> body = Map.of("employeeIds", List.of("100"), "active", true);
 
@@ -705,7 +705,7 @@ class TasControllerTest {
         state.setUploadToken("tok-unk");
         tasController.stateStore.put("tok-unk", state);
 
-        when(registryService.isNewEmployee("ghost")).thenReturn(true);
+        when(registryService.employeeNotInRegistry("ghost")).thenReturn(true);
 
         Map<String, Object> body = Map.of("employeeIds", List.of("ghost"), "active", false);
 
@@ -726,8 +726,8 @@ class TasControllerTest {
         state.setUploadToken("tok-mix");
         tasController.stateStore.put("tok-mix", state);
 
-        when(registryService.isNewEmployee("known")).thenReturn(false);
-        when(registryService.isNewEmployee("ghost")).thenReturn(true);
+        when(registryService.employeeNotInRegistry("known")).thenReturn(false);
+        when(registryService.employeeNotInRegistry("ghost")).thenReturn(true);
 
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("employeeIds", List.of("known", "ghost"));
@@ -781,7 +781,7 @@ class TasControllerTest {
         state.setUploadToken("tok");
         tasController.stateStore.put("tok", state);
 
-        when(registryService.isNewEmployee("emp1")).thenReturn(false);
+        when(registryService.employeeNotInRegistry("emp1")).thenReturn(false);
 
         Map<String, Object> body = Map.of("employeeIds", List.of("emp1"), "active", false);
 

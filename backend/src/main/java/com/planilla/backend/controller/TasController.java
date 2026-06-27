@@ -488,7 +488,7 @@ public class TasController {
 
         List<String> unknown = new ArrayList<>();
         for (String empId : employeeIds) {
-            if (registryService.isNewEmployee(empId)) {
+            if (registryService.employeeNotInRegistry(empId)) {
                 unknown.add(empId);
             } else {
                 registryService.setActive(empId, active);
