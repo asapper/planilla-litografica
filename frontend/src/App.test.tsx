@@ -237,6 +237,26 @@ describe('TAS upload error handling', () => {
   });
 });
 
+describe('upload error handling — view recovery', () => {
+  it('returns to idle view on upload failure so the user can retry', async () => {
+    mockCheckHealth.mockResolvedValue(undefined);
+    mockUploadTasFile.mockRejectedValue(new Error('network failure'));
+
+    render(<App />);
+    await waitFor(() => expect(screen.getByTestId('empty-state')).toBeInTheDocument());
+
+    await act(async () => {
+      screen.getByRole('button', { name: /Cargar TAS/i }).click();
+    });
+
+    // After error: should return to empty-state (idle), not stay in TasUploadFlow
+    await waitFor(() => {
+      expect(screen.getByTestId('empty-state')).toBeInTheDocument();
+    });
+    expect(screen.queryByTestId('tas-upload-flow')).not.toBeInTheDocument();
+  });
+});
+
 describe('Top bar Nueva carga button', () => {
   it('resets the session and returns to the upload screen when confirmed', async () => {
     render(<App />);

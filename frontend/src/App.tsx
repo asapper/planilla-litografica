@@ -3,6 +3,7 @@ import axios from 'axios';
 import { checkHealth } from './api';
 import { uploadTasFile } from './tasApi';
 import { useTasStore } from './tasStore';
+import { useToastStore } from './toastStore';
 import EmptyState from './components/EmptyState';
 import TopAppBar from './components/TopAppBar';
 import ConfigPage from './components/ConfigPage';
@@ -38,6 +39,7 @@ export default function App() {
   const setError           = useTasStore(s => s.setError);
   const setSessionSummaries = useTasStore(s => s.setSessionSummaries);
   const resetTas           = useTasStore(s => s.resetTas);
+  const showToast          = useToastStore(s => s.showToast);
   const tasView            = useTasStore(s => s.tasView);
 
   const handleTasFile = async (file: File) => {
@@ -66,12 +68,14 @@ export default function App() {
         setTasView(hasNeedsResolution || hasMultiplePeriods ? 'verification' : 'review');
       }
     } catch (err: unknown) {
-      setTasView('processing');
       const backendMessage =
         axios.isAxiosError(err) && typeof err.response?.data?.message === 'string'
           ? err.response.data.message
           : null;
-      setError(backendMessage ?? 'Ocurrió un error al procesar el archivo. Intente nuevamente.');
+      const message = backendMessage ?? 'Ocurrió un error al procesar el archivo. Intente nuevamente.';
+      setError(message);
+      showToast(message, 'error');
+      setTasView('idle');
     }
     return true;
   };
