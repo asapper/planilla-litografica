@@ -2039,6 +2039,54 @@ class TasControllerTest {
            .andExpect(jsonPath("$.code").value("INVALID_TIME_FORMAT"));
     }
 
+    // ── ERR-3: non-string date (integer) → 400, not 500 ─────────────────────
+
+    @Test
+    void resolve_dateAsInteger_returns400() throws Exception {
+        seedResolveState(44);
+        when(shiftConfigService.getAllShifts()).thenReturn(List.of());
+
+        Map<String, Object> res = new java.util.LinkedHashMap<>();
+        res.put("employeeId", "emp1");
+        res.put("date", 20260101);
+        res.put("keepSessionId", 1);
+
+        Map<String, Object> body = Map.of(
+            "uploadToken", "res-tok",
+            "resolutions", List.of(res)
+        );
+
+        mvc.perform(post("/api/tas/resolve")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(body)))
+           .andExpect(status().isBadRequest())
+           .andExpect(jsonPath("$.code").value("INVALID_TIME_FORMAT"));
+    }
+
+    // ── ERR-4: non-string employeeId (integer) → 400, not 500 ───────────────
+
+    @Test
+    void resolve_employeeIdAsInteger_returns400() throws Exception {
+        seedResolveState(45);
+        when(shiftConfigService.getAllShifts()).thenReturn(List.of());
+
+        Map<String, Object> res = new java.util.LinkedHashMap<>();
+        res.put("employeeId", 123);
+        res.put("date", "2026-01-01");
+        res.put("keepSessionId", 1);
+
+        Map<String, Object> body = Map.of(
+            "uploadToken", "res-tok",
+            "resolutions", List.of(res)
+        );
+
+        mvc.perform(post("/api/tas/resolve")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(body)))
+           .andExpect(status().isBadRequest())
+           .andExpect(jsonPath("$.code").value("INVALID_EMPLOYEE_FORMAT"));
+    }
+
     // ── INT-1: end-before-start → 400 ────────────────────────────────────────
 
     @Test
