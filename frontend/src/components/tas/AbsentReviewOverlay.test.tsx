@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import AbsentReviewOverlay from './AbsentReviewOverlay';
 import { useTasStore } from '../../tasStore';
+import { useToastStore } from '../../toastStore';
 import * as tasApi from '../../tasApi';
 
 vi.mock('../../tasApi');
@@ -59,7 +60,7 @@ describe('AbsentReviewOverlay rendering', () => {
 describe('AbsentReviewOverlay deactivate', () => {
   it('calls setAbsentEmployeesActive with active=false for the clicked employee', async () => {
     setup();
-    mockSetActive.mockResolvedValue(undefined);
+    mockSetActive.mockResolvedValue({ updated: 1, notFound: [] });
     render(<AbsentReviewOverlay />);
 
     const anaBtn = screen.getByRole('button', { name: /desactivar Ana/i });
@@ -72,7 +73,7 @@ describe('AbsentReviewOverlay deactivate', () => {
 
   it('keeps the deactivated employee in the list, marked as inactive', async () => {
     setup();
-    mockSetActive.mockResolvedValue(undefined);
+    mockSetActive.mockResolvedValue({ updated: 1, notFound: [] });
     render(<AbsentReviewOverlay />);
 
     fireEvent.click(screen.getByRole('button', { name: /desactivar Ana/i }));
@@ -91,7 +92,7 @@ describe('AbsentReviewOverlay deactivate', () => {
       { employeeId: 'E1', name: 'Ana López', active: false },
       { employeeId: 'E2', name: 'Luis García' },
     ]);
-    mockSetActive.mockResolvedValue(undefined);
+    mockSetActive.mockResolvedValue({ updated: 1, notFound: [] });
     render(<AbsentReviewOverlay />);
 
     fireEvent.click(screen.getByRole('button', { name: /reactivar Ana/i }));
@@ -117,7 +118,7 @@ describe('AbsentReviewOverlay deactivate', () => {
 
   it('toggling two employees in quick succession updates both', async () => {
     setup();
-    mockSetActive.mockResolvedValue(undefined);
+    mockSetActive.mockResolvedValue({ updated: 1, notFound: [] });
     render(<AbsentReviewOverlay />);
 
     fireEvent.click(screen.getByRole('button', { name: /desactivar Ana/i }));
@@ -127,6 +128,25 @@ describe('AbsentReviewOverlay deactivate', () => {
       expect(useTasStore.getState().absentEmployees.find(e => e.employeeId === 'E1')?.active).toBe(false);
       expect(useTasStore.getState().absentEmployees.find(e => e.employeeId === 'E2')?.active).toBe(false);
     });
+  });
+
+  it('shows a warning toast when the backend reports notFound employees', async () => {
+    setup();
+    mockSetActive.mockResolvedValue({ updated: 0, notFound: ['E1'] });
+    const showToast = vi.spyOn(useToastStore.getState(), 'showToast');
+    render(<AbsentReviewOverlay />);
+
+    fireEvent.click(screen.getByRole('button', { name: /desactivar Ana/i }));
+
+    await waitFor(() => {
+      expect(showToast).toHaveBeenCalledWith(
+        '1 empleado no encontrado en el registro',
+        'warning',
+      );
+    });
+
+    const stored = useTasStore.getState().absentEmployees.find(e => e.employeeId === 'E1');
+    expect(stored?.active).not.toBe(false);
   });
 });
 

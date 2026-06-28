@@ -5,6 +5,7 @@ import com.planilla.backend.model.tas.TasInactiveEmployee;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -26,7 +27,7 @@ import static org.mockito.Mockito.*;
  * - updateEmployee: partial update with non-null params only
  * - bulkAssignShift: updates all listed employee IDs
  * - setActive: sets shift_id='manana' when activating employee with null shift
- * - isNewEmployee: returns true when not in registry
+ * - employeeNotInRegistry: returns true when not in registry
  * - getAbsentActiveEmployees: excludes present employees and brand-new ones
  * - getInactiveEmployeesPresent: returns inactive employees that are in the present set
  */
@@ -117,6 +118,34 @@ class EmployeeRegistryServiceTest {
     }
 
     @Test
+    void getAll_searchWithPercentSign_doesNotMatchAll() {
+        when(jdbc.queryForList(anyString(), any(Object[].class))).thenReturn(List.of());
+
+        service.getAll(null, null, "%");
+
+        ArgumentCaptor<Object[]> paramsCaptor = ArgumentCaptor.forClass(Object[].class);
+        ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+        verify(jdbc).queryForList(sqlCaptor.capture(), paramsCaptor.capture());
+
+        Object[] params = paramsCaptor.getValue();
+        assertThat(params[0]).isEqualTo("%\\%%");
+        assertThat(sqlCaptor.getValue()).contains("ESCAPE");
+    }
+
+    @Test
+    void getAll_searchWithUnderscore_escapedInPattern() {
+        when(jdbc.queryForList(anyString(), any(Object[].class))).thenReturn(List.of());
+
+        service.getAll(null, null, "a_b");
+
+        ArgumentCaptor<Object[]> paramsCaptor = ArgumentCaptor.forClass(Object[].class);
+        verify(jdbc).queryForList(anyString(), paramsCaptor.capture());
+
+        Object[] params = paramsCaptor.getValue();
+        assertThat(params[0]).isEqualTo("%a\\_b%");
+    }
+
+    @Test
     void upsertEmployee_insertsNewEmployee() {
         service.upsertEmployee("emp1", "Maria");
 
@@ -132,6 +161,11 @@ class EmployeeRegistryServiceTest {
 
     @Test
     void updateEmployee_bothParams_returnsUpdatedDto() {
+        when(jdbc.queryForObject(
+                eq("SELECT COUNT(*) FROM shift_config WHERE id = ?"),
+                eq(Integer.class),
+                eq("tarde")))
+            .thenReturn(1);
         Map<String, Object> row = new java.util.HashMap<>();
         row.put("EMPLOYEE_ID", "emp1");
         row.put("NAME", "Ana");
@@ -148,6 +182,11 @@ class EmployeeRegistryServiceTest {
 
     @Test
     void updateEmployee_shiftIdOnly_returnsUpdatedDto() {
+        when(jdbc.queryForObject(
+                eq("SELECT COUNT(*) FROM shift_config WHERE id = ?"),
+                eq(Integer.class),
+                eq("tarde")))
+            .thenReturn(1);
         Map<String, Object> row = new java.util.HashMap<>();
         row.put("EMPLOYEE_ID", "emp1");
         row.put("NAME", "Ana");
@@ -286,17 +325,17 @@ class EmployeeRegistryServiceTest {
     }
 
     @Test
-    void isNewEmployee_trueWhenNotFound() {
+    void employeeNotInRegistry_trueWhenNotFound() {
         when(jdbc.queryForObject(anyString(), eq(Integer.class), any())).thenReturn(0);
 
-        assertThat(service.isNewEmployee("newEmp")).isTrue();
+        assertThat(service.employeeNotInRegistry("newEmp")).isTrue();
     }
 
     @Test
-    void isNewEmployee_falseWhenFound() {
+    void employeeNotInRegistry_falseWhenFound() {
         when(jdbc.queryForObject(anyString(), eq(Integer.class), any())).thenReturn(1);
 
-        assertThat(service.isNewEmployee("existingEmp")).isFalse();
+        assertThat(service.employeeNotInRegistry("existingEmp")).isFalse();
     }
 
     @Test
@@ -367,5 +406,41 @@ class EmployeeRegistryServiceTest {
         assertThat(result).hasSize(1);
         assertThat(result.get(0).getEmployeeId()).isEqualTo("emp4");
         assertThat(result.get(0).getName()).isEqualTo("Diego");
+    }
+
+    @Test
+    void updateEmployee_unknownShiftId_throwsIllegalArgument() {
+        when(jdbc.queryForObject(
+                eq("SELECT COUNT(*) FROM shift_config WHERE id = ?"),
+                eq(Integer.class),
+                eq("nonexistent")))
+            .thenReturn(0);
+
+        assertThatThrownBy(() -> service.updateEmployee("emp1", "nonexistent", null))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessage("SHIFT_NOT_FOUND");
+    }
+
+    @Test
+    void updateEmployee_validShiftId_proceedsWithUpdate() {
+        when(jdbc.queryForObject(
+                eq("SELECT COUNT(*) FROM shift_config WHERE id = ?"),
+                eq(Integer.class),
+                eq("manana")))
+            .thenReturn(1);
+        when(jdbc.update(anyString(), eq("manana"), eq("emp1"))).thenReturn(1);
+
+        // getById call after update
+        Map<String, Object> row = new java.util.HashMap<>();
+        row.put("EMPLOYEE_ID", "emp1");
+        row.put("NAME", "Ana");
+        row.put("SHIFT_ID", "manana");
+        row.put("ACTIVE", true);
+        row.put("SHIFT_NAME", "Mañana");
+        row.put("ACCRUES_OVERTIME", true);
+        when(jdbc.queryForList(anyString(), eq("emp1"))).thenReturn(List.of(row));
+
+        assertThatCode(() -> service.updateEmployee("emp1", "manana", null))
+            .doesNotThrowAnyException();
     }
 }

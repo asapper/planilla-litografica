@@ -656,29 +656,145 @@ class TasControllerTest {
     // ── POST /api/tas/absent-review/{token}/deactivate ───────────────────────
 
     @Test
-    void deactivateAbsent_afterUploadStateRemoved_succeeds() throws Exception {
-        // The upload state is removed once /submit completes, but the
-        // absent-review modal is shown afterwards on the result screen.
+    void deactivateAbsent_validToken_deactivatesEmployee() throws Exception {
+        TasUploadState state = new TasUploadState();
+        state.setUploadToken("tok-deact");
+        tasController.stateStore.put("tok-deact", state);
+
+        when(registryService.employeeNotInRegistry("100")).thenReturn(false);
+
         Map<String, Object> body = Map.of("employeeIds", List.of("100"));
 
-        mvc.perform(post("/api/tas/absent-review/nonexistent/deactivate")
+        mvc.perform(post("/api/tas/absent-review/tok-deact/deactivate")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(body)))
-           .andExpect(status().isOk());
+           .andExpect(status().isOk())
+           .andExpect(jsonPath("$.updated").value(1))
+           .andExpect(jsonPath("$.notFound").isArray())
+           .andExpect(jsonPath("$.notFound").isEmpty());
 
         verify(registryService).setActive("100", false);
+        tasController.stateStore.remove("tok-deact");
     }
 
     @Test
     void deactivateAbsent_withActiveTrue_reactivatesEmployee() throws Exception {
+        TasUploadState state = new TasUploadState();
+        state.setUploadToken("tok-react");
+        tasController.stateStore.put("tok-react", state);
+
+        when(registryService.employeeNotInRegistry("100")).thenReturn(false);
+
         Map<String, Object> body = Map.of("employeeIds", List.of("100"), "active", true);
 
-        mvc.perform(post("/api/tas/absent-review/nonexistent/deactivate")
+        mvc.perform(post("/api/tas/absent-review/tok-react/deactivate")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(body)))
-           .andExpect(status().isOk());
+           .andExpect(status().isOk())
+           .andExpect(jsonPath("$.updated").value(1))
+           .andExpect(jsonPath("$.notFound").isArray())
+           .andExpect(jsonPath("$.notFound").isEmpty());
 
         verify(registryService).setActive("100", true);
+        tasController.stateStore.remove("tok-react");
+    }
+
+    @Test
+    void deactivateAbsent_unknownEmployeeId_skipsAndReportsNotFound() throws Exception {
+        TasUploadState state = new TasUploadState();
+        state.setUploadToken("tok-unk");
+        tasController.stateStore.put("tok-unk", state);
+
+        when(registryService.employeeNotInRegistry("ghost")).thenReturn(true);
+
+        Map<String, Object> body = Map.of("employeeIds", List.of("ghost"), "active", false);
+
+        mvc.perform(post("/api/tas/absent-review/tok-unk/deactivate")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(body)))
+           .andExpect(status().isOk())
+           .andExpect(jsonPath("$.updated").value(0))
+           .andExpect(jsonPath("$.notFound[0]").value("ghost"));
+
+        verify(registryService, never()).setActive(anyString(), anyBoolean());
+        tasController.stateStore.remove("tok-unk");
+    }
+
+    @Test
+    void deactivateAbsent_mixedKnownAndUnknown_updatesKnownReportsUnknown() throws Exception {
+        TasUploadState state = new TasUploadState();
+        state.setUploadToken("tok-mix");
+        tasController.stateStore.put("tok-mix", state);
+
+        when(registryService.employeeNotInRegistry("known")).thenReturn(false);
+        when(registryService.employeeNotInRegistry("ghost")).thenReturn(true);
+
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("employeeIds", List.of("known", "ghost"));
+        body.put("active", false);
+
+        mvc.perform(post("/api/tas/absent-review/tok-mix/deactivate")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(body)))
+           .andExpect(status().isOk())
+           .andExpect(jsonPath("$.updated").value(1))
+           .andExpect(jsonPath("$.notFound[0]").value("ghost"));
+
+        verify(registryService).setActive("known", false);
+        verify(registryService, never()).setActive(eq("ghost"), anyBoolean());
+        tasController.stateStore.remove("tok-mix");
+    }
+
+    // ── ERR-1: null token in inactiveReview must not NPE ──────────────────────
+
+    @Test
+    void inactiveReview_nullToken_returns400WithoutNpe() throws Exception {
+        Map<String, Object> body = new java.util.LinkedHashMap<>();
+        body.put("reactivate", List.of());
+        body.put("ignore", List.of());
+        // deliberately omit "uploadToken"
+
+        mvc.perform(post("/api/tas/inactive-review")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(body)))
+           .andExpect(status().isBadRequest())
+           .andExpect(jsonPath("$.code").value("INVALID_TOKEN"));
+    }
+
+    // ── SEC-3: deactivateAbsent must validate the upload token ────────────────
+
+    @Test
+    void deactivateAbsent_unknownToken_returns404() throws Exception {
+        Map<String, Object> body = Map.of("employeeIds", List.of("emp1"), "active", false);
+
+        mvc.perform(post("/api/tas/absent-review/unknown-token/deactivate")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(body)))
+           .andExpect(status().isNotFound());
+
+        verify(registryService, never()).setActive(anyString(), anyBoolean());
+    }
+
+    @Test
+    void deactivateAbsent_validTokenFromStore_deactivatesEmployees() throws Exception {
+        TasUploadState state = new TasUploadState();
+        state.setUploadToken("tok");
+        tasController.stateStore.put("tok", state);
+
+        when(registryService.employeeNotInRegistry("emp1")).thenReturn(false);
+
+        Map<String, Object> body = Map.of("employeeIds", List.of("emp1"), "active", false);
+
+        mvc.perform(post("/api/tas/absent-review/tok/deactivate")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(body)))
+           .andExpect(status().isOk())
+           .andExpect(jsonPath("$.updated").value(1))
+           .andExpect(jsonPath("$.notFound").isArray());
+
+        verify(registryService).setActive("emp1", false);
+
+        tasController.stateStore.remove("tok");
     }
 
     // ── POST /api/tas/inactive-review ────────────────────────────────────────
@@ -962,11 +1078,7 @@ class TasControllerTest {
 
         String token = (String) mapper.readValue(uploadResponse, Map.class).get("uploadToken");
 
-        java.lang.reflect.Field stateStoreField = TasController.class.getDeclaredField("stateStore");
-        stateStoreField.setAccessible(true);
-        @SuppressWarnings("unchecked")
-        Map<String, TasUploadState> stateStore = (Map<String, TasUploadState>) stateStoreField.get(tasController);
-        stateStore.get(token).setSessions(null);
+        tasController.stateStore.get(token).setSessions(null);
 
         when(shiftConfigService.getAllShifts()).thenReturn(new ArrayList<>());
         when(reportBuilder.build(any(), any(), any(), any(), isNull()))
@@ -1463,6 +1575,45 @@ class TasControllerTest {
         assertThat(submitted.get(0).getHorasExtrasDobles()).isEqualTo(2);
     }
 
+    // ── INT-3 regression: second submit must not see mutated stored rows ──────
+
+    @Test
+    void submit_calledTwice_doesNotMutateStoredRows() throws Exception {
+        EmployeeRow row = new EmployeeRow();
+        row.setCodigoEmpleado("emp1");
+        row.setNombreEmpleado("Test");
+        row.setHorasExtrasSimples(2.0);
+        row.setHorasExtrasDobles(0);
+        row.setDiasNoLaborados(0);
+        row.setMes(3);
+        row.setAnio(2026);
+        row.setNumeroDequincena(1);
+
+        TasUploadState state = new TasUploadState();
+        state.setUploadToken("tok-int3");
+        state.setResolvedRows(new ArrayList<>(List.of(row)));
+        tasController.stateStore.put("tok-int3", state);
+
+        when(jobService.createJob(any())).thenReturn("job-int3-1", "job-int3-2");
+
+        Map<String, Object> overrides = Map.of("emp1", Map.of("horasExtrasSimples", 5.0));
+        Map<String, Object> body = Map.of("uploadToken", "tok-int3", "overtimeOverrides", overrides);
+
+        mvc.perform(post("/api/tas/submit")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(body)))
+           .andExpect(status().isAccepted());
+
+        mvc.perform(post("/api/tas/submit")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(body)))
+           .andExpect(status().isAccepted());
+
+        assertThat(state.getResolvedRows().get(0).getHorasExtrasSimples()).isEqualTo(2.0);
+
+        tasController.stateStore.remove("tok-int3");
+    }
+
     @Test
     void submit_withMalformedOverrides_stringInsteadOfMap_returns400() throws Exception {
         EmployeeRow row = new EmployeeRow();
@@ -1844,5 +1995,106 @@ class TasControllerTest {
                 .content(json(Map.of("uploadToken", token))))
            .andExpect(status().isOk())
            .andExpect(jsonPath("$.duplicates").isEmpty());
+    }
+
+    // ── Helper: seed stateStore with a minimal flagged session ───────────────
+
+    private String seedResolveState(int sessionId) {
+        TasSession session = new TasSession();
+        session.setSessionId(sessionId);
+        session.setEmployeeId("emp1");
+        session.setDate(java.time.LocalDate.of(2026, 1, 1));
+        session.setNeedsResolution(true);
+        session.setFlags(new java.util.ArrayList<>(List.of(com.planilla.backend.model.tas.TasFlag.MISSING_EXIT)));
+
+        TasUploadState state = new TasUploadState();
+        state.setUploadToken("res-tok");
+        state.setSessions(new java.util.ArrayList<>(List.of(session)));
+        state.setReportStart(java.time.LocalDate.of(2026, 1, 1));
+        state.setReportEnd(java.time.LocalDate.of(2026, 1, 15));
+        tasController.stateStore.put("res-tok", state);
+        return "res-tok";
+    }
+
+    // ── ERR-2: malformed date string → 400, not 500 ──────────────────────────
+
+    @Test
+    void resolve_malformedDate_returns400() throws Exception {
+        seedResolveState(42);
+        when(shiftConfigService.getAllShifts()).thenReturn(List.of());
+        when(reportBuilder.build(any(), any(), any(), any(), any()))
+            .thenReturn(new TasReportBuilder.BuildResult(List.of()));
+        when(reportBuilder.computeAvailablePeriods(any())).thenReturn(List.of());
+
+        Map<String, Object> res = new java.util.LinkedHashMap<>();
+        res.put("sessionId", 42);
+        res.put("resolvedStart", "NOT-A-DATE");
+        res.put("resolvedEnd",   "ALSO-BAD");
+
+        Map<String, Object> body = Map.of(
+            "uploadToken", "res-tok",
+            "resolutions", List.of(res)
+        );
+
+        mvc.perform(post("/api/tas/resolve")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(body)))
+           .andExpect(status().isBadRequest())
+           .andExpect(jsonPath("$.code").value("INVALID_TIME_FORMAT"));
+
+        tasController.stateStore.remove("res-tok");
+    }
+
+    // ── INT-1: end-before-start → 400 ────────────────────────────────────────
+
+    @Test
+    void resolve_endBeforeStart_returns400() throws Exception {
+        seedResolveState(43);
+        when(shiftConfigService.getAllShifts()).thenReturn(List.of());
+        when(reportBuilder.build(any(), any(), any(), any(), any()))
+            .thenReturn(new TasReportBuilder.BuildResult(List.of()));
+        when(reportBuilder.computeAvailablePeriods(any())).thenReturn(List.of());
+
+        Map<String, Object> res = new java.util.LinkedHashMap<>();
+        res.put("sessionId", 43);
+        res.put("resolvedStart", "2026-01-01 17:00");
+        res.put("resolvedEnd",   "2026-01-01 08:00");
+
+        Map<String, Object> body = Map.of(
+            "uploadToken", "res-tok",
+            "resolutions", List.of(res)
+        );
+
+        mvc.perform(post("/api/tas/resolve")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(body)))
+           .andExpect(status().isBadRequest())
+           .andExpect(jsonPath("$.code").value("INVALID_TIME_RANGE"));
+
+        tasController.stateStore.remove("res-tok");
+    }
+
+    // ── SEC-2: stateStore TTL eviction ───────────────────────────────────────
+
+    @Test
+    void evictStaleStates_removesEntriesOlderThan30Minutes() {
+        TasUploadState stale = new TasUploadState() {
+            @Override public java.time.Instant getCreatedAt() {
+                return java.time.Instant.now().minusSeconds(1900); // >31 min ago
+            }
+        };
+        stale.setUploadToken("stale-token");
+        tasController.stateStore.put("stale-token", stale);
+
+        TasUploadState fresh = new TasUploadState();
+        fresh.setUploadToken("fresh-token");
+        tasController.stateStore.put("fresh-token", fresh);
+
+        tasController.evictStaleStates();
+
+        assertThat(tasController.stateStore).doesNotContainKey("stale-token");
+        assertThat(tasController.stateStore).containsKey("fresh-token");
+
+        tasController.stateStore.remove("fresh-token");
     }
 }

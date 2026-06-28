@@ -2,6 +2,8 @@ package com.planilla.backend.service.tas;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
@@ -21,6 +23,8 @@ import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 public class HolidayService {
+
+    private static final Logger log = LoggerFactory.getLogger(HolidayService.class);
 
     private final JdbcTemplate jdbc;
     private final String apiUrl;
@@ -111,7 +115,8 @@ public class HolidayService {
                                     "INSERT INTO holiday_cache (holiday_date, name, holiday_year, source) VALUES (?, ?, ?, 'API')",
                                     java.sql.Date.valueOf(d), name, year
                                 );
-                            } catch (Exception ignored) {
+                            } catch (Exception e) {
+                                log.warn("Skipping holiday entry for year {}: {}", year, e.getMessage());
                             }
                         }
                     }
@@ -120,7 +125,8 @@ public class HolidayService {
             } catch (InterruptedException ie) {
                 Thread.currentThread().interrupt();
                 break;
-            } catch (Exception ignored) {
+            } catch (Exception e) {
+                log.warn("Holiday API attempt {} failed for year {}: {}", attempt + 1, year, e.getMessage());
             }
         }
         loadBundledHolidays(year);
@@ -150,7 +156,8 @@ public class HolidayService {
                     }
                 }
             }
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            log.error("Failed to load bundled holidays for year {}: {}", year, e.getMessage());
         }
     }
 

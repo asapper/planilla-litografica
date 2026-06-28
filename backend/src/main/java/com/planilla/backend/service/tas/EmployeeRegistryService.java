@@ -41,8 +41,12 @@ public class EmployeeRegistryService {
             params.add(shiftId);
         }
         if (search != null && !search.isBlank()) {
-            sql.append(" AND (LOWER(r.name) LIKE ? OR LOWER(r.employee_id) LIKE ?)");
-            String pattern = "%" + search.toLowerCase() + "%";
+            sql.append(" AND (LOWER(r.name) LIKE ? ESCAPE '\\' OR LOWER(r.employee_id) LIKE ? ESCAPE '\\')");
+            String escaped = search.toLowerCase()
+                .replace("\\", "\\\\")
+                .replace("%", "\\%")
+                .replace("_", "\\_");
+            String pattern = "%" + escaped + "%";
             params.add(pattern);
             params.add(pattern);
         }
@@ -71,6 +75,13 @@ public class EmployeeRegistryService {
     public Map<String, Object> updateEmployee(String employeeId, String shiftId, Boolean active) {
         if (shiftId == null && active == null) {
             return null;
+        }
+        if (shiftId != null) {
+            Integer count = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM shift_config WHERE id = ?", Integer.class, shiftId);
+            if (count == null || count == 0) {
+                throw new IllegalArgumentException("SHIFT_NOT_FOUND");
+            }
         }
         if (shiftId != null && active != null) {
             jdbc.update(
@@ -129,7 +140,7 @@ public class EmployeeRegistryService {
         return getById(employeeId);
     }
 
-    public boolean isNewEmployee(String employeeId) {
+    public boolean employeeNotInRegistry(String employeeId) {
         Integer count = jdbc.queryForObject(
             "SELECT COUNT(*) FROM employee_registry WHERE employee_id = ?",
             Integer.class, employeeId

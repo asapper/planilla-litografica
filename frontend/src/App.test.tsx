@@ -102,6 +102,22 @@ describe('startup', () => {
     expect(screen.getByRole('button', { name: /reintentar/i })).toBeInTheDocument();
   });
 
+  it('shows a hint message after several failed health attempts', async () => {
+    vi.useFakeTimers();
+    mockCheckHealth.mockRejectedValue(new Error('not ready'));
+
+    render(<App />);
+    expect(screen.getByText('Iniciando aplicación...')).toBeInTheDocument();
+    expect(screen.queryByText(/Esto puede tomar/)).not.toBeInTheDocument();
+
+    // advanceTimersByTimeAsync flushes pending async poll() chains too
+    for (let i = 0; i < 4; i++) {
+      await act(async () => { await vi.advanceTimersByTimeAsync(500); });
+    }
+
+    expect(screen.getByText(/Esto puede tomar hasta 20 segundos/)).toBeInTheDocument();
+  });
+
   it('retry button resets to starting state then transitions to app on success', async () => {
     vi.useFakeTimers();
     mockCheckHealth.mockRejectedValue(new Error('connection refused'));
@@ -234,6 +250,26 @@ describe('TAS upload error handling', () => {
     await waitFor(() =>
       expect(useTasStore.getState().error).toBe('Ocurrió un error al procesar el archivo. Intente nuevamente.')
     );
+  });
+});
+
+describe('upload error handling — view recovery', () => {
+  it('returns to idle view on upload failure so the user can retry', async () => {
+    mockCheckHealth.mockResolvedValue(undefined);
+    mockUploadTasFile.mockRejectedValue(new Error('network failure'));
+
+    render(<App />);
+    await waitFor(() => expect(screen.getByTestId('empty-state')).toBeInTheDocument());
+
+    await act(async () => {
+      screen.getByRole('button', { name: /Cargar TAS/i }).click();
+    });
+
+    // After error: should return to empty-state (idle), not stay in TasUploadFlow
+    await waitFor(() => {
+      expect(screen.getByTestId('empty-state')).toBeInTheDocument();
+    });
+    expect(screen.queryByTestId('tas-upload-flow')).not.toBeInTheDocument();
   });
 });
 

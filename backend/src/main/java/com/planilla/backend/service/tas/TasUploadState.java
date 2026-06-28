@@ -6,6 +6,7 @@ import com.planilla.backend.model.tas.TasPeriod;
 import com.planilla.backend.model.tas.TasScanRecord;
 import com.planilla.backend.model.tas.TasSession;
 
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Set;
@@ -13,6 +14,7 @@ import java.util.Set;
 public class TasUploadState {
 
     private String uploadToken;
+    private final Instant createdAt = Instant.now();
     private List<TasScanRecord> allScans;
     private List<TasSession> sessions;
     private List<EmployeeRow> resolvedRows;
@@ -24,6 +26,8 @@ public class TasUploadState {
     private TasPeriod resolvedPeriod;
 
     public TasUploadState() {}
+
+    public Instant getCreatedAt() { return createdAt; }
 
     public String getUploadToken() { return uploadToken; }
     public void setUploadToken(String uploadToken) { this.uploadToken = uploadToken; }

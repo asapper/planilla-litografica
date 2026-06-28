@@ -97,4 +97,54 @@ class AppConfigControllerTest {
 
         verify(appConfigService).setMaxSessionSpanMinutes(960);
     }
+
+    @Test
+    void update_negativeLegalBreakAllowance_returns400() throws Exception {
+        Map<String, Object> body = Map.of("legalBreakAllowanceMinutes", -1);
+
+        mvc.perform(put("/api/config/general")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(body)))
+           .andExpect(status().isBadRequest())
+           .andExpect(jsonPath("$.code").value("INVALID_VALUE"));
+
+        verify(appConfigService, never()).setLegalBreakAllowanceMinutes(anyInt());
+    }
+
+    @Test
+    void update_maxSessionSpanMinutesBelowMinimum_returns400() throws Exception {
+        Map<String, Object> body = Map.of("maxSessionSpanMinutes", 30);
+
+        mvc.perform(put("/api/config/general")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(body)))
+           .andExpect(status().isBadRequest())
+           .andExpect(jsonPath("$.code").value("INVALID_VALUE"));
+
+        verify(appConfigService, never()).setMaxSessionSpanMinutes(anyInt());
+    }
+
+    @Test
+    void update_zeroLegalBreakAllowance_isAccepted() throws Exception {
+        Map<String, Object> body = Map.of("legalBreakAllowanceMinutes", 0);
+
+        mvc.perform(put("/api/config/general")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(body)))
+           .andExpect(status().isOk());
+
+        verify(appConfigService).setLegalBreakAllowanceMinutes(0);
+    }
+
+    @Test
+    void update_maxSessionSpanMinutesAtMinimum_isAccepted() throws Exception {
+        Map<String, Object> body = Map.of("maxSessionSpanMinutes", 60);
+
+        mvc.perform(put("/api/config/general")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(body)))
+           .andExpect(status().isOk());
+
+        verify(appConfigService).setMaxSessionSpanMinutes(60);
+    }
 }

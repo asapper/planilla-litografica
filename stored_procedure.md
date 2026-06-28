@@ -2,9 +2,9 @@
 
 # Port: 5432
 
-# Username: procesoplanilla
+# Username: see POSTGRES_DB_USERNAME in ~/.planilla/db.properties (or GitHub Secret)
 
-# Password: planilla17
+# Password: see POSTGRES_DB_PASSWORD in ~/.planilla/db.properties (or GitHub Secret)
 
 # Stored procedure name: carga_datos_empleados
 

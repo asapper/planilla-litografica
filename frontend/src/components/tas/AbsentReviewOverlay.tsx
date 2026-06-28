@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useTasStore } from '../../tasStore';
+import { useToastStore } from '../../toastStore';
 import { setAbsentEmployeesActive } from '../../tasApi';
 
 export default function AbsentReviewOverlay() {
@@ -9,6 +10,7 @@ export default function AbsentReviewOverlay() {
   const setTasView      = useTasStore(s => s.setTasView);
   const [toggleError, setToggleError] = useState<string | null>(null);
 
+  const showToast = useToastStore(s => s.showToast);
   const scrollRef = useRef<HTMLDivElement>(null);
   useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTop = 0; }, []);
 
@@ -18,11 +20,16 @@ export default function AbsentReviewOverlay() {
     const isActive = current.find(e => e.employeeId === employeeId)?.active !== false;
     const nextActive = !isActive;
     try {
-      await setAbsentEmployeesActive(uploadToken, [employeeId], nextActive);
-      const latest = useTasStore.getState().absentEmployees;
-      setAbsentEmployees(latest.map(e =>
-        e.employeeId === employeeId ? { ...e, active: nextActive } : e
-      ));
+      const result = await setAbsentEmployeesActive(uploadToken, [employeeId], nextActive);
+      if (result.notFound.length > 0) {
+        const n = result.notFound.length;
+        showToast(`${n} ${n === 1 ? 'empleado no encontrado' : 'empleados no encontrados'} en el registro`, 'warning');
+      } else {
+        const latest = useTasStore.getState().absentEmployees;
+        setAbsentEmployees(latest.map(e =>
+          e.employeeId === employeeId ? { ...e, active: nextActive } : e
+        ));
+      }
       setToggleError(null);
     } catch {
       setToggleError('No se pudo actualizar el estado del empleado. Intente nuevamente.');

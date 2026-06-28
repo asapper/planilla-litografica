@@ -10,10 +10,14 @@ import com.planilla.backend.service.DatabaseService;
 import com.planilla.backend.service.JobNotFoundException;
 import com.planilla.backend.service.JobService;
 import com.planilla.backend.service.tas.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
@@ -24,6 +28,8 @@ import java.util.stream.Collectors;
 @RequestMapping("/api/tas")
 public class TasController {
 
+    private static final Logger log = LoggerFactory.getLogger(TasController.class);
+
     private final TasParserService        parserService;
     private final TasUploadService        uploadService;
     private final TasReportBuilder        reportBuilder;
@@ -33,7 +39,7 @@ public class TasController {
     private final TasHoursCalculator      hoursCalculator;
     private final DatabaseService         databaseService;
 
-    private final ConcurrentHashMap<String, TasUploadState> stateStore = new ConcurrentHashMap<>();
+    final ConcurrentHashMap<String, TasUploadState> stateStore = new ConcurrentHashMap<>();
 
     public TasController(
             TasParserService parserService,
@@ -52,6 +58,13 @@ public class TasController {
         this.shiftConfigService = shiftConfigService;
         this.hoursCalculator    = hoursCalculator;
         this.databaseService    = databaseService;
+    }
+
+    @Scheduled(fixedRate = 600_000)   // runs every 10 minutes
+    void evictStaleStates() {
+        Instant cutoff = Instant.now().minusSeconds(1800); // 30-minute TTL
+        stateStore.entrySet().removeIf(e -> e.getValue().getCreatedAt().isBefore(cutoff));
+        log.debug("stateStore eviction pass complete; entries remaining: {}", stateStore.size());
     }
 
     @PostMapping(value = "/upload", consumes = "multipart/form-data")
@@ -89,8 +102,11 @@ public class TasController {
     @PostMapping("/inactive-review")
     public ResponseEntity<?> inactiveReview(@RequestBody Map<String, Object> body) {
         String token = (String) body.get("uploadToken");
+        if (token == null) {
+            return ResponseEntity.badRequest().body(Map.of("code", "INVALID_TOKEN", "message", "Token inválido."));
+        }
         TasUploadState existing = stateStore.get(token);
-        if (token == null || existing == null) {
+        if (existing == null) {
             return ResponseEntity.badRequest().body(Map.of("code", "INVALID_TOKEN", "message", "Token inválido."));
         }
 
@@ -151,8 +167,17 @@ public class TasController {
             Object dateObj = res.get("date");
             Object keepSessionIdObj = res.get("keepSessionId");
             if (employeeIdObj != null && dateObj != null && keepSessionIdObj != null) {
+                java.time.LocalDate resolutionDate;
+                try {
+                    resolutionDate = java.time.LocalDate.parse((String) dateObj);
+                } catch (java.time.format.DateTimeParseException e) {
+                    return ResponseEntity.badRequest().body(Map.of(
+                        "code", "INVALID_TIME_FORMAT",
+                        "message", "Formato de fecha inválido. Use yyyy-MM-dd."
+                    ));
+                }
                 applySameDayDoubleResolution(sessions, (String) employeeIdObj,
-                        java.time.LocalDate.parse((String) dateObj), keepSessionIdObj, shifts);
+                        resolutionDate, keepSessionIdObj, shifts);
                 continue;
             }
 
@@ -167,8 +192,24 @@ public class TasController {
             String acceptedShiftId = (String) res.get("acceptedShiftId");
 
             if (resolvedStart != null && resolvedEnd != null) {
-                LocalDateTime start = LocalDateTime.parse(resolvedStart, dtf);
-                LocalDateTime end   = LocalDateTime.parse(resolvedEnd, dtf);
+                LocalDateTime start;
+                LocalDateTime end;
+                try {
+                    start = LocalDateTime.parse(resolvedStart, dtf);
+                    end   = LocalDateTime.parse(resolvedEnd, dtf);
+                } catch (java.time.format.DateTimeParseException e) {
+                    return ResponseEntity.badRequest().body(Map.of(
+                        "code", "INVALID_TIME_FORMAT",
+                        "message", "Formato de hora inválido. Use yyyy-MM-dd HH:mm."
+                    ));
+                }
+
+                if (!end.isAfter(start)) {
+                    return ResponseEntity.badRequest().body(Map.of(
+                        "code", "INVALID_TIME_RANGE",
+                        "message", "La hora de salida debe ser posterior a la hora de entrada."
+                    ));
+                }
 
                 session.setEffectiveStart(start);
                 session.setLastScan(end);
@@ -177,7 +218,6 @@ public class TasController {
                 session.setNeedsResolution(false);
 
                 long workedMinutes = java.time.temporal.ChronoUnit.MINUTES.between(start, end);
-                if (workedMinutes < 0) workedMinutes = 0;
                 session.setWorkedMinutes((int) workedMinutes);
                 session.setWorkedHours(TasHoursCalculator.roundToHalfHour((int) workedMinutes));
                 hoursCalculator.classifyHours(session, shifts);
@@ -294,10 +334,11 @@ public class TasController {
             ));
         }
 
-        List<EmployeeRow> rows = state.getResolvedRows();
-        if (rows == null || rows.isEmpty()) {
+        List<EmployeeRow> storedRows = state.getResolvedRows();
+        if (storedRows == null || storedRows.isEmpty()) {
             return ResponseEntity.badRequest().body(Map.of("code", "NO_ROWS", "message", "No hay filas para enviar."));
         }
+        List<EmployeeRow> rows = storedRows.stream().map(EmployeeRow::new).collect(Collectors.toList());
 
         Object rawOverrides = body.getOrDefault("overtimeOverrides", Collections.emptyMap());
         if (!(rawOverrides instanceof Map)) {
@@ -436,13 +477,28 @@ public class TasController {
             @PathVariable String uploadToken,
             @RequestBody Map<String, Object> body) {
 
+        TasUploadState state = stateStore.get(uploadToken);
+        if (state == null) {
+            return ResponseEntity.notFound().build();
+        }
+
         @SuppressWarnings("unchecked")
         List<String> employeeIds = (List<String>) body.getOrDefault("employeeIds", Collections.emptyList());
         boolean active = (boolean) body.getOrDefault("active", false);
+
+        List<String> unknown = new ArrayList<>();
         for (String empId : employeeIds) {
-            registryService.setActive(empId, active);
+            if (registryService.employeeNotInRegistry(empId)) {
+                unknown.add(empId);
+            } else {
+                registryService.setActive(empId, active);
+            }
         }
-        return ResponseEntity.ok().build();
+
+        Map<String, Object> resp = new LinkedHashMap<>();
+        resp.put("updated", employeeIds.size() - unknown.size());
+        resp.put("notFound", unknown);
+        return ResponseEntity.ok(resp);
     }
 
     private TasParserService.ParseResult parseFile(MultipartFile file) throws Exception {

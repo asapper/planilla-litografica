@@ -150,6 +150,12 @@ class HolidayServiceTest {
     }
 
     @Test
+    void loadBundledHolidays_missingResource_doesNotThrow() {
+        assertThatCode(() -> service.loadBundledHolidays(1900))
+            .doesNotThrowAnyException();
+    }
+
+    @Test
     void refreshFromApi_returnsTrueAndInsertsHolidaysOn200() throws Exception {
         String body = "[{\"date\":\"2026-01-01\",\"localName\":\"Año Nuevo\",\"name\":\"New Year\"}]";
         doReturn(httpResponse).when(httpClient).send(any(HttpRequest.class), any());

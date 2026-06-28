@@ -71,10 +71,24 @@ pub fn run() {
                 log::info!("java_bin = {}", java_bin.display());
                 log::info!("jar      = {}", jar.display());
 
+                let home_dir = std::env::var("USERPROFILE")
+                    .or_else(|_| std::env::var("HOME"))
+                    .map(std::path::PathBuf::from)
+                    .unwrap_or_else(|_| std::path::PathBuf::from("."));
+                let stderr_log_dir = home_dir.join(".planilla").join("logs");
+                std::fs::create_dir_all(&stderr_log_dir).ok();
+
+                let stderr_stdio = std::fs::OpenOptions::new()
+                    .create(true)
+                    .append(true)
+                    .open(stderr_log_dir.join("backend-stderr.log"))
+                    .map(std::process::Stdio::from)
+                    .unwrap_or_else(|_| std::process::Stdio::null());
+
                 let child = Command::new(&java_bin)
                     .args(["-jar", jar.to_str().unwrap_or_default()])
                     .stdout(Stdio::null())
-                    .stderr(Stdio::null())
+                    .stderr(stderr_stdio)
                     .spawn()
                     .map_err(|e| {
                         log::error!(

@@ -30,10 +30,18 @@ public class AppConfigController {
         try {
             if (body.containsKey("legalBreakAllowanceMinutes")) {
                 int minutes = ((Number) body.get("legalBreakAllowanceMinutes")).intValue();
+                if (minutes < 0) {
+                    return ResponseEntity.badRequest().body(
+                        error(400, "INVALID_VALUE", "legalBreakAllowanceMinutes debe ser ≥ 0."));
+                }
                 appConfigService.setLegalBreakAllowanceMinutes(minutes);
             }
             if (body.containsKey("maxSessionSpanMinutes")) {
                 int minutes = ((Number) body.get("maxSessionSpanMinutes")).intValue();
+                if (minutes < 60) {
+                    return ResponseEntity.badRequest().body(
+                        error(400, "INVALID_VALUE", "maxSessionSpanMinutes debe ser ≥ 60."));
+                }
                 appConfigService.setMaxSessionSpanMinutes(minutes);
             }
             return ResponseEntity.ok().build();
