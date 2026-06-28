@@ -167,6 +167,12 @@ public class TasController {
             Object dateObj = res.get("date");
             Object keepSessionIdObj = res.get("keepSessionId");
             if (employeeIdObj != null && dateObj != null && keepSessionIdObj != null) {
+                if (!(employeeIdObj instanceof String)) {
+                    return ResponseEntity.badRequest().body(Map.of(
+                        "code", "INVALID_EMPLOYEE_FORMAT",
+                        "message", "El ID de empleado debe ser un texto."
+                    ));
+                }
                 if (!(dateObj instanceof String)) {
                     return ResponseEntity.badRequest().body(Map.of(
                         "code", "INVALID_TIME_FORMAT",
