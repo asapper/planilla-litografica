@@ -273,6 +273,87 @@ describe('upload error handling — view recovery', () => {
   });
 });
 
+describe('upload processing stage messages', () => {
+  it('sets processingMessage to first stage label immediately on upload start', async () => {
+    vi.useFakeTimers();
+    mockUploadTasFile.mockReturnValue(new Promise(() => {}));
+
+    render(<App />);
+    await act(async () => {});
+    expect(screen.getByTestId('empty-state')).toBeInTheDocument();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /cargar tas/i }));
+    });
+
+    expect(useTasStore.getState().processingMessage).toBe('Leyendo el archivo...');
+  });
+
+  it('advances processingMessage to the second stage label after 5 seconds', async () => {
+    vi.useFakeTimers();
+    mockUploadTasFile.mockReturnValue(new Promise(() => {}));
+
+    render(<App />);
+    await act(async () => {});
+    expect(screen.getByTestId('empty-state')).toBeInTheDocument();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /cargar tas/i }));
+    });
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(5000); });
+
+    expect(useTasStore.getState().processingMessage).toBe('Verificando empleados...');
+  });
+
+  it('stops advancing processingMessage after upload completes', async () => {
+    vi.useFakeTimers();
+    mockUploadTasFile.mockResolvedValue({
+      uploadToken: 'tok',
+      flaggedSessions: [],
+      resolvedRows: [],
+      inactiveEmployeesFound: [],
+      absentActiveEmployees: [],
+      usedFallbackHolidays: false,
+    });
+
+    render(<App />);
+    await act(async () => {});
+    expect(screen.getByTestId('empty-state')).toBeInTheDocument();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /cargar tas/i }));
+      await vi.runAllTimersAsync();
+    });
+
+    const messageAtCompletion = useTasStore.getState().processingMessage;
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(15000); });
+
+    expect(useTasStore.getState().processingMessage).toBe(messageAtCompletion);
+  });
+
+  it('stops advancing processingMessage after upload fails', async () => {
+    vi.useFakeTimers();
+    mockUploadTasFile.mockRejectedValue(new Error('network failure'));
+
+    render(<App />);
+    await act(async () => {});
+    expect(screen.getByTestId('empty-state')).toBeInTheDocument();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /cargar tas/i }));
+      await vi.runAllTimersAsync();
+    });
+
+    const messageAtCompletion = useTasStore.getState().processingMessage;
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(15000); });
+
+    expect(useTasStore.getState().processingMessage).toBe(messageAtCompletion);
+  });
+});
+
 describe('Top bar Nueva carga button', () => {
   it('resets the session and returns to the upload screen when confirmed', async () => {
     render(<App />);

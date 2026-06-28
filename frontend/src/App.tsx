@@ -15,6 +15,16 @@ import ToastContainer from './components/ui/ToastContainer';
 const MAX_ATTEMPTS    = 40;
 const RETRY_INTERVAL  = 500;
 
+const UPLOAD_STAGE_MESSAGES = [
+  'Leyendo el archivo...',
+  'Verificando empleados...',
+  'Consultando el calendario de feriados...',
+  'Calculando sesiones...',
+  'Generando reporte...',
+  'Casi listo...',
+];
+const STAGE_INTERVAL_MS = 5_000;
+
 import type { AppView } from './types';
 
 type BackendState = 'starting' | 'ready' | 'error';
@@ -48,9 +58,19 @@ export default function App() {
     resetTas();
     setCurrentView('tas');
     setTasView('processing');
-    setProcessingMessage('Analizando marcaciones...');
+    setProcessingMessage(UPLOAD_STAGE_MESSAGES[0]);
+    let stageIndex = 0;
+    const stageTimer = setInterval(() => {
+      stageIndex++;
+      if (stageIndex < UPLOAD_STAGE_MESSAGES.length) {
+        setProcessingMessage(UPLOAD_STAGE_MESSAGES[stageIndex]);
+      } else {
+        clearInterval(stageTimer);
+      }
+    }, STAGE_INTERVAL_MS);
     try {
       const result = await uploadTasFile(file);
+      clearInterval(stageTimer);
       setUploadToken(result.uploadToken);
       setFlaggedSessions(result.flaggedSessions);
       setResolvedRowCount(result.resolvedRows?.length ?? 0);
@@ -69,6 +89,7 @@ export default function App() {
         setTasView(hasNeedsResolution || hasMultiplePeriods ? 'verification' : 'review');
       }
     } catch (err: unknown) {
+      clearInterval(stageTimer);
       const backendMessage =
         axios.isAxiosError(err) && typeof err.response?.data?.message === 'string'
           ? err.response.data.message
