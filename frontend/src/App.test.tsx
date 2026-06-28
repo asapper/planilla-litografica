@@ -333,6 +333,27 @@ describe('upload processing stage messages', () => {
     expect(useTasStore.getState().processingMessage).toBe(messageAtCompletion);
   });
 
+  it('self-clears after all stage messages are exhausted with upload still pending', async () => {
+    vi.useFakeTimers();
+    mockUploadTasFile.mockReturnValue(new Promise(() => {}));
+
+    render(<App />);
+    await act(async () => {});
+    expect(screen.getByTestId('empty-state')).toBeInTheDocument();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /cargar tas/i }));
+    });
+
+    // Advance through all 6 stage messages (5 intervals × 5 000 ms each)
+    await act(async () => { await vi.advanceTimersByTimeAsync(6 * 5000); });
+    expect(useTasStore.getState().processingMessage).toBe('Casi listo...');
+
+    // Interval should have self-cleared — advancing further must not change the message
+    await act(async () => { await vi.advanceTimersByTimeAsync(5000); });
+    expect(useTasStore.getState().processingMessage).toBe('Casi listo...');
+  });
+
   it('stops advancing processingMessage after upload fails', async () => {
     vi.useFakeTimers();
     mockUploadTasFile.mockRejectedValue(new Error('network failure'));

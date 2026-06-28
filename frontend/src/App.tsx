@@ -11,6 +11,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 import Spinner from './components/ui/Spinner';
 import TasUploadFlow from './components/tas/TasUploadFlow';
 import ToastContainer from './components/ui/ToastContainer';
+import type { AppView } from './types';
 
 const MAX_ATTEMPTS    = 40;
 const RETRY_INTERVAL  = 500;
@@ -24,8 +25,6 @@ const UPLOAD_STAGE_MESSAGES = [
   'Casi listo...',
 ];
 const STAGE_INTERVAL_MS = 5_000;
-
-import type { AppView } from './types';
 
 type BackendState = 'starting' | 'ready' | 'error';
 
