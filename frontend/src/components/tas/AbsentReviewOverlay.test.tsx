@@ -144,6 +144,9 @@ describe('AbsentReviewOverlay deactivate', () => {
         'warning',
       );
     });
+
+    const stored = useTasStore.getState().absentEmployees.find(e => e.employeeId === 'E1');
+    expect(stored?.active).not.toBe(false);
   });
 });
 

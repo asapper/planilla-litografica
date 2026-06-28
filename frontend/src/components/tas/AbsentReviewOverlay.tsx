@@ -24,11 +24,12 @@ export default function AbsentReviewOverlay() {
       if (result.notFound.length > 0) {
         const n = result.notFound.length;
         showToast(`${n} ${n === 1 ? 'empleado no encontrado' : 'empleados no encontrados'} en el registro`, 'warning');
+      } else {
+        const latest = useTasStore.getState().absentEmployees;
+        setAbsentEmployees(latest.map(e =>
+          e.employeeId === employeeId ? { ...e, active: nextActive } : e
+        ));
       }
-      const latest = useTasStore.getState().absentEmployees;
-      setAbsentEmployees(latest.map(e =>
-        e.employeeId === employeeId ? { ...e, active: nextActive } : e
-      ));
       setToggleError(null);
     } catch {
       setToggleError('No se pudo actualizar el estado del empleado. Intente nuevamente.');
