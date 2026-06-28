@@ -10,6 +10,7 @@ import com.planilla.backend.service.DatabaseService;
 import com.planilla.backend.service.JobNotFoundException;
 import com.planilla.backend.service.JobService;
 import com.planilla.backend.service.tas.*;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -41,6 +42,9 @@ class TasControllerTest {
     @MockBean JobService              jobService;
     @MockBean ShiftConfigService      shiftConfigService;
     @MockBean DatabaseService         databaseService;
+
+    @AfterEach
+    void clearStateStore() { tasController.stateStore.clear(); }
 
     private String json(Object o) throws Exception { return mapper.writeValueAsString(o); }
 
@@ -674,7 +678,6 @@ class TasControllerTest {
            .andExpect(jsonPath("$.notFound").isEmpty());
 
         verify(registryService).setActive("100", false);
-        tasController.stateStore.remove("tok-deact");
     }
 
     @Test
@@ -696,7 +699,6 @@ class TasControllerTest {
            .andExpect(jsonPath("$.notFound").isEmpty());
 
         verify(registryService).setActive("100", true);
-        tasController.stateStore.remove("tok-react");
     }
 
     @Test
@@ -717,7 +719,6 @@ class TasControllerTest {
            .andExpect(jsonPath("$.notFound[0]").value("ghost"));
 
         verify(registryService, never()).setActive(anyString(), anyBoolean());
-        tasController.stateStore.remove("tok-unk");
     }
 
     @Test
@@ -742,7 +743,6 @@ class TasControllerTest {
 
         verify(registryService).setActive("known", false);
         verify(registryService, never()).setActive(eq("ghost"), anyBoolean());
-        tasController.stateStore.remove("tok-mix");
     }
 
     // ── ERR-1: null token in inactiveReview must not NPE ──────────────────────
@@ -793,8 +793,6 @@ class TasControllerTest {
            .andExpect(jsonPath("$.notFound").isArray());
 
         verify(registryService).setActive("emp1", false);
-
-        tasController.stateStore.remove("tok");
     }
 
     // ── POST /api/tas/inactive-review ────────────────────────────────────────
@@ -1610,8 +1608,6 @@ class TasControllerTest {
            .andExpect(status().isAccepted());
 
         assertThat(state.getResolvedRows().get(0).getHorasExtrasSimples()).isEqualTo(2.0);
-
-        tasController.stateStore.remove("tok-int3");
     }
 
     @Test
@@ -2041,8 +2037,6 @@ class TasControllerTest {
                 .content(mapper.writeValueAsString(body)))
            .andExpect(status().isBadRequest())
            .andExpect(jsonPath("$.code").value("INVALID_TIME_FORMAT"));
-
-        tasController.stateStore.remove("res-tok");
     }
 
     // ── INT-1: end-before-start → 400 ────────────────────────────────────────
@@ -2070,8 +2064,6 @@ class TasControllerTest {
                 .content(mapper.writeValueAsString(body)))
            .andExpect(status().isBadRequest())
            .andExpect(jsonPath("$.code").value("INVALID_TIME_RANGE"));
-
-        tasController.stateStore.remove("res-tok");
     }
 
     // ── SEC-2: stateStore TTL eviction ───────────────────────────────────────
@@ -2094,7 +2086,5 @@ class TasControllerTest {
 
         assertThat(tasController.stateStore).doesNotContainKey("stale-token");
         assertThat(tasController.stateStore).containsKey("fresh-token");
-
-        tasController.stateStore.remove("fresh-token");
     }
 }
