@@ -97,7 +97,7 @@ class ShiftConfigServiceTest {
     @Test
     void createShift_throwsWhenNameIsNull() {
         assertThatThrownBy(() -> service.createShift(null, "07:00", "15:00", false, 60, 10))
-            .isInstanceOf(IllegalArgumentException.class)
+            .isInstanceOf(ShiftConfigService.ShiftValidationException.class)
             .hasMessage("NAME_REQUIRED");
 
         verify(jdbc, never()).update(anyString(), any(), any(), any(), any(), any(), any(), any());
@@ -106,7 +106,7 @@ class ShiftConfigServiceTest {
     @Test
     void createShift_throwsWhenNameIsBlank() {
         assertThatThrownBy(() -> service.createShift("   ", "07:00", "15:00", false, 60, 10))
-            .isInstanceOf(IllegalArgumentException.class)
+            .isInstanceOf(ShiftConfigService.ShiftValidationException.class)
             .hasMessage("NAME_REQUIRED");
 
         verify(jdbc, never()).update(anyString(), any(), any(), any(), any(), any(), any(), any());
@@ -134,7 +134,7 @@ class ShiftConfigServiceTest {
     @Test
     void updateShift_throwsWhenNameIsNull() {
         assertThatThrownBy(() -> service.updateShift("tarde", null, "15:00", "23:00", false, 60, 10))
-            .isInstanceOf(IllegalArgumentException.class)
+            .isInstanceOf(ShiftConfigService.ShiftValidationException.class)
             .hasMessage("NAME_REQUIRED");
 
         verify(jdbc, never()).update(anyString(), any(), any(), any(), any(), any(), any(), any());
@@ -143,7 +143,7 @@ class ShiftConfigServiceTest {
     @Test
     void updateShift_throwsWhenNameIsBlank() {
         assertThatThrownBy(() -> service.updateShift("tarde", "  ", "15:00", "23:00", false, 60, 10))
-            .isInstanceOf(IllegalArgumentException.class)
+            .isInstanceOf(ShiftConfigService.ShiftValidationException.class)
             .hasMessage("NAME_REQUIRED");
 
         verify(jdbc, never()).update(anyString(), any(), any(), any(), any(), any(), any(), any());
@@ -154,7 +154,7 @@ class ShiftConfigServiceTest {
         when(jdbc.update(anyString(), any(), any(), any(), any(), any(), any(), any())).thenReturn(0);
 
         assertThatThrownBy(() -> service.updateShift("ghost", "Ghost", "00:00", "08:00", false, 60, 10))
-            .isInstanceOf(IllegalArgumentException.class)
+            .isInstanceOf(ShiftConfigService.ShiftValidationException.class)
             .hasMessage("SHIFT_NOT_FOUND");
     }
 

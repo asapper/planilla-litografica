@@ -3,6 +3,7 @@ package com.planilla.backend.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.planilla.backend.service.tas.ShiftConfigService;
 import com.planilla.backend.service.tas.ShiftConfigService.ShiftHasActiveEmployeesException;
+import com.planilla.backend.service.tas.ShiftConfigService.ShiftValidationException;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -204,7 +205,7 @@ class ShiftConfigControllerTest {
 
     @Test
     void update_returns404WhenShiftNotFound() throws Exception {
-        doThrow(new IllegalArgumentException("SHIFT_NOT_FOUND")).when(shiftConfigService)
+        doThrow(new ShiftValidationException("SHIFT_NOT_FOUND")).when(shiftConfigService)
             .updateShift(any(), any(), any(), any(), anyBoolean(), any(), any());
 
         Map<String, Object> body = Map.of("name", "Ghost", "startTime", "00:00", "endTime", "08:00");

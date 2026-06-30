@@ -2,6 +2,7 @@ package com.planilla.backend.controller;
 
 import com.planilla.backend.service.tas.ShiftConfigService;
 import com.planilla.backend.service.tas.ShiftConfigService.ShiftHasActiveEmployeesException;
+import com.planilla.backend.service.tas.ShiftConfigService.ShiftValidationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
@@ -44,7 +45,7 @@ public class ShiftConfigController {
                 return ResponseEntity.internalServerError().body(error(500, "NOT_FOUND_AFTER_WRITE", "Shift created but could not be retrieved"));
             }
             return ResponseEntity.ok(created);
-        } catch (IllegalArgumentException e) {
+        } catch (ShiftValidationException e) {
             return ResponseEntity.badRequest().body(error(400, "CREATE_FAILED", e.getMessage()));
         } catch (Exception e) {
             log.error("Failed to create shift", e);
@@ -66,7 +67,7 @@ public class ShiftConfigController {
                 return ResponseEntity.internalServerError().body(error(500, "NOT_FOUND_AFTER_WRITE", "Shift updated but could not be retrieved"));
             }
             return ResponseEntity.ok(updated);
-        } catch (IllegalArgumentException e) {
+        } catch (ShiftValidationException e) {
             if ("SHIFT_NOT_FOUND".equals(e.getMessage())) {
                 return ResponseEntity.status(404).body(error(404, e.getMessage(), "Shift not found"));
             }

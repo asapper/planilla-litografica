@@ -8,7 +8,9 @@ import com.planilla.backend.model.tas.TasSession;
 import com.planilla.backend.model.tas.TasUploadResult;
 import com.planilla.backend.service.DatabaseService;
 import com.planilla.backend.service.JobNotFoundException;
+import com.planilla.backend.service.JobNotRetryableException;
 import com.planilla.backend.service.JobService;
+import com.planilla.backend.service.MaxRetriesExhaustedException;
 import com.planilla.backend.service.tas.*;
 import com.planilla.backend.service.tas.ParseValidationException;
 import org.junit.jupiter.api.AfterEach;
@@ -1392,7 +1394,7 @@ class TasControllerTest {
     @Test
     void retryJob_maxRetriesExhausted_returns409WithMaxRetriesCode() throws Exception {
         when(jobService.createRetryJob("job-2")).thenThrow(
-            new IllegalArgumentException("Se alcanzó el máximo de reintentos"));
+            new MaxRetriesExhaustedException());
 
         mvc.perform(post("/api/tas/jobs/job-2/retry"))
            .andExpect(status().isConflict())
@@ -1403,7 +1405,7 @@ class TasControllerTest {
     @Test
     void retryJob_notRetryable_returns409WithNotRetryableCode() throws Exception {
         when(jobService.createRetryJob("job-3")).thenThrow(
-            new IllegalStateException("Solo se puede reintentar un job con estado DONE_WITH_ERRORS"));
+            new JobNotRetryableException());
 
         mvc.perform(post("/api/tas/jobs/job-3/retry"))
            .andExpect(status().isConflict())
@@ -2233,6 +2235,18 @@ class TasControllerTest {
         when(parserService.parse(any())).thenThrow(
             new RuntimeException("internal: SQL error on table CARGA_LOG at /home/user/.planilla")
         );
+
+        MockMultipartFile file = new MockMultipartFile("file", "test.csv", "text/csv", "data".getBytes());
+
+        mvc.perform(multipart("/api/tas/upload").file(file))
+           .andExpect(status().isBadRequest())
+           .andExpect(jsonPath("$.code").value("UPLOAD_FAILED"))
+           .andExpect(jsonPath("$.message").value("Error al procesar el archivo."));
+    }
+
+    @Test
+    void upload_parseValidationExceptionWithNullMessage_returnsFallbackMessage() throws Exception {
+        when(parserService.parse(any())).thenThrow(new ParseValidationException(null));
 
         MockMultipartFile file = new MockMultipartFile("file", "test.csv", "text/csv", "data".getBytes());
 

@@ -8,7 +8,9 @@ import com.planilla.backend.model.tas.TasPeriod;
 import com.planilla.backend.model.tas.TasUploadResult;
 import com.planilla.backend.service.DatabaseService;
 import com.planilla.backend.service.JobNotFoundException;
+import com.planilla.backend.service.JobNotRetryableException;
 import com.planilla.backend.service.JobService;
+import com.planilla.backend.service.MaxRetriesExhaustedException;
 import com.planilla.backend.service.tas.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -94,7 +96,7 @@ public class TasController {
         } catch (ParseValidationException e) {
             return ResponseEntity.badRequest().body(Map.of(
                 "code", "UPLOAD_FAILED",
-                "message", e.getMessage()
+                "message", e.getMessage() != null ? e.getMessage() : "Error al procesar el archivo."
             ));
         } catch (Exception e) {
             log.error("TAS upload failed", e);
@@ -335,12 +337,12 @@ public class TasController {
             return ResponseEntity.ok(Map.of("jobId", retryJobId));
         } catch (JobNotFoundException e) {
             return ResponseEntity.notFound().build();
-        } catch (IllegalArgumentException e) {
+        } catch (MaxRetriesExhaustedException e) {
             return ResponseEntity.status(409).body(Map.of(
                 "code", "MAX_RETRIES_EXHAUSTED",
                 "message", e.getMessage()
             ));
-        } catch (IllegalStateException e) {
+        } catch (JobNotRetryableException e) {
             return ResponseEntity.status(409).body(Map.of(
                 "code", "NOT_RETRYABLE",
                 "message", e.getMessage()

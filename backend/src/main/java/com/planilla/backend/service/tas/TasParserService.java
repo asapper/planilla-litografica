@@ -36,7 +36,7 @@ public class TasParserService {
 
     private static final long MAX_FILE_SIZE = 10L * 1024 * 1024;
 
-    public ParseResult parse(MultipartFile file) throws ParseValidationException, Exception {
+    public ParseResult parse(MultipartFile file) throws Exception {
         if (file.isEmpty()) {
             throw new ParseValidationException("El archivo está vacío.");
         }
