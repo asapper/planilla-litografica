@@ -4,9 +4,11 @@ import { render, screen, waitFor, act, fireEvent } from '@testing-library/react'
 import { useTasStore } from './tasStore';
 
 const mockCheckHealth = vi.hoisted(() => vi.fn());
+const mockCheckDbHealth = vi.hoisted(() => vi.fn());
 
 vi.mock('./api', () => ({
   checkHealth: mockCheckHealth,
+  checkDbHealth: mockCheckDbHealth,
 }));
 
 const mockUploadTasFile = vi.hoisted(() => vi.fn());
@@ -63,6 +65,7 @@ const { default: App } = await import('./App');
 beforeEach(() => {
   useTasStore.getState().resetTas();
   mockCheckHealth.mockResolvedValue(undefined);
+  mockCheckDbHealth.mockResolvedValue(true);
   mockUploadTasFile.mockResolvedValue({
     uploadToken: 'token-1',
     flaggedSessions: [],
@@ -133,6 +136,45 @@ describe('startup', () => {
 
     expect(screen.getByTestId('empty-state')).toBeInTheDocument();
     expect(screen.queryByText(/no se pudo conectar/i)).not.toBeInTheDocument();
+  });
+});
+
+describe('db-health banner', () => {
+  it('shows no banner when PostgreSQL is reachable', async () => {
+    mockCheckDbHealth.mockResolvedValue(true);
+    render(<App />);
+    await waitFor(() => expect(screen.getByTestId('empty-state')).toBeInTheDocument());
+    expect(screen.queryByText(/base de datos no disponible/i)).not.toBeInTheDocument();
+  });
+
+  it('shows permanent error banner when PostgreSQL is unreachable', async () => {
+    mockCheckDbHealth.mockResolvedValue(false);
+    render(<App />);
+    await waitFor(() =>
+      expect(screen.getByText(/base de datos no disponible/i)).toBeInTheDocument()
+    );
+  });
+
+  it('suppresses the global banner on the review screen, where ReviewScreen owns its own indicator', async () => {
+    mockCheckDbHealth.mockResolvedValue(false);
+    render(<App />);
+    await waitFor(() =>
+      expect(screen.getByText(/base de datos no disponible/i)).toBeInTheDocument()
+    );
+    act(() => { useTasStore.getState().setTasView('review'); });
+    expect(screen.queryByText(/base de datos no disponible/i)).not.toBeInTheDocument();
+  });
+
+  it('clears banner when DB recovers on the next periodic poll', async () => {
+    vi.useFakeTimers();
+    mockCheckDbHealth.mockResolvedValue(false);
+    render(<App />);
+    await act(async () => { await vi.runAllTimersAsync(); });
+    expect(screen.getByText(/base de datos no disponible/i)).toBeInTheDocument();
+
+    mockCheckDbHealth.mockResolvedValue(true);
+    await act(async () => { await vi.advanceTimersByTimeAsync(30_000); });
+    expect(screen.queryByText(/base de datos no disponible/i)).not.toBeInTheDocument();
   });
 });
 
@@ -323,7 +365,7 @@ describe('upload processing stage messages', () => {
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: /cargar tas/i }));
-      await vi.runAllTimersAsync();
+      await vi.advanceTimersByTimeAsync(100);
     });
 
     const messageAtCompletion = useTasStore.getState().processingMessage;
@@ -364,7 +406,7 @@ describe('upload processing stage messages', () => {
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: /cargar tas/i }));
-      await vi.runAllTimersAsync();
+      await vi.advanceTimersByTimeAsync(100);
     });
 
     const messageAtCompletion = useTasStore.getState().processingMessage;

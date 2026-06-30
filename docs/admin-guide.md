@@ -45,7 +45,7 @@ To change any value you must rebuild and redeploy the application. There is no e
 | `h2.datasource.url` | `jdbc:h2:file:${user.home}/.planilla/data/planilla-log` | Local H2 database path |
 | `holiday.api.url` | `https://date.nager.at/api/v3/PublicHolidays/{year}/GT` | Public holiday API |
 | `holiday.api.timeout-seconds` | `5` | Timeout for holiday API requests |
-| `logging.file.name` | `logs/planilla.log` | Log file location (relative to working dir) |
+| Log file | `~/.planilla/logs/planilla-lito.log` | Backend log file location |
 
 **Credentials** are injected at build time from GitHub repository secrets (`POSTGRES_DB_USERNAME`, `POSTGRES_DB_PASSWORD`). To rotate credentials: update the secrets in GitHub → Actions → Secrets, then trigger a new release build.
 
@@ -197,7 +197,7 @@ The backend failed to start. Check:
 2. **JRE not found.** The bundled JRE is missing or was moved.
    - Reinstall the app from the installer.
 
-3. **Log file.** The backend writes to `logs/planilla.log` (relative to the app's working directory, typically the install folder). Check there for Java startup errors.
+3. **Log file.** The backend writes to `~/.planilla/logs/planilla-lito.log`. Check there for Java startup errors.
 
 ### "No se pudo conectar a la base de datos" (DB unreachable)
 
@@ -214,7 +214,7 @@ The stored procedure call failed.
 
 1. Confirm the procedure `public.carga_datos_empleados` exists in `sunhive`.
 2. Confirm the DB user has `EXECUTE` permission on it.
-3. Check `planilla.log` for the full SQL error.
+3. Check `~/.planilla/logs/planilla-lito.log` for the full SQL error.
 
 ### Duplicate detection blocking a legitimate re-submission
 

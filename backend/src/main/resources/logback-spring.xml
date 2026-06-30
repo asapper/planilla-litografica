@@ -1,0 +1,26 @@
+<configuration>
+  <springProfile name="!dev">
+    <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+      <file>${user.home}/.planilla/logs/planilla-lito.log</file>
+      <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+        <fileNamePattern>${user.home}/.planilla/logs/planilla-lito.%d{yyyy-MM-dd}.%i.log</fileNamePattern>
+        <maxFileSize>50MB</maxFileSize>
+        <maxHistory>10</maxHistory>
+        <totalSizeCap>200MB</totalSizeCap>
+      </rollingPolicy>
+      <encoder>
+        <pattern>%d{yyyy-MM-dd HH:mm:ss} %-5level %logger{36} - %msg%n</pattern>
+      </encoder>
+    </appender>
+    <root level="WARN">
+      <appender-ref ref="FILE"/>
+    </root>
+    <logger name="com.planilla" level="INFO"/>
+  </springProfile>
+  <springProfile name="dev">
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+      <encoder><pattern>%d{HH:mm:ss} %-5level %logger{36} - %msg%n</pattern></encoder>
+    </appender>
+    <root level="INFO"><appender-ref ref="CONSOLE"/></root>
+  </springProfile>
+</configuration>

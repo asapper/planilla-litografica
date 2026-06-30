@@ -7,12 +7,14 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
+import jakarta.annotation.PreDestroy;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 @Service
@@ -26,7 +28,7 @@ public class JobService {
     private int maxRetries;
 
     private final Map<String, JobState> jobs = new ConcurrentHashMap<>();
-    private final Executor asyncExecutor = Executors.newFixedThreadPool(4);
+    private ExecutorService asyncExecutor = Executors.newFixedThreadPool(4);
 
     public JobService(DatabaseService databaseService) {
         this.databaseService = databaseService;
@@ -180,6 +182,19 @@ public class JobService {
 
     public void processRetryJobAsync(String jobId) {
         runJobAsync(jobId, () -> processJob(jobId));
+    }
+
+    @PreDestroy
+    public void shutdown() {
+        asyncExecutor.shutdown();
+        try {
+            if (!asyncExecutor.awaitTermination(30, TimeUnit.SECONDS)) {
+                asyncExecutor.shutdownNow();
+            }
+        } catch (InterruptedException e) {
+            asyncExecutor.shutdownNow();
+            Thread.currentThread().interrupt();
+        }
     }
 
     private void runJobAsync(String jobId, Runnable task) {

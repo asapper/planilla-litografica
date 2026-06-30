@@ -225,7 +225,7 @@ The duplicate-detection log is stored at `~/.planilla/data/planilla-log` (create
 
 ### Backend logs
 
-Written to `backend/logs/planilla.log`.
+Written to `~/.planilla/logs/planilla-lito.log`.
 
 ---
 

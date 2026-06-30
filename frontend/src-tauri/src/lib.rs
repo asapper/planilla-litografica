@@ -78,16 +78,27 @@ pub fn run() {
                 let stderr_log_dir = home_dir.join(".planilla").join("logs");
                 std::fs::create_dir_all(&stderr_log_dir).ok();
 
-                let stderr_stdio = std::fs::OpenOptions::new()
+                let (stdout_stdio, stderr_stdio) = match std::fs::OpenOptions::new()
                     .create(true)
                     .append(true)
                     .open(stderr_log_dir.join("backend-stderr.log"))
-                    .map(std::process::Stdio::from)
-                    .unwrap_or_else(|_| std::process::Stdio::null());
+                {
+                    Ok(log_file) => match log_file.try_clone() {
+                        Ok(log_clone) => (Stdio::from(log_clone), Stdio::from(log_file)),
+                        Err(e) => {
+                            log::warn!("failed to clone log file handle; backend stdout will not be captured: {e}");
+                            (Stdio::null(), Stdio::from(log_file))
+                        }
+                    },
+                    Err(e) => {
+                        log::warn!("failed to open backend log file; backend stdout/stderr will not be captured: {e}");
+                        (Stdio::null(), Stdio::null())
+                    }
+                };
 
                 let child = Command::new(&java_bin)
                     .args(["-jar", jar.to_str().unwrap_or_default()])
-                    .stdout(Stdio::null())
+                    .stdout(stdout_stdio)
                     .stderr(stderr_stdio)
                     .spawn()
                     .map_err(|e| {

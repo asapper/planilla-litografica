@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
-import { checkHealth } from './api';
+import { checkHealth, checkDbHealth } from './api';
+import AlertMessage from './components/ui/AlertMessage';
 import { uploadTasFile } from './tasApi';
 import { useTasStore } from './tasStore';
 import { useToastStore } from './toastStore';
@@ -26,12 +27,17 @@ const UPLOAD_STAGE_MESSAGES = [
 ];
 const STAGE_INTERVAL_MS = 5_000;
 
+// ReviewScreen runs its own faster /db-health poll and shows a contextual banner,
+// so the global banner is suppressed on these views to avoid a conflicting signal.
+const REVIEW_TAS_VIEWS = new Set(['review', 'submitting', 'polling']);
+
 type BackendState = 'starting' | 'ready' | 'error';
 
 export default function App() {
   const [backendState, setBackendState] = useState<BackendState>('starting');
   const [retryKey, setRetryKey] = useState(0);
   const [startAttempts, setStartAttempts] = useState(0);
+  const [dbHealthy, setDbHealthy] = useState<boolean | null>(null);
   const [currentView, setCurrentView] = useState<AppView>('tas');
   const [tasFileName, setTasFileName] = useState('');
 
@@ -102,6 +108,15 @@ export default function App() {
   };
 
   useEffect(() => {
+    if (backendState !== 'ready') return;
+    const id = setInterval(async () => {
+      const healthy = await checkDbHealth();
+      setDbHealthy(healthy);
+    }, 30_000);
+    return () => clearInterval(id);
+  }, [backendState]);
+
+  useEffect(() => {
     let cancelled = false;
     let attempts  = 0;
 
@@ -109,7 +124,11 @@ export default function App() {
       if (cancelled) return;
       try {
         await checkHealth();
-        if (!cancelled) setBackendState('ready');
+        if (!cancelled) {
+          setBackendState('ready');
+          const isDbHealthy = await checkDbHealth();
+          if (!cancelled) setDbHealthy(isDbHealthy);
+        }
       } catch {
         attempts++;
         setStartAttempts(attempts);
@@ -128,6 +147,7 @@ export default function App() {
   const retry = () => {
     setBackendState('starting');
     setStartAttempts(0);
+    setDbHealthy(null);
     setRetryKey(k => k + 1);
   };
 
@@ -173,6 +193,15 @@ export default function App() {
           setCurrentView('tas');
         }}
       />
+
+      {dbHealthy === false && !REVIEW_TAS_VIEWS.has(tasView) && (
+        <div className="px-4 pt-2">
+          <AlertMessage
+            message="Base de datos no disponible. No se podrán enviar registros hasta que la conexión sea restaurada."
+            variant="error"
+          />
+        </div>
+      )}
 
       {currentView === 'config' && <ConfigPage />}
 

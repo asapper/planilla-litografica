@@ -182,5 +182,5 @@ npm run tauri build
 ## Notes
 
 - Backend uses a local H2 database at `~/.planilla/data/planilla-log` and connects to PostgreSQL at `192.168.0.20:5432` for stored procedure execution.
-- Backend logs are written to `backend/logs/planilla.log`.
+- Backend logs are written to `~/.planilla/logs/planilla-lito.log`.
 - A pre-built JAR is available at `binaries/planilla-backend-0.0.1-SNAPSHOT.jar` if you want to run without Maven: `java -jar binaries/planilla-backend-0.0.1-SNAPSHOT.jar`
