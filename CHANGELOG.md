@@ -1,5 +1,59 @@
 # Changelog
 
+## v1.1.0 — 2026-06-30
+
+Pre-production hardening release: security, reliability, and observability work on top of the 1.0 TAS app, plus a new per-stage upload progress UI.
+
+### Features
+- **Per-stage progress messages during TAS upload** — the upload flow now reports each processing stage to the user instead of a single opaque spinner.
+
+### Reliability & observability
+- Added pre-production reliability and observability gaps coverage: absolute log path, dedicated stderr log, and a startup hint.
+- Evict stale `stateStore` entries after a 30-minute TTL.
+- Return to idle on upload error so the user can retry without restarting the app.
+- Log instead of silently swallowing holiday-load and API failures.
+
+### Security hardening
+- Removed H2 `AUTO_SERVER` and sanitized error responses to avoid leaking internals.
+- Tightened CORS: removed unintended `setAllowCredentials`, restricted allowed headers (with test coverage), added CSP.
+- Escaped `LIKE` wildcards in employee search to prevent wildcard injection.
+- Redacted plaintext credentials from `stored_procedure.md`.
+- Hardened the `/resolve` endpoint: type-guarded casts, guarded date parsing, and rejection of end-before-start times.
+- Replaced bare `IllegalArgumentException`/`IllegalStateException` with typed exceptions in the shift and job services.
+- Validated config bounds (break allowance ≥ 0, session span ≥ 60 min), `shiftId` existence before employee update, and `employeeIds` existence before deactivating absent employees.
+- Fixed null-token NPE, added `deactivateAbsent` token guard, and made the submit payload a defensive copy.
+
+### UX
+- Surface `notFound` employees from `deactivateAbsent`; skip the store update when the backend reports `notFound`, with singular/plural toast wording.
+
+### Internal
+- Extracted the API base URL to a shared constant.
+- Pre-production build and config cleanup (TASK-78); aligned all version strings.
+- Added INT-3 regression test, `@AfterEach` `stateStore` cleanup in `TasControllerTest`, and general test-hygiene fixes.
+
+## v1.0.1 — 2026-06-27
+
+Packaging and polish release for the first TAS production build.
+
+- **Windows installer** — switched from MSI/WiX to NSIS to avoid `light.exe` duplicate-resource failures; removed redundant JRE resource globs; added `contents: write` permission and auto-create GitHub Release on version-tag push.
+- **Demo mode** — added demo mode with a demo CSV and annotated guide (TASK-71).
+- **Editable días no laborados** in the TAS review and detail screens.
+- Prepared decimal overtime for the stored-procedure numeric upgrade (TASK-70).
+- Added a help button that opens the bundled PDF manual.
+- Smoke-test fixes: overtime, shift auto-resolution, cross-midnight handling, and UX.
+- Documentation: rewritten README and user manual with Playwright-captured screenshots, plus a technical admin guide and a Windows/macOS release guide.
+
+## v1.0.0 — 2026-06-22
+
+First production release of the TAS-based application (time-and-attendance CSV ingestion, shift detection, verification, and review), replacing the earlier generic CSV loader.
+
+- Full TAS pipeline: scan dedup, shift detection/best-fit, session grouping, hours calculation (overtime simples/dobles, lunch deduction, días no laborados), verification, and review.
+- Redesigned review screen with list/detail views, filter chips, sorting, sticky header, and inline overtime editing.
+- MD3 design tokens across all screens; unified toast/AlertMessage notifications.
+- CSV validation gates (empty file, size limit, encoding, warning cap) and classified stored-procedure error messages.
+- Async job submission with retry; explicit backend-process cleanup on Tauri exit.
+- GitHub Actions Windows build workflow.
+
 ## v0.2 — 2026-04-24
 
 ### Async job submission with retry
