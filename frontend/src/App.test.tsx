@@ -155,6 +155,16 @@ describe('db-health banner', () => {
     );
   });
 
+  it('suppresses the global banner on the review screen, where ReviewScreen owns its own indicator', async () => {
+    mockCheckDbHealth.mockResolvedValue(false);
+    render(<App />);
+    await waitFor(() =>
+      expect(screen.getByText(/base de datos no disponible/i)).toBeInTheDocument()
+    );
+    act(() => { useTasStore.getState().setTasView('review'); });
+    expect(screen.queryByText(/base de datos no disponible/i)).not.toBeInTheDocument();
+  });
+
   it('clears banner when DB recovers on the next periodic poll', async () => {
     vi.useFakeTimers();
     mockCheckDbHealth.mockResolvedValue(false);

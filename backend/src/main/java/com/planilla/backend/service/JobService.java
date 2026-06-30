@@ -28,7 +28,7 @@ public class JobService {
     private int maxRetries;
 
     private final Map<String, JobState> jobs = new ConcurrentHashMap<>();
-    private final ExecutorService asyncExecutor = Executors.newFixedThreadPool(4);
+    private ExecutorService asyncExecutor = Executors.newFixedThreadPool(4);
 
     public JobService(DatabaseService databaseService) {
         this.databaseService = databaseService;

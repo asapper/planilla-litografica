@@ -84,13 +84,16 @@ pub fn run() {
                     .open(stderr_log_dir.join("backend-stderr.log"))
                 {
                     Ok(log_file) => match log_file.try_clone() {
-                        Ok(log_clone) => (
-                            std::process::Stdio::from(log_clone),
-                            std::process::Stdio::from(log_file),
-                        ),
-                        Err(_) => (std::process::Stdio::null(), std::process::Stdio::from(log_file)),
+                        Ok(log_clone) => (Stdio::from(log_clone), Stdio::from(log_file)),
+                        Err(e) => {
+                            log::warn!("failed to clone log file handle; backend stdout will not be captured: {e}");
+                            (Stdio::null(), Stdio::from(log_file))
+                        }
                     },
-                    Err(_) => (std::process::Stdio::null(), std::process::Stdio::null()),
+                    Err(e) => {
+                        log::warn!("failed to open backend log file; backend stdout/stderr will not be captured: {e}");
+                        (Stdio::null(), Stdio::null())
+                    }
                 };
 
                 let child = Command::new(&java_bin)

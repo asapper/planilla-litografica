@@ -38,7 +38,7 @@ public class DataSourceConfig {
         config.setMinimumIdle(1);
         config.setConnectionTimeout(6_000);      // max wait for a pool slot (ms)
         config.setIdleTimeout(300_000);
-        config.setInitializationFailTimeout(-1); // start pool regardless of DB availability; StartupChecker logs the result
+        config.setInitializationFailTimeout(-1); // start pool regardless of DB availability; HealthController logs the result at startup
         // Limit the TCP connect attempt itself — without this, an unreachable host
         // hangs for the OS default (~75 s) before throwing.
         config.addDataSourceProperty("connectTimeout", "3");  // seconds

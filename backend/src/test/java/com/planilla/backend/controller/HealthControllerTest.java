@@ -46,13 +46,13 @@ class HealthControllerTest {
     }
 
     @Test
-    void runDoesNotThrowWhenDatabaseReachable() throws Exception {
+    void runDoesNotThrowWhenDatabaseReachable() {
         when(postgresJdbc.queryForObject("SELECT 1", Integer.class)).thenReturn(1);
         assertThatCode(() -> controller.run(null)).doesNotThrowAnyException();
     }
 
     @Test
-    void runDoesNotThrowWhenDatabaseUnreachable() throws Exception {
+    void runDoesNotThrowWhenDatabaseUnreachable() {
         when(postgresJdbc.queryForObject("SELECT 1", Integer.class))
             .thenThrow(new DataAccessResourceFailureException("timeout"));
         assertThatCode(() -> controller.run(null)).doesNotThrowAnyException();

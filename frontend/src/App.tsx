@@ -27,6 +27,10 @@ const UPLOAD_STAGE_MESSAGES = [
 ];
 const STAGE_INTERVAL_MS = 5_000;
 
+// ReviewScreen runs its own faster /db-health poll and shows a contextual banner,
+// so the global banner is suppressed on these views to avoid a conflicting signal.
+const REVIEW_TAS_VIEWS = new Set(['review', 'submitting', 'polling']);
+
 type BackendState = 'starting' | 'ready' | 'error';
 
 export default function App() {
@@ -190,7 +194,7 @@ export default function App() {
         }}
       />
 
-      {dbHealthy === false && (
+      {dbHealthy === false && !REVIEW_TAS_VIEWS.has(tasView) && (
         <div className="px-4 pt-2">
           <AlertMessage
             message="Base de datos no disponible. No se podrán enviar registros hasta que la conexión sea restaurada."

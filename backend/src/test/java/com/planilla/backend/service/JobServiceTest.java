@@ -15,10 +15,12 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
 
 import static org.assertj.core.api.Assertions.*;
 import static org.awaitility.Awaitility.await;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.*;
 
 /**
@@ -495,5 +497,29 @@ class JobServiceTest {
     @Test
     void shutdown_doesNotThrow() {
         assertThatCode(() -> service.shutdown()).doesNotThrowAnyException();
+    }
+
+    @Test
+    void shutdown_forcesShutdownNowWhenDrainTimesOut() throws InterruptedException {
+        ExecutorService mockExecutor = mock(ExecutorService.class);
+        when(mockExecutor.awaitTermination(anyLong(), any())).thenReturn(false);
+        ReflectionTestUtils.setField(service, "asyncExecutor", mockExecutor);
+
+        service.shutdown();
+
+        verify(mockExecutor).shutdown();
+        verify(mockExecutor).shutdownNow();
+    }
+
+    @Test
+    void shutdown_forcesShutdownNowAndReinterruptsWhenInterrupted() throws InterruptedException {
+        ExecutorService mockExecutor = mock(ExecutorService.class);
+        when(mockExecutor.awaitTermination(anyLong(), any())).thenThrow(new InterruptedException());
+        ReflectionTestUtils.setField(service, "asyncExecutor", mockExecutor);
+
+        service.shutdown();
+
+        verify(mockExecutor).shutdownNow();
+        assertThat(Thread.interrupted()).isTrue(); // also clears the flag so it doesn't leak to other tests
     }
 }
