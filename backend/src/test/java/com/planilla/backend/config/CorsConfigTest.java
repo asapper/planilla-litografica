@@ -8,6 +8,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -18,6 +19,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @WebMvcTest(HealthController.class)
 @Import(CorsConfig.class)
+@TestPropertySource(properties =
+        "cors.allowed-origins=http://localhost:5173,http://127.0.0.1:5173,tauri://localhost,https://tauri.localhost")
 class CorsConfigTest {
 
     @Autowired MockMvc mvc;
