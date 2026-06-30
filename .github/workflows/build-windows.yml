@@ -31,7 +31,11 @@ jobs:
       - name: Copy backend JAR to Tauri binaries
         run: |
           New-Item -ItemType Directory -Force -Path frontend/src-tauri/binaries
-          Copy-Item backend/target/planilla-backend-0.0.1-SNAPSHOT.jar frontend/src-tauri/binaries/backend.jar
+          $jar = Get-ChildItem backend/target/planilla-backend-*.jar |
+            Where-Object { $_.Name -notlike '*.jar.original' } |
+            Select-Object -First 1
+          if (-not $jar) { throw "Backend JAR not found in backend/target" }
+          Copy-Item $jar.FullName frontend/src-tauri/binaries/backend.jar
 
       # ── JRE for bundling ─────────────────────────────────────
       - name: Download Windows JRE 21
