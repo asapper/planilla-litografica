@@ -3,6 +3,22 @@ use std::sync::Mutex;
 
 struct BackendProcess(Mutex<Option<std::process::Child>>);
 
+/// Strips the Windows verbatim/extended-length path prefix (`\\?\`).
+///
+/// `resource_dir()` returns paths carrying this prefix on Windows. The JVM
+/// cannot load classes from a jar passed as `java -jar \\?\C:\...\backend.jar`,
+/// so the prefix must be removed before spawning the backend. UNC verbatim
+/// paths (`\\?\UNC\...`) are left untouched since they can't be simplified the
+/// same way.
+#[cfg(any(not(debug_assertions), test))]
+fn strip_verbatim_prefix(path: &std::path::Path) -> PathBuf {
+    let raw = path.to_string_lossy();
+    match raw.strip_prefix(r"\\?\") {
+        Some(stripped) if !stripped.starts_with("UNC\\") => PathBuf::from(stripped),
+        _ => path.to_path_buf(),
+    }
+}
+
 #[tauri::command]
 fn open_manual(app: tauri::AppHandle) -> Result<(), String> {
     use tauri::Manager;
@@ -58,6 +74,7 @@ pub fn run() {
                     log::error!("could not resolve resource directory: {e}");
                     e
                 })?;
+                let resource_dir = strip_verbatim_prefix(&resource_dir);
 
                 log::info!("resource_dir = {}", resource_dir.display());
 
@@ -121,4 +138,36 @@ pub fn run() {
         })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::strip_verbatim_prefix;
+    use std::path::{Path, PathBuf};
+
+    #[test]
+    fn strips_verbatim_disk_prefix() {
+        assert_eq!(
+            strip_verbatim_prefix(Path::new(r"\\?\C:\Users\me\App\backend.jar")),
+            PathBuf::from(r"C:\Users\me\App\backend.jar")
+        );
+    }
+
+    #[test]
+    fn leaves_plain_windows_path_untouched() {
+        let p = PathBuf::from(r"C:\Users\me\App\backend.jar");
+        assert_eq!(strip_verbatim_prefix(&p), p);
+    }
+
+    #[test]
+    fn leaves_unc_verbatim_path_untouched() {
+        let p = PathBuf::from(r"\\?\UNC\server\share\backend.jar");
+        assert_eq!(strip_verbatim_prefix(&p), p);
+    }
+
+    #[test]
+    fn leaves_unix_path_untouched() {
+        let p = PathBuf::from("/home/me/.local/app/backend.jar");
+        assert_eq!(strip_verbatim_prefix(&p), p);
+    }
 }

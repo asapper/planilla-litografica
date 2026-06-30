@@ -30,10 +30,7 @@
     "targets": ["app"],
     "resources": {
       "binaries/backend.jar": "backend.jar",
-      "binaries/jre/bin/**/*": "jre/bin",
-      "binaries/jre/conf/**/*": "jre/conf",
-      "binaries/jre/lib/**/*": "jre/lib",
-      "binaries/jre/release": "jre/release",
+      "binaries/jre/": "jre",
       "resources/manual_usuario.pdf": "manual_usuario.pdf"
     },
     "icon": [

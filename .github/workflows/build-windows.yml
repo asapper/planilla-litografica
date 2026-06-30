@@ -50,11 +50,6 @@ jobs:
           $dest = "frontend/src-tauri/binaries/jre"
           New-Item -ItemType Directory -Force -Path $dest
           Copy-Item -Path "$($jreRoot.FullName)/*" -Destination $dest -Recurse -Force
-          # Windows JRE puts jvm.dll in bin/server/ instead of lib/server/;
-          # tauri.conf.json expects lib/server/** so copy it there too
-          if ((Test-Path "$dest/bin/server") -and -not (Test-Path "$dest/lib/server")) {
-            Copy-Item -Path "$dest/bin/server" -Destination "$dest/lib/server" -Recurse
-          }
           Remove-Item -Recurse -Force jre-temp, jre.zip
 
       # ── Frontend ─────────────────────────────────────────────
