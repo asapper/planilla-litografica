@@ -2135,4 +2135,82 @@ class TasControllerTest {
         assertThat(tasController.stateStore).doesNotContainKey("stale-token");
         assertThat(tasController.stateStore).containsKey("fresh-token");
     }
+
+    // ── Type-guard: bare casts in /resolve ───────────────────────────────────
+
+    private String uploadAndGetToken(TasSession... sessions) throws Exception {
+        TasUploadResult result = emptyResult();
+        result.setFlaggedSessions(new ArrayList<>(List.of(sessions)));
+        result.setAllSessions(new ArrayList<>(List.of(sessions)));
+        when(parserService.parse(any())).thenReturn(emptyParseResult());
+        when(uploadService.processScans(any(), any(), any())).thenReturn(result);
+        when(shiftConfigService.getAllShifts()).thenReturn(new ArrayList<>());
+        when(reportBuilder.build(any(), any(), any(), any(), any()))
+                .thenReturn(new TasReportBuilder.BuildResult(new ArrayList<>()));
+
+        MockMultipartFile file = new MockMultipartFile("file", "t.csv", "text/csv", "d".getBytes());
+        String resp = mvc.perform(multipart("/api/tas/upload").file(file))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        return (String) mapper.readValue(resp, Map.class).get("uploadToken");
+    }
+
+    private TasSession flaggedSession(int sessionId) {
+        TasSession s = new TasSession();
+        s.setSessionId(sessionId);
+        s.setEmployeeId("100");
+        s.setNeedsResolution(true);
+        s.setFlags(new ArrayList<>(List.of(com.planilla.backend.model.tas.TasFlag.MISSING_EXIT)));
+        return s;
+    }
+
+    @Test
+    void resolve_nonStringResolvedStart_returns400WithInvalidTimeFormat() throws Exception {
+        String token = uploadAndGetToken(flaggedSession(42));
+
+        Map<String, Object> resolution = new LinkedHashMap<>();
+        resolution.put("sessionId", 42);
+        resolution.put("resolvedStart", 20260310);
+        resolution.put("resolvedEnd", "2026-03-10 15:00");
+
+        mvc.perform(post("/api/tas/resolve")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(Map.of("uploadToken", token, "resolutions", List.of(resolution)))))
+           .andExpect(status().isBadRequest())
+           .andExpect(jsonPath("$.code").value("INVALID_TIME_FORMAT"));
+    }
+
+    @Test
+    void resolve_nonStringResolvedEnd_returns400WithInvalidTimeFormat() throws Exception {
+        String token = uploadAndGetToken(flaggedSession(42));
+
+        Map<String, Object> resolution = new LinkedHashMap<>();
+        resolution.put("sessionId", 42);
+        resolution.put("resolvedStart", "2026-03-10 07:00");
+        resolution.put("resolvedEnd", 20260310);
+
+        mvc.perform(post("/api/tas/resolve")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(Map.of("uploadToken", token, "resolutions", List.of(resolution)))))
+           .andExpect(status().isBadRequest())
+           .andExpect(jsonPath("$.code").value("INVALID_TIME_FORMAT"));
+    }
+
+    @Test
+    void resolve_nonNumberKeepSessionId_returns400WithInvalidSessionFormat() throws Exception {
+        TasSession a = sameDayDoubleSession(10, "manana", "Manana");
+        TasSession b = sameDayDoubleSession(11, "tarde", "Tarde");
+        String token = uploadAndGetToken(a, b);
+
+        Map<String, Object> resolution = new LinkedHashMap<>();
+        resolution.put("employeeId", "100");
+        resolution.put("date", "2026-03-10");
+        resolution.put("keepSessionId", true);
+
+        mvc.perform(post("/api/tas/resolve")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(Map.of("uploadToken", token, "resolutions", List.of(resolution)))))
+           .andExpect(status().isBadRequest())
+           .andExpect(jsonPath("$.code").value("INVALID_SESSION_FORMAT"));
+    }
 }

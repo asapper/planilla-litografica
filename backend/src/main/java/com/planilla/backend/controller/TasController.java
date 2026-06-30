@@ -179,6 +179,12 @@ public class TasController {
                         "message", "Formato de fecha inválido. Use yyyy-MM-dd."
                     ));
                 }
+                if (!("all".equals(keepSessionIdObj)) && !(keepSessionIdObj instanceof Number)) {
+                    return ResponseEntity.badRequest().body(Map.of(
+                        "code", "INVALID_SESSION_FORMAT",
+                        "message", "El ID de sesión debe ser un número o \"all\"."
+                    ));
+                }
                 java.time.LocalDate resolutionDate;
                 try {
                     resolutionDate = java.time.LocalDate.parse((String) dateObj);
@@ -199,9 +205,32 @@ public class TasController {
             TasSession session = flaggedBySessionId.get(sessionId);
             if (session == null) continue;
 
-            String resolvedStart = (String) res.get("resolvedStart");
-            String resolvedEnd   = (String) res.get("resolvedEnd");
-            String acceptedShiftId = (String) res.get("acceptedShiftId");
+            Object resolvedStartObj   = res.get("resolvedStart");
+            Object resolvedEndObj     = res.get("resolvedEnd");
+            Object acceptedShiftIdObj = res.get("acceptedShiftId");
+
+            if (resolvedStartObj != null && !(resolvedStartObj instanceof String)) {
+                return ResponseEntity.badRequest().body(Map.of(
+                    "code", "INVALID_TIME_FORMAT",
+                    "message", "Formato de hora inválido. Use yyyy-MM-dd HH:mm."
+                ));
+            }
+            if (resolvedEndObj != null && !(resolvedEndObj instanceof String)) {
+                return ResponseEntity.badRequest().body(Map.of(
+                    "code", "INVALID_TIME_FORMAT",
+                    "message", "Formato de hora inválido. Use yyyy-MM-dd HH:mm."
+                ));
+            }
+            if (acceptedShiftIdObj != null && !(acceptedShiftIdObj instanceof String)) {
+                return ResponseEntity.badRequest().body(Map.of(
+                    "code", "INVALID_FIELD_FORMAT",
+                    "message", "El ID de turno debe ser un texto."
+                ));
+            }
+
+            String resolvedStart   = (String) resolvedStartObj;
+            String resolvedEnd     = (String) resolvedEndObj;
+            String acceptedShiftId = (String) acceptedShiftIdObj;
 
             if (resolvedStart != null && resolvedEnd != null) {
                 LocalDateTime start;
