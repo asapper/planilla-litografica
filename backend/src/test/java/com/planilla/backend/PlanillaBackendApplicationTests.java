@@ -5,10 +5,12 @@ import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
 
 import static org.assertj.core.api.Assertions.assertThatCode;
 
 @SpringBootTest
+@ActiveProfiles("test")
 class PlanillaBackendApplicationTests {
 
 	@Test

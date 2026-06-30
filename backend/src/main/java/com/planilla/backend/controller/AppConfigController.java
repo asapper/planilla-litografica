@@ -1,6 +1,8 @@
 package com.planilla.backend.controller;
 
 import com.planilla.backend.service.tas.AppConfigService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -10,6 +12,8 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/config/general")
 public class AppConfigController {
+
+    private static final Logger log = LoggerFactory.getLogger(AppConfigController.class);
 
     private final AppConfigService appConfigService;
 
@@ -46,7 +50,8 @@ public class AppConfigController {
             }
             return ResponseEntity.ok().build();
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body(error(400, "UPDATE_FAILED", e.getMessage()));
+            log.error("Failed to update app config", e);
+            return ResponseEntity.badRequest().body(error(400, "UPDATE_FAILED", "No se pudo actualizar la configuración."));
         }
     }
 

@@ -281,6 +281,47 @@ class ShiftConfigControllerTest {
     }
 
     @Test
+    void create_serviceThrowsRuntimeException_doesNotLeakExceptionMessage() throws Exception {
+        doThrow(new RuntimeException("internal: SQL constraint violation on PUBLIC.SHIFTS")).when(shiftConfigService)
+            .createShift(any(), any(), any(), anyBoolean(), any(), any());
+
+        Map<String, Object> body = Map.of("name", "Tarde", "startTime", "15:00", "endTime", "23:00");
+
+        mvc.perform(post("/api/config/shifts")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(body)))
+           .andExpect(status().isBadRequest())
+           .andExpect(jsonPath("$.code").value("CREATE_FAILED"))
+           .andExpect(jsonPath("$.message").value("No se pudo crear el turno."));
+    }
+
+    @Test
+    void update_serviceThrowsRuntimeException_doesNotLeakExceptionMessage() throws Exception {
+        doThrow(new RuntimeException("internal: JDBC connection pool exhausted")).when(shiftConfigService)
+            .updateShift(any(), any(), any(), any(), anyBoolean(), any(), any());
+
+        Map<String, Object> body = Map.of("name", "X", "startTime", "00:00", "endTime", "08:00");
+
+        mvc.perform(put("/api/config/shifts/bad")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(body)))
+           .andExpect(status().isBadRequest())
+           .andExpect(jsonPath("$.code").value("UPDATE_FAILED"))
+           .andExpect(jsonPath("$.message").value("No se pudo actualizar el turno."));
+    }
+
+    @Test
+    void delete_serviceThrowsRuntimeException_doesNotLeakExceptionMessage() throws Exception {
+        doThrow(new RuntimeException("internal: lock timeout on PUBLIC.SHIFTS")).when(shiftConfigService)
+            .deleteShift(any());
+
+        mvc.perform(delete("/api/config/shifts/manana"))
+           .andExpect(status().isBadRequest())
+           .andExpect(jsonPath("$.code").value("DELETE_FAILED"))
+           .andExpect(jsonPath("$.message").value("No se pudo eliminar el turno."));
+    }
+
+    @Test
     void create_withNoCrossMidnightField_defaultsToFalse() throws Exception {
         Map<String, Object> body = Map.of("name", "X", "startTime", "06:00", "endTime", "14:00");
         when(shiftConfigService.createShift("X", "06:00", "14:00", false, null, null))

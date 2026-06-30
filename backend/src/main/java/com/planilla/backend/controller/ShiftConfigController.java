@@ -2,6 +2,8 @@ package com.planilla.backend.controller;
 
 import com.planilla.backend.service.tas.ShiftConfigService;
 import com.planilla.backend.service.tas.ShiftConfigService.ShiftHasActiveEmployeesException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -13,6 +15,8 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/config/shifts")
 public class ShiftConfigController {
+
+    private static final Logger log = LoggerFactory.getLogger(ShiftConfigController.class);
 
     private final ShiftConfigService shiftConfigService;
 
@@ -40,8 +44,11 @@ public class ShiftConfigController {
                 return ResponseEntity.internalServerError().body(error(500, "NOT_FOUND_AFTER_WRITE", "Shift created but could not be retrieved"));
             }
             return ResponseEntity.ok(created);
-        } catch (Exception e) {
+        } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(error(400, "CREATE_FAILED", e.getMessage()));
+        } catch (Exception e) {
+            log.error("Failed to create shift", e);
+            return ResponseEntity.badRequest().body(error(400, "CREATE_FAILED", "No se pudo crear el turno."));
         }
     }
 
@@ -65,7 +72,8 @@ public class ShiftConfigController {
             }
             return ResponseEntity.badRequest().body(error(400, "UPDATE_FAILED", e.getMessage()));
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body(error(400, "UPDATE_FAILED", e.getMessage()));
+            log.error("Failed to update shift {}", id, e);
+            return ResponseEntity.badRequest().body(error(400, "UPDATE_FAILED", "No se pudo actualizar el turno."));
         }
     }
 
@@ -91,7 +99,8 @@ public class ShiftConfigController {
             body.put("employees", employeeList);
             return ResponseEntity.status(409).body(body);
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body(error(400, "DELETE_FAILED", e.getMessage()));
+            log.error("Failed to delete shift {}", id, e);
+            return ResponseEntity.badRequest().body(error(400, "DELETE_FAILED", "No se pudo eliminar el turno."));
         }
     }
 

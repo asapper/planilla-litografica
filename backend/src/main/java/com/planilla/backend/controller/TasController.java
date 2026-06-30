@@ -91,10 +91,16 @@ public class TasController {
 
             return ResponseEntity.ok(buildResponseBody(token, result));
 
-        } catch (Exception e) {
+        } catch (ParseValidationException e) {
             return ResponseEntity.badRequest().body(Map.of(
                 "code", "UPLOAD_FAILED",
-                "message", e.getMessage() != null ? e.getMessage() : "Error al procesar el archivo."
+                "message", e.getMessage()
+            ));
+        } catch (Exception e) {
+            log.error("TAS upload failed", e);
+            return ResponseEntity.badRequest().body(Map.of(
+                "code", "UPLOAD_FAILED",
+                "message", "Error al procesar el archivo."
             ));
         }
     }
