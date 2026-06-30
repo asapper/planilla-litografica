@@ -119,7 +119,7 @@ Haga clic en el botón **"Exportar"** ubicado justo encima de la tabla de result
 ![Modal de exportación — selección de formato y nombre del archivo](screenshots/00-tas-exportar-modal.png)
 
 1. En **"Formato de archivo"**, verifique que esté seleccionado **CSV**.
-2. En **"Nombre del archivo"**, escriba un nombre descriptivo que identifique el período (por ejemplo, `Reporte_01-16_Mayo_2026`).
+2. En **"Nombre del archivo"**, escriba un nombre descriptivo que identifique el período (por ejemplo, `Reporte 01 al 15 de Mayo 2026`).
 3. Haga clic en el botón **"Exportar"**.
 
 El archivo `.csv` se descargará automáticamente a la carpeta de descargas de su navegador. Este es el archivo que deberá cargar en el Cargador de Planilla.
