@@ -491,4 +491,9 @@ class JobServiceTest {
         assertThat(JobService.classifyRowError(ex))
             .isEqualTo("Error inesperado al procesar el registro.");
     }
+
+    @Test
+    void shutdown_doesNotThrow() {
+        assertThatCode(() -> service.shutdown()).doesNotThrowAnyException();
+    }
 }
