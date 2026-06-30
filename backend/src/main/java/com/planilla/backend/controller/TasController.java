@@ -201,6 +201,12 @@ public class TasController {
 
             Object sessionIdObj = res.get("sessionId");
             if (sessionIdObj == null) continue;
+            if (!(sessionIdObj instanceof Number)) {
+                return ResponseEntity.badRequest().body(Map.of(
+                    "code", "INVALID_SESSION_FORMAT",
+                    "message", "El ID de sesión debe ser un número."
+                ));
+            }
             int sessionId = ((Number) sessionIdObj).intValue();
             TasSession session = flaggedBySessionId.get(sessionId);
             if (session == null) continue;

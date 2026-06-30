@@ -2197,6 +2197,37 @@ class TasControllerTest {
     }
 
     @Test
+    void resolve_nonStringAcceptedShiftId_returns400WithInvalidFieldFormat() throws Exception {
+        String token = uploadAndGetToken(flaggedSession(42));
+
+        Map<String, Object> resolution = new LinkedHashMap<>();
+        resolution.put("sessionId", 42);
+        resolution.put("acceptedShiftId", 99);
+
+        mvc.perform(post("/api/tas/resolve")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(Map.of("uploadToken", token, "resolutions", List.of(resolution)))))
+           .andExpect(status().isBadRequest())
+           .andExpect(jsonPath("$.code").value("INVALID_FIELD_FORMAT"));
+    }
+
+    @Test
+    void resolve_nonNumberSessionId_returns400WithInvalidSessionFormat() throws Exception {
+        String token = uploadAndGetToken(flaggedSession(42));
+
+        Map<String, Object> resolution = new LinkedHashMap<>();
+        resolution.put("sessionId", "42");
+        resolution.put("resolvedStart", "2026-03-10 07:00");
+        resolution.put("resolvedEnd", "2026-03-10 15:00");
+
+        mvc.perform(post("/api/tas/resolve")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(Map.of("uploadToken", token, "resolutions", List.of(resolution)))))
+           .andExpect(status().isBadRequest())
+           .andExpect(jsonPath("$.code").value("INVALID_SESSION_FORMAT"));
+    }
+
+    @Test
     void resolve_nonNumberKeepSessionId_returns400WithInvalidSessionFormat() throws Exception {
         TasSession a = sameDayDoubleSession(10, "manana", "Manana");
         TasSession b = sameDayDoubleSession(11, "tarde", "Tarde");
