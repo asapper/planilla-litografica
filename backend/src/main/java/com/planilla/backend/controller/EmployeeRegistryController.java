@@ -1,6 +1,8 @@
 package com.planilla.backend.controller;
 
 import com.planilla.backend.service.tas.EmployeeRegistryService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -11,6 +13,8 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/config/employees")
 public class EmployeeRegistryController {
+
+    private static final Logger log = LoggerFactory.getLogger(EmployeeRegistryController.class);
 
     private final EmployeeRegistryService employeeRegistryService;
 
@@ -43,7 +47,8 @@ public class EmployeeRegistryController {
             }
             return ResponseEntity.ok(updated);
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body(error(400, "UPDATE_FAILED", e.getMessage()));
+            log.error("Failed to update employee {}", id, e);
+            return ResponseEntity.badRequest().body(error(400, "UPDATE_FAILED", "No se pudo actualizar el empleado."));
         }
     }
 
@@ -61,7 +66,8 @@ public class EmployeeRegistryController {
             employeeRegistryService.bulkAssignShift(employeeIds, shiftId);
             return ResponseEntity.ok().build();
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body(error(400, "BULK_ASSIGN_FAILED", e.getMessage()));
+            log.error("Failed to bulk assign shift", e);
+            return ResponseEntity.badRequest().body(error(400, "BULK_ASSIGN_FAILED", "No se pudo asignar el turno."));
         }
     }
 
@@ -74,7 +80,8 @@ public class EmployeeRegistryController {
             }
             return ResponseEntity.ok(updated);
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body(error(400, "DEACTIVATE_FAILED", e.getMessage()));
+            log.error("Failed to deactivate employee {}", id, e);
+            return ResponseEntity.badRequest().body(error(400, "DEACTIVATE_FAILED", "No se pudo desactivar el empleado."));
         }
     }
 

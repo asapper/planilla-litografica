@@ -137,6 +137,21 @@ class AppConfigControllerTest {
     }
 
     @Test
+    void update_serviceThrowsRuntimeException_doesNotLeakExceptionMessage() throws Exception {
+        doThrow(new RuntimeException("internal: JDBC connection to H2 failed at /home/user/.planilla")).when(appConfigService)
+            .setLegalBreakAllowanceMinutes(anyInt());
+
+        Map<String, Object> body = Map.of("legalBreakAllowanceMinutes", 30);
+
+        mvc.perform(put("/api/config/general")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(body)))
+           .andExpect(status().isBadRequest())
+           .andExpect(jsonPath("$.code").value("UPDATE_FAILED"))
+           .andExpect(jsonPath("$.message").value("No se pudo actualizar la configuración."));
+    }
+
+    @Test
     void update_maxSessionSpanMinutesAtMinimum_isAccepted() throws Exception {
         Map<String, Object> body = Map.of("maxSessionSpanMinutes", 60);
 

@@ -370,7 +370,7 @@ class JobServiceTest {
         String jobId = service.createJob(List.of(row("1")));
 
         assertThatThrownBy(() -> service.createRetryJob(jobId))
-            .isInstanceOf(IllegalStateException.class)
+            .isInstanceOf(JobNotRetryableException.class)
             .hasMessageContaining("DONE_WITH_ERRORS");
     }
 
@@ -392,7 +392,7 @@ class JobServiceTest {
         service.processJob(r4);
 
         assertThatThrownBy(() -> service.createRetryJob(r4))
-            .isInstanceOf(IllegalArgumentException.class)
+            .isInstanceOf(MaxRetriesExhaustedException.class)
             .hasMessageContaining("reintentos");
     }
 

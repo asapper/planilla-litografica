@@ -162,10 +162,10 @@ public class JobService {
             throw new JobNotFoundException(parentJobId);
         }
         if (!"DONE_WITH_ERRORS".equals(parent.status.get())) {
-            throw new IllegalStateException("Solo se puede reintentar un job con estado DONE_WITH_ERRORS");
+            throw new JobNotRetryableException();
         }
         if (parent.attemptNumber > parent.maxRetries) {
-            throw new IllegalArgumentException("Se alcanzó el máximo de reintentos");
+            throw new MaxRetriesExhaustedException();
         }
 
         List<JobRowState> failedRows = parent.rows.stream()

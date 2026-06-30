@@ -38,10 +38,10 @@ public class TasParserService {
 
     public ParseResult parse(MultipartFile file) throws Exception {
         if (file.isEmpty()) {
-            throw new Exception("El archivo está vacío.");
+            throw new ParseValidationException("El archivo está vacío.");
         }
         if (file.getSize() > MAX_FILE_SIZE) {
-            throw new Exception("El archivo excede el tamaño máximo permitido (10 MB).");
+            throw new ParseValidationException("El archivo excede el tamaño máximo permitido (10 MB).");
         }
 
         byte[] rawBytes = file.getBytes();
@@ -62,7 +62,7 @@ public class TasParserService {
         try {
             decoder.decode(ByteBuffer.wrap(content));
         } catch (CharacterCodingException e) {
-            throw new Exception("El archivo no tiene una codificación válida (se esperaba UTF-8).");
+            throw new ParseValidationException("El archivo no tiene una codificación válida (se esperaba UTF-8).");
         }
 
         Reader reader = new InputStreamReader(new ByteArrayInputStream(content), StandardCharsets.UTF_8);
@@ -83,7 +83,7 @@ public class TasParserService {
             Set<String> missing = new LinkedHashSet<>(REQUIRED_COLUMNS);
             missing.removeAll(actualSet);
             if (!missing.isEmpty()) {
-                throw new Exception("Columnas requeridas no encontradas: " + missing + ".");
+                throw new ParseValidationException("Columnas requeridas no encontradas: " + missing + ".");
             }
 
             Set<String> extra = new LinkedHashSet<>(actualSet);
@@ -128,7 +128,7 @@ public class TasParserService {
         }
 
         if (rawScans.isEmpty()) {
-            throw new Exception("No se encontraron registros de empleados en el archivo.");
+            throw new ParseValidationException("No se encontraron registros de empleados en el archivo.");
         }
 
         rawScans.sort(Comparator

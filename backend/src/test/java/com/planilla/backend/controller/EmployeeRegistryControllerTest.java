@@ -213,6 +213,47 @@ class EmployeeRegistryControllerTest {
     }
 
     @Test
+    void update_serviceThrowsRuntimeException_doesNotLeakExceptionMessage() throws Exception {
+        doThrow(new RuntimeException("internal: JDBC connection to H2 failed at /home/user/.planilla")).when(employeeRegistryService)
+            .updateEmployee(any(), any(), any());
+
+        Map<String, Object> body = Map.of("shiftId", "tarde");
+
+        mvc.perform(put("/api/config/employees/emp1")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(body)))
+           .andExpect(status().isBadRequest())
+           .andExpect(jsonPath("$.code").value("UPDATE_FAILED"))
+           .andExpect(jsonPath("$.message").value("No se pudo actualizar el empleado."));
+    }
+
+    @Test
+    void bulkAssign_serviceThrowsRuntimeException_doesNotLeakExceptionMessage() throws Exception {
+        doThrow(new RuntimeException("internal: JDBC connection to H2 failed at /home/user/.planilla")).when(employeeRegistryService)
+            .bulkAssignShift(any(), any());
+
+        Map<String, Object> body = Map.of("employeeIds", List.of("e1"), "shiftId", "noche");
+
+        mvc.perform(post("/api/config/employees/bulk-assign")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(body)))
+           .andExpect(status().isBadRequest())
+           .andExpect(jsonPath("$.code").value("BULK_ASSIGN_FAILED"))
+           .andExpect(jsonPath("$.message").value("No se pudo asignar el turno."));
+    }
+
+    @Test
+    void deactivate_serviceThrowsRuntimeException_doesNotLeakExceptionMessage() throws Exception {
+        doThrow(new RuntimeException("internal: JDBC connection to H2 failed at /home/user/.planilla")).when(employeeRegistryService)
+            .setActive(any(), anyBoolean());
+
+        mvc.perform(post("/api/config/employees/emp1/deactivate"))
+           .andExpect(status().isBadRequest())
+           .andExpect(jsonPath("$.code").value("DEACTIVATE_FAILED"))
+           .andExpect(jsonPath("$.message").value("No se pudo desactivar el empleado."));
+    }
+
+    @Test
     void updateAccruesOvertime_returns400WhenFieldMissing() throws Exception {
         mvc.perform(patch("/api/config/employees/emp1/accrues-overtime")
                 .contentType(MediaType.APPLICATION_JSON)

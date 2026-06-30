@@ -8,8 +8,11 @@ import com.planilla.backend.model.tas.TasSession;
 import com.planilla.backend.model.tas.TasUploadResult;
 import com.planilla.backend.service.DatabaseService;
 import com.planilla.backend.service.JobNotFoundException;
+import com.planilla.backend.service.JobNotRetryableException;
 import com.planilla.backend.service.JobService;
+import com.planilla.backend.service.MaxRetriesExhaustedException;
 import com.planilla.backend.service.tas.*;
+import com.planilla.backend.service.tas.ParseValidationException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -123,7 +126,7 @@ class TasControllerTest {
     @Test
     void upload_missingColumns_returns400WithSpecificMessage() throws Exception {
         when(parserService.parse(any()))
-                .thenThrow(new Exception("Columnas requeridas no encontradas: [Fecha y hora, ID de usuario]."));
+                .thenThrow(new ParseValidationException("Columnas requeridas no encontradas: [Fecha y hora, ID de usuario]."));
 
         MockMultipartFile file = new MockMultipartFile("file", "bad.csv", "text/csv", "data".getBytes());
 
@@ -135,7 +138,7 @@ class TasControllerTest {
 
     @Test
     void upload_parseException_returns400() throws Exception {
-        when(parserService.parse(any())).thenThrow(new Exception("No se encontraron registros"));
+        when(parserService.parse(any())).thenThrow(new ParseValidationException("No se encontraron registros"));
 
         MockMultipartFile file = new MockMultipartFile("file", "bad.csv", "text/csv", "".getBytes());
 
@@ -1391,7 +1394,7 @@ class TasControllerTest {
     @Test
     void retryJob_maxRetriesExhausted_returns409WithMaxRetriesCode() throws Exception {
         when(jobService.createRetryJob("job-2")).thenThrow(
-            new IllegalArgumentException("Se alcanzó el máximo de reintentos"));
+            new MaxRetriesExhaustedException());
 
         mvc.perform(post("/api/tas/jobs/job-2/retry"))
            .andExpect(status().isConflict())
@@ -1402,7 +1405,7 @@ class TasControllerTest {
     @Test
     void retryJob_notRetryable_returns409WithNotRetryableCode() throws Exception {
         when(jobService.createRetryJob("job-3")).thenThrow(
-            new IllegalStateException("Solo se puede reintentar un job con estado DONE_WITH_ERRORS"));
+            new JobNotRetryableException());
 
         mvc.perform(post("/api/tas/jobs/job-3/retry"))
            .andExpect(status().isConflict())
@@ -2225,6 +2228,32 @@ class TasControllerTest {
                 .content(json(Map.of("uploadToken", token, "resolutions", List.of(resolution)))))
            .andExpect(status().isBadRequest())
            .andExpect(jsonPath("$.code").value("INVALID_SESSION_FORMAT"));
+    }
+
+    @Test
+    void upload_serviceThrowsException_doesNotLeakExceptionMessage() throws Exception {
+        when(parserService.parse(any())).thenThrow(
+            new RuntimeException("internal: SQL error on table CARGA_LOG at /home/user/.planilla")
+        );
+
+        MockMultipartFile file = new MockMultipartFile("file", "test.csv", "text/csv", "data".getBytes());
+
+        mvc.perform(multipart("/api/tas/upload").file(file))
+           .andExpect(status().isBadRequest())
+           .andExpect(jsonPath("$.code").value("UPLOAD_FAILED"))
+           .andExpect(jsonPath("$.message").value("Error al procesar el archivo."));
+    }
+
+    @Test
+    void upload_parseValidationExceptionWithNullMessage_returnsFallbackMessage() throws Exception {
+        when(parserService.parse(any())).thenThrow(new ParseValidationException(null));
+
+        MockMultipartFile file = new MockMultipartFile("file", "test.csv", "text/csv", "data".getBytes());
+
+        mvc.perform(multipart("/api/tas/upload").file(file))
+           .andExpect(status().isBadRequest())
+           .andExpect(jsonPath("$.code").value("UPLOAD_FAILED"))
+           .andExpect(jsonPath("$.message").value("Error al procesar el archivo."));
     }
 
     @Test

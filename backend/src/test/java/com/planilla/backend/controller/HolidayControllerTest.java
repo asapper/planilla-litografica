@@ -97,6 +97,32 @@ class HolidayControllerTest {
     }
 
     @Test
+    void addManual_serviceThrowsRuntimeException_doesNotLeakExceptionMessage() throws Exception {
+        doThrow(new RuntimeException("internal: constraint violation on PUBLIC.HOLIDAYS")).when(holidayService)
+            .addManualHoliday(any(), any());
+
+        Map<String, Object> body = Map.of("date", "2024-01-01", "name", "Test");
+
+        mvc.perform(post("/api/config/holidays")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(body)))
+           .andExpect(status().isBadRequest())
+           .andExpect(jsonPath("$.code").value("ADD_FAILED"))
+           .andExpect(jsonPath("$.message").value("No se pudo agregar el feriado."));
+    }
+
+    @Test
+    void delete_serviceThrowsRuntimeException_doesNotLeakExceptionMessage() throws Exception {
+        doThrow(new RuntimeException("internal: constraint violation on PUBLIC.HOLIDAYS")).when(holidayService)
+            .deleteHoliday(anyLong());
+
+        mvc.perform(delete("/api/config/holidays/99"))
+           .andExpect(status().isBadRequest())
+           .andExpect(jsonPath("$.code").value("DELETE_FAILED"))
+           .andExpect(jsonPath("$.message").value("No se pudo eliminar el feriado."));
+    }
+
+    @Test
     void refresh_returns200WithUsedFallbackFalseOnApiSuccess() throws Exception {
         when(holidayService.refreshFromApi(2024)).thenReturn(true);
 

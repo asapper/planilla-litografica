@@ -13,6 +13,10 @@ import java.util.Map;
 @Service
 public class ShiftConfigService {
 
+    public static class ShiftValidationException extends RuntimeException {
+        public ShiftValidationException(String code) { super(code); }
+    }
+
     public static class ShiftHasActiveEmployeesException extends RuntimeException {
         private final List<Map<String, Object>> employees;
 
@@ -46,7 +50,7 @@ public class ShiftConfigService {
     public Map<String, Object> createShift(String name, String startTime, String endTime, boolean crossMidnight,
                                              Integer detectionBeforeMinutes, Integer detectionAfterMinutes) {
         if (name == null || name.isBlank()) {
-            throw new IllegalArgumentException("NAME_REQUIRED");
+            throw new ShiftValidationException("NAME_REQUIRED");
         }
         String id = generateShiftId(name);
         int before = detectionBeforeMinutes != null ? detectionBeforeMinutes : 60;
@@ -61,7 +65,7 @@ public class ShiftConfigService {
     public Map<String, Object> updateShift(String id, String name, String startTime, String endTime, boolean crossMidnight,
                                              Integer detectionBeforeMinutes, Integer detectionAfterMinutes) {
         if (name == null || name.isBlank()) {
-            throw new IllegalArgumentException("NAME_REQUIRED");
+            throw new ShiftValidationException("NAME_REQUIRED");
         }
         int before = detectionBeforeMinutes != null ? detectionBeforeMinutes : 60;
         int after = detectionAfterMinutes != null ? detectionAfterMinutes : 10;
@@ -70,7 +74,7 @@ public class ShiftConfigService {
             name, startTime, endTime, crossMidnight, before, after, id
         );
         if (updated == 0) {
-            throw new IllegalArgumentException("SHIFT_NOT_FOUND");
+            throw new ShiftValidationException("SHIFT_NOT_FOUND");
         }
         return getShiftById(id);
     }

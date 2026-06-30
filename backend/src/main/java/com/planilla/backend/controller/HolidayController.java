@@ -1,6 +1,8 @@
 package com.planilla.backend.controller;
 
 import com.planilla.backend.service.tas.HolidayService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -11,6 +13,8 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/config/holidays")
 public class HolidayController {
+
+    private static final Logger log = LoggerFactory.getLogger(HolidayController.class);
 
     private final HolidayService holidayService;
 
@@ -33,7 +37,8 @@ public class HolidayController {
             Map<String, Object> created = holidayService.addManualHoliday(date, name);
             return ResponseEntity.ok(created);
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body(error(400, "ADD_FAILED", e.getMessage()));
+            log.error("Failed to add manual holiday", e);
+            return ResponseEntity.badRequest().body(error(400, "ADD_FAILED", "No se pudo agregar el feriado."));
         }
     }
 
@@ -43,7 +48,8 @@ public class HolidayController {
             holidayService.deleteHoliday(id);
             return ResponseEntity.ok().build();
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body(error(400, "DELETE_FAILED", e.getMessage()));
+            log.error("Failed to delete holiday {}", id, e);
+            return ResponseEntity.badRequest().body(error(400, "DELETE_FAILED", "No se pudo eliminar el feriado."));
         }
     }
 
