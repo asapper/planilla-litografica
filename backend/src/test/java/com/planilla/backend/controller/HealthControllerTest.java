@@ -4,9 +4,11 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -15,6 +17,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class HealthControllerTest {
 
     @Autowired MockMvc mvc;
+    @Autowired HealthController controller;
 
     @MockBean(name = "postgresJdbcTemplate")
     JdbcTemplate postgresJdbc;
@@ -37,8 +40,21 @@ class HealthControllerTest {
     @Test
     void dbHealthReturns503WhenPostgresUnreachable() throws Exception {
         when(postgresJdbc.queryForObject("SELECT 1", Integer.class))
-            .thenThrow(new org.springframework.dao.DataAccessResourceFailureException("timeout"));
+            .thenThrow(new DataAccessResourceFailureException("timeout"));
         mvc.perform(get("/api/db-health"))
            .andExpect(status().isServiceUnavailable());
+    }
+
+    @Test
+    void runDoesNotThrowWhenDatabaseReachable() throws Exception {
+        when(postgresJdbc.queryForObject("SELECT 1", Integer.class)).thenReturn(1);
+        assertThatCode(() -> controller.run(null)).doesNotThrowAnyException();
+    }
+
+    @Test
+    void runDoesNotThrowWhenDatabaseUnreachable() throws Exception {
+        when(postgresJdbc.queryForObject("SELECT 1", Integer.class))
+            .thenThrow(new DataAccessResourceFailureException("timeout"));
+        assertThatCode(() -> controller.run(null)).doesNotThrowAnyException();
     }
 }

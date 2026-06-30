@@ -154,6 +154,18 @@ describe('db-health banner', () => {
       expect(screen.getByText(/base de datos no disponible/i)).toBeInTheDocument()
     );
   });
+
+  it('clears banner when DB recovers on the next periodic poll', async () => {
+    vi.useFakeTimers();
+    mockCheckDbHealth.mockResolvedValue(false);
+    render(<App />);
+    await act(async () => { await vi.runAllTimersAsync(); });
+    expect(screen.getByText(/base de datos no disponible/i)).toBeInTheDocument();
+
+    mockCheckDbHealth.mockResolvedValue(true);
+    await act(async () => { await vi.advanceTimersByTimeAsync(30_000); });
+    expect(screen.queryByText(/base de datos no disponible/i)).not.toBeInTheDocument();
+  });
 });
 
 describe('App view routing', () => {
@@ -343,7 +355,7 @@ describe('upload processing stage messages', () => {
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: /cargar tas/i }));
-      await vi.runAllTimersAsync();
+      await vi.advanceTimersByTimeAsync(100);
     });
 
     const messageAtCompletion = useTasStore.getState().processingMessage;
@@ -384,7 +396,7 @@ describe('upload processing stage messages', () => {
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: /cargar tas/i }));
-      await vi.runAllTimersAsync();
+      await vi.advanceTimersByTimeAsync(100);
     });
 
     const messageAtCompletion = useTasStore.getState().processingMessage;

@@ -104,6 +104,15 @@ export default function App() {
   };
 
   useEffect(() => {
+    if (backendState !== 'ready') return;
+    const id = setInterval(async () => {
+      const healthy = await checkDbHealth();
+      setDbHealthy(healthy);
+    }, 30_000);
+    return () => clearInterval(id);
+  }, [backendState]);
+
+  useEffect(() => {
     let cancelled = false;
     let attempts  = 0;
 
