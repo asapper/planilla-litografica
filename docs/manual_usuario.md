@@ -11,6 +11,7 @@
 2. [Requisitos del sistema](#2-requisitos-del-sistema)
 3. [Cómo abrir la aplicación](#3-cómo-abrir-la-aplicación)
 4. [Flujo de uso completo](#4-flujo-de-uso-completo)
+   - [Paso previo: Exportar el reporte desde TAS](#paso-previo-exportar-el-reporte-desde-tas)
    - [Paso 1: Cargar archivo TAS](#paso-1-cargar-archivo-tas)
    - [Paso 2: Empleados inactivos](#paso-2-empleados-inactivos-si-aplica)
    - [Paso 3: Verificación de marcaciones](#paso-3-verificación-de-marcaciones)
@@ -72,6 +73,58 @@ Si al abrir la aplicación ve el mensaje **"No se pudo conectar con el servicio.
 ---
 
 ## 4. Flujo de uso completo
+
+### Paso previo: Exportar el reporte desde TAS
+
+Antes de abrir el Cargador de Planilla, necesita obtener el archivo de marcaciones del sistema TAS (BioStar 2). Siga los pasos a continuación para exportar el reporte del período que desea procesar.
+
+> **Nota:** El sistema TAS es administrado de forma independiente. Si no tiene acceso al panel de administración, comuníquese con el encargado de sistemas.
+
+#### 1. Ingresar al panel de administración
+
+Abra el navegador e ingrese a la dirección del sistema TAS. Verá el **Tablero de Control** con el resumen de accesos.
+
+![Panel de administración de TAS — Tablero de Control](screenshots/00-tas-tablero-control.png)
+
+#### 2. Ir a la sección de Reportes
+
+En el panel izquierdo, haga clic en **REPORTE**. Se abrirá la sección de reportes con la lista de reportes guardados.
+
+![Sección de reportes con Reporte Sunhive en la lista](screenshots/00-tas-seccion-reportes.png)
+
+#### 3. Abrir el Reporte Sunhive
+
+Bajo **"Reportes guardados"**, haga clic en **Reporte Sunhive**. Se cargará el reporte con las marcaciones del período actualmente configurado.
+
+![Reporte Sunhive cargado con la tabla de marcaciones](screenshots/00-tas-reporte-sunhive.png)
+
+#### 4. Editar el período del reporte
+
+En la cabecera del reporte, localice la línea **"Periodo:"** y haga clic en el ícono de lápiz (✏) que aparece a su derecha. Se abrirá el modal **"Condición del filtro"**.
+
+![Modal para editar el período del reporte](screenshots/00-tas-editar-periodo.png)
+
+1. En **"Fecha De Inicio Y Hora"**, seleccione el primer día del período que desea procesar.
+2. En **"Fecha De Finalización"**, seleccione el último día del período.
+3. Haga clic en el botón **"Regenerado"**.
+
+El modal se cerrará y la página se actualizará con las marcaciones del período indicado.
+
+![Reporte actualizado con el nuevo período](screenshots/00-tas-reporte-regenerado.png)
+
+#### 5. Exportar el reporte
+
+Haga clic en el botón **"Exportar"** ubicado justo encima de la tabla de resultados. Se abrirá el modal **"Exportar Reporte"**.
+
+![Modal de exportación — selección de formato y nombre del archivo](screenshots/00-tas-exportar-modal.png)
+
+1. En **"Formato de archivo"**, verifique que esté seleccionado **CSV**.
+2. En **"Nombre del archivo"**, escriba un nombre descriptivo que identifique el período (por ejemplo, `Reporte 01 al 15 de Mayo 2026`).
+3. Haga clic en el botón **"Exportar"**.
+
+El archivo `.csv` se descargará automáticamente a la carpeta de descargas de su navegador. Este es el archivo que deberá cargar en el Cargador de Planilla.
+
+---
 
 ### Paso 1: Cargar archivo TAS
 
