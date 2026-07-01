@@ -19,6 +19,24 @@ fn strip_verbatim_prefix(path: &std::path::Path) -> PathBuf {
     }
 }
 
+/// The fixed loopback port the bundled backend listens on.
+#[cfg(any(not(debug_assertions), test))]
+const BACKEND_PORT: u16 = 49301;
+
+/// Returns true if something is already accepting connections on `127.0.0.1:port`.
+///
+/// The backend uses an H2 *file* database, which is single-writer — a second
+/// backend process would crash on `The file is locked`. So if a previous
+/// instance is still running (e.g. left behind after an unclean exit), we reuse
+/// it instead of spawning a duplicate that would collide on the DB lock.
+#[cfg(any(not(debug_assertions), test))]
+fn port_is_open(port: u16) -> bool {
+    use std::net::{SocketAddr, TcpStream};
+    use std::time::Duration;
+    let addr = SocketAddr::from(([127, 0, 0, 1], port));
+    TcpStream::connect_timeout(&addr, Duration::from_millis(500)).is_ok()
+}
+
 #[tauri::command]
 fn open_manual(app: tauri::AppHandle) -> Result<(), String> {
     use tauri::Manager;
@@ -87,6 +105,13 @@ pub fn run() {
 
                 log::info!("java_bin = {}", java_bin.display());
                 log::info!("jar      = {}", jar.display());
+
+                if port_is_open(BACKEND_PORT) {
+                    log::info!(
+                        "backend already listening on 127.0.0.1:{BACKEND_PORT}; reusing it instead of spawning a duplicate"
+                    );
+                    return Ok(());
+                }
 
                 let home_dir = std::env::var("USERPROFILE")
                     .or_else(|_| std::env::var("HOME"))
@@ -178,5 +203,18 @@ mod tests {
     fn leaves_unix_path_untouched() {
         let p = PathBuf::from("/home/me/.local/app/backend.jar");
         assert_eq!(strip_verbatim_prefix(&p), p);
+    }
+
+    #[test]
+    fn port_is_open_detects_listener_presence() {
+        use super::port_is_open;
+        use std::net::TcpListener;
+
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        assert!(port_is_open(port), "should detect an active listener");
+
+        drop(listener);
+        assert!(!port_is_open(port), "should report closed once listener is gone");
     }
 }
