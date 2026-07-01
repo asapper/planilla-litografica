@@ -3,6 +3,40 @@ use std::sync::Mutex;
 
 struct BackendProcess(Mutex<Option<std::process::Child>>);
 
+/// Strips the Windows verbatim/extended-length path prefix (`\\?\`).
+///
+/// `resource_dir()` returns paths carrying this prefix on Windows. The JVM
+/// cannot load classes from a jar passed as `java -jar \\?\C:\...\backend.jar`,
+/// so the prefix must be removed before spawning the backend. UNC verbatim
+/// paths (`\\?\UNC\...`) are left untouched since they can't be simplified the
+/// same way.
+#[cfg(any(not(debug_assertions), test))]
+fn strip_verbatim_prefix(path: &std::path::Path) -> PathBuf {
+    let raw = path.to_string_lossy();
+    match raw.strip_prefix(r"\\?\") {
+        Some(stripped) if !stripped.starts_with("UNC\\") => PathBuf::from(stripped),
+        _ => path.to_path_buf(),
+    }
+}
+
+/// The fixed loopback port the bundled backend listens on.
+#[cfg(any(not(debug_assertions), test))]
+const BACKEND_PORT: u16 = 49301;
+
+/// Returns true if something is already accepting connections on `127.0.0.1:port`.
+///
+/// The backend uses an H2 *file* database, which is single-writer — a second
+/// backend process would crash on `The file is locked`. So if a previous
+/// instance is still running (e.g. left behind after an unclean exit), we reuse
+/// it instead of spawning a duplicate that would collide on the DB lock.
+#[cfg(any(not(debug_assertions), test))]
+fn port_is_open(port: u16) -> bool {
+    use std::net::{SocketAddr, TcpStream};
+    use std::time::Duration;
+    let addr = SocketAddr::from(([127, 0, 0, 1], port));
+    TcpStream::connect_timeout(&addr, Duration::from_millis(500)).is_ok()
+}
+
 #[tauri::command]
 fn open_manual(app: tauri::AppHandle) -> Result<(), String> {
     use tauri::Manager;
@@ -58,6 +92,7 @@ pub fn run() {
                     log::error!("could not resolve resource directory: {e}");
                     e
                 })?;
+                let resource_dir = strip_verbatim_prefix(&resource_dir);
 
                 log::info!("resource_dir = {}", resource_dir.display());
 
@@ -70,6 +105,13 @@ pub fn run() {
 
                 log::info!("java_bin = {}", java_bin.display());
                 log::info!("jar      = {}", jar.display());
+
+                if port_is_open(BACKEND_PORT) {
+                    log::info!(
+                        "backend already listening on 127.0.0.1:{BACKEND_PORT}; reusing it instead of spawning a duplicate"
+                    );
+                    return Ok(());
+                }
 
                 let home_dir = std::env::var("USERPROFILE")
                     .or_else(|_| std::env::var("HOME"))
@@ -96,19 +138,28 @@ pub fn run() {
                     }
                 };
 
-                let child = Command::new(&java_bin)
+                let mut command = Command::new(&java_bin);
+                command
                     .args(["-jar", jar.to_str().unwrap_or_default()])
                     .stdout(stdout_stdio)
-                    .stderr(stderr_stdio)
-                    .spawn()
-                    .map_err(|e| {
-                        log::error!(
-                            "failed to spawn backend (java={} jar={}): {e}",
-                            java_bin.display(),
-                            jar.display()
-                        );
-                        e
-                    })?;
+                    .stderr(stderr_stdio);
+
+                // Don't pop up a console window for the backend JVM on Windows.
+                #[cfg(target_os = "windows")]
+                {
+                    use std::os::windows::process::CommandExt;
+                    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+                    command.creation_flags(CREATE_NO_WINDOW);
+                }
+
+                let child = command.spawn().map_err(|e| {
+                    log::error!(
+                        "failed to spawn backend (java={} jar={}): {e}",
+                        java_bin.display(),
+                        jar.display()
+                    );
+                    e
+                })?;
 
                 log::info!("backend process spawned (pid={})", child.id());
 
@@ -121,4 +172,49 @@ pub fn run() {
         })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::strip_verbatim_prefix;
+    use std::path::{Path, PathBuf};
+
+    #[test]
+    fn strips_verbatim_disk_prefix() {
+        assert_eq!(
+            strip_verbatim_prefix(Path::new(r"\\?\C:\Users\me\App\backend.jar")),
+            PathBuf::from(r"C:\Users\me\App\backend.jar")
+        );
+    }
+
+    #[test]
+    fn leaves_plain_windows_path_untouched() {
+        let p = PathBuf::from(r"C:\Users\me\App\backend.jar");
+        assert_eq!(strip_verbatim_prefix(&p), p);
+    }
+
+    #[test]
+    fn leaves_unc_verbatim_path_untouched() {
+        let p = PathBuf::from(r"\\?\UNC\server\share\backend.jar");
+        assert_eq!(strip_verbatim_prefix(&p), p);
+    }
+
+    #[test]
+    fn leaves_unix_path_untouched() {
+        let p = PathBuf::from("/home/me/.local/app/backend.jar");
+        assert_eq!(strip_verbatim_prefix(&p), p);
+    }
+
+    #[test]
+    fn port_is_open_detects_listener_presence() {
+        use super::port_is_open;
+        use std::net::TcpListener;
+
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        assert!(port_is_open(port), "should detect an active listener");
+
+        drop(listener);
+        assert!(!port_is_open(port), "should report closed once listener is gone");
+    }
 }
