@@ -335,7 +335,8 @@ export default function ReviewDetailView({ onBack }: ReviewDetailViewProps) {
                     step="0.5"
                     value={simplesValue}
                     onChange={e => handleOvertimeChange('horasExtrasSimples', e.target.value)}
-                    className={`w-full text-right text-body-md border rounded-shape-sm px-3 py-1.5 focus:outline-none focus:border-primary transition-colors ${
+                    disabled={!row.accruesOvertime}
+                    className={`w-full text-right text-body-md border rounded-shape-sm px-3 py-1.5 focus:outline-none focus:border-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                       override?.horasExtrasSimples !== undefined
                         ? 'bg-warning-container/40 border-warning font-medium'
                         : 'bg-surface-container-lowest border-outline-variant'
@@ -353,7 +354,8 @@ export default function ReviewDetailView({ onBack }: ReviewDetailViewProps) {
                     step="0.5"
                     value={doblesValue}
                     onChange={e => handleOvertimeChange('horasExtrasDobles', e.target.value)}
-                    className={`w-full text-right text-body-md border rounded-shape-sm px-3 py-1.5 focus:outline-none focus:border-primary transition-colors ${
+                    disabled={!row.accruesOvertime}
+                    className={`w-full text-right text-body-md border rounded-shape-sm px-3 py-1.5 focus:outline-none focus:border-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                       override?.horasExtrasDobles !== undefined
                         ? 'bg-warning-container/40 border-warning font-medium'
                         : 'bg-surface-container-lowest border-outline-variant'

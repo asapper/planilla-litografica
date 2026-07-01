@@ -1460,6 +1460,49 @@ class TasControllerTest {
     }
 
     @Test
+    void submit_ignoresOvertimeOverrideForNonAccruingEmployee() throws Exception {
+        EmployeeRow row = new EmployeeRow();
+        row.setCodigoEmpleado("100");
+        row.setNombreEmpleado("Test");
+        row.setDiasNoLaborados(0);
+        row.setHorasExtrasSimples(0);
+        row.setHorasExtrasDobles(0);
+        row.setAccruesOvertime(false);
+        row.setMes(3);
+        row.setAnio(2026);
+        row.setNumeroDequincena(1);
+
+        TasUploadResult result = emptyResult();
+        result.setResolvedRows(List.of(row));
+        when(parserService.parse(any())).thenReturn(emptyParseResult());
+        when(uploadService.processScans(any(), any(), any())).thenReturn(result);
+
+        MockMultipartFile file = new MockMultipartFile("file", "test.csv", "text/csv", "data".getBytes());
+
+        String uploadResponse = mvc.perform(multipart("/api/tas/upload").file(file))
+           .andExpect(status().isOk())
+           .andReturn().getResponse().getContentAsString();
+
+        String token = (String) mapper.readValue(uploadResponse, Map.class).get("uploadToken");
+
+        when(jobService.createJob(any())).thenReturn("job-nonaccruing");
+
+        Map<String, Object> overrides = Map.of("100", Map.of("horasExtrasSimples", 15, "horasExtrasDobles", 4));
+        Map<String, Object> body = Map.of("uploadToken", token, "overtimeOverrides", overrides);
+
+        mvc.perform(post("/api/tas/submit")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(body)))
+           .andExpect(status().isAccepted());
+
+        var captor = org.mockito.ArgumentCaptor.forClass(List.class);
+        verify(jobService).createJob(captor.capture());
+        List<EmployeeRow> submitted = captor.getValue();
+        assertThat(submitted.get(0).getHorasExtrasSimples()).isEqualTo(0);
+        assertThat(submitted.get(0).getHorasExtrasDobles()).isEqualTo(0);
+    }
+
+    @Test
     void submit_withNegativeOverride_returns400() throws Exception {
         EmployeeRow row = new EmployeeRow();
         row.setCodigoEmpleado("100");

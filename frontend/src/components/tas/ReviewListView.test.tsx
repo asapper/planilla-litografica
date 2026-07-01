@@ -160,6 +160,19 @@ describe('ReviewListView overtime editing', () => {
     fireEvent.click(input);
     expect(useTasStore.getState().reviewSelectedEmployee).toBeNull();
   });
+
+  it('disables overtime inputs when employee does not accrue overtime', () => {
+    useTasStore.getState().setResolvedRows([{ ...rows[0], accruesOvertime: false }]);
+    render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} />);
+    expect(screen.getByLabelText('Extras simples Ana López')).toBeDisabled();
+    expect(screen.getByLabelText('Extras dobles Ana López')).toBeDisabled();
+  });
+
+  it('keeps overtime inputs enabled when employee accrues overtime', () => {
+    render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} />);
+    expect(screen.getByLabelText('Extras simples Ana López')).toBeEnabled();
+    expect(screen.getByLabelText('Extras dobles Ana López')).toBeEnabled();
+  });
 });
 
 describe('ReviewListView adjusted chip and badge', () => {

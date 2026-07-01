@@ -415,6 +415,9 @@ public class TasController {
             Map<String, Object> fields = (Map<String, Object>) entry.getValue();
             for (EmployeeRow r : rows) {
                 if (r.getCodigoEmpleado().equals(empId)) {
+                    if (!r.isAccruesOvertime()) {
+                        break;
+                    }
                     if (fields.containsKey("horasExtrasSimples")) {
                         Object raw = fields.get("horasExtrasSimples");
                         if (!(raw instanceof Number)) {
