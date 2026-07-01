@@ -142,13 +142,13 @@ describe('buildEmployeeGroups', () => {
     ]);
   });
 
-  it('sorts pending session items before resolved ones, then by date within each tier', () => {
+  it('keeps resolved session items in their chronological position instead of sinking them to the bottom', () => {
     const resolved: Record<number, ResolvedSessionEntry> = {
       1: { resolvedStart: '08:00', resolvedEnd: '17:00' },
     };
     const groups = buildEmployeeGroups(
       [
-        makeSession({ sessionId: 1, date: '2026-03-05' }), // resolved (early)
+        makeSession({ sessionId: 1, date: '2026-03-05' }), // resolved (early) — must stay first
         makeSession({ sessionId: 2, date: '2026-03-10' }), // pending
         makeSession({ sessionId: 3, date: '2026-03-20' }), // pending (late)
       ],
@@ -156,16 +156,16 @@ describe('buildEmployeeGroups', () => {
       new Map(),
       resolved,
     );
-    expect(groups[0].items.map(i => (i as { session: { sessionId: number } }).session.sessionId)).toEqual([2, 3, 1]);
+    expect(groups[0].items.map(i => (i as { session: { sessionId: number } }).session.sessionId)).toEqual([1, 2, 3]);
   });
 
-  it('sorts pending same_day_double items before resolved ones', () => {
+  it('keeps resolved same_day_double items in their chronological position', () => {
     const doubleA1 = makeSession({ sessionId: 1, employeeId: 'E1', employeeName: 'Ana', flags: ['SAME_DAY_DOUBLE'], date: '2026-03-05' });
     const doubleA2 = makeSession({ sessionId: 2, employeeId: 'E1', employeeName: 'Ana', flags: ['SAME_DAY_DOUBLE'], date: '2026-03-05' });
     const doubleB1 = makeSession({ sessionId: 3, employeeId: 'E1', employeeName: 'Ana', flags: ['SAME_DAY_DOUBLE'], date: '2026-03-20' });
     const doubleB2 = makeSession({ sessionId: 4, employeeId: 'E1', employeeName: 'Ana', flags: ['SAME_DAY_DOUBLE'], date: '2026-03-20' });
     const sameDayDoubleResolutions: Record<string, number | 'all'> = {
-      'E1|2026-03-05': 1, // resolved
+      'E1|2026-03-05': 1, // resolved — must still sort by date, not to the bottom
     };
     const groups = buildEmployeeGroups(
       [],
@@ -177,24 +177,23 @@ describe('buildEmployeeGroups', () => {
       {},
       sameDayDoubleResolutions,
     );
-    // unresolved 2026-03-20 group should come before resolved 2026-03-05 group
-    expect(groups[0].items[0]).toMatchObject({ type: 'same_day_double', date: '2026-03-20' });
-    expect(groups[0].items[1]).toMatchObject({ type: 'same_day_double', date: '2026-03-05' });
+    expect(groups[0].items[0]).toMatchObject({ type: 'same_day_double', date: '2026-03-05' });
+    expect(groups[0].items[1]).toMatchObject({ type: 'same_day_double', date: '2026-03-20' });
   });
 
-  it('shift_mismatch items are treated as non-pending and sort after pending session items', () => {
+  it('sorts all item types purely by date regardless of resolution state', () => {
     const resolved: Record<number, ResolvedSessionEntry> = {};
-    const regularSession = makeSession({ sessionId: 1, date: '2026-03-20' }); // pending
-    const mismatchSession = makeSession({ sessionId: 2, date: '2026-03-05', flags: ['SHIFT_MISMATCH'] }); // auto-resolved (earlier date)
+    const regularSession = makeSession({ sessionId: 1, date: '2026-03-20' });
+    const mismatchSession = makeSession({ sessionId: 2, date: '2026-03-05', flags: ['SHIFT_MISMATCH'] });
     const groups = buildEmployeeGroups(
       [regularSession],
       [mismatchSession],
       new Map(),
       resolved,
     );
-    // pending session (Mar 20) should come before shift_mismatch (Mar 05) despite later date
-    expect(groups[0].items[0]).toMatchObject({ type: 'session', date: '2026-03-20' });
-    expect(groups[0].items[1]).toMatchObject({ type: 'shift_mismatch', date: '2026-03-05' });
+    // pure date order: shift_mismatch (Mar 05) before session (Mar 20)
+    expect(groups[0].items[0]).toMatchObject({ type: 'shift_mismatch', date: '2026-03-05' });
+    expect(groups[0].items[1]).toMatchObject({ type: 'session', date: '2026-03-20' });
   });
 
   it('combines regular, shift-mismatch, and same-day-double items for the same employee into one group, sorted by date', () => {

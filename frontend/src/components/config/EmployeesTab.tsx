@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { useConfigStore } from '../../configStore';
 import { useToastStore } from '../../toastStore';
 import { getEmployees, updateEmployee, bulkAssignShift, getShifts, updateAccruesOvertime } from '../../configApi';
@@ -6,6 +6,7 @@ import type { Employee, Shift } from '../../configTypes';
 import Spinner from '../ui/Spinner';
 
 type FilterStatus = 'all' | 'active' | 'inactive';
+type SortColumn = 'code' | 'name' | 'shiftName' | 'active' | 'accruesOvertime';
 
 export default function EmployeesTab() {
   const employeesData = useConfigStore(s => s.employees.data);
@@ -20,6 +21,8 @@ export default function EmployeesTab() {
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState<FilterStatus>('all');
   const [filterShiftId, setFilterShiftId] = useState<string | ''>('');
+  const [sortColumn, setSortColumn] = useState<SortColumn>('name');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkShiftId, setBulkShiftId] = useState<string | ''>('');
   const [reactivationNotes, setReactivationNotes] = useState<Set<string>>(new Set());
@@ -51,6 +54,30 @@ export default function EmployeesTab() {
     }
     return true;
   });
+
+  const sorted = [...filtered].sort((a, b) => {
+    let cmp = 0;
+    switch (sortColumn) {
+      case 'code': cmp = a.code.localeCompare(b.code, 'es'); break;
+      case 'name': cmp = a.name.localeCompare(b.name, 'es'); break;
+      case 'shiftName': cmp = (a.shiftName ?? '').localeCompare(b.shiftName ?? '', 'es'); break;
+      case 'active': cmp = Number(a.active) - Number(b.active); break;
+      case 'accruesOvertime': cmp = Number(a.accruesOvertime) - Number(b.accruesOvertime); break;
+    }
+    return sortDirection === 'desc' ? -cmp : cmp;
+  });
+
+  const handleHeaderClick = (col: SortColumn) => {
+    if (sortColumn === col) {
+      setSortDirection(d => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortColumn(col);
+      setSortDirection('asc');
+    }
+  };
+
+  const sortIndicator = (col: SortColumn) =>
+    sortColumn !== col ? '⇅' : sortDirection === 'asc' ? '▲' : '▼';
 
   const toggleSelect = (id: string) => {
     setSelectedIds(prev => {
@@ -134,14 +161,25 @@ export default function EmployeesTab() {
       )}
 
       <div className="mb-4 flex flex-wrap gap-3 items-center">
-        <input
-          type="text"
-          placeholder="Buscar por nombre o código"
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          className="cfg-input w-56"
-          aria-label="Buscar empleado"
-        />
+        <div className="relative w-56">
+          <input
+            type="text"
+            placeholder="Buscar por nombre o código"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="cfg-input w-full pr-8"
+            aria-label="Buscar empleado"
+          />
+          {search && (
+            <button
+              onClick={() => setSearch('')}
+              aria-label="Limpiar búsqueda"
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-on-surface text-body-lg leading-none"
+            >
+              ✕
+            </button>
+          )}
+        </div>
 
         <div className="flex gap-1">
           {(['all', 'active', 'inactive'] as FilterStatus[]).map(status => (
@@ -211,17 +249,27 @@ export default function EmployeesTab() {
                     aria-label="Seleccionar todos"
                   />
                 </th>
-                <th className="cfg-th">Código</th>
-                <th className="cfg-th">Nombre</th>
-                <th className="cfg-th">Turno asignado</th>
-                <th className="cfg-th">Activo</th>
-                <th className="cfg-th">Acumula horas extra</th>
+                <th className="cfg-th cursor-pointer hover:bg-surface-container-low select-none" onClick={() => handleHeaderClick('code')}>
+                  Código <span className={`text-label-sm ml-1 ${sortColumn === 'code' ? 'text-primary' : 'text-on-surface-variant'}`}>{sortIndicator('code')}</span>
+                </th>
+                <th className="cfg-th cursor-pointer hover:bg-surface-container-low select-none" onClick={() => handleHeaderClick('name')}>
+                  Nombre <span className={`text-label-sm ml-1 ${sortColumn === 'name' ? 'text-primary' : 'text-on-surface-variant'}`}>{sortIndicator('name')}</span>
+                </th>
+                <th className="cfg-th cursor-pointer hover:bg-surface-container-low select-none" onClick={() => handleHeaderClick('shiftName')}>
+                  Turno asignado <span className={`text-label-sm ml-1 ${sortColumn === 'shiftName' ? 'text-primary' : 'text-on-surface-variant'}`}>{sortIndicator('shiftName')}</span>
+                </th>
+                <th className="cfg-th cursor-pointer hover:bg-surface-container-low select-none" onClick={() => handleHeaderClick('active')}>
+                  Activo <span className={`text-label-sm ml-1 ${sortColumn === 'active' ? 'text-primary' : 'text-on-surface-variant'}`}>{sortIndicator('active')}</span>
+                </th>
+                <th className="cfg-th cursor-pointer hover:bg-surface-container-low select-none" onClick={() => handleHeaderClick('accruesOvertime')}>
+                  Acumula horas extra <span className={`text-label-sm ml-1 ${sortColumn === 'accruesOvertime' ? 'text-primary' : 'text-on-surface-variant'}`}>{sortIndicator('accruesOvertime')}</span>
+                </th>
               </tr>
             </thead>
             <tbody>
-              {filtered.map(emp => (
-                <>
-                  <tr key={emp.id} className="cfg-table-row">
+              {sorted.map(emp => (
+                <Fragment key={emp.id}>
+                  <tr className="cfg-table-row">
                     <td className="px-4 py-2">
                       <input
                         type="checkbox"
@@ -273,7 +321,7 @@ export default function EmployeesTab() {
                     </td>
                   </tr>
                   {reactivationNotes.has(emp.id) && !dismissedNotes.has(emp.id) && (
-                    <tr key={`note-${emp.id}`}>
+                    <tr>
                       <td colSpan={6} className="px-4 py-1">
                         <div className="flex items-center justify-between bg-warning-container border border-warning rounded-shape-xs px-3 py-1.5 text-body-sm text-on-warning-container">
                           <span>Turno restablecido al turno por defecto. Verifique si corresponde.</span>
@@ -290,7 +338,7 @@ export default function EmployeesTab() {
                       </td>
                     </tr>
                   )}
-                </>
+                </Fragment>
               ))}
             </tbody>
           </table>

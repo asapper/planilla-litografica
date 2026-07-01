@@ -535,11 +535,10 @@ public class TasController {
             @PathVariable String uploadToken,
             @RequestBody Map<String, Object> body) {
 
-        TasUploadState state = stateStore.get(uploadToken);
-        if (state == null) {
-            return ResponseEntity.notFound().build();
-        }
-
+        // The employee registry is the source of truth for active state and
+        // persists independently of the in-memory upload state, which is evicted
+        // once the submit job finishes. Don't couple this to the upload token, or
+        // deactivating an absent employee from the post-submit result screen 404s.
         @SuppressWarnings("unchecked")
         List<String> employeeIds = (List<String>) body.getOrDefault("employeeIds", Collections.emptyList());
         boolean active = (boolean) body.getOrDefault("active", false);

@@ -764,18 +764,28 @@ class TasControllerTest {
            .andExpect(jsonPath("$.code").value("INVALID_TOKEN"));
     }
 
-    // ── SEC-3: deactivateAbsent must validate the upload token ────────────────
+    // ── deactivateAbsent works after the upload state is evicted ──────────────
+    // The employee registry is the source of truth for active state and persists
+    // beyond the in-memory upload token, which is removed once the submit job
+    // finishes. The post-submit "mark absent employees inactive" flow must keep
+    // working against the registry even though the token is no longer in the store.
 
     @Test
-    void deactivateAbsent_unknownToken_returns404() throws Exception {
+    void deactivateAbsent_afterStateEvicted_stillDeactivatesViaRegistry() throws Exception {
+        // deliberately no state in stateStore for this token
+        when(registryService.employeeNotInRegistry("emp1")).thenReturn(false);
+
         Map<String, Object> body = Map.of("employeeIds", List.of("emp1"), "active", false);
 
-        mvc.perform(post("/api/tas/absent-review/unknown-token/deactivate")
+        mvc.perform(post("/api/tas/absent-review/evicted-token/deactivate")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(mapper.writeValueAsString(body)))
-           .andExpect(status().isNotFound());
+           .andExpect(status().isOk())
+           .andExpect(jsonPath("$.updated").value(1))
+           .andExpect(jsonPath("$.notFound").isArray())
+           .andExpect(jsonPath("$.notFound").isEmpty());
 
-        verify(registryService, never()).setActive(anyString(), anyBoolean());
+        verify(registryService).setActive("emp1", false);
     }
 
     @Test
