@@ -1,5 +1,19 @@
 # Changelog
 
+## v1.2.1 — 2026-07-01
+
+Follow-up fixes to the 1.2.0 feedback.
+
+### Fixes
+- **Overtime totals now add up.** Each session's extras are rounded to the half hour and then summed (sum-of-floors), so the per-row values in the review table match the footer, side panel, and the value submitted to payroll (e.g. 14, not 15). Applies to both `horas_extras_simples` and `horas_extras_dobles`.
+- **Reset actually wipes the data.** The app no longer leaves an orphaned backend JVM running: it enforces a single instance, terminates any orphan on startup before spawning its own, and kills the backend on exit. A lingering backend kept the H2 database open (so deleting the file did nothing) and locked JRE DLLs. `reset-db.sh` also stops the backend before deleting now.
+- **Config tabs no longer shift the page.** Reserved the scrollbar gutter so switching between short and tall tabs doesn't jump the layout.
+- **Employee sort is correct.** Only the id (código) and name columns are sortable, and codes compare numerically ("9" before "10").
+- **Consistent 12-hour time entry.** Time inputs render the AM/PM control with a clock picker on both macOS and Windows (`lang="en-US"`), instead of Windows forcing 24-hour input.
+
+### UX
+- **Resolved review rows re-open.** Confirmed session rows and checkbox-resolved double-shift rows now collapse to a "Confirmado" chip you can click to re-open (prefilled) and double-check or change.
+
 ## v1.2.0 — 2026-07-01
 
 Bug-fix and UX release: unblocks the Windows installer, corrects a totals
