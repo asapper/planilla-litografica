@@ -256,6 +256,22 @@ describe('ReviewDetailView accruesOvertime toggle', () => {
     expect(screen.getByRole('switch')).toBeInTheDocument();
   });
 
+  it('disables extras inputs when employee does not accrue overtime', () => {
+    useTasStore.getState().setResolvedRows([{ ...rows[0], accruesOvertime: false, horasExtrasSimples: 0, horasExtrasDobles: 0 }, rows[1], rows[2]]);
+    render(<ReviewDetailView onBack={onBack} />);
+    const inputs = screen.getAllByRole('spinbutton');
+    expect(inputs[0]).toBeEnabled();
+    expect(inputs[1]).toBeDisabled();
+    expect(inputs[2]).toBeDisabled();
+  });
+
+  it('keeps extras inputs enabled when employee accrues overtime', () => {
+    render(<ReviewDetailView onBack={onBack} />);
+    const inputs = screen.getAllByRole('spinbutton');
+    expect(inputs[1]).toBeEnabled();
+    expect(inputs[2]).toBeEnabled();
+  });
+
   it('calls updateAccruesOvertime then recomputeTas on toggle', async () => {
     mockUpdateAccruesOvertime.mockResolvedValue({
       id: 'E1', code: 'E1', name: 'Ana López', shiftId: null, shiftName: null, active: true, accruesOvertime: false,

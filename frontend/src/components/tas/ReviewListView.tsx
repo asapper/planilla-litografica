@@ -286,7 +286,7 @@ export default function ReviewListView({ dbHealthy, onSubmit }: ReviewListViewPr
                   <td className="py-3 px-4 text-body-md text-on-surface-variant text-right">{row.codigoEmpleado}</td>
                   <td className="py-3 px-4 text-body-md text-right">
                     {isDuplicate ? '—' : (
-                      <div className="flex items-center justify-end gap-1">
+                      <div className="relative flex items-center justify-end">
                         <input
                           type="number"
                           min={0}
@@ -307,14 +307,14 @@ export default function ReviewListView({ dbHealthy, onSubmit }: ReviewListViewPr
                           }`}
                         />
                         {nonWorkedDaysOverride !== undefined && (
-                          <span className="text-label-sm text-on-surface-variant">(era {row.diasNoLaborados})</span>
+                          <span className="absolute top-full right-0 text-label-sm leading-none text-on-surface-variant whitespace-nowrap pointer-events-none">(era {row.diasNoLaborados})</span>
                         )}
                       </div>
                     )}
                   </td>
                   <td className="py-3 px-4 text-body-md text-right">
                     {isDuplicate ? '—' : (
-                      <div className="flex items-center justify-end gap-1">
+                      <div className="relative flex items-center justify-end">
                         <input
                           type="number"
                           min={0}
@@ -325,20 +325,21 @@ export default function ReviewListView({ dbHealthy, onSubmit }: ReviewListViewPr
                             setOvertimeOverride(row.codigoEmpleado, 'horasExtrasSimples', Number.isNaN(parsed) || parsed < 0 ? 0 : Math.round(parsed * 2) / 2);
                           }}
                           onClick={e => e.stopPropagation()}
+                          disabled={!row.accruesOvertime}
                           aria-label={`Extras simples ${row.nombreEmpleado}`}
-                          className={`w-16 text-right border rounded-shape-sm px-1.5 py-0.5 text-body-sm focus:outline-none focus:border-primary ${
+                          className={`w-16 text-right border rounded-shape-sm px-1.5 py-0.5 text-body-sm focus:outline-none focus:border-primary disabled:opacity-50 disabled:cursor-not-allowed ${
                             simplesOverride !== undefined ? 'border-primary text-primary font-medium' : 'border-outline-variant text-on-surface-variant'
                           }`}
                         />
                         {simplesOverride !== undefined && (
-                          <span className="text-label-sm text-on-surface-variant">(era {row.horasExtrasSimples})</span>
+                          <span className="absolute top-full right-0 text-label-sm leading-none text-on-surface-variant whitespace-nowrap pointer-events-none">(era {row.horasExtrasSimples})</span>
                         )}
                       </div>
                     )}
                   </td>
                   <td className="py-3 px-4 text-body-md text-right">
                     {isDuplicate ? '—' : (
-                      <div className="flex items-center justify-end gap-1">
+                      <div className="relative flex items-center justify-end">
                         <input
                           type="number"
                           min={0}
@@ -349,13 +350,14 @@ export default function ReviewListView({ dbHealthy, onSubmit }: ReviewListViewPr
                             setOvertimeOverride(row.codigoEmpleado, 'horasExtrasDobles', Number.isNaN(parsed) || parsed < 0 ? 0 : Math.round(parsed * 2) / 2);
                           }}
                           onClick={e => e.stopPropagation()}
+                          disabled={!row.accruesOvertime}
                           aria-label={`Extras dobles ${row.nombreEmpleado}`}
-                          className={`w-16 text-right border rounded-shape-sm px-1.5 py-0.5 text-body-sm focus:outline-none focus:border-primary ${
+                          className={`w-16 text-right border rounded-shape-sm px-1.5 py-0.5 text-body-sm focus:outline-none focus:border-primary disabled:opacity-50 disabled:cursor-not-allowed ${
                             doblesOverride !== undefined ? 'border-primary text-primary font-medium' : 'border-outline-variant text-on-surface-variant'
                           }`}
                         />
                         {doblesOverride !== undefined && (
-                          <span className="text-label-sm text-on-surface-variant">(era {row.horasExtrasDobles})</span>
+                          <span className="absolute top-full right-0 text-label-sm leading-none text-on-surface-variant whitespace-nowrap pointer-events-none">(era {row.horasExtrasDobles})</span>
                         )}
                       </div>
                     )}
