@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { useConfigStore } from '../../configStore';
 import { useToastStore } from '../../toastStore';
 import { getEmployees, updateEmployee, bulkAssignShift, getShifts, updateAccruesOvertime } from '../../configApi';
@@ -268,8 +268,8 @@ export default function EmployeesTab() {
             </thead>
             <tbody>
               {sorted.map(emp => (
-                <>
-                  <tr key={emp.id} className="cfg-table-row">
+                <Fragment key={emp.id}>
+                  <tr className="cfg-table-row">
                     <td className="px-4 py-2">
                       <input
                         type="checkbox"
@@ -321,7 +321,7 @@ export default function EmployeesTab() {
                     </td>
                   </tr>
                   {reactivationNotes.has(emp.id) && !dismissedNotes.has(emp.id) && (
-                    <tr key={`note-${emp.id}`}>
+                    <tr>
                       <td colSpan={6} className="px-4 py-1">
                         <div className="flex items-center justify-between bg-warning-container border border-warning rounded-shape-xs px-3 py-1.5 text-body-sm text-on-warning-container">
                           <span>Turno restablecido al turno por defecto. Verifique si corresponde.</span>
@@ -338,7 +338,7 @@ export default function EmployeesTab() {
                       </td>
                     </tr>
                   )}
-                </>
+                </Fragment>
               ))}
             </tbody>
           </table>
