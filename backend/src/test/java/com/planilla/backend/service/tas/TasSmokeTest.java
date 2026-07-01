@@ -593,8 +593,8 @@ class TasSmokeTest {
         assertThat(sessions.get(1).getSimplesMinutes()).isEqualTo(45);
 
         EmployeeRow emp = findEmployee(result, "123");
-        // Total simples = 135+45=180 min → floor(180/30)/2 = 3.0
-        assertThat(emp.getHorasExtrasSimples()).isEqualTo(3.0);
+        // Round each session then sum: floor(135/30)/2=2.0 + floor(45/30)/2=0.5 = 2.5
+        assertThat(emp.getHorasExtrasSimples()).isEqualTo(2.5);
     }
 
     @Test

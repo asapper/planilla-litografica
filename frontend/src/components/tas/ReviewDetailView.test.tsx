@@ -101,10 +101,10 @@ describe('ReviewDetailView rendering', () => {
     expect(screen.getByText('Totales quincena')).toBeInTheDocument();
   });
 
-  it('sums raw minutes before flooring so the footer total matches the side panel', () => {
-    // Each session's simplesMinutes (225) floors to 3.5h individually; summing
-    // the rounded per-session values gives 14, but summing raw minutes first
-    // (900 → 15h) is the authoritative total. The footer must show 15, not 14.
+  it('rounds each session then sums, so the footer total matches the per-row values', () => {
+    // Each session's simplesMinutes (225) floors to 3.5h individually; the footer
+    // sums those rounded per-row values (4 × 3.5 = 14) rather than flooring the
+    // raw total once (900 → 15), so what you add up in the table equals the total.
     const totalsSummaries: Record<string, SessionSummary[]> = {
       E1: [1, 2, 3, 4].map(n => ({
         date: `2026-06-0${n}`, shiftName: 'Mañana',
@@ -117,8 +117,8 @@ describe('ReviewDetailView rendering', () => {
     render(<ReviewDetailView onBack={onBack} />);
 
     const totalsRow = screen.getByText('Totales quincena').closest('tr')!;
-    expect(within(totalsRow).getByText('15')).toBeInTheDocument();
-    expect(within(totalsRow).queryByText('14')).not.toBeInTheDocument();
+    expect(within(totalsRow).getByText('14')).toBeInTheDocument();
+    expect(within(totalsRow).queryByText('15')).not.toBeInTheDocument();
   });
 });
 
