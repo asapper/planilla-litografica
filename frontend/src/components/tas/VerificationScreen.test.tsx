@@ -611,6 +611,23 @@ describe('VerificationScreen same-day double group', () => {
     expect(screen.getByRole('button', { name: /revisar/i })).not.toBeDisabled();
   });
 
+  it('collapses to a Confirmado chip after a selection and re-opens via Editar/Listo', () => {
+    render(<VerificationScreen />);
+    fireEvent.click(screen.getAllByRole('radio')[0]); // resolve → group auto-collapses
+
+    // expand the group to reach the confirmed card
+    fireEvent.click(screen.getByRole('button', { name: /Ana López/ }));
+    expect(screen.queryByRole('radio')).not.toBeInTheDocument();
+    expect(screen.getByText('Confirmado')).toBeInTheDocument();
+
+    // re-open the card, change nothing, close with Listo
+    fireEvent.click(screen.getByRole('button', { name: /editar ana lópez/i }));
+    expect(screen.getAllByRole('radio')).toHaveLength(3);
+    fireEvent.click(screen.getByRole('button', { name: /listo/i }));
+    expect(screen.queryByRole('radio')).not.toBeInTheDocument();
+    expect(screen.getByText('Confirmado')).toBeInTheDocument();
+  });
+
   it('includes employeeId/date/keepSessionId in resolveVerification payload on submit', async () => {
     useTasStore.getState().setUploadToken('tok-1');
     useTasStore.getState().setSameDayDoubleResolution('E1|2026-03-15', 'all');
@@ -672,6 +689,26 @@ describe('VerificationScreen employee grouping', () => {
     expect(groupHeader).toHaveAttribute('aria-expanded', 'false');
     fireEvent.click(groupHeader);
     expect(groupHeader).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByText('Confirmado')).toBeInTheDocument();
+  });
+
+  it('re-opens a confirmed session for editing, prefilled, and collapses again on re-confirm', () => {
+    useTasStore.getState().setFlaggedSessions([
+      makeSession({ sessionId: 1, employeeId: 'E1', employeeName: 'Ana López', effectiveStart: '08:00:00', lastScan: '17:00:00' }),
+    ]);
+    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
+    render(<VerificationScreen />);
+
+    fireEvent.click(screen.getByRole('button', { name: /confirmar/i }));
+    // group auto-collapses once resolved; expand it to reach the confirmed chip
+    fireEvent.click(screen.getByRole('button', { name: /Ana López/ }));
+
+    fireEvent.click(screen.getByRole('button', { name: /editar ana lópez/i }));
+    // form re-appears prefilled with the confirmed exit time
+    expect((screen.getByLabelText('Salida') as HTMLInputElement).value).toBe('17:00');
+
+    fireEvent.click(screen.getByRole('button', { name: /confirmar/i }));
+    expect(screen.queryByLabelText('Salida')).not.toBeInTheDocument();
     expect(screen.getByText('Confirmado')).toBeInTheDocument();
   });
 
