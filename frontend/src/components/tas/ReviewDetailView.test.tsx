@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import ReviewDetailView from './ReviewDetailView';
 import { useTasStore } from '../../tasStore';
 import { useToastStore } from '../../toastStore';
@@ -99,6 +99,26 @@ describe('ReviewDetailView rendering', () => {
   it('shows totals row when sessions exist', () => {
     render(<ReviewDetailView onBack={onBack} />);
     expect(screen.getByText('Totales quincena')).toBeInTheDocument();
+  });
+
+  it('sums raw minutes before flooring so the footer total matches the side panel', () => {
+    // Each session's simplesMinutes (225) floors to 3.5h individually; summing
+    // the rounded per-session values gives 14, but summing raw minutes first
+    // (900 → 15h) is the authoritative total. The footer must show 15, not 14.
+    const totalsSummaries: Record<string, SessionSummary[]> = {
+      E1: [1, 2, 3, 4].map(n => ({
+        date: `2026-06-0${n}`, shiftName: 'Mañana',
+        entryTime: `2026-06-0${n}T07:00:00`, exitTime: `2026-06-0${n}T15:00:00`,
+        workedHours: 8.0, simplesMinutes: 225, doblesMinutes: 0,
+        scans: [`2026-06-0${n}T07:00`, `2026-06-0${n}T15:00`],
+      })),
+    };
+    useTasStore.getState().setSessionSummaries(totalsSummaries);
+    render(<ReviewDetailView onBack={onBack} />);
+
+    const totalsRow = screen.getByText('Totales quincena').closest('tr')!;
+    expect(within(totalsRow).getByText('15')).toBeInTheDocument();
+    expect(within(totalsRow).queryByText('14')).not.toBeInTheDocument();
   });
 });
 
