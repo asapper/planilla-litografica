@@ -136,6 +136,81 @@ describe('EmployeesTab filtering', () => {
 });
 
 // -----------------------------------------------------------------
+// Sorting
+// -----------------------------------------------------------------
+
+describe('EmployeesTab sorting', () => {
+  const rowNames = () =>
+    screen.getAllByText(/García|López/).map(el => el.textContent);
+
+  it('defaults to ascending order by name', async () => {
+    render(<EmployeesTab />);
+    await waitFor(() => screen.getByText('EMP001'));
+    expect(rowNames()).toEqual(['Ana García', 'Carlos López']);
+  });
+
+  it('toggles to descending when the active sort header is clicked', async () => {
+    render(<EmployeesTab />);
+    await waitFor(() => screen.getByText('EMP001'));
+    fireEvent.click(screen.getByText('Nombre'));
+    expect(rowNames()).toEqual(['Carlos López', 'Ana García']);
+  });
+
+  it('sorts by a boolean column and reverses on second click', async () => {
+    render(<EmployeesTab />);
+    await waitFor(() => screen.getByText('EMP001'));
+    // ascending Activo: inactive (Carlos, false) before active (Ana, true)
+    fireEvent.click(screen.getByText('Activo'));
+    expect(rowNames()).toEqual(['Carlos López', 'Ana García']);
+    fireEvent.click(screen.getByText('Activo'));
+    expect(rowNames()).toEqual(['Ana García', 'Carlos López']);
+  });
+
+  it('sorts by código, turno and acumula columns', async () => {
+    render(<EmployeesTab />);
+    await waitFor(() => screen.getByText('EMP001'));
+
+    // Código descending: EMP002 (Carlos) before EMP001 (Ana)
+    fireEvent.click(screen.getByText('Código'));
+    fireEvent.click(screen.getByText('Código'));
+    expect(rowNames()).toEqual(['Carlos López', 'Ana García']);
+
+    // Turno asignado ascending: empty shift (Carlos) before 'Diurno' (Ana)
+    fireEvent.click(screen.getByText('Turno asignado'));
+    expect(rowNames()).toEqual(['Carlos López', 'Ana García']);
+
+    // Acumula horas extra ascending: false (Carlos) before true (Ana)
+    fireEvent.click(screen.getByText('Acumula horas extra'));
+    expect(rowNames()).toEqual(['Carlos López', 'Ana García']);
+  });
+});
+
+// -----------------------------------------------------------------
+// Clear search
+// -----------------------------------------------------------------
+
+describe('EmployeesTab clear search', () => {
+  it('shows no clear button when the search is empty', async () => {
+    render(<EmployeesTab />);
+    await waitFor(() => screen.getByText('EMP001'));
+    expect(screen.queryByLabelText(/limpiar búsqueda/i)).not.toBeInTheDocument();
+  });
+
+  it('clears the search and restores all rows when the X is clicked', async () => {
+    render(<EmployeesTab />);
+    await waitFor(() => screen.getByText('EMP001'));
+    const input = screen.getByLabelText(/buscar empleado/i);
+    fireEvent.change(input, { target: { value: 'ana' } });
+    expect(screen.queryByText('Carlos López')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByLabelText(/limpiar búsqueda/i));
+    expect(input).toHaveValue('');
+    expect(screen.getByText('Ana García')).toBeInTheDocument();
+    expect(screen.getByText('Carlos López')).toBeInTheDocument();
+  });
+});
+
+// -----------------------------------------------------------------
 // Row selection & bulk assign
 // -----------------------------------------------------------------
 
