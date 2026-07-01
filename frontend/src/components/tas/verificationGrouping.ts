@@ -49,19 +49,11 @@ export function buildEmployeeGroups(
     if (sameDayDoubleResolutions[groupKey] === undefined) group.pendingCount += 1;
   }
 
+  // Keep items in stable chronological order regardless of resolved state:
+  // resolving a row collapses it in place (a "Confirmado" chip) instead of
+  // sinking it to the bottom, which read as the row vanishing.
   for (const group of groups.values()) {
-    group.items.sort((a, b) => {
-      const aPending =
-        a.type === 'session' ? !resolvedSessions[a.session.sessionId] :
-        a.type === 'same_day_double' ? sameDayDoubleResolutions[a.groupKey] === undefined :
-        false;
-      const bPending =
-        b.type === 'session' ? !resolvedSessions[b.session.sessionId] :
-        b.type === 'same_day_double' ? sameDayDoubleResolutions[b.groupKey] === undefined :
-        false;
-      if (aPending !== bPending) return aPending ? -1 : 1;
-      return a.date.localeCompare(b.date);
-    });
+    group.items.sort((a, b) => a.date.localeCompare(b.date));
   }
 
   return Array.from(groups.values()).sort((a, b) => {
