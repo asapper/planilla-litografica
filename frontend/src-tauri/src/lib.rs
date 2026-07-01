@@ -113,19 +113,28 @@ pub fn run() {
                     }
                 };
 
-                let child = Command::new(&java_bin)
+                let mut command = Command::new(&java_bin);
+                command
                     .args(["-jar", jar.to_str().unwrap_or_default()])
                     .stdout(stdout_stdio)
-                    .stderr(stderr_stdio)
-                    .spawn()
-                    .map_err(|e| {
-                        log::error!(
-                            "failed to spawn backend (java={} jar={}): {e}",
-                            java_bin.display(),
-                            jar.display()
-                        );
-                        e
-                    })?;
+                    .stderr(stderr_stdio);
+
+                // Don't pop up a console window for the backend JVM on Windows.
+                #[cfg(target_os = "windows")]
+                {
+                    use std::os::windows::process::CommandExt;
+                    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+                    command.creation_flags(CREATE_NO_WINDOW);
+                }
+
+                let child = command.spawn().map_err(|e| {
+                    log::error!(
+                        "failed to spawn backend (java={} jar={}): {e}",
+                        java_bin.display(),
+                        jar.display()
+                    );
+                    e
+                })?;
 
                 log::info!("backend process spawned (pid={})", child.id());
 
