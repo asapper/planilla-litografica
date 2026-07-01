@@ -1,9 +1,23 @@
 # Changelog
 
-## Unreleased
+## v1.2.0 — 2026-07-01
 
-### Fixes (Windows installer)
-- Kill any bundled-JRE backend (`java.exe`) still running from the install directory before extracting or uninstalling files, via a new NSIS pre-install/pre-uninstall hook. A leftover backend keeps the JRE DLLs locked, so updating (or reinstalling the same version) over a running install aborted with `error opening file "...\jre\bin\extnet.dll"`.
+Bug-fix and UX release: unblocks the Windows installer, corrects a totals
+mismatch, and polishes the review and employee screens.
+
+### Fixes
+- **Windows installer no longer aborts on update.** A new NSIS pre-install/pre-uninstall hook kills any bundled-JRE backend (`java.exe`) still running from the install directory before extracting or uninstalling files. A leftover backend keeps the JRE DLLs locked, so updating (or reinstalling the same version) over a running install aborted with `error opening file "...\jre\bin\extnet.dll"`.
+- **Drag-and-drop file upload works again.** Disabled Tauri's native OS drag-drop (`dragDropEnabled: false`), which was swallowing file drops before they reached the webview; the drop zone's DOM handler now receives them.
+- **Deactivating an absent employee after submitting no longer fails.** The `deactivate` endpoint no longer 404s once the upload state is evicted on submit — it acts on the employee registry, which is the source of truth for active state.
+- **Detail-page totals match the side panel.** The table footer now sums raw minutes before flooring to the half hour (like the backend) instead of flooring each session first, which undercounted the simple/double hour totals (e.g. 14 vs 15).
+
+### UX
+- **Review screen: resolved rows stay put.** Confirmed rows now collapse in place instead of sinking to the bottom of their group, which read as the row disappearing.
+- **Config › Employees: sortable columns.** Click any column header to sort ascending/descending.
+- **Config › Employees: clear the search.** A ✕ button in the search box clears the current query.
+
+### Docs
+- Added `docs/reset-database.md` and `scripts/reset-db.{ps1,sh}` for wiping the local H2 database to start from a clean slate.
 
 ## v1.1.1 — 2026-07-01
 
