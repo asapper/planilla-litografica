@@ -37,6 +37,32 @@ fn port_is_open(port: u16) -> bool {
     TcpStream::connect_timeout(&addr, Duration::from_millis(500)).is_ok()
 }
 
+/// Terminates any bundled-JRE backend (`java -jar backend.jar`) left running from
+/// a previous, unclean exit. We must own exactly one backend (H2 is single-writer),
+/// so rather than reuse an orphan we can't manage, we kill it and spawn our own.
+#[cfg(not(debug_assertions))]
+fn terminate_orphan_backend() {
+    use std::process::Command;
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        let _ = Command::new("powershell")
+            .args([
+                "-NoProfile",
+                "-NonInteractive",
+                "-Command",
+                "Get-CimInstance Win32_Process | Where-Object { $_.Name -eq 'java.exe' -and $_.CommandLine -like '*backend.jar*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }",
+            ])
+            .creation_flags(CREATE_NO_WINDOW)
+            .status();
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = Command::new("pkill").args(["-f", "backend.jar"]).status();
+    }
+}
+
 #[tauri::command]
 fn open_manual(app: tauri::AppHandle) -> Result<(), String> {
     use tauri::Manager;
@@ -74,7 +100,16 @@ impl Drop for BackendProcess {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let app = tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            // A second launch must not start a competing backend (H2 is
+            // single-writer); focus the existing window instead.
+            use tauri::Manager;
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.unminimize();
+                let _ = window.set_focus();
+            }
+        }))
         .plugin(
             tauri_plugin_log::Builder::default()
                 .level(log::LevelFilter::Info)
@@ -108,9 +143,17 @@ pub fn run() {
 
                 if port_is_open(BACKEND_PORT) {
                     log::info!(
-                        "backend already listening on 127.0.0.1:{BACKEND_PORT}; reusing it instead of spawning a duplicate"
+                        "a backend is already on 127.0.0.1:{BACKEND_PORT} (orphaned from a previous run); terminating it before spawning our own"
                     );
-                    return Ok(());
+                    terminate_orphan_backend();
+                    // Wait for the port — and therefore the H2 file lock — to be
+                    // released so our new backend doesn't collide on the single-writer DB.
+                    for _ in 0..25 {
+                        if !port_is_open(BACKEND_PORT) {
+                            break;
+                        }
+                        std::thread::sleep(std::time::Duration::from_millis(200));
+                    }
                 }
 
                 let home_dir = std::env::var("USERPROFILE")
@@ -170,8 +213,27 @@ pub fn run() {
             let _ = app;
             Ok(())
         })
-        .run(tauri::generate_context!())
+        .build(tauri::generate_context!())
         .expect("error while running tauri application");
+
+    // Explicitly tear the backend down on exit — don't rely solely on `Drop`,
+    // which may not run if the process fast-exits, leaving an orphaned JVM that
+    // locks the DB (and, on Windows, the JRE DLLs during the next install).
+    app.run(|app_handle, event| {
+        if let tauri::RunEvent::ExitRequested { .. } = event {
+            use tauri::Manager;
+            let child = {
+                let state = app_handle.state::<BackendProcess>();
+                let mut guard = state.0.lock().unwrap_or_else(|e| e.into_inner());
+                guard.take()
+            };
+            if let Some(mut child) = child {
+                log::info!("app exiting; terminating backend (pid={})", child.id());
+                let _ = child.kill();
+                let _ = child.wait();
+            }
+        }
+    });
 }
 
 #[cfg(test)]
