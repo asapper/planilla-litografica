@@ -263,6 +263,7 @@ function ShortDayCard({ session, onSaveOverride }: ShortDayCardProps) {
           <label className="text-label-sm text-on-surface-variant">Entrada</label>
           <input
             type="time"
+            lang="en-US"
             value={toHHMM(session.effectiveStart)}
             readOnly
             aria-label="Entrada"
@@ -273,6 +274,7 @@ function ShortDayCard({ session, onSaveOverride }: ShortDayCardProps) {
           <label className="text-label-sm text-on-surface-variant">Salida</label>
           <input
             type="time"
+            lang="en-US"
             value={exit}
             onChange={e => setExit(e.target.value)}
             aria-label="Salida"
@@ -356,6 +358,7 @@ function SessionCard({ session, confirmed, crossMidnight, onConfirm }: SessionCa
           {/* onInput fires on AM/PM spinner clicks where onChange does not */}
           <input
             type="time"
+            lang="en-US"
             value={entry}
             onChange={e => setEntry(e.target.value)}
             onInput={e => setEntry((e.target as HTMLInputElement).value)}
@@ -372,6 +375,7 @@ function SessionCard({ session, confirmed, crossMidnight, onConfirm }: SessionCa
           <label className="text-label-sm text-on-surface-variant">Salida</label>
           <input
             type="time"
+            lang="en-US"
             value={exit}
             onChange={e => setExit(e.target.value)}
             onInput={e => setExit((e.target as HTMLInputElement).value)}
