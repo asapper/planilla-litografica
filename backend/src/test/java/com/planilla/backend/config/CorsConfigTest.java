@@ -20,7 +20,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @WebMvcTest(HealthController.class)
 @Import(CorsConfig.class)
 @TestPropertySource(properties =
-        "cors.allowed-origins=http://localhost:5173,http://127.0.0.1:5173,tauri://localhost,https://tauri.localhost")
+        "cors.allowed-origins=http://localhost:5173,http://127.0.0.1:5173,tauri://localhost,http://tauri.localhost,https://tauri.localhost")
 class CorsConfigTest {
 
     @Autowired MockMvc mvc;
@@ -32,6 +32,7 @@ class CorsConfigTest {
     @ValueSource(strings = {
             "http://localhost:5173",
             "tauri://localhost",
+            "http://tauri.localhost",
             "https://tauri.localhost"
     })
     void allowedOriginReturnsAccessControlHeaders(String origin) throws Exception {
@@ -48,6 +49,7 @@ class CorsConfigTest {
     @ValueSource(strings = {
             "http://localhost:5173",
             "tauri://localhost",
+            "http://tauri.localhost",
             "https://tauri.localhost"
     })
     void allowedOriginOnSimpleGetReturnsCorsHeader(String origin) throws Exception {
