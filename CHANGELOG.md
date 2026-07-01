@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Fixes (Windows installer)
+- Kill any bundled-JRE backend (`java.exe`) still running from the install directory before extracting or uninstalling files, via a new NSIS pre-install/pre-uninstall hook. A leftover backend keeps the JRE DLLs locked, so updating (or reinstalling the same version) over a running install aborted with `error opening file "...\jre\bin\extnet.dll"`.
+
 ## v1.1.1 — 2026-07-01
 
 Bug-fix release: makes the bundled Windows installer launch and connect to its backend on a clean machine.
