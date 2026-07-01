@@ -1,5 +1,17 @@
 # Changelog
 
+## v1.1.1 — 2026-07-01
+
+Bug-fix release: makes the bundled Windows installer launch and connect to its backend on a clean machine.
+
+### Fixes (Windows packaged app)
+- Bundle the embedded JRE preserving its directory structure — the previous resource globs flattened subfolders, dropping `bin\server\jvm.dll` and `lib\security\java.security` so the JVM couldn't start.
+- Strip the Windows `\\?\` verbatim path prefix before launching the backend JAR — the JVM couldn't load classes from a `\\?\`-prefixed jar (`ClassNotFoundException: JarLauncher`).
+- Connect the frontend to `127.0.0.1` instead of `localhost` — Windows resolves `localhost` to IPv6 first, but the backend binds IPv4; updated the API base URL and CSP `connect-src`.
+- Allow the `http://tauri.localhost` CORS origin used by the Windows WebView2 (macOS/Linux use `tauri://localhost`).
+- Reuse an already-running backend instead of spawning a duplicate that crashes on the single-writer H2 file lock.
+- Suppress the backend console window on Windows (`CREATE_NO_WINDOW`).
+
 ## v1.1.0 — 2026-06-30
 
 Pre-production hardening release: security, reliability, and observability work on top of the 1.0 TAS app, plus a new per-stage upload progress UI.
