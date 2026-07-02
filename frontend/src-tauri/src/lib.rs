@@ -37,6 +37,21 @@ fn port_is_open(port: u16) -> bool {
     TcpStream::connect_timeout(&addr, Duration::from_millis(500)).is_ok()
 }
 
+/// Polls until nothing is listening on `port`, up to `attempts` times spaced by
+/// `sleep`. Returns true once the port is free, false if it's still open when the
+/// attempts run out. Used to wait for a terminated backend to release the port
+/// (and thus the H2 file lock) before we spawn a replacement.
+#[cfg(any(not(debug_assertions), test))]
+fn wait_until_port_closed(port: u16, attempts: u32, sleep: std::time::Duration) -> bool {
+    for _ in 0..attempts {
+        if !port_is_open(port) {
+            return true;
+        }
+        std::thread::sleep(sleep);
+    }
+    !port_is_open(port)
+}
+
 /// Terminates any bundled-JRE backend (`java -jar backend.jar`) left running from
 /// a previous, unclean exit. We must own exactly one backend (H2 is single-writer),
 /// so rather than reuse an orphan we can't manage, we kill it and spawn our own.
@@ -47,7 +62,7 @@ fn terminate_orphan_backend() {
     {
         use std::os::windows::process::CommandExt;
         const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-        let _ = Command::new("powershell")
+        let status = Command::new("powershell")
             .args([
                 "-NoProfile",
                 "-NonInteractive",
@@ -56,10 +71,20 @@ fn terminate_orphan_backend() {
             ])
             .creation_flags(CREATE_NO_WINDOW)
             .status();
+        log_termination_result(status);
     }
     #[cfg(not(target_os = "windows"))]
     {
-        let _ = Command::new("pkill").args(["-f", "backend.jar"]).status();
+        let status = Command::new("pkill").args(["-f", "backend.jar"]).status();
+        log_termination_result(status);
+    }
+}
+
+#[cfg(not(debug_assertions))]
+fn log_termination_result(status: std::io::Result<std::process::ExitStatus>) {
+    match status {
+        Ok(s) => log::info!("orphan backend termination command exited: {s}"),
+        Err(e) => log::warn!("failed to run orphan backend termination command: {e}"),
     }
 }
 
@@ -148,11 +173,18 @@ pub fn run() {
                     terminate_orphan_backend();
                     // Wait for the port — and therefore the H2 file lock — to be
                     // released so our new backend doesn't collide on the single-writer DB.
-                    for _ in 0..25 {
-                        if !port_is_open(BACKEND_PORT) {
-                            break;
-                        }
-                        std::thread::sleep(std::time::Duration::from_millis(200));
+                    if !wait_until_port_closed(
+                        BACKEND_PORT,
+                        25,
+                        std::time::Duration::from_millis(200),
+                    ) {
+                        // Couldn't kill it (e.g. an elevated/AV-held JVM). Reusing the
+                        // stubborn backend is safe; spawning a second would crash on the
+                        // H2 lock. We don't own it, so it won't be torn down on exit.
+                        log::warn!(
+                            "backend on 127.0.0.1:{BACKEND_PORT} did not exit after termination; reusing it instead of spawning a duplicate"
+                        );
+                        return Ok(());
                     }
                 }
 
@@ -278,5 +310,27 @@ mod tests {
 
         drop(listener);
         assert!(!port_is_open(port), "should report closed once listener is gone");
+    }
+
+    #[test]
+    fn wait_until_port_closed_reflects_listener_lifecycle() {
+        use super::wait_until_port_closed;
+        use std::net::TcpListener;
+        use std::time::Duration;
+
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        // Still listening → gives up after the attempts and reports still-open.
+        assert!(
+            !wait_until_port_closed(port, 3, Duration::from_millis(10)),
+            "should report still-open while a listener is bound"
+        );
+
+        drop(listener);
+        // Freed → reports closed.
+        assert!(
+            wait_until_port_closed(port, 3, Duration::from_millis(10)),
+            "should report closed once the listener is gone"
+        );
     }
 }
