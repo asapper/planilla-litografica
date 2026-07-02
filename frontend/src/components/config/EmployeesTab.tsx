@@ -6,7 +6,7 @@ import type { Employee, Shift } from '../../configTypes';
 import Spinner from '../ui/Spinner';
 
 type FilterStatus = 'all' | 'active' | 'inactive';
-type SortColumn = 'code' | 'name' | 'shiftName' | 'active' | 'accruesOvertime';
+type SortColumn = 'code' | 'name';
 
 export default function EmployeesTab() {
   const employeesData = useConfigStore(s => s.employees.data);
@@ -56,14 +56,11 @@ export default function EmployeesTab() {
   });
 
   const sorted = [...filtered].sort((a, b) => {
-    let cmp = 0;
-    switch (sortColumn) {
-      case 'code': cmp = a.code.localeCompare(b.code, 'es'); break;
-      case 'name': cmp = a.name.localeCompare(b.name, 'es'); break;
-      case 'shiftName': cmp = (a.shiftName ?? '').localeCompare(b.shiftName ?? '', 'es'); break;
-      case 'active': cmp = Number(a.active) - Number(b.active); break;
-      case 'accruesOvertime': cmp = Number(a.accruesOvertime) - Number(b.accruesOvertime); break;
-    }
+    // Codes are numeric IDs, so compare them numerically ("9" before "10")
+    // rather than lexicographically.
+    const cmp = sortColumn === 'code'
+      ? a.code.localeCompare(b.code, 'es', { numeric: true })
+      : a.name.localeCompare(b.name, 'es');
     return sortDirection === 'desc' ? -cmp : cmp;
   });
 
@@ -255,15 +252,9 @@ export default function EmployeesTab() {
                 <th className="cfg-th cursor-pointer hover:bg-surface-container-low select-none" onClick={() => handleHeaderClick('name')}>
                   Nombre <span className={`text-label-sm ml-1 ${sortColumn === 'name' ? 'text-primary' : 'text-on-surface-variant'}`}>{sortIndicator('name')}</span>
                 </th>
-                <th className="cfg-th cursor-pointer hover:bg-surface-container-low select-none" onClick={() => handleHeaderClick('shiftName')}>
-                  Turno asignado <span className={`text-label-sm ml-1 ${sortColumn === 'shiftName' ? 'text-primary' : 'text-on-surface-variant'}`}>{sortIndicator('shiftName')}</span>
-                </th>
-                <th className="cfg-th cursor-pointer hover:bg-surface-container-low select-none" onClick={() => handleHeaderClick('active')}>
-                  Activo <span className={`text-label-sm ml-1 ${sortColumn === 'active' ? 'text-primary' : 'text-on-surface-variant'}`}>{sortIndicator('active')}</span>
-                </th>
-                <th className="cfg-th cursor-pointer hover:bg-surface-container-low select-none" onClick={() => handleHeaderClick('accruesOvertime')}>
-                  Acumula horas extra <span className={`text-label-sm ml-1 ${sortColumn === 'accruesOvertime' ? 'text-primary' : 'text-on-surface-variant'}`}>{sortIndicator('accruesOvertime')}</span>
-                </th>
+                <th className="cfg-th">Turno asignado</th>
+                <th className="cfg-th">Activo</th>
+                <th className="cfg-th">Acumula horas extra</th>
               </tr>
             </thead>
             <tbody>

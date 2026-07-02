@@ -128,6 +128,24 @@ class TasReportBuilderTest {
     }
 
     @Test
+    void build_roundsEachSessionToTheHalfHourThenSums() {
+        LocalDate start = LocalDate.of(2026, 3, 1);
+        LocalDate end   = LocalDate.of(2026, 3, 15);
+
+        // 225 min floors to 3.5h per session, so two sessions total 7.0 —
+        // not floor(450 / 30) / 2 = 7.5 that a sum-then-floor would give.
+        List<TasSession> sessions = List.of(
+            resolvedSession("100", LocalDate.of(2026, 3, 5), 225, 0),
+            resolvedSession("100", LocalDate.of(2026, 3, 6), 225, 0)
+        );
+
+        TasReportBuilder.BuildResult result = builder.build(sessions, start, end, shifts);
+
+        assertThat(result.rows).hasSize(1);
+        assertThat(result.rows.get(0).getHorasExtrasSimples()).isEqualTo(7.0);
+    }
+
+    @Test
     void build_flaggedSessionsContributeZeroHours() {
         LocalDate start = LocalDate.of(2026, 3, 1);
         LocalDate end   = LocalDate.of(2026, 3, 15);

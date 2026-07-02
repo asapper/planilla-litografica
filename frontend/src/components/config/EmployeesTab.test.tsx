@@ -141,7 +141,7 @@ describe('EmployeesTab filtering', () => {
 
 describe('EmployeesTab sorting', () => {
   const rowNames = () =>
-    screen.getAllByText(/García|López/).map(el => el.textContent);
+    screen.getAllByText(/García|López|Núñez/).map(el => el.textContent);
 
   it('defaults to ascending order by name', async () => {
     render(<EmployeesTab />);
@@ -149,39 +149,33 @@ describe('EmployeesTab sorting', () => {
     expect(rowNames()).toEqual(['Ana García', 'Carlos López']);
   });
 
-  it('toggles to descending when the active sort header is clicked', async () => {
+  it('toggles name sort to descending when the Nombre header is clicked', async () => {
     render(<EmployeesTab />);
     await waitFor(() => screen.getByText('EMP001'));
     fireEvent.click(screen.getByText('Nombre'));
     expect(rowNames()).toEqual(['Carlos López', 'Ana García']);
   });
 
-  it('sorts by a boolean column and reverses on second click', async () => {
+  it('sorts codes numerically, not lexicographically', async () => {
+    mockGetEmployees.mockResolvedValue([
+      { id: 'a', code: '10', name: 'Diez Núñez', shiftId: null, shiftName: null, active: true, accruesOvertime: true },
+      { id: 'b', code: '9', name: 'Nueve García', shiftId: null, shiftName: null, active: true, accruesOvertime: true },
+    ]);
     render(<EmployeesTab />);
-    await waitFor(() => screen.getByText('EMP001'));
-    // ascending Activo: inactive (Carlos, false) before active (Ana, true)
-    fireEvent.click(screen.getByText('Activo'));
-    expect(rowNames()).toEqual(['Carlos López', 'Ana García']);
-    fireEvent.click(screen.getByText('Activo'));
-    expect(rowNames()).toEqual(['Ana García', 'Carlos López']);
+    await waitFor(() => screen.getByText('Diez Núñez'));
+    fireEvent.click(screen.getByText('Código'));
+    // numeric ascending: 9 before 10 (lexicographic would put "10" first)
+    expect(rowNames()).toEqual(['Nueve García', 'Diez Núñez']);
   });
 
-  it('sorts by código, turno and acumula columns', async () => {
+  it('does not make the turno, activo, or acumula columns sortable', async () => {
     render(<EmployeesTab />);
     await waitFor(() => screen.getByText('EMP001'));
-
-    // Código descending: EMP002 (Carlos) before EMP001 (Ana)
-    fireEvent.click(screen.getByText('Código'));
-    fireEvent.click(screen.getByText('Código'));
-    expect(rowNames()).toEqual(['Carlos López', 'Ana García']);
-
-    // Turno asignado ascending: empty shift (Carlos) before 'Diurno' (Ana)
+    const order = rowNames();
     fireEvent.click(screen.getByText('Turno asignado'));
-    expect(rowNames()).toEqual(['Carlos López', 'Ana García']);
-
-    // Acumula horas extra ascending: false (Carlos) before true (Ana)
+    fireEvent.click(screen.getByText('Activo'));
     fireEvent.click(screen.getByText('Acumula horas extra'));
-    expect(rowNames()).toEqual(['Carlos López', 'Ana García']);
+    expect(rowNames()).toEqual(order);
   });
 });
 

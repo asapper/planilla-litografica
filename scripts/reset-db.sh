@@ -8,6 +8,11 @@
 # Usage:  ./scripts/reset-db.sh
 set -euo pipefail
 
+# A running backend keeps the DB file open, so deleting it while the backend
+# lives is futile (it rewrites the file on exit). Stop it first.
+pkill -f 'backend\.jar' 2>/dev/null || true
+sleep 1
+
 data_dir="$HOME/.planilla/data"
 
 for f in planilla-log.mv.db planilla-log.trace.db; do

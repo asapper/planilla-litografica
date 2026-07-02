@@ -181,11 +181,38 @@ function ShiftMismatchCard({ session, availableShifts, acceptedShiftId, onChange
 interface SameDayDoubleGroupCardProps {
   sessions: TasSession[];
   choice: number | 'all';
+  resolved: boolean;
   onChange: (keepSessionId: number | 'all') => void;
 }
 
-function SameDayDoubleGroupCard({ sessions, choice, onChange }: SameDayDoubleGroupCardProps) {
+function SameDayDoubleGroupCard({ sessions, choice, resolved, onChange }: SameDayDoubleGroupCardProps) {
   const first = sessions[0];
+  const [editing, setEditing] = useState(false);
+
+  if (resolved && !editing) {
+    const kept = choice === 'all' ? null : sessions.find(s => s.sessionId === choice);
+    const summary = kept
+      ? `${kept.matchedShiftName ?? '—'} (${toHHMM(kept.effectiveStart)}–${toHHMM(kept.lastScan)})`
+      : 'Mantener todas';
+    return (
+      <button
+        type="button"
+        onClick={() => setEditing(true)}
+        aria-label={`Editar ${first.employeeName} ${formatDate(first.date)}`}
+        className="w-full text-left border-l-4 border-success bg-surface-container-lowest rounded-shape-md px-4 py-3 flex items-center gap-4 shadow-sm hover:bg-surface-container transition-colors"
+      >
+        <div className="flex-1">
+          <span className="font-medium text-on-surface">{first.employeeName}</span>
+          <span className="mx-2 text-on-surface-variant">·</span>
+          <span className="text-on-surface-variant text-body-sm">{formatDate(first.date)}</span>
+          <span className="mx-2 text-on-surface-variant">·</span>
+          <span className="text-on-surface-variant text-body-sm">{summary}</span>
+        </div>
+        <span className="text-success text-body-sm font-medium">Confirmado</span>
+        <span className="text-primary text-label-sm">Editar</span>
+      </button>
+    );
+  }
 
   return (
     <div className="bg-surface-container-lowest rounded-shape-md border border-outline-variant p-4 shadow-sm">
@@ -221,9 +248,19 @@ function SameDayDoubleGroupCard({ sessions, choice, onChange }: SameDayDoubleGro
         </label>
       </div>
 
-      <p className="text-label-sm text-on-surface-variant">
-        Esta opción se aplicará automáticamente si no realiza ningún cambio.
-      </p>
+      {editing ? (
+        <button
+          type="button"
+          onClick={() => setEditing(false)}
+          className="m3-btn-filled"
+        >
+          Listo
+        </button>
+      ) : (
+        <p className="text-label-sm text-on-surface-variant">
+          Esta opción se aplicará automáticamente si no realiza ningún cambio.
+        </p>
+      )}
     </div>
   );
 }
@@ -263,6 +300,7 @@ function ShortDayCard({ session, onSaveOverride }: ShortDayCardProps) {
           <label className="text-label-sm text-on-surface-variant">Entrada</label>
           <input
             type="time"
+            lang="en-US"
             value={toHHMM(session.effectiveStart)}
             readOnly
             aria-label="Entrada"
@@ -273,6 +311,7 @@ function ShortDayCard({ session, onSaveOverride }: ShortDayCardProps) {
           <label className="text-label-sm text-on-surface-variant">Salida</label>
           <input
             type="time"
+            lang="en-US"
             value={exit}
             onChange={e => setExit(e.target.value)}
             aria-label="Salida"
@@ -296,13 +335,17 @@ function ShortDayCard({ session, onSaveOverride }: ShortDayCardProps) {
 interface SessionCardProps {
   session: TasSession;
   confirmed: boolean;
+  resolved?: { resolvedStart: string; resolvedEnd: string };
   crossMidnight: boolean;
   onConfirm: (resolvedStart: string, resolvedEnd: string) => void;
 }
 
-function SessionCard({ session, confirmed, crossMidnight, onConfirm }: SessionCardProps) {
-  const [entry, setEntry] = useState(toHHMM(session.effectiveStart));
-  const [exit,  setExit]  = useState(session.flags.includes('MISSING_EXIT') ? '' : toHHMM(session.lastScan));
+function SessionCard({ session, confirmed, resolved, crossMidnight, onConfirm }: SessionCardProps) {
+  // Prefill from the stored resolution (so re-opening a confirmed row shows what
+  // was entered, even after the group collapsed and re-mounted the card).
+  const [entry, setEntry] = useState(resolved?.resolvedStart ?? toHHMM(session.effectiveStart));
+  const [exit,  setExit]  = useState(resolved?.resolvedEnd ?? (session.flags.includes('MISSING_EXIT') ? '' : toHHMM(session.lastScan)));
+  const [editing, setEditing] = useState(false);
 
   const needsEntry = session.flags.includes('MISSING_ENTRY');
   const needsExit  = session.flags.includes('MISSING_EXIT');
@@ -313,16 +356,22 @@ function SessionCard({ session, confirmed, crossMidnight, onConfirm }: SessionCa
   const timesInverted = !!entry && !!exit && hoursPreview === '—';
   const canConfirm = (!needsEntry || !!entry) && (!needsExit || !!exit) && !timesInverted;
 
-  if (confirmed) {
+  if (confirmed && !editing) {
     return (
-      <div className="border-l-4 border-success bg-surface-container-lowest rounded-shape-md px-4 py-3 flex items-center gap-4 shadow-sm">
+      <button
+        type="button"
+        onClick={() => setEditing(true)}
+        aria-label={`Editar ${session.employeeName} ${formatDate(session.date)}`}
+        className="w-full text-left border-l-4 border-success bg-surface-container-lowest rounded-shape-md px-4 py-3 flex items-center gap-4 shadow-sm hover:bg-surface-container transition-colors"
+      >
         <div className="flex-1">
           <span className="font-medium text-on-surface">{session.employeeName}</span>
           <span className="mx-2 text-on-surface-variant">·</span>
           <span className="text-on-surface-variant text-body-sm">{formatDate(session.date)}</span>
         </div>
         <span className="text-success text-body-sm font-medium">Confirmado</span>
-      </div>
+        <span className="text-primary text-label-sm">Editar</span>
+      </button>
     );
   }
 
@@ -356,6 +405,7 @@ function SessionCard({ session, confirmed, crossMidnight, onConfirm }: SessionCa
           {/* onInput fires on AM/PM spinner clicks where onChange does not */}
           <input
             type="time"
+            lang="en-US"
             value={entry}
             onChange={e => setEntry(e.target.value)}
             onInput={e => setEntry((e.target as HTMLInputElement).value)}
@@ -372,6 +422,7 @@ function SessionCard({ session, confirmed, crossMidnight, onConfirm }: SessionCa
           <label className="text-label-sm text-on-surface-variant">Salida</label>
           <input
             type="time"
+            lang="en-US"
             value={exit}
             onChange={e => setExit(e.target.value)}
             onInput={e => setExit((e.target as HTMLInputElement).value)}
@@ -398,7 +449,7 @@ function SessionCard({ session, confirmed, crossMidnight, onConfirm }: SessionCa
 
       <button
         disabled={!canConfirm}
-        onClick={() => onConfirm(entry, exit)}
+        onClick={() => { onConfirm(entry, exit); setEditing(false); }}
         className="m3-btn-filled disabled:opacity-40 disabled:cursor-not-allowed"
       >
         Confirmar
@@ -625,6 +676,7 @@ export default function VerificationScreen() {
                           key={item.session.sessionId}
                           session={item.session}
                           confirmed={!!resolvedSessions[item.session.sessionId]}
+                          resolved={resolvedSessions[item.session.sessionId]}
                           crossMidnight={matchedShift?.crossMidnight ?? item.session.crossMidnight}
                           onConfirm={(resolvedStart, resolvedEnd) =>
                             setResolvedSession(item.session.sessionId, { resolvedStart, resolvedEnd })
@@ -648,6 +700,7 @@ export default function VerificationScreen() {
                           key={item.groupKey}
                           sessions={item.sessions}
                           choice={sameDayDoubleResolutions[item.groupKey] ?? 'all'}
+                          resolved={sameDayDoubleResolutions[item.groupKey] !== undefined}
                           onChange={(keepSessionId) => setSameDayDoubleResolution(item.groupKey, keepSessionId)}
                         />
                       );

@@ -33,6 +33,7 @@ function ShiftRow({ shift, onUpdate, onDetectionChange, onDelete, deleteError }:
         <td className="px-4 py-2">
           <input
             type="time"
+            lang="en-US"
             className="cfg-input"
             value={shift.startTime}
             onChange={e => onUpdate(shift.id, 'startTime', e.target.value)}
@@ -42,6 +43,7 @@ function ShiftRow({ shift, onUpdate, onDetectionChange, onDelete, deleteError }:
         <td className="px-4 py-2">
           <input
             type="time"
+            lang="en-US"
             className="cfg-input"
             value={shift.endTime}
             onChange={e => onUpdate(shift.id, 'endTime', e.target.value)}

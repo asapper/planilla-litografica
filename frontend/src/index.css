@@ -79,6 +79,10 @@
 /* ─── Base ──────────────────────────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+/* Reserve the scrollbar gutter so switching between short and tall pages (e.g.
+   config tabs) doesn't shift the centered layout when the scrollbar appears. */
+html { scrollbar-gutter: stable; }
+
 body {
   font-family: 'Roboto', system-ui, sans-serif;
   background-color: var(--md-sys-color-background);

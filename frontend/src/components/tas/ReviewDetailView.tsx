@@ -291,10 +291,10 @@ export default function ReviewDetailView({ onBack }: ReviewDetailViewProps) {
                       {roundTotal(sessions.reduce((sum, s) => sum + s.workedHours, 0))}
                     </td>
                     <td className="py-2 px-3 text-body-sm font-medium text-on-surface text-right">
-                      {minutesToHours(sessions.reduce((sum, s) => sum + s.simplesMinutes, 0))}
+                      {roundTotal(sessions.reduce((sum, s) => sum + minutesToHours(s.simplesMinutes), 0))}
                     </td>
                     <td className="py-2 px-3 text-body-sm font-medium text-on-surface text-right">
-                      {minutesToHours(sessions.reduce((sum, s) => sum + s.doblesMinutes, 0))}
+                      {roundTotal(sessions.reduce((sum, s) => sum + minutesToHours(s.doblesMinutes), 0))}
                     </td>
                   </tr>
                 )}

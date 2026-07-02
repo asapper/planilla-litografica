@@ -44,7 +44,7 @@ public class TasReportBuilder {
                         .collect(Collectors.toList());
 
         Map<String, Set<LocalDate>> workedDaysByEmployee = new LinkedHashMap<>();
-        Map<String, Map<TasPeriod, int[]>> minutesByEmployeePeriod = new LinkedHashMap<>();
+        Map<String, Map<TasPeriod, double[]>> hoursByEmployeePeriod = new LinkedHashMap<>();
         Map<String, Map<TasPeriod, Set<LocalDate>>> bestFitDaysByEmpPeriod = new LinkedHashMap<>();
 
         for (TasSession session : filteredSessions) {
@@ -55,13 +55,15 @@ public class TasReportBuilder {
                     .computeIfAbsent(empId, k -> new HashSet<>())
                     .add(session.getDate());
 
-            int[] minutes = minutesByEmployeePeriod
+            double[] hours = hoursByEmployeePeriod
                     .computeIfAbsent(empId, k -> new LinkedHashMap<>())
-                    .computeIfAbsent(period, k -> new int[2]);
+                    .computeIfAbsent(period, k -> new double[2]);
 
+            // Round each session to the half hour, then sum — so the per-session
+            // values shown in the review table add up to these period totals.
             if (!session.isNeedsResolution()) {
-                minutes[0] += session.getSimplesMinutes();
-                minutes[1] += session.getDoblesMinutes();
+                hours[0] += Math.floor(session.getSimplesMinutes() / 30.0) / 2.0;
+                hours[1] += Math.floor(session.getDoblesMinutes() / 30.0) / 2.0;
             }
 
             if (session.getFlags() != null && session.getFlags().contains(TasFlag.BEST_FIT_SHIFT)) {
@@ -75,21 +77,21 @@ public class TasReportBuilder {
         Map<String, String> employeeNamesFromScans = buildEmployeeNamesMap(filteredSessions);
 
         Map<String, Boolean> accruesOvertimeFlags =
-                employeeRegistryService.getAccruesOvertimeFlags(minutesByEmployeePeriod.keySet());
+                employeeRegistryService.getAccruesOvertimeFlags(hoursByEmployeePeriod.keySet());
 
         List<EmployeeRow> rows = new ArrayList<>();
 
-        for (Map.Entry<String, Map<TasPeriod, int[]>> empEntry : minutesByEmployeePeriod.entrySet()) {
+        for (Map.Entry<String, Map<TasPeriod, double[]>> empEntry : hoursByEmployeePeriod.entrySet()) {
             String empId = empEntry.getKey();
             String empName = employeeNamesFromScans.getOrDefault(empId, "");
             Set<LocalDate> workedDays = workedDaysByEmployee.getOrDefault(empId, new HashSet<>());
 
-            for (Map.Entry<TasPeriod, int[]> pEntry : empEntry.getValue().entrySet()) {
+            for (Map.Entry<TasPeriod, double[]> pEntry : empEntry.getValue().entrySet()) {
                 TasPeriod period = pEntry.getKey();
-                int[] minutes = pEntry.getValue();
+                double[] hours = pEntry.getValue();
 
-                double simplesHours = Math.floor(minutes[0] / 30.0) / 2.0;
-                double doblesHours  = Math.floor(minutes[1] / 30.0) / 2.0;
+                double simplesHours = hours[0];
+                double doblesHours  = hours[1];
 
                 LocalDate qStart = period.numeroDequincena() == 1
                         ? LocalDate.of(period.anio(), period.mes(), 1)
