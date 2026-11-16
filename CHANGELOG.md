@@ -5,6 +5,9 @@
 ### Fixes
 - **Specific startup errors.** When the backend can't start, the app now stops waiting and says why: the port is taken by another program, or the service stopped during startup (with its exit code). Previously every failure showed "No se pudo conectar con el servicio." after 20 seconds.
 
+- **Installer waits for the old backend to stop.** The install/uninstall hook now waits (up to ~10 s) until the bundled backend has actually exited, instead of a fixed 1.5 s, and logs in the installer details whether it stopped.
+- **No more database errors on every launch.** The local DB migration now uses `IF EXISTS` guards, so it no longer logs `Column "YEAR" not found` / `Table ... not found` to the H2 trace file each time the app starts.
+
 ### Security
 - **Backend only accepts local connections.** It now binds to `127.0.0.1` instead of all interfaces, so the payroll API isn't reachable from other machines on the network.
 
