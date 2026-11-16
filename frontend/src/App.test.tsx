@@ -120,7 +120,7 @@ describe('startup', () => {
     mockCheckHealth.mockClear();
     render(<App />);
     await act(async () => { await vi.runAllTimersAsync(); });
-    expect(screen.getByText(/el puerto 41301 está siendo usado por otro programa/i)).toBeInTheDocument();
+    expect(screen.getByText(/otro programa esté usando el puerto 41301/i)).toBeInTheDocument();
     expect(screen.getByText(/vuelva a abrir la aplicación/i)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /reintentar/i })).not.toBeInTheDocument();
     expect(mockCheckHealth).toHaveBeenCalledTimes(1);
@@ -154,15 +154,17 @@ describe('startup', () => {
     expect(screen.getByTestId('empty-state')).toBeInTheDocument();
   });
 
-  it('ignores a status that arrives after unmount', async () => {
+  it('does not schedule another poll when the status arrives after unmount', async () => {
+    vi.useFakeTimers();
     mockCheckHealth.mockRejectedValue(new Error('connection refused'));
     let resolveStatus: (s: unknown) => void = () => {};
     mockGetBackendStatus.mockReturnValue(new Promise(r => { resolveStatus = r; }));
     const { unmount } = render(<App />);
-    await waitFor(() => expect(mockGetBackendStatus).toHaveBeenCalled());
+    await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+    expect(mockGetBackendStatus).toHaveBeenCalled();
     unmount();
-    await act(async () => { resolveStatus({ state: 'exited', exitCode: 1 }); });
-    expect(screen.queryByText(/se detuvo/i)).not.toBeInTheDocument();
+    await act(async () => { resolveStatus(null); });
+    expect(vi.getTimerCount()).toBe(0);
   });
 
   it('shows a hint message after several failed health attempts', async () => {

@@ -191,7 +191,7 @@ To change a rule (e.g., extend the valid year range), edit `config/validation-ru
 
 If the shell detects the cause, the app stops waiting and shows it directly:
 
-- *"el puerto 41301 está siendo usado por otro programa"*: another program holds the port (see **Port conflict** below).
+- *"es posible que otro programa esté usando el puerto 41301"*: the backend exited and the port wasn't bindable just before it started. Usually another program holds it (see **Port conflict** below), but it can also follow a just-terminated old backend, so check the log too.
 - *"El servicio se detuvo inesperadamente al iniciar (código N)"*: the backend JVM exited during startup; check the log files below.
 
 Otherwise it shows *"No se pudo conectar con el servicio."* after about 20 seconds.

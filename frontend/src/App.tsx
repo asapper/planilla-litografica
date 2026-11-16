@@ -140,7 +140,7 @@ export default function App() {
           setStartFailure(failure);
           setBackendState('error');
         } else if (attempts >= MAX_ATTEMPTS) {
-          if (!cancelled) setBackendState('error');
+          setBackendState('error');
         } else {
           setTimeout(poll, RETRY_INTERVAL);
         }
@@ -180,7 +180,7 @@ export default function App() {
       <div className="fixed inset-0 flex flex-col items-center justify-center gap-4 px-6 text-center bg-surface-container-lowest">
         <p className="text-body-lg text-error">
           {startFailure.state === 'port_blocked'
-            ? `No se pudo iniciar el servicio: el puerto ${startFailure.port} está siendo usado por otro programa.`
+            ? `No se pudo iniciar el servicio: es posible que otro programa esté usando el puerto ${startFailure.port}.`
             : `El servicio se detuvo inesperadamente al iniciar${startFailure.exitCode !== null ? ` (código ${startFailure.exitCode})` : ''}.`}
         </p>
         <p className="text-body-md text-on-surface-variant">
