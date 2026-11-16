@@ -347,10 +347,37 @@ function SessionCard({ session, confirmed, resolved, crossMidnight, onConfirm }:
   const [exit,  setExit]  = useState(resolved?.resolvedEnd ?? (session.flags.includes('MISSING_EXIT') ? '' : toHHMM(session.lastScan)));
   const [editing, setEditing] = useState(false);
 
-  const needsEntry = session.flags.includes('MISSING_ENTRY');
-  const needsExit  = session.flags.includes('MISSING_EXIT');
-  const entryReadOnly = !needsEntry && !!session.effectiveStart;
-  const exitReadOnly  = !needsExit  && !!session.lastScan;
+  // A single scan is classified as entry or exit by its distance to the shift's
+  // start/end; when that guess is wrong the user can swap which side it fills.
+  const originallyNeedsEntry = session.flags.includes('MISSING_ENTRY');
+  const originallyNeedsExit  = session.flags.includes('MISSING_EXIT');
+  const recordedTime = originallyNeedsEntry !== originallyNeedsExit
+    ? toHHMM(originallyNeedsEntry ? session.lastScan : session.effectiveStart)
+    : '';
+  const canSwap = !!recordedTime;
+  const [swapped, setSwapped] = useState(() =>
+    canSwap && !!resolved
+      && (originallyNeedsEntry ? resolved.resolvedStart === recordedTime : resolved.resolvedEnd === recordedTime));
+
+  const needsEntry = swapped ? originallyNeedsExit : originallyNeedsEntry;
+  const needsExit  = swapped ? originallyNeedsEntry : originallyNeedsExit;
+  const entryReadOnly = canSwap ? !needsEntry : !needsEntry && !!session.effectiveStart;
+  const exitReadOnly  = canSwap ? !needsExit  : !needsExit  && !!session.lastScan;
+
+  const swap = () => {
+    const next = !swapped;
+    const recordedOnEntry = next ? originallyNeedsEntry : originallyNeedsExit;
+    setEntry(recordedOnEntry ? recordedTime : '');
+    setExit(recordedOnEntry ? '' : recordedTime);
+    setSwapped(next);
+  };
+
+  const displayFlagLabel = (flag: TasFlag): string => {
+    if (!swapped || (flag !== 'MISSING_ENTRY' && flag !== 'MISSING_EXIT')) return flagLabel(flag, session);
+    return flag === 'MISSING_ENTRY'
+      ? `${FLAG_LABELS.MISSING_EXIT} · Entrada ${recordedTime}`
+      : `${FLAG_LABELS.MISSING_ENTRY} · Salida ${recordedTime}`;
+  };
 
   const hoursPreview = calcHours(entry, exit, crossMidnight);
   const timesInverted = !!entry && !!exit && hoursPreview === '—';
@@ -383,7 +410,7 @@ function SessionCard({ session, confirmed, resolved, crossMidnight, onConfirm }:
         <div className="flex gap-1 flex-wrap">
           {session.flags.map(f => (
             <span key={f} className={`text-label-sm px-2 py-0.5 rounded-full ${FLAG_COLORS[f]}`}>
-              {flagLabel(f, session)}
+              {displayFlagLabel(f)}
             </span>
           ))}
         </div>
@@ -441,6 +468,15 @@ function SessionCard({ session, confirmed, resolved, crossMidnight, onConfirm }:
             {hoursPreview === '—' ? '—' : `Horas calculadas: ${hoursPreview}`}
           </span>
         </div>
+        {canSwap && (
+          <button
+            type="button"
+            onClick={swap}
+            className="m3-btn-text h-9"
+          >
+            {swapped ? 'Deshacer intercambio' : 'Intercambiar entrada/salida'}
+          </button>
+        )}
       </div>
 
       {timesInverted && (

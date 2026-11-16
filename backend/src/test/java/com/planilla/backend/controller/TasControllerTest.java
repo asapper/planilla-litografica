@@ -258,6 +258,77 @@ class TasControllerTest {
         verify(hoursCalculator).classifyHours(any(), any());
     }
 
+    private String uploadWithSingleScanSession(String matchedShiftId, java.time.LocalDateTime scan) throws Exception {
+        TasSession flagged = new TasSession();
+        flagged.setSessionId(42);
+        flagged.setEmployeeId("156");
+        flagged.setDate(scan.toLocalDate());
+        flagged.setMatchedShiftId(matchedShiftId);
+        flagged.setMatchedShiftName(matchedShiftId);
+        flagged.setScans(List.of(scan));
+        flagged.setEffectiveStart(scan);
+        flagged.setLastScan(scan);
+        flagged.setNeedsResolution(true);
+        flagged.setFlags(new ArrayList<>(List.of(
+                com.planilla.backend.model.tas.TasFlag.BEST_FIT_SHIFT,
+                com.planilla.backend.model.tas.TasFlag.MISSING_EXIT)));
+
+        TasUploadResult result = emptyResult();
+        result.setFlaggedSessions(List.of(flagged));
+        result.setAllSessions(List.of(flagged));
+        when(parserService.parse(any())).thenReturn(emptyParseResult());
+        when(uploadService.processScans(any(), any(), any())).thenReturn(result);
+
+        MockMultipartFile file = new MockMultipartFile("file", "test.csv", "text/csv", "data".getBytes());
+        String uploadResponse = mvc.perform(multipart("/api/tas/upload").file(file))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        return (String) mapper.readValue(uploadResponse, Map.class).get("uploadToken");
+    }
+
+    private List<Map<String, Object>> threeShifts() {
+        return new ArrayList<>(List.of(
+                new LinkedHashMap<>(Map.of("id", "manana", "name", "Mañana", "startTime", "07:00", "endTime", "15:00", "crossMidnight", false)),
+                new LinkedHashMap<>(Map.of("id", "tarde", "name", "Tarde", "startTime", "15:00", "endTime", "23:00", "crossMidnight", false)),
+                new LinkedHashMap<>(Map.of("id", "noche", "name", "Noche", "startTime", "19:00", "endTime", "07:00", "crossMidnight", true))));
+    }
+
+    private void resolveTimes(String token, String start, String end) throws Exception {
+        when(shiftConfigService.getAllShifts()).thenReturn(threeShifts());
+        when(reportBuilder.build(any(), any(), any(), any(), any()))
+                .thenReturn(new TasReportBuilder.BuildResult(new ArrayList<>()));
+        Map<String, Object> resolution = new LinkedHashMap<>();
+        resolution.put("sessionId", 42);
+        resolution.put("resolvedStart", start);
+        resolution.put("resolvedEnd", end);
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("uploadToken", token);
+        body.put("resolutions", List.of(resolution));
+        mvc.perform(post("/api/tas/resolve").contentType(MediaType.APPLICATION_JSON).content(json(body)))
+           .andExpect(status().isOk());
+    }
+
+    @Test
+    void resolve_swappedSingleScan_rematchesShiftFromNewEntry() throws Exception {
+        String token = uploadWithSingleScanSession("noche", java.time.LocalDateTime.of(2026, 10, 1, 17, 31));
+
+        resolveTimes(token, "2026-10-01 07:00", "2026-10-01 17:31");
+
+        TasSession resolved = tasController.stateStore.get(token).getSessions().get(0);
+        org.assertj.core.api.Assertions.assertThat(resolved.getMatchedShiftId()).isEqualTo("manana");
+        org.assertj.core.api.Assertions.assertThat(resolved.getMatchedShiftName()).isEqualTo("Mañana");
+    }
+
+    @Test
+    void resolve_unchangedEntry_keepsMatchedShift() throws Exception {
+        String token = uploadWithSingleScanSession("noche", java.time.LocalDateTime.of(2026, 10, 1, 19, 7));
+
+        resolveTimes(token, "2026-10-01 19:07", "2026-10-02 07:00");
+
+        TasSession resolved = tasController.stateStore.get(token).getSessions().get(0);
+        org.assertj.core.api.Assertions.assertThat(resolved.getMatchedShiftId()).isEqualTo("noche");
+    }
+
     @Test
     void resolve_acceptedShiftId_updatesMatchedShiftAndRecomputesHours() throws Exception {
         TasSession flagged = new TasSession();

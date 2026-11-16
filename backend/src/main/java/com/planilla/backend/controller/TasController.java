@@ -266,6 +266,17 @@ public class TasController {
                     ));
                 }
 
+                // The shift was matched on the original entry; when the user supplies a
+                // different entry (missing entry filled in, or entry/exit swapped), the
+                // shift must follow the new entry or overtime is measured against the
+                // wrong shift length.
+                if (!start.equals(session.getEffectiveStart())) {
+                    Map<String, Object> bestFit = TasSessionGrouper.findBestFitShift(start, shifts);
+                    if (bestFit != null) {
+                        session.setMatchedShiftId(TasSessionGrouper.getShiftId(bestFit));
+                        session.setMatchedShiftName((String) bestFit.get("name"));
+                    }
+                }
                 session.setEffectiveStart(start);
                 session.setLastScan(end);
                 session.setScans(List.of(start, end));
