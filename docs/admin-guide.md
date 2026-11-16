@@ -189,6 +189,13 @@ To change a rule (e.g., extend the valid year range), edit `config/validation-ru
 
 ### App window opens but data never loads / spinner keeps spinning
 
+If the shell detects the cause, the app stops waiting and shows it directly:
+
+- *"el puerto 41301 está siendo usado por otro programa"*: another program holds the port (see **Port conflict** below).
+- *"El servicio se detuvo inesperadamente al iniciar (código N)"*: the backend JVM exited during startup; check the log files below.
+
+Otherwise it shows *"No se pudo conectar con el servicio."* after about 20 seconds.
+
 The backend failed to start. Check:
 
 1. **Port conflict.** Port `41301` is in use by another process (log shows `Port 41301 was already in use`).

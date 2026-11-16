@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Fixes
+- **Specific startup errors.** When the backend can't start, the app now stops waiting and says why: the port is taken by another program, or the service stopped during startup (with its exit code). Previously every failure showed "No se pudo conectar con el servicio." after 20 seconds.
+
+### Security
+- **Backend only accepts local connections.** It now binds to `127.0.0.1` instead of all interfaces, so the payroll API isn't reachable from other machines on the network.
+
 ## v1.2.2 — 2026-11-16
 
 ### Fixes
