@@ -35,7 +35,7 @@ To change any value you must rebuild and redeploy the application. There is no e
 
 | Key | Value | Purpose |
 |-----|-------|---------|
-| `server.port` | `49301` | HTTP port the backend listens on |
+| `server.port` | `41301` | HTTP port the backend listens on |
 | `postgres.datasource.url` | `jdbc:postgresql://192.168.0.20:5432/sunhive` | Remote PostgreSQL connection |
 | `postgres.datasource.username` | set via GitHub Secret at build time | PostgreSQL credentials |
 | `postgres.datasource.password` | set via GitHub Secret at build time | PostgreSQL credentials |
@@ -190,9 +190,18 @@ To change a rule (e.g., extend the valid year range), edit `config/validation-ru
 
 The backend failed to start. Check:
 
-1. **Port conflict.** Port `49301` is in use by another process.
-   - On Windows: `netstat -ano | findstr 49301`
-   - Kill the conflicting process, then restart the app.
+1. **Port conflict.** Port `41301` is in use by another process (log shows `Port 41301 was already in use`).
+   - Find the owner (PowerShell): `Get-NetTCPConnection -LocalPort 41301 | Select LocalAddress,RemoteAddress,State,OwningProcess`
+   - A `Bound`/`Established` row owned by another program means its outbound connection was given 41301 as its source port; restarting that program frees it.
+   - Confirm 41301 is outside the machine's ephemeral range and any reserved blocks (check both IPv4 and IPv6, since Java binds dual-stack):
+     ```powershell
+     netsh int ipv4 show dynamicport tcp
+     netsh int ipv6 show dynamicport tcp
+     netsh int ipv4 show excludedportrange protocol=tcp
+     netsh int ipv6 show excludedportrange protocol=tcp
+     ```
+     Some Hyper-V/Docker setups lower the dynamic range start; if it covers 41301, the port must be changed in a new build.
+   - Up to v1.2.1 the port was `49301`, inside the Windows ephemeral range (49152–65535), which caused these collisions.
 
 2. **JRE not found.** The bundled JRE is missing or was moved.
    - Reinstall the app from the installer.

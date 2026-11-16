@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.2.2 — 2026-11-16
+
+### Fixes
+- **"No se pudo conectar con el servicio" on startup.** The backend port moved from `49301` to `41301`. 49301 is inside the Windows ephemeral range (49152–65535), so Windows could hand it to another program's outbound connection (seen in production with a local nginx), which blocked the backend from starting. On first launch after upgrading, the app also stops any 1.2.1 backend still running on the old port so it releases the local database.
+
 ## v1.2.1 — 2026-07-01
 
 Follow-up fixes to the 1.2.0 feedback.

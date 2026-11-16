@@ -19,9 +19,16 @@ fn strip_verbatim_prefix(path: &std::path::Path) -> PathBuf {
     }
 }
 
-/// The fixed loopback port the bundled backend listens on.
+/// The fixed loopback port the bundled backend listens on. Must stay below 49152:
+/// Windows hands out ports in 49152–65535 as ephemeral source ports for other
+/// apps' outbound connections, and such a socket blocks the backend's bind.
 #[cfg(any(not(debug_assertions), test))]
-const BACKEND_PORT: u16 = 49301;
+const BACKEND_PORT: u16 = 41301;
+
+/// Port used up to v1.2.1. A backend from that version still running after an
+/// upgrade holds the H2 file lock, so we still probe it and terminate the orphan.
+#[cfg(any(not(debug_assertions), test))]
+const LEGACY_BACKEND_PORT: u16 = 49301;
 
 /// Returns true if something is already accepting connections on `127.0.0.1:port`.
 ///
@@ -166,6 +173,22 @@ pub fn run() {
                 log::info!("java_bin = {}", java_bin.display());
                 log::info!("jar      = {}", jar.display());
 
+                if port_is_open(LEGACY_BACKEND_PORT) {
+                    log::info!(
+                        "a pre-1.2.2 backend is on 127.0.0.1:{LEGACY_BACKEND_PORT}; terminating it so it releases the H2 lock"
+                    );
+                    terminate_orphan_backend();
+                    if !wait_until_port_closed(
+                        LEGACY_BACKEND_PORT,
+                        25,
+                        std::time::Duration::from_millis(200),
+                    ) {
+                        log::warn!(
+                            "legacy backend on 127.0.0.1:{LEGACY_BACKEND_PORT} did not exit; the new backend may fail on the H2 lock"
+                        );
+                    }
+                }
+
                 if port_is_open(BACKEND_PORT) {
                     log::info!(
                         "a backend is already on 127.0.0.1:{BACKEND_PORT} (orphaned from a previous run); terminating it before spawning our own"
@@ -272,6 +295,13 @@ pub fn run() {
 mod tests {
     use super::strip_verbatim_prefix;
     use std::path::{Path, PathBuf};
+
+    #[test]
+    fn backend_ports_stay_out_of_windows_ephemeral_range() {
+        use super::{BACKEND_PORT, LEGACY_BACKEND_PORT};
+        assert!(BACKEND_PORT < 49152, "BACKEND_PORT must be below the Windows ephemeral range");
+        assert_ne!(BACKEND_PORT, LEGACY_BACKEND_PORT);
+    }
 
     #[test]
     fn strips_verbatim_disk_prefix() {
