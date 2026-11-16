@@ -124,6 +124,10 @@ Haga clic en el botón **"Exportar"** ubicado justo encima de la tabla de result
 
 El archivo `.csv` se descargará automáticamente a la carpeta de descargas de su navegador. Este es el archivo que deberá cargar en el Cargador de Planilla.
 
+> **Importante antes de cargar el archivo:**
+> - **No abra ni guarde el archivo en Excel.** Excel cambia el formato de las fechas (por ejemplo, `2026/10/11 15:31` pasa a `11/10/2026 15:31`) y el Cargador de Planilla ya no podrá leerlo. Si necesita revisarlo, ábralo sin guardar los cambios, o vuelva a exportarlo desde TAS.
+> - **Verifique que el período cubra la quincena completa** (del 1 al 15, o del 16 al último día del mes). Si el reporte termina antes, los días faltantes se contarán como **días no laborados** para todos los empleados.
+
 ---
 
 ### Paso 1: Cargar archivo TAS
@@ -587,6 +591,7 @@ Para guardar los cambios, haga clic en **"Guardar cambios"**. Para revertirlos, 
 | Mensaje | Causa | Solución |
 |---------|-------|----------|
 | "El archivo no tiene el formato esperado de marcaciones TAS" | El archivo seleccionado no es un reporte TAS válido | Verifique que está usando el archivo CSV exportado directamente del sistema TAS. Archivos de Excel u otros formatos no son compatibles |
+| "No se encontraron registros de empleados en el archivo." | Casi siempre, el archivo se abrió y se guardó en Excel, que cambió el formato de las fechas | Exporte el archivo de nuevo desde TAS y cárguelo sin abrirlo en Excel |
 | "No se pudo procesar el archivo TAS" | El archivo está dañado o tiene un formato corrupto | Exporte el archivo nuevamente del sistema TAS. Si el problema persiste, contacte al encargado de sistemas |
 | "No se pudo conectar con el servicio." | El componente interno de la aplicación no se inició | Haga clic en "Reintentar". Si no funciona, cierre y vuelva a abrir la aplicación |
 | "Base de datos no disponible" | La aplicación no puede alcanzar la base de datos de la empresa | Verifique que su computadora está conectada a la red interna. Si el problema persiste, contacte al encargado de sistemas |
@@ -613,6 +618,7 @@ Para guardar los cambios, haga clic en **"Guardar cambios"**. Para revertirlos, 
 
 **Los datos de un empleado parecen incorrectos:**
 - Verifique que el archivo TAS corresponde al período correcto.
+- Si todos los empleados tienen varios **días no laborados** de más, revise que el reporte cubra la quincena completa: los días que faltan en el archivo se cuentan como no laborados.
 - En la vista de detalle, expanda las marcaciones originales (pastillas azules) para comparar con las horas calculadas.
 - Si el turno asignado no es el correcto, puede ajustarlo desde la página de Configuración > Empleados.
 
