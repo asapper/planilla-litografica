@@ -53,3 +53,6 @@ docs/old/*
 docs/superpowers/*
 backlog/*
 .claudeignore
+
+# ── Incident artifacts (may contain production DB copies / payroll data) ─────
+error_logs/
