@@ -3,6 +3,61 @@ use std::sync::Mutex;
 
 struct BackendProcess(Mutex<Option<std::process::Child>>);
 
+/// What the shell knows about the backend it launched, surfaced to the frontend
+/// so a failed start shows a specific error instead of a generic health timeout.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
+#[serde(tag = "state", rename_all = "snake_case")]
+enum BackendStatus {
+    /// Dev build, or a pre-existing backend we reused but don't own.
+    Unmanaged,
+    #[cfg_attr(debug_assertions, allow(dead_code))]
+    Running { port_free_at_spawn: bool },
+    PortBlocked { port: u16 },
+    Exited {
+        #[serde(rename = "exitCode")]
+        exit_code: Option<i32>,
+    },
+}
+
+struct BackendStatusState(Mutex<BackendStatus>);
+
+/// Re-evaluates a `Running` status against the child process. An early exit is
+/// attributed to the port when the pre-spawn bind check had already failed.
+fn refresh_backend_status(
+    status: BackendStatus,
+    child: Option<&mut std::process::Child>,
+    port: u16,
+) -> BackendStatus {
+    let BackendStatus::Running { port_free_at_spawn } = status else {
+        return status;
+    };
+    let Some(child) = child else {
+        return status;
+    };
+    match child.try_wait() {
+        Ok(Some(exit)) if !port_free_at_spawn => {
+            log::error!("backend exited during startup ({exit}); port {port} was not bindable");
+            BackendStatus::PortBlocked { port }
+        }
+        Ok(Some(exit)) => {
+            log::error!("backend exited during startup ({exit})");
+            BackendStatus::Exited { exit_code: exit.code() }
+        }
+        _ => status,
+    }
+}
+
+#[tauri::command]
+fn backend_status(
+    process: tauri::State<BackendProcess>,
+    status: tauri::State<BackendStatusState>,
+) -> BackendStatus {
+    let mut status = status.0.lock().unwrap_or_else(|e| e.into_inner());
+    let mut child = process.0.lock().unwrap_or_else(|e| e.into_inner());
+    *status = refresh_backend_status(*status, child.as_mut(), BACKEND_PORT);
+    *status
+}
+
 /// Strips the Windows verbatim/extended-length path prefix (`\\?\`).
 ///
 /// `resource_dir()` returns paths carrying this prefix on Windows. The JVM
@@ -22,7 +77,6 @@ fn strip_verbatim_prefix(path: &std::path::Path) -> PathBuf {
 /// The fixed loopback port the bundled backend listens on. Must stay below 49152:
 /// Windows hands out ports in 49152–65535 as ephemeral source ports for other
 /// apps' outbound connections, and such a socket blocks the backend's bind.
-#[cfg(any(not(debug_assertions), test))]
 const BACKEND_PORT: u16 = 41301;
 
 /// Port used up to v1.2.1. A backend from that version still running after an
@@ -42,6 +96,16 @@ fn port_is_open(port: u16) -> bool {
     use std::time::Duration;
     let addr = SocketAddr::from(([127, 0, 0, 1], port));
     TcpStream::connect_timeout(&addr, Duration::from_millis(500)).is_ok()
+}
+
+/// Returns true if `127.0.0.1:port` can be bound — the address the backend binds.
+///
+/// A connect probe can't see every conflict: another app's *outbound* socket can
+/// hold the port as its ephemeral source port without listening on it. This is
+/// only a diagnostic; we still spawn the backend either way.
+#[cfg(any(not(debug_assertions), test))]
+fn port_is_bindable(port: u16) -> bool {
+    std::net::TcpListener::bind(("127.0.0.1", port)).is_ok()
 }
 
 /// Polls until nothing is listening on `port`, up to `attempts` times spaced by
@@ -147,8 +211,9 @@ pub fn run() {
                 .level(log::LevelFilter::Info)
                 .build(),
         )
-        .invoke_handler(tauri::generate_handler![open_manual])
+        .invoke_handler(tauri::generate_handler![open_manual, backend_status])
         .manage(BackendProcess(Mutex::new(None)))
+        .manage(BackendStatusState(Mutex::new(BackendStatus::Unmanaged)))
         .setup(|app| {
             #[cfg(not(debug_assertions))]
             {
@@ -211,6 +276,13 @@ pub fn run() {
                     }
                 }
 
+                let port_free_at_spawn = port_is_bindable(BACKEND_PORT);
+                if !port_free_at_spawn {
+                    log::warn!(
+                        "127.0.0.1:{BACKEND_PORT} is not bindable (likely another program's socket holds it); the backend will probably fail to start"
+                    );
+                }
+
                 let home_dir = std::env::var("USERPROFILE")
                     .or_else(|_| std::env::var("HOME"))
                     .map(std::path::PathBuf::from)
@@ -263,6 +335,8 @@ pub fn run() {
 
                 let state = app.state::<BackendProcess>();
                 *state.0.lock().unwrap() = Some(child);
+                let status = app.state::<BackendStatusState>();
+                *status.0.lock().unwrap() = BackendStatus::Running { port_free_at_spawn };
             }
 
             let _ = app;
@@ -295,6 +369,123 @@ pub fn run() {
 mod tests {
     use super::strip_verbatim_prefix;
     use std::path::{Path, PathBuf};
+
+    /// Serializes tests that bind real ports or spawn processes: a child spawned
+    /// mid-test briefly inherits open sockets, keeping a "released" port bound.
+    static NET_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+    fn net_lock() -> std::sync::MutexGuard<'static, ()> {
+        NET_LOCK.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
+    fn spawn_exiting(code: i32) -> std::process::Child {
+        #[cfg(target_os = "windows")]
+        let child = std::process::Command::new("cmd")
+            .args(["/C", &format!("exit {code}")])
+            .spawn();
+        #[cfg(not(target_os = "windows"))]
+        let child = std::process::Command::new("sh")
+            .args(["-c", &format!("exit {code}")])
+            .spawn();
+        let mut child = child.unwrap();
+        child.wait().unwrap();
+        child
+    }
+
+    fn spawn_long_running() -> std::process::Child {
+        #[cfg(target_os = "windows")]
+        let child = std::process::Command::new("cmd")
+            .args(["/C", "ping -n 30 127.0.0.1 >NUL"])
+            .spawn();
+        #[cfg(not(target_os = "windows"))]
+        let child = std::process::Command::new("sleep").arg("30").spawn();
+        child.unwrap()
+    }
+
+    #[test]
+    fn port_is_bindable_reflects_listener_presence() {
+        let _guard = net_lock();
+        use super::port_is_bindable;
+        use std::net::TcpListener;
+
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        assert!(!port_is_bindable(port), "bound port must not be bindable");
+
+        drop(listener);
+        assert!(port_is_bindable(port), "released port must be bindable");
+    }
+
+    #[test]
+    fn refresh_reports_exit_code_when_backend_dies_with_free_port() {
+        let _guard = net_lock();
+        use super::{refresh_backend_status, BackendStatus};
+        let mut child = spawn_exiting(3);
+        let status = refresh_backend_status(
+            BackendStatus::Running { port_free_at_spawn: true },
+            Some(&mut child),
+            41301,
+        );
+        assert_eq!(status, BackendStatus::Exited { exit_code: Some(3) });
+    }
+
+    #[test]
+    fn refresh_reports_port_blocked_when_backend_dies_after_failed_bind_check() {
+        let _guard = net_lock();
+        use super::{refresh_backend_status, BackendStatus};
+        let mut child = spawn_exiting(1);
+        let status = refresh_backend_status(
+            BackendStatus::Running { port_free_at_spawn: false },
+            Some(&mut child),
+            41301,
+        );
+        assert_eq!(status, BackendStatus::PortBlocked { port: 41301 });
+    }
+
+    #[test]
+    fn refresh_keeps_running_while_backend_is_alive() {
+        let _guard = net_lock();
+        use super::{refresh_backend_status, BackendStatus};
+        let mut child = spawn_long_running();
+        let running = BackendStatus::Running { port_free_at_spawn: true };
+        let status = refresh_backend_status(running, Some(&mut child), 41301);
+        let _ = child.kill();
+        let _ = child.wait();
+        assert_eq!(status, running);
+    }
+
+    #[test]
+    fn refresh_leaves_non_running_statuses_untouched() {
+        use super::{refresh_backend_status, BackendStatus};
+        for status in [
+            BackendStatus::Unmanaged,
+            BackendStatus::PortBlocked { port: 41301 },
+            BackendStatus::Exited { exit_code: None },
+        ] {
+            assert_eq!(refresh_backend_status(status, None, 41301), status);
+        }
+        let running = BackendStatus::Running { port_free_at_spawn: true };
+        assert_eq!(refresh_backend_status(running, None, 41301), running);
+    }
+
+    #[test]
+    fn backend_status_serializes_to_the_frontend_contract() {
+        use super::BackendStatus;
+        let json = |s: BackendStatus| serde_json::to_value(s).unwrap();
+        assert_eq!(json(BackendStatus::Unmanaged), serde_json::json!({"state": "unmanaged"}));
+        assert_eq!(
+            json(BackendStatus::PortBlocked { port: 41301 }),
+            serde_json::json!({"state": "port_blocked", "port": 41301})
+        );
+        assert_eq!(
+            json(BackendStatus::Exited { exit_code: Some(1) }),
+            serde_json::json!({"state": "exited", "exitCode": 1})
+        );
+        assert_eq!(
+            json(BackendStatus::Running { port_free_at_spawn: true })["state"],
+            "running"
+        );
+    }
 
     #[test]
     fn backend_ports_stay_out_of_windows_ephemeral_range() {
@@ -331,6 +522,7 @@ mod tests {
 
     #[test]
     fn port_is_open_detects_listener_presence() {
+        let _guard = net_lock();
         use super::port_is_open;
         use std::net::TcpListener;
 
@@ -344,6 +536,7 @@ mod tests {
 
     #[test]
     fn wait_until_port_closed_reflects_listener_lifecycle() {
+        let _guard = net_lock();
         use super::wait_until_port_closed;
         use std::net::TcpListener;
         use std::time::Duration;

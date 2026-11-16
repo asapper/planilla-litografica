@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { checkHealth, checkDbHealth } from './api';
+import { getBackendStatus, asStartFailure, type BackendStartFailure } from './backendStatus';
 import AlertMessage from './components/ui/AlertMessage';
 import { uploadTasFile } from './tasApi';
 import { useTasStore } from './tasStore';
@@ -37,6 +38,7 @@ export default function App() {
   const [backendState, setBackendState] = useState<BackendState>('starting');
   const [retryKey, setRetryKey] = useState(0);
   const [startAttempts, setStartAttempts] = useState(0);
+  const [startFailure, setStartFailure] = useState<BackendStartFailure | null>(null);
   const [dbHealthy, setDbHealthy] = useState<boolean | null>(null);
   const [currentView, setCurrentView] = useState<AppView>('tas');
   const [tasFileName, setTasFileName] = useState('');
@@ -132,8 +134,13 @@ export default function App() {
       } catch {
         attempts++;
         setStartAttempts(attempts);
-        if (attempts >= MAX_ATTEMPTS) {
-          if (!cancelled) setBackendState('error');
+        const failure = asStartFailure(await getBackendStatus());
+        if (cancelled) return;
+        if (failure) {
+          setStartFailure(failure);
+          setBackendState('error');
+        } else if (attempts >= MAX_ATTEMPTS) {
+          setBackendState('error');
         } else {
           setTimeout(poll, RETRY_INTERVAL);
         }
@@ -147,6 +154,7 @@ export default function App() {
   const retry = () => {
     setBackendState('starting');
     setStartAttempts(0);
+    setStartFailure(null);
     setDbHealthy(null);
     setRetryKey(k => k + 1);
   };
@@ -167,6 +175,23 @@ export default function App() {
   }
 
   // ── Backend unreachable error ────────────────────────────────────────
+  if (backendState === 'error' && startFailure) {
+    return (
+      <div className="fixed inset-0 flex flex-col items-center justify-center gap-4 px-6 text-center bg-surface-container-lowest">
+        <p className="text-body-lg text-error">
+          {startFailure.state === 'port_blocked'
+            ? `No se pudo iniciar el servicio: es posible que otro programa esté usando el puerto ${startFailure.port}.`
+            : `El servicio se detuvo inesperadamente al iniciar${startFailure.exitCode !== null ? ` (código ${startFailure.exitCode})` : ''}.`}
+        </p>
+        <p className="text-body-md text-on-surface-variant">
+          {startFailure.state === 'port_blocked'
+            ? 'Cierre ese programa o reinicie el equipo, y luego vuelva a abrir la aplicación.'
+            : 'Cierre y vuelva a abrir la aplicación. Si el problema continúa, envíe a soporte los archivos de la carpeta .planilla\\logs de su usuario.'}
+        </p>
+      </div>
+    );
+  }
+
   if (backendState === 'error') {
     return (
       <div className="fixed inset-0 flex flex-col items-center justify-center gap-6 bg-surface-container-lowest">

@@ -36,6 +36,7 @@ To change any value you must rebuild and redeploy the application. There is no e
 | Key | Value | Purpose |
 |-----|-------|---------|
 | `server.port` | `41301` | HTTP port the backend listens on |
+| `server.address` | `127.0.0.1` | Backend only accepts connections from this machine |
 | `postgres.datasource.url` | `jdbc:postgresql://192.168.0.20:5432/sunhive` | Remote PostgreSQL connection |
 | `postgres.datasource.username` | set via GitHub Secret at build time | PostgreSQL credentials |
 | `postgres.datasource.password` | set via GitHub Secret at build time | PostgreSQL credentials |
@@ -187,6 +188,13 @@ To change a rule (e.g., extend the valid year range), edit `config/validation-ru
 ## 7. Troubleshooting
 
 ### App window opens but data never loads / spinner keeps spinning
+
+If the shell detects the cause, the app stops waiting and shows it directly:
+
+- *"es posible que otro programa esté usando el puerto 41301"*: the backend exited and the port wasn't bindable just before it started. Usually another program holds it (see **Port conflict** below), but it can also follow a just-terminated old backend, so check the log too.
+- *"El servicio se detuvo inesperadamente al iniciar (código N)"*: the backend JVM exited during startup; check the log files below.
+
+Otherwise it shows *"No se pudo conectar con el servicio."* after about 20 seconds.
 
 The backend failed to start. Check:
 

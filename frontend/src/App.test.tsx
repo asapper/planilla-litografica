@@ -11,6 +11,13 @@ vi.mock('./api', () => ({
   checkDbHealth: mockCheckDbHealth,
 }));
 
+const mockGetBackendStatus = vi.hoisted(() => vi.fn());
+
+vi.mock('./backendStatus', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./backendStatus')>()),
+  getBackendStatus: mockGetBackendStatus,
+}));
+
 const mockUploadTasFile = vi.hoisted(() => vi.fn());
 
 vi.mock('./tasApi', () => ({
@@ -66,6 +73,7 @@ beforeEach(() => {
   useTasStore.getState().resetTas();
   mockCheckHealth.mockResolvedValue(undefined);
   mockCheckDbHealth.mockResolvedValue(true);
+  mockGetBackendStatus.mockResolvedValue(null);
   mockUploadTasFile.mockResolvedValue({
     uploadToken: 'token-1',
     flaggedSessions: [],
@@ -103,6 +111,60 @@ describe('startup', () => {
     await act(async () => { await vi.runAllTimersAsync(); });
     expect(screen.getByText(/no se pudo conectar/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /reintentar/i })).toBeInTheDocument();
+  });
+
+  it('stops polling and explains a blocked port reported by the shell', async () => {
+    vi.useFakeTimers();
+    mockCheckHealth.mockRejectedValue(new Error('connection refused'));
+    mockGetBackendStatus.mockResolvedValue({ state: 'port_blocked', port: 41301 });
+    mockCheckHealth.mockClear();
+    render(<App />);
+    await act(async () => { await vi.runAllTimersAsync(); });
+    expect(screen.getByText(/otro programa esté usando el puerto 41301/i)).toBeInTheDocument();
+    expect(screen.getByText(/vuelva a abrir la aplicación/i)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /reintentar/i })).not.toBeInTheDocument();
+    expect(mockCheckHealth).toHaveBeenCalledTimes(1);
+  });
+
+  it('explains an early backend exit with its exit code', async () => {
+    vi.useFakeTimers();
+    mockCheckHealth.mockRejectedValue(new Error('connection refused'));
+    mockGetBackendStatus.mockResolvedValue({ state: 'exited', exitCode: 1 });
+    render(<App />);
+    await act(async () => { await vi.runAllTimersAsync(); });
+    expect(screen.getByText(/se detuvo inesperadamente al iniciar \(código 1\)/i)).toBeInTheDocument();
+    expect(screen.getByText(/\.planilla\\logs/)).toBeInTheDocument();
+  });
+
+  it('omits the exit code when the shell has none', async () => {
+    vi.useFakeTimers();
+    mockCheckHealth.mockRejectedValue(new Error('connection refused'));
+    mockGetBackendStatus.mockResolvedValue({ state: 'exited', exitCode: null });
+    render(<App />);
+    await act(async () => { await vi.runAllTimersAsync(); });
+    expect(screen.getByText('El servicio se detuvo inesperadamente al iniciar.')).toBeInTheDocument();
+  });
+
+  it('keeps polling while the shell reports the backend as running', async () => {
+    vi.useFakeTimers();
+    mockCheckHealth.mockRejectedValueOnce(new Error('not ready')).mockResolvedValue(undefined);
+    mockGetBackendStatus.mockResolvedValue({ state: 'running' });
+    render(<App />);
+    await act(async () => { await vi.runAllTimersAsync(); });
+    expect(screen.getByTestId('empty-state')).toBeInTheDocument();
+  });
+
+  it('does not schedule another poll when the status arrives after unmount', async () => {
+    vi.useFakeTimers();
+    mockCheckHealth.mockRejectedValue(new Error('connection refused'));
+    let resolveStatus: (s: unknown) => void = () => {};
+    mockGetBackendStatus.mockReturnValue(new Promise(r => { resolveStatus = r; }));
+    const { unmount } = render(<App />);
+    await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+    expect(mockGetBackendStatus).toHaveBeenCalled();
+    unmount();
+    await act(async () => { resolveStatus(null); });
+    expect(vi.getTimerCount()).toBe(0);
   });
 
   it('shows a hint message after several failed health attempts', async () => {
