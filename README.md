@@ -26,7 +26,7 @@ A Tauri desktop app for processing TAS (Time & Attendance System) attendance rep
 │  ┌─────────────────┐   ┌────────────────────┐│
 │  │  React frontend │   │  Spring Boot       ││
 │  │  (Vite, port    │◄─►│  backend           ││
-│  │   5173 in dev)  │   │  (port 49301)      ││
+│  │   5173 in dev)  │   │  (port 41301)      ││
 │  └─────────────────┘   └────────┬───────────┘│
 └─────────────────────────────────┼────────────┘
                                   │

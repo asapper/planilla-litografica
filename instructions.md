@@ -2,7 +2,7 @@
 
 Open two terminal tabs — one for each process.
 
-## Backend (Spring Boot — port 49301)
+## Backend (Spring Boot — port 41301)
 
 ```bash
 cd backend
