@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useTasStore } from '../../tasStore';
+import { useTasStore, type ResolvedSessionEntry } from '../../tasStore';
 import { resolveVerification } from '../../tasApi';
 import type { TasResolution } from '../../tasApi';
 import { MONTH_NAMES_ES } from '../../dateNames';
@@ -51,6 +51,20 @@ function toHHMM(timeStr: string | null): string {
   if (!timeStr) return '';
   const timePart = timeStr.includes('T') ? timeStr.split('T')[1] : timeStr;
   return timePart.slice(0, 5);
+}
+
+const MAX_SWAPPED_SPAN_MINUTES = 16 * 60;
+
+function toMinutes(hhmm: string): number {
+  const [h, m] = hhmm.split(':').map(Number);
+  return h * 60 + m;
+}
+
+function shiftIsoDate(date: string, days: number): string {
+  if (days === 0 || !date) return date;
+  const [y, m, d] = date.split('-').map(Number);
+  const nd = new Date(y, m - 1, d + days);
+  return `${nd.getFullYear()}-${String(nd.getMonth() + 1).padStart(2, '0')}-${String(nd.getDate()).padStart(2, '0')}`;
 }
 
 function calcHours(entry: string, exit: string, crossMidnight: boolean): string {
@@ -337,7 +351,7 @@ interface SessionCardProps {
   confirmed: boolean;
   resolved?: { resolvedStart: string; resolvedEnd: string };
   crossMidnight: boolean;
-  onConfirm: (resolvedStart: string, resolvedEnd: string) => void;
+  onConfirm: (resolvedStart: string, resolvedEnd: string, offsets?: Pick<ResolvedSessionEntry, 'startDayOffset' | 'endDayOffset'>) => void;
 }
 
 function SessionCard({ session, confirmed, resolved, crossMidnight, onConfirm }: SessionCardProps) {
@@ -354,7 +368,7 @@ function SessionCard({ session, confirmed, resolved, crossMidnight, onConfirm }:
   const recordedTime = originallyNeedsEntry !== originallyNeedsExit
     ? toHHMM(originallyNeedsEntry ? session.lastScan : session.effectiveStart)
     : '';
-  const canSwap = !!recordedTime;
+  const canSwap = !!recordedTime && session.scans.length === 1;
   const [swapped, setSwapped] = useState(() =>
     canSwap && !!resolved
       && (originallyNeedsEntry ? resolved.resolvedStart === recordedTime : resolved.resolvedEnd === recordedTime));
@@ -379,8 +393,22 @@ function SessionCard({ session, confirmed, resolved, crossMidnight, onConfirm }:
       : `${FLAG_LABELS.MISSING_ENTRY} · Salida ${recordedTime}`;
   };
 
-  const hoursPreview = calcHours(entry, exit, crossMidnight);
+  // A swapped day is anchored on the recorded scan's real date, so it may cross
+  // midnight whatever the (possibly misread) matched shift says, up to a sane span.
+  const overnight = swapped && !!entry && !!exit && toMinutes(exit) <= toMinutes(entry);
+  const swappedSpanTooLong = overnight && toMinutes(exit) + 1440 - toMinutes(entry) > MAX_SWAPPED_SPAN_MINUTES;
+  const hoursPreview = swappedSpanTooLong ? '—' : calcHours(entry, exit, swapped || crossMidnight);
   const timesInverted = !!entry && !!exit && hoursPreview === '—';
+
+  const confirm = () => {
+    if (!swapped) {
+      onConfirm(entry, exit);
+      return;
+    }
+    onConfirm(entry, exit, originallyNeedsEntry
+      ? { startDayOffset: 0, endDayOffset: overnight ? 1 : 0 }
+      : { startDayOffset: overnight ? -1 : 0, endDayOffset: 0 });
+  };
   const canConfirm = (!needsEntry || !!entry) && (!needsExit || !!exit) && !timesInverted;
 
   if (confirmed && !editing) {
@@ -480,12 +508,16 @@ function SessionCard({ session, confirmed, resolved, crossMidnight, onConfirm }:
       </div>
 
       {timesInverted && (
-        <p className="text-body-sm text-error mb-2">La entrada debe ser antes de la salida{crossMidnight ? '' : ' (mismo día)'}</p>
+        <p className="text-body-sm text-error mb-2">
+          {swappedSpanTooLong
+            ? 'La jornada no puede durar más de 16 horas'
+            : `La entrada debe ser antes de la salida${crossMidnight || swapped ? '' : ' (mismo día)'}`}
+        </p>
       )}
 
       <button
         disabled={!canConfirm}
-        onClick={() => { onConfirm(entry, exit); setEditing(false); }}
+        onClick={() => { confirm(); setEditing(false); }}
         className="m3-btn-filled disabled:opacity-40 disabled:cursor-not-allowed"
       >
         Confirmar
@@ -598,15 +630,17 @@ export default function VerificationScreen() {
           const isCrossMidnight = !!matchedShift?.crossMidnight;
           const [eh] = resolved.resolvedStart.split(':').map(Number);
           const [xh] = resolved.resolvedEnd.split(':').map(Number);
+          let startDate = date;
           let endDate = date;
-          if (isCrossMidnight && xh < eh && date) {
-            const [y, m, day] = date.split('-').map(Number);
-            const nd = new Date(y, m - 1, day + 1);
-            endDate = `${nd.getFullYear()}-${String(nd.getMonth() + 1).padStart(2, '0')}-${String(nd.getDate()).padStart(2, '0')}`;
+          if (resolved.startDayOffset !== undefined || resolved.endDayOffset !== undefined) {
+            startDate = shiftIsoDate(date, resolved.startDayOffset ?? 0);
+            endDate   = shiftIsoDate(date, resolved.endDayOffset ?? 0);
+          } else if (isCrossMidnight && xh < eh && date) {
+            endDate = shiftIsoDate(date, 1);
           }
           return {
             sessionId: Number(id),
-            resolvedStart: `${date} ${resolved.resolvedStart}`,
+            resolvedStart: `${startDate} ${resolved.resolvedStart}`,
             resolvedEnd:   `${endDate} ${resolved.resolvedEnd}`,
           };
         }),
@@ -714,8 +748,8 @@ export default function VerificationScreen() {
                           confirmed={!!resolvedSessions[item.session.sessionId]}
                           resolved={resolvedSessions[item.session.sessionId]}
                           crossMidnight={matchedShift?.crossMidnight ?? item.session.crossMidnight}
-                          onConfirm={(resolvedStart, resolvedEnd) =>
-                            setResolvedSession(item.session.sessionId, { resolvedStart, resolvedEnd })
+                          onConfirm={(resolvedStart, resolvedEnd, offsets) =>
+                            setResolvedSession(item.session.sessionId, { resolvedStart, resolvedEnd, ...offsets })
                           }
                         />
                       );

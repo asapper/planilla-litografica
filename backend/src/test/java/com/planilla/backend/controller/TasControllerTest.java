@@ -258,7 +258,9 @@ class TasControllerTest {
         verify(hoursCalculator).classifyHours(any(), any());
     }
 
-    private String uploadWithSingleScanSession(String matchedShiftId, java.time.LocalDateTime scan) throws Exception {
+    private String uploadWithSingleScanSession(String matchedShiftId, java.time.LocalDateTime scan,
+                                               com.planilla.backend.model.tas.TasFlag... flags) throws Exception {
+        boolean scanIsEntry = List.of(flags).contains(com.planilla.backend.model.tas.TasFlag.MISSING_EXIT);
         TasSession flagged = new TasSession();
         flagged.setSessionId(42);
         flagged.setEmployeeId("156");
@@ -266,12 +268,10 @@ class TasControllerTest {
         flagged.setMatchedShiftId(matchedShiftId);
         flagged.setMatchedShiftName(matchedShiftId);
         flagged.setScans(List.of(scan));
-        flagged.setEffectiveStart(scan);
+        flagged.setEffectiveStart(scanIsEntry ? scan : null);
         flagged.setLastScan(scan);
         flagged.setNeedsResolution(true);
-        flagged.setFlags(new ArrayList<>(List.of(
-                com.planilla.backend.model.tas.TasFlag.BEST_FIT_SHIFT,
-                com.planilla.backend.model.tas.TasFlag.MISSING_EXIT)));
+        flagged.setFlags(new ArrayList<>(List.of(flags)));
 
         TasUploadResult result = emptyResult();
         result.setFlaggedSessions(List.of(flagged));
@@ -293,8 +293,8 @@ class TasControllerTest {
                 new LinkedHashMap<>(Map.of("id", "noche", "name", "Noche", "startTime", "19:00", "endTime", "07:00", "crossMidnight", true))));
     }
 
-    private void resolveTimes(String token, String start, String end) throws Exception {
-        when(shiftConfigService.getAllShifts()).thenReturn(threeShifts());
+    private String resolvedShift(String token, String start, String end, List<Map<String, Object>> shifts) throws Exception {
+        when(shiftConfigService.getAllShifts()).thenReturn(shifts);
         when(reportBuilder.build(any(), any(), any(), any(), any()))
                 .thenReturn(new TasReportBuilder.BuildResult(new ArrayList<>()));
         Map<String, Object> resolution = new LinkedHashMap<>();
@@ -306,27 +306,82 @@ class TasControllerTest {
         body.put("resolutions", List.of(resolution));
         mvc.perform(post("/api/tas/resolve").contentType(MediaType.APPLICATION_JSON).content(json(body)))
            .andExpect(status().isOk());
+        return tasController.stateStore.get(token).getSessions().get(0).getMatchedShiftId();
     }
 
     @Test
-    void resolve_swappedSingleScan_rematchesShiftFromNewEntry() throws Exception {
-        String token = uploadWithSingleScanSession("noche", java.time.LocalDateTime.of(2026, 10, 1, 17, 31));
+    void resolve_swappedEntryToExit_rematchesShiftFromTypedEntry() throws Exception {
+        String token = uploadWithSingleScanSession("noche", java.time.LocalDateTime.of(2026, 10, 1, 17, 31),
+                com.planilla.backend.model.tas.TasFlag.SHIFT_MISMATCH, com.planilla.backend.model.tas.TasFlag.MISSING_EXIT);
 
-        resolveTimes(token, "2026-10-01 07:00", "2026-10-01 17:31");
+        org.assertj.core.api.Assertions.assertThat(
+                resolvedShift(token, "2026-10-01 07:00", "2026-10-01 17:31", threeShifts())).isEqualTo("manana");
+        org.assertj.core.api.Assertions.assertThat(
+                tasController.stateStore.get(token).getSessions().get(0).getMatchedShiftName()).isEqualTo("Mañana");
+    }
 
-        TasSession resolved = tasController.stateStore.get(token).getSessions().get(0);
-        org.assertj.core.api.Assertions.assertThat(resolved.getMatchedShiftId()).isEqualTo("manana");
-        org.assertj.core.api.Assertions.assertThat(resolved.getMatchedShiftName()).isEqualTo("Mañana");
+    @Test
+    void resolve_swappedExitToEntry_rematchesShiftFromRecordedScan() throws Exception {
+        String token = uploadWithSingleScanSession("tarde", java.time.LocalDateTime.of(2026, 10, 1, 22, 0),
+                com.planilla.backend.model.tas.TasFlag.MISSING_ENTRY);
+
+        org.assertj.core.api.Assertions.assertThat(
+                resolvedShift(token, "2026-10-01 22:00", "2026-10-02 06:00", threeShifts())).isEqualTo("noche");
+    }
+
+    @Test
+    void resolve_guessedShiftWithTypedEntry_rematchesShift() throws Exception {
+        String token = uploadWithSingleScanSession("tarde", java.time.LocalDateTime.of(2026, 10, 1, 16, 58),
+                com.planilla.backend.model.tas.TasFlag.BEST_FIT_SHIFT, com.planilla.backend.model.tas.TasFlag.MISSING_ENTRY);
+
+        org.assertj.core.api.Assertions.assertThat(
+                resolvedShift(token, "2026-10-01 07:00", "2026-10-01 16:58", threeShifts())).isEqualTo("manana");
+    }
+
+    @Test
+    void resolve_lateArrivalTypedOnMatchedShift_keepsShift() throws Exception {
+        String token = uploadWithSingleScanSession("manana", java.time.LocalDateTime.of(2026, 10, 1, 15, 0),
+                com.planilla.backend.model.tas.TasFlag.MISSING_ENTRY);
+
+        org.assertj.core.api.Assertions.assertThat(
+                resolvedShift(token, "2026-10-01 11:05", "2026-10-01 15:00", threeShifts())).isEqualTo("manana");
     }
 
     @Test
     void resolve_unchangedEntry_keepsMatchedShift() throws Exception {
-        String token = uploadWithSingleScanSession("noche", java.time.LocalDateTime.of(2026, 10, 1, 19, 7));
+        String token = uploadWithSingleScanSession("noche", java.time.LocalDateTime.of(2026, 10, 1, 19, 7),
+                com.planilla.backend.model.tas.TasFlag.BEST_FIT_SHIFT, com.planilla.backend.model.tas.TasFlag.MISSING_EXIT);
 
-        resolveTimes(token, "2026-10-01 19:07", "2026-10-02 07:00");
+        org.assertj.core.api.Assertions.assertThat(
+                resolvedShift(token, "2026-10-01 19:07", "2026-10-02 07:00", threeShifts())).isEqualTo("noche");
+    }
 
-        TasSession resolved = tasController.stateStore.get(token).getSessions().get(0);
-        org.assertj.core.api.Assertions.assertThat(resolved.getMatchedShiftId()).isEqualTo("noche");
+    @Test
+    void resolve_swapWithNoConfiguredShifts_keepsMatchedShift() throws Exception {
+        String token = uploadWithSingleScanSession("noche", java.time.LocalDateTime.of(2026, 10, 1, 17, 31),
+                com.planilla.backend.model.tas.TasFlag.MISSING_EXIT);
+
+        org.assertj.core.api.Assertions.assertThat(
+                resolvedShift(token, "2026-10-01 07:00", "2026-10-01 17:31", new ArrayList<>())).isEqualTo("noche");
+    }
+
+    @Test
+    void isSwappedSingleScan_falseForMultiScanAndUnchangedSides() {
+        java.time.LocalDateTime a = java.time.LocalDateTime.of(2026, 10, 1, 10, 0);
+        java.time.LocalDateTime b = java.time.LocalDateTime.of(2026, 10, 1, 15, 0);
+        TasSession multi = new TasSession();
+        multi.setScans(List.of(a, b));
+        multi.setFlags(new ArrayList<>(List.of(com.planilla.backend.model.tas.TasFlag.MISSING_ENTRY)));
+        org.assertj.core.api.Assertions.assertThat(TasController.isSwappedSingleScan(multi, b, a.plusHours(8))).isFalse();
+
+        TasSession single = new TasSession();
+        single.setScans(List.of(b));
+        single.setFlags(new ArrayList<>(List.of(com.planilla.backend.model.tas.TasFlag.MISSING_ENTRY)));
+        org.assertj.core.api.Assertions.assertThat(TasController.isSwappedSingleScan(single, a, b)).isFalse();
+        org.assertj.core.api.Assertions.assertThat(TasController.isSwappedSingleScan(single, b, b.plusHours(8))).isTrue();
+
+        single.setFlags(null);
+        org.assertj.core.api.Assertions.assertThat(TasController.isSwappedSingleScan(single, b, b.plusHours(8))).isFalse();
     }
 
     @Test
