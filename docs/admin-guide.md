@@ -36,6 +36,7 @@ To change any value you must rebuild and redeploy the application. There is no e
 | Key | Value | Purpose |
 |-----|-------|---------|
 | `server.port` | `41301` | HTTP port the backend listens on |
+| `server.address` | `127.0.0.1` | Backend only accepts connections from this machine |
 | `postgres.datasource.url` | `jdbc:postgresql://192.168.0.20:5432/sunhive` | Remote PostgreSQL connection |
 | `postgres.datasource.username` | set via GitHub Secret at build time | PostgreSQL credentials |
 | `postgres.datasource.password` | set via GitHub Secret at build time | PostgreSQL credentials |
