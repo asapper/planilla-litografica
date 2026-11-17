@@ -256,20 +256,21 @@ El sistema detectó dos sesiones de trabajo diferentes para el mismo empleado en
 
 **Qué hacer:**
 1. Revise ambas sesiones detectadas.
-2. Decida si desea conservar una de las dos sesiones o mantener ambas.
-3. Haga clic en **"Confirmar"**.
+2. La opción **"Mantener todas"** viene seleccionada y se aplica sola: no necesita hacer nada para continuar, y la tarjeta no cuenta como pendiente.
+3. Si una de las sesiones sobra, seleccione la que desea conservar. La tarjeta se cierra y muestra **"Confirmado"**; puede reabrirla con **"Editar"**.
 
 #### Jornada corta
 
 **Etiqueta:** `Jornada corta`
 
-El empleado salió significativamente antes de lo esperado según su turno asignado. La aplicación le muestra la sesión detectada para que pueda revisarla.
+El empleado salió significativamente antes de lo esperado según su turno asignado. Estas sesiones aparecen al final de la pantalla, en la sección **"Jornadas cortas"**, cada vez que la verificación se abre por otro motivo. Son informativas: no bloquean el botón **"Revisar"**. Si el archivo no tiene nada más que revisar, la aplicación pasa directo a la revisión y las jornadas cortas se pagan tal como se marcaron.
 
 **Qué hacer:**
 1. Revise las horas de entrada y salida detectadas.
-2. Si la salida temprana es correcta, confirme la sesión tal como está.
-3. Si la hora de salida es incorrecta, corrija el campo **"Salida"** con la hora correcta.
-4. Haga clic en **"Confirmar"**.
+2. Si la salida temprana es correcta, no haga nada.
+3. Si la hora de salida es incorrecta, corrija el campo **"Salida"** y haga clic en **"Registrar corrección"**. La tarjeta muestra **"Corrección registrada · Salida HH:MM"**; con **"Deshacer"** vuelve a la hora marcada.
+
+Si la salida queda antes de la entrada en un turno de día, verá **"La hora de salida debe ser posterior a la hora de entrada."** y el botón queda deshabilitado. En un turno de noche, una salida después de la medianoche es válida.
 
 #### Corte de período
 

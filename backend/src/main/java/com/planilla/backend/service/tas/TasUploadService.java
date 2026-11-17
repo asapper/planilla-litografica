@@ -109,7 +109,7 @@ public class TasUploadService {
                 registryService.getAbsentActiveEmployees(sessionEmployeeIds);
 
         List<TasSession> flaggedSessions = sessions.stream()
-                .filter(TasSession::isNeedsResolution)
+                .filter(TasSession::shownForVerification)
                 .collect(Collectors.toList());
 
         TasUploadResult result = new TasUploadResult();

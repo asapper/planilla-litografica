@@ -97,6 +97,10 @@ public class TasController {
         return ResponseEntity.status(status).body(Map.of("code", code, "message", message));
     }
 
+    private static ResponseEntity<Map<String, Object>> sessionError(String code, String message, int sessionId) {
+        return ResponseEntity.status(400).body(Map.of("code", code, "message", message, "sessionId", sessionId));
+    }
+
     /** Call inside {@code synchronized (state)}: false once the state was replaced or removed. */
     private boolean isCurrent(String token, TasUploadState state) {
         return stateStore.get(token) == state;
@@ -253,7 +257,7 @@ public class TasController {
             final List<TasSession> allSessions = sessions;
 
             Map<Integer, TasSession> flaggedBySessionId = sessions.stream()
-                    .filter(TasSession::isNeedsResolution)
+                    .filter(TasSession::shownForVerification)
                     .collect(Collectors.toMap(TasSession::getSessionId, s -> s));
 
             // Validate the whole batch before touching the state: a 400 halfway through
@@ -284,7 +288,7 @@ public class TasController {
             }
 
             List<TasSession> remainingFlagged = sessions.stream()
-                    .filter(TasSession::isNeedsResolution)
+                    .filter(TasSession::shownForVerification)
                     .collect(Collectors.toList());
 
             Map<String, Object> resp = new LinkedHashMap<>();
@@ -344,13 +348,18 @@ public class TasController {
         Object acceptedShiftIdObj = res.get("acceptedShiftId");
 
         if (resolvedStartObj != null && !(resolvedStartObj instanceof String)) {
-            return error(400, "INVALID_TIME_FORMAT", "Formato de hora inválido. Use yyyy-MM-dd HH:mm.");
+            return sessionError("INVALID_TIME_FORMAT", "Formato de hora inválido. Use yyyy-MM-dd HH:mm.", session.getSessionId());
         }
         if (resolvedEndObj != null && !(resolvedEndObj instanceof String)) {
-            return error(400, "INVALID_TIME_FORMAT", "Formato de hora inválido. Use yyyy-MM-dd HH:mm.");
+            return sessionError("INVALID_TIME_FORMAT", "Formato de hora inválido. Use yyyy-MM-dd HH:mm.", session.getSessionId());
         }
         if (acceptedShiftIdObj != null && !(acceptedShiftIdObj instanceof String)) {
-            return error(400, "INVALID_FIELD_FORMAT", "El ID de turno debe ser un texto.");
+            return sessionError("INVALID_FIELD_FORMAT", "El ID de turno debe ser un texto.", session.getSessionId());
+        }
+
+        if (!session.isNeedsResolution() && acceptedShiftIdObj != null) {
+            return sessionError("INVALID_FIELD_FORMAT",
+                    "En una jornada corta solo se puede corregir la hora.", session.getSessionId());
         }
 
         String resolvedStart   = (String) resolvedStartObj;
@@ -365,11 +374,11 @@ public class TasController {
                 start = LocalDateTime.parse(resolvedStart, dtf);
                 end   = LocalDateTime.parse(resolvedEnd, dtf);
             } catch (java.time.format.DateTimeParseException e) {
-                return error(400, "INVALID_TIME_FORMAT", "Formato de hora inválido. Use yyyy-MM-dd HH:mm.");
+                return sessionError("INVALID_TIME_FORMAT", "Formato de hora inválido. Use yyyy-MM-dd HH:mm.", session.getSessionId());
             }
             if (!end.isAfter(start)) {
-                return error(400, "INVALID_TIME_RANGE",
-                        "La hora de salida debe ser posterior a la hora de entrada.");
+                return sessionError("INVALID_TIME_RANGE",
+                        "La hora de salida debe ser posterior a la hora de entrada.", session.getSessionId());
             }
             operations.add(() -> applyResolvedTimes(session, start, end, shifts));
         } else if (acceptedShiftId != null) {
@@ -871,6 +880,7 @@ public class TasController {
 
             boolean discard = !keepAll && session.getSessionId() != keepSessionId;
             if (discard) {
+                session.getFlags().removeIf(f -> f == TasFlag.SHORT_DAY);
                 session.setWorkedMinutes(0);
                 session.setWorkedHours(0.0);
                 session.setSimplesMinutes(0);

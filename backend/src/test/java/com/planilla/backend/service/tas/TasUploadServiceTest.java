@@ -263,4 +263,36 @@ class TasUploadServiceTest {
         assertThat(result.getFlaggedSessions()).isEmpty();
         verify(hoursCalculator, times(2)).recompute(any(), any());
     }
+
+    @Test
+    void process_listsShortDaysForVerificationWithoutBlocking() throws Exception {
+        List<TasScanRecord> scans = List.of(
+            scan("100", "2026-03-10T07:00"),
+            scan("100", "2026-03-10T11:00")
+        );
+        when(parserService.parse(any())).thenReturn(new TasParserService.ParseResult(scans, List.of()));
+        when(registryService.getInactiveEmployeesPresent(any())).thenReturn(Collections.emptyList());
+        when(registryService.getAll(any(), any(), any())).thenReturn(Collections.emptyList());
+        when(shiftConfigService.getAllShifts()).thenReturn(List.of());
+        when(holidayService.fetchForDateRange(any(), any())).thenReturn(true);
+
+        TasSession shortDay = new TasSession();
+        shortDay.setEmployeeId("100");
+        shortDay.setDate(LocalDate.of(2026, 3, 10));
+        shortDay.setFlags(new ArrayList<>(List.of(TasFlag.SHORT_DAY)));
+        TasSession clean = new TasSession();
+        clean.setEmployeeId("200");
+        clean.setDate(LocalDate.of(2026, 3, 10));
+        clean.setFlags(new ArrayList<>());
+
+        when(sessionGrouper.group(any(), any(), any())).thenReturn(new ArrayList<>(List.of(shortDay, clean)));
+        when(reportBuilder.build(any(), any(), any(), any()))
+                .thenReturn(new TasReportBuilder.BuildResult(Collections.emptyList()));
+        when(registryService.getAbsentActiveEmployees(any())).thenReturn(Collections.emptyList());
+
+        TasUploadResult result = service.process(dummyFile, Collections.emptySet());
+
+        assertThat(result.getFlaggedSessions()).containsExactly(shortDay);
+        assertThat(shortDay.isNeedsResolution()).isFalse();
+    }
 }

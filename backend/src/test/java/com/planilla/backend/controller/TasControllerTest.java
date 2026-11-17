@@ -2294,7 +2294,118 @@ class TasControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(mapper.writeValueAsString(body)))
            .andExpect(status().isBadRequest())
-           .andExpect(jsonPath("$.code").value("INVALID_TIME_RANGE"));
+           .andExpect(jsonPath("$.code").value("INVALID_TIME_RANGE"))
+           .andExpect(jsonPath("$.sessionId").value(43));
+    }
+
+    @Test
+    void resolve_nonStringResolvedStart_namesTheSession() throws Exception {
+        seedResolveState(46);
+        when(shiftConfigService.getAllShifts()).thenReturn(List.of());
+
+        Map<String, Object> res = new java.util.LinkedHashMap<>();
+        res.put("sessionId", 46);
+        res.put("resolvedStart", 7);
+        res.put("resolvedEnd", "2026-01-01 08:00");
+
+        mvc.perform(post("/api/tas/resolve")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of("uploadToken", "res-tok", "resolutions", List.of(res)))))
+           .andExpect(status().isBadRequest())
+           .andExpect(jsonPath("$.code").value("INVALID_TIME_FORMAT"))
+           .andExpect(jsonPath("$.sessionId").value(46));
+    }
+
+    @Test
+    void resolve_shortDayCorrection_isAppliedAndOtherShortDaysStayListed() throws Exception {
+        TasSession corrected = shortDaySession(50, "2026-01-05");
+        TasSession untouched = shortDaySession(51, "2026-01-06");
+        TasUploadState state = new TasUploadState();
+        state.setUploadToken("short-tok");
+        state.setSessions(new ArrayList<>(List.of(corrected, untouched)));
+        state.setReportStart(java.time.LocalDate.of(2026, 1, 1));
+        state.setReportEnd(java.time.LocalDate.of(2026, 1, 15));
+        tasController.stateStore.put("short-tok", state);
+        when(shiftConfigService.getAllShifts()).thenReturn(List.of());
+        when(reportBuilder.build(any(), any(), any(), any(), any()))
+            .thenReturn(new TasReportBuilder.BuildResult(List.of()));
+        when(reportBuilder.computeAvailablePeriods(any())).thenReturn(List.of());
+
+        Map<String, Object> res = new java.util.LinkedHashMap<>();
+        res.put("sessionId", 50);
+        res.put("resolvedStart", "2026-01-05 07:00");
+        res.put("resolvedEnd",   "2026-01-05 15:00");
+
+        mvc.perform(post("/api/tas/resolve")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of("uploadToken", "short-tok", "resolutions", List.of(res)))))
+           .andExpect(status().isOk())
+           .andExpect(jsonPath("$.flaggedSessions.length()").value(1))
+           .andExpect(jsonPath("$.flaggedSessions[0].sessionId").value(51));
+
+        assertThat(corrected.getLastScan()).isEqualTo(java.time.LocalDateTime.of(2026, 1, 5, 15, 0));
+        assertThat(corrected.getWorkedMinutes()).isEqualTo(480);
+        assertThat(corrected.getFlags()).isEmpty();
+    }
+
+    @Test
+    void resolve_shortDay_refusesAShiftChange() throws Exception {
+        TasSession s = shortDaySession(52, "2026-01-05");
+        TasUploadState state = new TasUploadState();
+        state.setUploadToken("short-tok");
+        state.setSessions(new ArrayList<>(List.of(s)));
+        tasController.stateStore.put("short-tok", state);
+        when(shiftConfigService.getAllShifts()).thenReturn(List.of());
+
+        Map<String, Object> res = new java.util.LinkedHashMap<>();
+        res.put("sessionId", 52);
+        res.put("acceptedShiftId", "cualquiera");
+
+        mvc.perform(post("/api/tas/resolve")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of("uploadToken", "short-tok", "resolutions", List.of(res)))))
+           .andExpect(status().isBadRequest())
+           .andExpect(jsonPath("$.code").value("INVALID_FIELD_FORMAT"))
+           .andExpect(jsonPath("$.sessionId").value(52));
+        assertThat(s.getMatchedShiftId()).isNull();
+    }
+
+    @Test
+    void resolve_discardedHalfOfADouble_isNotListedAsAShortDay() throws Exception {
+        TasSession kept = sameDayDoubleSession(10, "manana", "Manana");
+        TasSession discarded = sameDayDoubleSession(11, "tarde", "Tarde");
+        discarded.getFlags().add(com.planilla.backend.model.tas.TasFlag.SHORT_DAY);
+        TasUploadState state = new TasUploadState();
+        state.setUploadToken("double-tok");
+        state.setSessions(new ArrayList<>(List.of(kept, discarded)));
+        tasController.stateStore.put("double-tok", state);
+        when(shiftConfigService.getAllShifts()).thenReturn(List.of());
+        when(reportBuilder.build(any(), any(), any(), any(), any()))
+            .thenReturn(new TasReportBuilder.BuildResult(List.of()));
+        when(reportBuilder.computeAvailablePeriods(any())).thenReturn(List.of());
+
+        Map<String, Object> res = new java.util.LinkedHashMap<>();
+        res.put("employeeId", "100");
+        res.put("date", "2026-03-10");
+        res.put("keepSessionId", 10);
+
+        mvc.perform(post("/api/tas/resolve")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of("uploadToken", "double-tok", "resolutions", List.of(res)))))
+           .andExpect(status().isOk())
+           .andExpect(jsonPath("$.flaggedSessions.length()").value(0));
+    }
+
+    private TasSession shortDaySession(int sessionId, String date) {
+        TasSession s = new TasSession();
+        s.setSessionId(sessionId);
+        s.setEmployeeId("emp1");
+        s.setDate(java.time.LocalDate.parse(date));
+        s.setEffectiveStart(java.time.LocalDate.parse(date).atTime(7, 0));
+        s.setLastScan(java.time.LocalDate.parse(date).atTime(11, 0));
+        s.setNeedsResolution(false);
+        s.setFlags(new ArrayList<>(List.of(com.planilla.backend.model.tas.TasFlag.SHORT_DAY)));
+        return s;
     }
 
     // ── SEC-2: stateStore TTL eviction ───────────────────────────────────────
