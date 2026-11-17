@@ -48,7 +48,7 @@ public class ShutdownController {
             return ResponseEntity.status(403).body(Map.of("code", "FORBIDDEN", "message", "No autorizado."));
         }
         // Stopping mid-batch would leave payroll rows half-sent with no partial-submit mark.
-        if (jobService.isAnyJobActive()) {
+        if (!jobService.beginShutdown()) {
             return ResponseEntity.status(409).body(Map.of("code", "JOB_IN_PROGRESS",
                     "message", "Hay un envío en curso. Espere a que termine para cerrar."));
         }

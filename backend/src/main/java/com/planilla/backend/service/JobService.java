@@ -31,6 +31,7 @@ public class JobService {
 
     private final Map<String, JobState> jobs = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, String> activeJobByToken = new ConcurrentHashMap<>();
+    private boolean shuttingDown; // guarded by activeJobByToken
     private ExecutorService asyncExecutor = Executors.newFixedThreadPool(4);
 
     public JobService(DatabaseService databaseService, TasDraftService draftService) {
@@ -46,6 +47,18 @@ public class JobService {
         return jobId;
     }
 
+    /**
+     * Atomically with {@link #claim}: false while a submission runs, otherwise no new submission
+     * starts from here on, so the application can stop without cutting a batch off.
+     */
+    public boolean beginShutdown() {
+        synchronized (activeJobByToken) {
+            if (!activeJobByToken.isEmpty()) return false;
+            shuttingDown = true;
+            return true;
+        }
+    }
+
     public boolean isAnyJobActive() {
         return !activeJobByToken.isEmpty();
     }
@@ -57,8 +70,11 @@ public class JobService {
     // Single-user app: two concurrent jobs, even for different upload tokens (a reload, then a
     // re-upload of the same CSV), could load the same payroll rows into PostgreSQL twice.
     private void claim(String uploadToken, String jobId) {
-        if (uploadToken == null) return;
         synchronized (activeJobByToken) {
+            if (shuttingDown) {
+                throw new JobInProgressException("La aplicación se está cerrando.");
+            }
+            if (uploadToken == null) return;
             if (!activeJobByToken.isEmpty()) {
                 throw new JobInProgressException();
             }

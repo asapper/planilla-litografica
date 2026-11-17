@@ -14,7 +14,7 @@ const { onAppCloseRequested, prepareToClose, APP_CLOSE_EVENT, APP_CLOSE_BLOCKED_
 
 const flushPromises = () => new Promise(r => setTimeout(r, 0));
 
-let handlers: Record<string, () => Promise<void> | void>;
+let handlers: Record<string, (event?: { payload: number }) => Promise<void> | void>;
 let unlistens: ReturnType<typeof vi.fn>[];
 
 beforeEach(() => {
@@ -25,7 +25,7 @@ beforeEach(() => {
   unlistens = [];
   mockInvoke.mockResolvedValue(undefined);
   mockSaveDraftNow.mockResolvedValue(undefined);
-  mockListen.mockImplementation(async (event: string, h: () => Promise<void>) => {
+  mockListen.mockImplementation(async (event: string, h: (e?: { payload: number }) => Promise<void>) => {
     handlers[event] = h;
     const un = vi.fn();
     unlistens.push(un);
@@ -40,23 +40,23 @@ describe('onAppCloseRequested', () => {
     onAppCloseRequested(async () => { order.push('prepare'); return true; });
     await flushPromises();
 
-    await handlers[APP_CLOSE_EVENT]();
-    expect(order).toEqual(['prepare', 'close_ready {"proceed":true}']);
+    await handlers[APP_CLOSE_EVENT]({ payload: 3 });
+    expect(order).toEqual(['prepare', 'close_ready {"attempt":3,"proceed":true}']);
   });
 
   it('passes a refusal on to the shell', async () => {
     onAppCloseRequested(async () => false);
     await flushPromises();
-    await handlers[APP_CLOSE_EVENT]();
-    expect(mockInvoke).toHaveBeenCalledWith('close_ready', { proceed: false });
+    await handlers[APP_CLOSE_EVENT]({ payload: 3 });
+    expect(mockInvoke).toHaveBeenCalledWith('close_ready', { attempt: 3, proceed: false });
   });
 
   it('still lets the shell close when preparing fails', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     onAppCloseRequested(async () => { throw new Error('down'); });
     await flushPromises();
-    await handlers[APP_CLOSE_EVENT]();
-    expect(mockInvoke).toHaveBeenCalledWith('close_ready', { proceed: true });
+    await handlers[APP_CLOSE_EVENT]({ payload: 3 });
+    expect(mockInvoke).toHaveBeenCalledWith('close_ready', { attempt: 3, proceed: true });
     expect(warn).toHaveBeenCalled();
     warn.mockRestore();
   });
@@ -65,7 +65,7 @@ describe('onAppCloseRequested', () => {
     mockInvoke.mockRejectedValue(new Error('no shell'));
     onAppCloseRequested(async () => true);
     await flushPromises();
-    await expect(handlers[APP_CLOSE_EVENT]()).resolves.toBeUndefined();
+    await expect(handlers[APP_CLOSE_EVENT]({ payload: 3 })).resolves.toBeUndefined();
   });
 
   it('shows why when the shell reports the backend refused to close', async () => {

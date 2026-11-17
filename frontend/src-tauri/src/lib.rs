@@ -1,6 +1,6 @@
 use std::io::{Read, Write};
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::mpsc;
 use std::sync::Mutex;
 use std::time::Duration;
@@ -13,37 +13,43 @@ struct ManagedBackend {
 
 struct BackendProcess(Mutex<Option<ManagedBackend>>);
 
-/// Tracks one close attempt: a second click while closing is ignored, and the frontend's
-/// `close_ready(proceed)` answer is handed to the thread that waits for it.
+/// Tracks close attempts: a second click while closing is ignored, and the frontend's
+/// `close_ready(attempt, proceed)` answer reaches the thread waiting on that same attempt (a late
+/// answer to an attempt that was already called off is dropped).
 struct CloseGate {
     closing: AtomicBool,
-    answer: Mutex<Option<mpsc::Sender<bool>>>,
+    next_attempt: AtomicU64,
+    waiting: Mutex<Option<(u64, mpsc::Sender<bool>)>>,
 }
 
 impl CloseGate {
     fn new() -> Self {
-        CloseGate { closing: AtomicBool::new(false), answer: Mutex::new(None) }
+        CloseGate { closing: AtomicBool::new(false), next_attempt: AtomicU64::new(1), waiting: Mutex::new(None) }
     }
 
     /// Starts a close; None when one is already running.
-    fn begin(&self) -> Option<mpsc::Receiver<bool>> {
+    fn begin(&self) -> Option<(u64, mpsc::Receiver<bool>)> {
         if self.closing.swap(true, Ordering::SeqCst) {
             return None;
         }
+        let attempt = self.next_attempt.fetch_add(1, Ordering::SeqCst);
         let (tx, rx) = mpsc::channel();
-        *self.answer.lock().unwrap_or_else(|e| e.into_inner()) = Some(tx);
-        Some(rx)
+        *self.waiting.lock().unwrap_or_else(|e| e.into_inner()) = Some((attempt, tx));
+        Some((attempt, rx))
     }
 
-    fn answer(&self, proceed: bool) {
-        if let Some(tx) = self.answer.lock().unwrap_or_else(|e| e.into_inner()).take() {
-            let _ = tx.send(proceed);
+    fn answer(&self, attempt: u64, proceed: bool) {
+        let mut waiting = self.waiting.lock().unwrap_or_else(|e| e.into_inner());
+        if waiting.as_ref().is_some_and(|(current, _)| *current == attempt) {
+            if let Some((_, tx)) = waiting.take() {
+                let _ = tx.send(proceed);
+            }
         }
     }
 
     /// The close was called off: the next click starts a new one.
     fn cancel(&self) {
-        *self.answer.lock().unwrap_or_else(|e| e.into_inner()) = None;
+        *self.waiting.lock().unwrap_or_else(|e| e.into_inner()) = None;
         self.closing.store(false, Ordering::SeqCst);
     }
 }
@@ -64,9 +70,6 @@ fn await_frontend(answer: &mpsc::Receiver<bool>, timeout: Duration) -> bool {
 const FRONTEND_SAVE_WAIT: Duration = Duration::from_secs(2);
 /// How long the backend gets to close H2 and exit after the shutdown request, before kill().
 const BACKEND_EXIT_WAIT: Duration = Duration::from_secs(5);
-/// On a forced exit (not the close button) with a submission running, how long to keep asking:
-/// the backend itself waits up to 30 s for a running batch when it stops.
-const FORCED_EXIT_JOB_WAIT: Duration = Duration::from_secs(35);
 const APP_CLOSE_EVENT: &str = "app-close-requested";
 const APP_CLOSE_BLOCKED_EVENT: &str = "app-close-blocked";
 
@@ -126,8 +129,8 @@ fn backend_status(
 }
 
 #[tauri::command]
-fn close_ready(proceed: bool, gate: tauri::State<CloseGate>) {
-    gate.answer(proceed);
+fn close_ready(attempt: u64, proceed: bool, gate: tauri::State<CloseGate>) {
+    gate.answer(attempt, proceed);
 }
 
 /// A per-launch secret for the backend's shutdown endpoint, from the OS's CSPRNG.
@@ -210,30 +213,6 @@ fn stop_backend(backend: &mut ManagedBackend, port: u16, grace: Duration) -> Sto
     StopOutcome::Killed
 }
 
-/// For exits that can't be called off: keep asking while a submission runs (up to `patience`),
-/// then stop the backend whatever it is doing.
-fn stop_backend_patiently(
-    backend: &mut ManagedBackend,
-    port: u16,
-    grace: Duration,
-    patience: Duration,
-    retry_every: Duration,
-) -> StopOutcome {
-    let deadline = std::time::Instant::now() + patience;
-    loop {
-        match stop_backend(backend, port, grace) {
-            StopOutcome::Busy if std::time::Instant::now() < deadline => std::thread::sleep(retry_every),
-            StopOutcome::Busy => {
-                log::warn!("a submission was still running after {patience:?}; killing the backend");
-                let _ = backend.child.kill();
-                let _ = backend.child.wait();
-                return StopOutcome::Killed;
-            }
-            outcome => return outcome,
-        }
-    }
-}
-
 fn take_backend(app: &tauri::AppHandle) -> Option<ManagedBackend> {
     use tauri::Manager;
     let state = app.state::<BackendProcess>();
@@ -258,11 +237,11 @@ fn set_main_window_visible(app: &tauri::AppHandle, visible: bool) {
 /// stopped gracefully. A running submission calls the close off and brings the window back.
 fn begin_close(app: &tauri::AppHandle) {
     use tauri::{Emitter, Manager};
-    let Some(answer) = app.state::<CloseGate>().begin() else {
+    let Some((attempt, answer)) = app.state::<CloseGate>().begin() else {
         return;
     };
     set_main_window_visible(app, false);
-    if let Err(e) = app.emit(APP_CLOSE_EVENT, ()) {
+    if let Err(e) = app.emit(APP_CLOSE_EVENT, attempt) {
         log::warn!("could not ask the frontend to save before closing: {e}");
     }
     let app = app.clone();
@@ -271,9 +250,9 @@ fn begin_close(app: &tauri::AppHandle) {
             log::info!("close called off: {reason}");
             app.state::<CloseGate>().cancel();
             set_main_window_visible(app, true);
-            let _ = app.emit(APP_CLOSE_BLOCKED_EVENT, ());
         };
         if !await_frontend(&answer, FRONTEND_SAVE_WAIT) {
+            // The frontend already told the user why.
             call_off(&app, "the frontend has a submission running");
             return;
         }
@@ -281,6 +260,7 @@ fn begin_close(app: &tauri::AppHandle) {
             if stop_backend(&mut backend, BACKEND_PORT, BACKEND_EXIT_WAIT) == StopOutcome::Busy {
                 put_backend_back(&app, backend);
                 call_off(&app, "the backend is submitting");
+                let _ = app.emit(APP_CLOSE_BLOCKED_EVENT, ());
                 return;
             }
         }
@@ -590,17 +570,20 @@ pub fn run() {
     // may not run if the process fast-exits, leaving an orphaned JVM that locks the
     // DB (and, on Windows, the JRE DLLs during the next install).
     app.run(|app_handle, event| {
-        if let tauri::RunEvent::ExitRequested { .. } = event {
+        if let tauri::RunEvent::ExitRequested { code, api, .. } = event {
+            // A quit by the user (Cmd+Q, last window gone) goes through the same save-and-ask
+            // sequence as the close button; `app.exit` from that sequence carries a code.
+            if code.is_none() {
+                api.prevent_exit();
+                begin_close(app_handle);
+                return;
+            }
+            // Don't rely solely on `Drop`, which may not run if the process fast-exits, leaving
+            // an orphaned JVM that locks the DB (and, on Windows, the JRE DLLs on the next install).
             if let Some(mut backend) = take_backend(app_handle) {
                 log::info!("app exiting; stopping backend (pid={})", backend.child.id());
                 set_main_window_visible(app_handle, false);
-                stop_backend_patiently(
-                    &mut backend,
-                    BACKEND_PORT,
-                    BACKEND_EXIT_WAIT,
-                    FORCED_EXIT_JOB_WAIT,
-                    Duration::from_secs(1),
-                );
+                stop_backend(&mut backend, BACKEND_PORT, BACKEND_EXIT_WAIT);
             }
         }
     });
@@ -837,25 +820,6 @@ mod tests {
         server.join().unwrap();
     }
 
-    /// A fake backend answering each connection in turn with the given status lines.
-    fn fake_backend_seq(status_lines: Vec<&'static str>) -> (u16, std::thread::JoinHandle<usize>) {
-        use std::io::{Read, Write};
-        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
-        let port = listener.local_addr().unwrap().port();
-        let handle = std::thread::spawn(move || {
-            let mut served = 0;
-            for line in status_lines {
-                let (mut conn, _) = listener.accept().unwrap();
-                let mut buf = [0u8; 1024];
-                let _ = conn.read(&mut buf);
-                let _ = write!(conn, "{line}\r\nContent-Length: 0\r\n\r\n");
-                served += 1;
-            }
-            served
-        });
-        (port, handle)
-    }
-
     #[test]
     fn a_busy_backend_is_left_running() {
         let _guard = net_lock();
@@ -872,51 +836,36 @@ mod tests {
     }
 
     #[test]
-    fn a_forced_exit_waits_for_the_submission_then_stops_gracefully() {
-        let _guard = net_lock();
-        use std::time::Duration;
-        let (port, server) = fake_backend_seq(vec!["HTTP/1.1 409 Conflict", "HTTP/1.1 409 Conflict", "HTTP/1.1 202 Accepted"]);
-        let mut backend = super::ManagedBackend { child: spawn_exiting(0), shutdown_token: "t".into() };
-        let outcome = super::stop_backend_patiently(
-            &mut backend, port, Duration::from_secs(1), Duration::from_secs(5), Duration::from_millis(50));
-        assert_eq!(outcome, super::StopOutcome::Graceful);
-        assert_eq!(server.join().unwrap(), 3);
-    }
-
-    #[test]
-    fn a_forced_exit_kills_a_backend_still_busy_after_its_patience() {
-        let _guard = net_lock();
-        use std::time::Duration;
-        let (port, server) = fake_backend_seq(vec!["HTTP/1.1 409 Conflict"; 50]);
-        let child = spawn_long_running();
-        let pid = child.id();
-        let mut backend = super::ManagedBackend { child, shutdown_token: "t".into() };
-        let outcome = super::stop_backend_patiently(
-            &mut backend, port, Duration::from_millis(100), Duration::from_millis(300), Duration::from_millis(50));
-        assert_eq!(outcome, super::StopOutcome::Killed);
-        assert!(!process_alive(pid));
-        drop(server);
-    }
-
-    #[test]
     fn close_gate_ignores_a_second_click_and_relays_the_answer() {
         use super::CloseGate;
         let gate = CloseGate::new();
-        let answer = gate.begin().expect("first click starts a close");
+        let (attempt, answer) = gate.begin().expect("first click starts a close");
         assert!(gate.begin().is_none(), "a second click while closing is ignored");
-        gate.answer(false);
+        gate.answer(attempt, false);
         assert!(!super::await_frontend(&answer, std::time::Duration::from_millis(100)));
-        gate.answer(true);
         gate.cancel();
-        let again = gate.begin().expect("after a called-off close the next click starts a new one");
-        gate.answer(true);
-        assert!(super::await_frontend(&again, std::time::Duration::from_millis(100)));
+        let (again, answer) = gate.begin().expect("after a called-off close the next click starts a new one");
+        assert_ne!(again, attempt);
+        gate.answer(again, true);
+        assert!(super::await_frontend(&answer, std::time::Duration::from_millis(100)));
+    }
+
+    #[test]
+    fn a_late_answer_to_a_called_off_close_is_dropped() {
+        use super::CloseGate;
+        use std::time::Duration;
+        let gate = CloseGate::new();
+        let (first, _ignored) = gate.begin().unwrap();
+        gate.cancel();
+        let (_second, answer) = gate.begin().unwrap();
+        gate.answer(first, true);
+        assert!(answer.recv_timeout(Duration::from_millis(100)).is_err(), "the first attempt's answer must not decide the second");
     }
 
     #[test]
     fn a_silent_frontend_does_not_block_the_close() {
         let gate = super::CloseGate::new();
-        let answer = gate.begin().unwrap();
+        let (_, answer) = gate.begin().unwrap();
         let started = std::time::Instant::now();
         assert!(super::await_frontend(&answer, std::time::Duration::from_millis(100)));
         assert!(started.elapsed() >= std::time::Duration::from_millis(100));

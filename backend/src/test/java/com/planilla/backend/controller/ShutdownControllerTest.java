@@ -37,6 +37,7 @@ class ShutdownControllerTest {
 
     @Test
     void theShellsToken_exitsTheApplication() {
+        when(jobService.beginShutdown()).thenReturn(true);
         ResponseEntity<?> response = new ShutdownController(exiter, jobService, "s3cret").shutdown("s3cret");
 
         assertThat(response.getStatusCode().value()).isEqualTo(202);
@@ -45,7 +46,7 @@ class ShutdownControllerTest {
 
     @Test
     void whileASubmissionRuns_theShutdownIsRefused() {
-        when(jobService.isAnyJobActive()).thenReturn(true);
+        when(jobService.beginShutdown()).thenReturn(false);
 
         ResponseEntity<?> response = new ShutdownController(exiter, jobService, "s3cret").shutdown("s3cret");
 

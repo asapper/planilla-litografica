@@ -36,14 +36,14 @@ export function onAppCloseRequested(prepare: () => Promise<boolean>): () => void
       })
       .catch(() => undefined);
   };
-  register(listen(APP_CLOSE_EVENT, async () => {
+  register(listen<number>(APP_CLOSE_EVENT, async event => {
     let proceed = true;
     try {
       proceed = await prepare();
     } catch (err) {
       console.warn('No se pudo guardar antes de cerrar.', err);
     } finally {
-      await invoke('close_ready', { proceed }).catch(() => undefined);
+      await invoke('close_ready', { attempt: event.payload, proceed }).catch(() => undefined);
     }
   }));
   register(listen(APP_CLOSE_BLOCKED_EVENT, showCloseBlocked));
