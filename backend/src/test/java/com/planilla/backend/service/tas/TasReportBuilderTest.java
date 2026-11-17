@@ -319,4 +319,107 @@ class TasReportBuilderTest {
             new TasPeriod(2026, 5, 1)
         );
     }
+
+    // ── findIncompletePeriods ──────────────────────────────────────────────
+
+    @Test
+    void findIncompletePeriods_fileEndsBeforeQuincena_listsMissingWorkingDaysSkippingSundays() {
+        // Live case: data 28 Sep – 11 Oct 2026 (Sunday), Q1 October runs to the 15th.
+        List<TasReportBuilder.PeriodCoverage> result = builder.findIncompletePeriods(
+                LocalDate.of(2026, 9, 28), LocalDate.of(2026, 10, 11), List.of(new TasPeriod(2026, 10, 1)));
+
+        assertThat(result).hasSize(1);
+        TasReportBuilder.PeriodCoverage c = result.get(0);
+        assertThat(c.period()).isEqualTo(new TasPeriod(2026, 10, 1));
+        assertThat(c.periodStart()).isEqualTo(LocalDate.of(2026, 10, 1));
+        assertThat(c.periodEnd()).isEqualTo(LocalDate.of(2026, 10, 15));
+        assertThat(c.dataStart()).isEqualTo(LocalDate.of(2026, 9, 28));
+        assertThat(c.dataEnd()).isEqualTo(LocalDate.of(2026, 10, 11));
+        assertThat(c.missingWorkingDays()).containsExactly(
+                LocalDate.of(2026, 10, 12), LocalDate.of(2026, 10, 13),
+                LocalDate.of(2026, 10, 14), LocalDate.of(2026, 10, 15));
+    }
+
+    @Test
+    void findIncompletePeriods_fileStartsLate_listsLeadingDays() {
+        // 2026-03-01 is a Sunday.
+        List<TasReportBuilder.PeriodCoverage> result = builder.findIncompletePeriods(
+                LocalDate.of(2026, 3, 4), LocalDate.of(2026, 3, 15), List.of(new TasPeriod(2026, 3, 1)));
+
+        assertThat(result).singleElement()
+                .extracting(TasReportBuilder.PeriodCoverage::missingWorkingDays)
+                .isEqualTo(List.of(LocalDate.of(2026, 3, 2), LocalDate.of(2026, 3, 3)));
+    }
+
+    @Test
+    void findIncompletePeriods_missingDaysAreOnlyHolidaysOrSundays_isComplete() {
+        LocalDate holiday = LocalDate.of(2026, 10, 15);
+        when(holidayService.isHoliday(holiday)).thenReturn(true);
+
+        // Data ends Wed 14 Oct; the 15th is a holiday, so nothing is lost.
+        assertThat(builder.findIncompletePeriods(
+                LocalDate.of(2026, 10, 1), LocalDate.of(2026, 10, 14), List.of(new TasPeriod(2026, 10, 1))))
+                .isEmpty();
+    }
+
+    @Test
+    void findIncompletePeriods_fullCoverage_isEmpty() {
+        assertThat(builder.findIncompletePeriods(
+                LocalDate.of(2026, 10, 1), LocalDate.of(2026, 10, 15), List.of(new TasPeriod(2026, 10, 1))))
+                .isEmpty();
+    }
+
+    @Test
+    void findIncompletePeriods_secondQuincenaEndsAtMonthEnd_includingLeapFebruary() {
+        // 2028-02-29 is a Tuesday; data stops on the 28th.
+        assertThat(builder.findIncompletePeriods(
+                LocalDate.of(2028, 2, 16), LocalDate.of(2028, 2, 28), List.of(new TasPeriod(2028, 2, 2))))
+                .singleElement()
+                .satisfies(c -> {
+                    assertThat(c.periodEnd()).isEqualTo(LocalDate.of(2028, 2, 29));
+                    assertThat(c.missingWorkingDays()).containsExactly(LocalDate.of(2028, 2, 29));
+                });
+    }
+
+    @Test
+    void findIncompletePeriods_severalPeriods_dedupesAndSortsAndKeepsOnlyIncomplete() {
+        TasPeriod oct1 = new TasPeriod(2026, 10, 1);
+        TasPeriod sep2 = new TasPeriod(2026, 9, 2);
+
+        List<TasReportBuilder.PeriodCoverage> result = builder.findIncompletePeriods(
+                LocalDate.of(2026, 9, 28), LocalDate.of(2026, 10, 15), List.of(oct1, sep2, oct1));
+
+        assertThat(result).extracting(TasReportBuilder.PeriodCoverage::period).containsExactly(sep2);
+        // 16–27 Sep 2026 minus Sundays 20 and 27.
+        assertThat(result.get(0).missingWorkingDays()).hasSize(10)
+                .doesNotContain(LocalDate.of(2026, 9, 20), LocalDate.of(2026, 9, 27));
+    }
+
+    @Test
+    void findIncompletePeriods_nullInputs_isEmpty() {
+        TasPeriod p = new TasPeriod(2026, 10, 1);
+        assertThat(builder.findIncompletePeriods(null, LocalDate.of(2026, 10, 15), List.of(p))).isEmpty();
+        assertThat(builder.findIncompletePeriods(LocalDate.of(2026, 10, 1), null, List.of(p))).isEmpty();
+        assertThat(builder.findIncompletePeriods(LocalDate.of(2026, 10, 1), LocalDate.of(2026, 10, 15), null)).isEmpty();
+    }
+
+    @Test
+    void findIncompletePeriods_warnedDaysEqualDaysDockedFromFullAttendanceEmployee() {
+        LocalDate holiday = LocalDate.of(2026, 10, 14);
+        when(holidayService.isHoliday(holiday)).thenReturn(true);
+        LocalDate dataStart = LocalDate.of(2026, 10, 1);
+        LocalDate dataEnd = LocalDate.of(2026, 10, 11);
+        List<TasSession> sessions = new ArrayList<>();
+        for (LocalDate d = dataStart; !d.isAfter(dataEnd); d = d.plusDays(1)) {
+            sessions.add(resolvedSession("100", d, 0, 0));
+        }
+
+        EmployeeRow row = builder.build(sessions, dataStart, dataEnd, shifts, new TasPeriod(2026, 10, 1)).rows.get(0);
+        List<TasReportBuilder.PeriodCoverage> gaps =
+                builder.findIncompletePeriods(dataStart, dataEnd, List.of(new TasPeriod(2026, 10, 1)));
+
+        assertThat(gaps).singleElement()
+                .satisfies(c -> assertThat(c.missingWorkingDays()).hasSize(row.getDiasNoLaborados()));
+        assertThat(row.getDiasNoLaborados()).isEqualTo(3);
+    }
 }

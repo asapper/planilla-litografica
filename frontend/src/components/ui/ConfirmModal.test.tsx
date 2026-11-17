@@ -59,4 +59,28 @@ describe('ConfirmModal', () => {
     fireEvent.keyDown(screen.getByTestId('confirm-modal-backdrop'), { key: 'Escape' });
     expect(onCancel).toHaveBeenCalledTimes(1);
   });
+
+  it('does not confirm when Enter is pressed on the focused cancel button', () => {
+    const onConfirm = vi.fn();
+    render(<ConfirmModal {...baseProps} onConfirm={onConfirm} onCancel={vi.fn()} />);
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Cancelar' }), { key: 'Enter' });
+    expect(onConfirm).not.toHaveBeenCalled();
+  });
+
+  it('still cancels on Escape from a focused button', () => {
+    const onCancel = vi.fn();
+    render(<ConfirmModal {...baseProps} onConfirm={vi.fn()} onCancel={onCancel} />);
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Sí, descartar' }), { key: 'Escape' });
+    expect(onCancel).toHaveBeenCalledTimes(1);
+  });
+
+  it('focuses the backdrop by default', () => {
+    render(<ConfirmModal {...baseProps} onConfirm={vi.fn()} onCancel={vi.fn()} />);
+    expect(screen.getByTestId('confirm-modal-backdrop')).toHaveFocus();
+  });
+
+  it('focuses the cancel button when focusCancel is set', () => {
+    render(<ConfirmModal {...baseProps} focusCancel onConfirm={vi.fn()} onCancel={vi.fn()} />);
+    expect(screen.getByRole('button', { name: 'Cancelar' })).toHaveFocus();
+  });
 });

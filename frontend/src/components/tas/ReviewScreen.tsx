@@ -1,11 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 import { useTasStore } from '../../tasStore';
-import { submitTas, checkDuplicates } from '../../tasApi';
+import { submitTas, checkDuplicates, getIncompletePeriods } from '../../tasApi';
 import { checkDbHealth } from '../../api';
 import { useToastStore } from '../../toastStore';
 import ReviewListView from './ReviewListView';
 import ReviewDetailView from './ReviewDetailView';
+import ConfirmModal from '../ui/ConfirmModal';
+import { incompleteConfirmText } from './coverageText';
+import type { IncompletePeriod } from '../../tasTypes';
+
+const COVERAGE_FAILED_MESSAGE = 'No se pudo verificar que el archivo cubra la quincena completa.';
 
 export default function ReviewScreen() {
   const uploadToken = useTasStore(s => s.uploadToken);
@@ -23,6 +28,8 @@ export default function ReviewScreen() {
   useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTop = 0; }, []);
 
   const [dbHealthy, setDbHealthy] = useState<boolean | null>(null);
+  const [coverage, setCoverage] = useState<IncompletePeriod[] | 'failed' | null>(null);
+  const [confirmIncomplete, setConfirmIncomplete] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -45,6 +52,19 @@ export default function ReviewScreen() {
       .finally(() => { if (!cancelled) setDuplicatesLoading(false); });
     return () => { cancelled = true; };
   }, [uploadToken, setDuplicateCodes, setDuplicatesLoading]);
+
+  useEffect(() => {
+    if (!uploadToken) return;
+    let cancelled = false;
+    getIncompletePeriods(uploadToken)
+      .then(periods => { if (!cancelled) setCoverage(periods); })
+      .catch(() => {
+        if (cancelled) return;
+        setCoverage('failed');
+        useToastStore.getState().showToast(COVERAGE_FAILED_MESSAGE, 'error');
+      });
+    return () => { cancelled = true; };
+  }, [uploadToken]);
 
   const duplicateSet = new Set(duplicateCodes);
 
@@ -72,15 +92,41 @@ export default function ReviewScreen() {
     }
   };
 
+  const incompletePeriods = Array.isArray(coverage) ? coverage : [];
+  const coverageLoading = uploadToken !== null && coverage === null;
+
+  const requestSubmit = () => {
+    if (coverage === 'failed' || incompletePeriods.length > 0) setConfirmIncomplete(true);
+    else handleSubmit();
+  };
+
   return (
     <div className="fixed inset-0 flex flex-col bg-surface-container-lowest" style={{ paddingTop: 64 }}>
       <div ref={scrollRef} className="flex-1 flex flex-col overflow-auto">
         {reviewSelectedEmployee === null ? (
-          <ReviewListView dbHealthy={dbHealthy} onSubmit={handleSubmit} />
+          <ReviewListView
+            dbHealthy={dbHealthy}
+            coverageLoading={coverageLoading}
+            incompletePeriods={incompletePeriods}
+            onSubmit={requestSubmit}
+          />
         ) : (
           <ReviewDetailView onBack={() => setReviewSelectedEmployee(null)} />
         )}
       </div>
+      {confirmIncomplete && (
+        <ConfirmModal
+          title={coverage === 'failed' ? 'Quincena sin verificar' : 'Quincena incompleta'}
+          message={coverage === 'failed'
+            ? `${COVERAGE_FAILED_MESSAGE} ¿Desea enviar de todas formas?`
+            : incompleteConfirmText(incompletePeriods)}
+          confirmLabel="Enviar de todas formas"
+          cancelLabel="Cancelar"
+          onConfirm={() => { setConfirmIncomplete(false); handleSubmit(); }}
+          onCancel={() => setConfirmIncomplete(false)}
+          focusCancel
+        />
+      )}
     </div>
   );
 }
