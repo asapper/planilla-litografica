@@ -1,11 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 import { useTasStore } from '../../tasStore';
-import { submitTas, checkDuplicates } from '../../tasApi';
+import { submitTas, checkDuplicates, getIncompletePeriods } from '../../tasApi';
 import { checkDbHealth } from '../../api';
 import { useToastStore } from '../../toastStore';
 import ReviewListView from './ReviewListView';
 import ReviewDetailView from './ReviewDetailView';
+import ConfirmModal from '../ui/ConfirmModal';
+import { incompleteConfirmText } from './coverageText';
+import type { IncompletePeriod } from '../../tasTypes';
 
 export default function ReviewScreen() {
   const uploadToken = useTasStore(s => s.uploadToken);
@@ -23,6 +26,8 @@ export default function ReviewScreen() {
   useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTop = 0; }, []);
 
   const [dbHealthy, setDbHealthy] = useState<boolean | null>(null);
+  const [incompletePeriods, setIncompletePeriods] = useState<IncompletePeriod[]>([]);
+  const [confirmIncomplete, setConfirmIncomplete] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -45,6 +50,15 @@ export default function ReviewScreen() {
       .finally(() => { if (!cancelled) setDuplicatesLoading(false); });
     return () => { cancelled = true; };
   }, [uploadToken, setDuplicateCodes, setDuplicatesLoading]);
+
+  useEffect(() => {
+    if (!uploadToken) return;
+    let cancelled = false;
+    getIncompletePeriods(uploadToken)
+      .then(periods => { if (!cancelled) setIncompletePeriods(periods); })
+      .catch(() => { if (!cancelled) useToastStore.getState().showToast('No se pudo verificar que el archivo cubra la quincena completa.', 'error'); });
+    return () => { cancelled = true; };
+  }, [uploadToken]);
 
   const duplicateSet = new Set(duplicateCodes);
 
@@ -72,15 +86,30 @@ export default function ReviewScreen() {
     }
   };
 
+  const requestSubmit = () => {
+    if (incompletePeriods.length > 0) setConfirmIncomplete(true);
+    else handleSubmit();
+  };
+
   return (
     <div className="fixed inset-0 flex flex-col bg-surface-container-lowest" style={{ paddingTop: 64 }}>
       <div ref={scrollRef} className="flex-1 flex flex-col overflow-auto">
         {reviewSelectedEmployee === null ? (
-          <ReviewListView dbHealthy={dbHealthy} onSubmit={handleSubmit} />
+          <ReviewListView dbHealthy={dbHealthy} incompletePeriods={incompletePeriods} onSubmit={requestSubmit} />
         ) : (
           <ReviewDetailView onBack={() => setReviewSelectedEmployee(null)} />
         )}
       </div>
+      {confirmIncomplete && (
+        <ConfirmModal
+          title="Quincena incompleta"
+          message={incompleteConfirmText(incompletePeriods)}
+          confirmLabel="Enviar de todas formas"
+          cancelLabel="Cancelar"
+          onConfirm={() => { setConfirmIncomplete(false); handleSubmit(); }}
+          onCancel={() => setConfirmIncomplete(false)}
+        />
+      )}
     </div>
   );
 }

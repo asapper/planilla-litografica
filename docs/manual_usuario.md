@@ -351,6 +351,14 @@ En la parte superior de la tabla hay botones de filtro con contadores:
 
 ![Vista de lista mostrando un registro duplicado](screenshots/10-review-duplicate.png)
 
+##### Aviso de quincena incompleta
+
+Si el archivo no tiene marcaciones de algunos días laborables de la quincena (por ejemplo, el reporte termina el 11 y la quincena termina el 15), verá un aviso amarillo debajo del título:
+
+> Quincena incompleta (Octubre 2026 · Q1): el archivo no tiene marcaciones del 12 al 15 de octubre (4 días laborables). Esos días se contarán como no laborados para todos los empleados.
+
+Los domingos y feriados no se cuentan. Lo recomendado es **exportar de nuevo el reporte de TAS con la quincena completa** y volver a cargarlo. Si de todas formas presiona **"Enviar"**, la aplicación le pedirá confirmar con **"Enviar de todas formas"** antes de enviar.
+
 ##### Editar campos en la tabla
 
 Los campos de **Días no lab.**, **Extras simples** y **Extras dobles** son editables directamente en la tabla. Haga clic sobre el campo, modifique el valor y presione Enter o haga clic fuera para confirmar. El campo modificado se resaltará con un borde azul y mostrará el valor original entre paréntesis (por ejemplo, "era 3"). Los cambios solo aplican a la sesión de carga actual.
@@ -435,6 +443,8 @@ La barra inferior muestra cuántos registros se enviarán y cuántos serán excl
 **No cierre la aplicación** mientras el envío está en curso.
 
 > **Nota:** Si la base de datos no está disponible, el botón "Enviar" estará deshabilitado y verá una advertencia. Verifique su conexión a la red y vuelva a intentar.
+
+> **Quincena incompleta:** si el archivo no cubre todos los días laborables de la quincena, al presionar "Enviar" aparecerá una confirmación. Presione **"Cancelar"** para volver a la revisión, o **"Enviar de todas formas"** solo si está seguro de que esos días no se trabajaron (ver [Aviso de quincena incompleta](#aviso-de-quincena-incompleta)).
 
 ---
 
@@ -615,6 +625,8 @@ Para guardar los cambios, haga clic en **"Guardar cambios"**. Para revertirlos, 
 | "No se pudo procesar el archivo TAS" | El archivo está dañado o tiene un formato corrupto | Exporte el archivo nuevamente del sistema TAS. Si el problema persiste, contacte al encargado de sistemas |
 | "No se pudo conectar con el servicio." | El componente interno de la aplicación no se inició | Haga clic en "Reintentar". Si no funciona, cierre y vuelva a abrir la aplicación |
 | "Base de datos no disponible" | La aplicación no puede alcanzar la base de datos de la empresa | Verifique que su computadora está conectada a la red interna. Si el problema persiste, contacte al encargado de sistemas |
+| "Quincena incompleta" | El archivo no tiene marcaciones de algunos días laborables de la quincena | Exporte de nuevo el reporte de TAS con el período completo (del 1 al 15, o del 16 al último día del mes) y cárguelo otra vez |
+| "No se pudo verificar que el archivo cubra la quincena completa." | Falló la verificación del período del archivo | Revise manualmente que el reporte cubra la quincena completa antes de enviar |
 | "La sesión de carga expiró" | Pasó demasiado tiempo entre la carga del archivo y el envío | Vuelva a cargar el archivo y repita el proceso |
 | "Se agotaron los reintentos." | Los registros fallidos no pudieron enviarse después de 3 intentos | Contacte al encargado de sistemas para verificar el estado de la base de datos |
 

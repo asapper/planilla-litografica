@@ -2452,4 +2452,75 @@ class TasControllerTest {
            .andExpect(status().isBadRequest())
            .andExpect(jsonPath("$.code").value("INVALID_SESSION_FORMAT"));
     }
+
+    // ── GET /api/tas/coverage/{uploadToken} ────────────────────────────────
+
+    private static EmployeeRow periodRow(String code, int anio, int mes, Integer q) {
+        EmployeeRow r = new EmployeeRow();
+        r.setCodigoEmpleado(code);
+        r.setAnio(anio);
+        r.setMes(mes);
+        r.setNumeroDequincena(q);
+        return r;
+    }
+
+    @Test
+    void coverage_invalidToken_returns400() throws Exception {
+        mvc.perform(get("/api/tas/coverage/does-not-exist"))
+           .andExpect(status().isBadRequest())
+           .andExpect(jsonPath("$.code").value("INVALID_TOKEN"));
+    }
+
+    @Test
+    void coverage_passesFileRangeAndRowPeriods_andSerializesGapsAsIsoDates() throws Exception {
+        TasUploadState state = new TasUploadState();
+        state.setUploadToken("tok-cov");
+        state.setReportStart(java.time.LocalDate.of(2026, 9, 28));
+        state.setReportEnd(java.time.LocalDate.of(2026, 10, 11));
+        state.setResolvedRows(List.of(
+                periodRow("100", 2026, 10, 1),
+                periodRow("101", 2026, 10, 1),
+                periodRow("102", 2026, 10, null)));
+        tasController.stateStore.put("tok-cov", state);
+
+        TasPeriod oct1 = new TasPeriod(2026, 10, 1);
+        when(reportBuilder.findIncompletePeriods(any(), any(), any())).thenReturn(List.of(
+                new TasReportBuilder.PeriodCoverage(oct1,
+                        java.time.LocalDate.of(2026, 10, 1), java.time.LocalDate.of(2026, 10, 15),
+                        java.time.LocalDate.of(2026, 9, 28), java.time.LocalDate.of(2026, 10, 11),
+                        List.of(java.time.LocalDate.of(2026, 10, 12), java.time.LocalDate.of(2026, 10, 15)))));
+
+        mvc.perform(get("/api/tas/coverage/tok-cov"))
+           .andExpect(status().isOk())
+           .andExpect(jsonPath("$.uploadToken").value("tok-cov"))
+           .andExpect(jsonPath("$.incompletePeriods.length()").value(1))
+           .andExpect(jsonPath("$.incompletePeriods[0].anio").value(2026))
+           .andExpect(jsonPath("$.incompletePeriods[0].mes").value(10))
+           .andExpect(jsonPath("$.incompletePeriods[0].numeroDequincena").value(1))
+           .andExpect(jsonPath("$.incompletePeriods[0].periodStart").value("2026-10-01"))
+           .andExpect(jsonPath("$.incompletePeriods[0].periodEnd").value("2026-10-15"))
+           .andExpect(jsonPath("$.incompletePeriods[0].dataStart").value("2026-09-28"))
+           .andExpect(jsonPath("$.incompletePeriods[0].dataEnd").value("2026-10-11"))
+           .andExpect(jsonPath("$.incompletePeriods[0].missingWorkingDays[0]").value("2026-10-12"))
+           .andExpect(jsonPath("$.incompletePeriods[0].missingWorkingDays[1]").value("2026-10-15"));
+
+        verify(reportBuilder).findIncompletePeriods(
+                eq(java.time.LocalDate.of(2026, 9, 28)),
+                eq(java.time.LocalDate.of(2026, 10, 11)),
+                eq(List.of(oct1, oct1)));
+    }
+
+    @Test
+    void coverage_noResolvedRowsYet_checksNoPeriods() throws Exception {
+        TasUploadState state = new TasUploadState();
+        state.setUploadToken("tok-cov-empty");
+        tasController.stateStore.put("tok-cov-empty", state);
+        when(reportBuilder.findIncompletePeriods(any(), any(), any())).thenReturn(List.of());
+
+        mvc.perform(get("/api/tas/coverage/tok-cov-empty"))
+           .andExpect(status().isOk())
+           .andExpect(jsonPath("$.incompletePeriods.length()").value(0));
+
+        verify(reportBuilder).findIncompletePeriods(isNull(), isNull(), eq(List.of()));
+    }
 }

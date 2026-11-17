@@ -4,14 +4,15 @@ import { updateAccruesOvertime } from '../../configApi';
 import { recomputeTas } from '../../tasApi';
 import { matchesSearch } from '../../textSearch';
 import { useToastStore } from '../../toastStore';
-import { MONTH_NAMES_ES } from '../../dateNames';
 import AlertMessage from '../ui/AlertMessage';
-import type { ResolvedRow } from '../../tasTypes';
+import { incompleteBannerText, periodLabel } from './coverageText';
+import type { IncompletePeriod, ResolvedRow } from '../../tasTypes';
 
 type FilterType = 'all' | 'estimated' | 'duplicate' | 'adjusted';
 
 interface ReviewListViewProps {
   dbHealthy: boolean | null;
+  incompletePeriods?: IncompletePeriod[];
   onSubmit: () => void;
 }
 
@@ -24,7 +25,7 @@ function sortRows(rows: ResolvedRow[], column: 'name' | 'code', direction: 'asc'
   return direction === 'desc' ? sorted.reverse() : sorted;
 }
 
-export default function ReviewListView({ dbHealthy, onSubmit }: ReviewListViewProps) {
+export default function ReviewListView({ dbHealthy, incompletePeriods = [], onSubmit }: ReviewListViewProps) {
   const resolvedRows = useTasStore(s => s.resolvedRows);
   const overtimeOverrides = useTasStore(s => s.overtimeOverrides);
   const nonWorkedDaysOverrides = useTasStore(s => s.nonWorkedDaysOverrides);
@@ -132,7 +133,7 @@ export default function ReviewListView({ dbHealthy, onSubmit }: ReviewListViewPr
             </h2>
             {selectedPeriod && (
               <span className="text-label-sm px-2.5 py-1 rounded-full bg-primary-container text-on-primary-container whitespace-nowrap">
-                {MONTH_NAMES_ES[selectedPeriod.mes].charAt(0).toUpperCase() + MONTH_NAMES_ES[selectedPeriod.mes].slice(1)} {selectedPeriod.anio} · Q{selectedPeriod.numeroDequincena}
+                {periodLabel(selectedPeriod)}
               </span>
             )}
           </div>
@@ -151,6 +152,14 @@ export default function ReviewListView({ dbHealthy, onSubmit }: ReviewListViewPr
               </button>
             )}
           </div>
+          {incompletePeriods.map(p => (
+            <AlertMessage
+              key={`${p.anio}-${p.mes}-${p.numeroDequincena}`}
+              variant="warning"
+              message={incompleteBannerText(p)}
+              className="mt-3"
+            />
+          ))}
         </div>
 
         <div className="flex items-center gap-2 px-6 py-2 border-b border-outline-variant flex-wrap">
