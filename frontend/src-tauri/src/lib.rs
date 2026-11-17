@@ -70,6 +70,9 @@ fn await_frontend(answer: &mpsc::Receiver<bool>, timeout: Duration) -> bool {
 const FRONTEND_SAVE_WAIT: Duration = Duration::from_secs(2);
 /// How long the backend gets to close H2 and exit after the shutdown request, before kill().
 const BACKEND_EXIT_WAIT: Duration = Duration::from_secs(5);
+/// On an exit that can't be called off (the window is already gone: OS logoff, Cmd+Q) with a
+/// submission running, how long to keep asking: the backend itself waits up to 30 s for a batch.
+const FORCED_EXIT_JOB_WAIT: Duration = Duration::from_secs(35);
 const APP_CLOSE_EVENT: &str = "app-close-requested";
 const APP_CLOSE_BLOCKED_EVENT: &str = "app-close-blocked";
 
@@ -211,6 +214,30 @@ fn stop_backend(backend: &mut ManagedBackend, port: u16, grace: Duration) -> Sto
     let _ = backend.child.kill();
     let _ = backend.child.wait();
     StopOutcome::Killed
+}
+
+/// For exits that can't be called off: keep asking while a submission runs (up to `patience`),
+/// then stop the backend whatever it is doing.
+fn stop_backend_patiently(
+    backend: &mut ManagedBackend,
+    port: u16,
+    grace: Duration,
+    patience: Duration,
+    retry_every: Duration,
+) -> StopOutcome {
+    let deadline = std::time::Instant::now() + patience;
+    loop {
+        match stop_backend(backend, port, grace) {
+            StopOutcome::Busy if std::time::Instant::now() < deadline => std::thread::sleep(retry_every),
+            StopOutcome::Busy => {
+                log::warn!("a submission was still running after {patience:?}; killing the backend");
+                let _ = backend.child.kill();
+                let _ = backend.child.wait();
+                return StopOutcome::Killed;
+            }
+            outcome => return outcome,
+        }
+    }
 }
 
 fn take_backend(app: &tauri::AppHandle) -> Option<ManagedBackend> {
@@ -569,21 +596,22 @@ pub fn run() {
     // close flow) still stop the backend here — don't rely solely on `Drop`, which
     // may not run if the process fast-exits, leaving an orphaned JVM that locks the
     // DB (and, on Windows, the JRE DLLs during the next install).
+    // The close button goes through `begin_close`. Anything else ends here with the window already
+    // gone (a Windows logoff, Cmd+Q on macOS: tao reports those only as `Exit`, and the last
+    // window being destroyed as `ExitRequested` with no code), so nothing can be refused or shown:
+    // let a running submission finish, then stop the backend. `Drop` alone may not run if the
+    // process fast-exits, leaving an orphaned JVM that locks the DB and the JRE DLLs.
     app.run(|app_handle, event| {
-        if let tauri::RunEvent::ExitRequested { code, api, .. } = event {
-            // A quit by the user (Cmd+Q, last window gone) goes through the same save-and-ask
-            // sequence as the close button; `app.exit` from that sequence carries a code.
-            if code.is_none() {
-                api.prevent_exit();
-                begin_close(app_handle);
-                return;
-            }
-            // Don't rely solely on `Drop`, which may not run if the process fast-exits, leaving
-            // an orphaned JVM that locks the DB (and, on Windows, the JRE DLLs on the next install).
+        if matches!(event, tauri::RunEvent::ExitRequested { .. } | tauri::RunEvent::Exit) {
             if let Some(mut backend) = take_backend(app_handle) {
                 log::info!("app exiting; stopping backend (pid={})", backend.child.id());
-                set_main_window_visible(app_handle, false);
-                stop_backend(&mut backend, BACKEND_PORT, BACKEND_EXIT_WAIT);
+                stop_backend_patiently(
+                    &mut backend,
+                    BACKEND_PORT,
+                    BACKEND_EXIT_WAIT,
+                    FORCED_EXIT_JOB_WAIT,
+                    Duration::from_secs(1),
+                );
             }
         }
     });
@@ -820,6 +848,25 @@ mod tests {
         server.join().unwrap();
     }
 
+    /// A fake backend answering each connection in turn with the given status lines.
+    fn fake_backend_seq(status_lines: Vec<&'static str>) -> (u16, std::thread::JoinHandle<usize>) {
+        use std::io::{Read, Write};
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let handle = std::thread::spawn(move || {
+            let mut served = 0;
+            for line in status_lines {
+                let (mut conn, _) = listener.accept().unwrap();
+                let mut buf = [0u8; 1024];
+                let _ = conn.read(&mut buf);
+                let _ = write!(conn, "{line}\r\nContent-Length: 0\r\n\r\n");
+                served += 1;
+            }
+            served
+        });
+        (port, handle)
+    }
+
     #[test]
     fn a_busy_backend_is_left_running() {
         let _guard = net_lock();
@@ -833,6 +880,33 @@ mod tests {
         assert!(process_alive(pid), "a backend that is submitting must not be killed");
         let _ = backend.child.kill();
         let _ = backend.child.wait();
+    }
+
+    #[test]
+    fn a_forced_exit_waits_for_the_submission_then_stops_gracefully() {
+        let _guard = net_lock();
+        use std::time::Duration;
+        let (port, server) = fake_backend_seq(vec!["HTTP/1.1 409 Conflict", "HTTP/1.1 409 Conflict", "HTTP/1.1 202 Accepted"]);
+        let mut backend = super::ManagedBackend { child: spawn_exiting(0), shutdown_token: "t".into() };
+        let outcome = super::stop_backend_patiently(
+            &mut backend, port, Duration::from_secs(1), Duration::from_secs(5), Duration::from_millis(50));
+        assert_eq!(outcome, super::StopOutcome::Graceful);
+        assert_eq!(server.join().unwrap(), 3);
+    }
+
+    #[test]
+    fn a_forced_exit_kills_a_backend_still_busy_after_its_patience() {
+        let _guard = net_lock();
+        use std::time::Duration;
+        let (port, server) = fake_backend_seq(vec!["HTTP/1.1 409 Conflict"; 50]);
+        let child = spawn_long_running();
+        let pid = child.id();
+        let mut backend = super::ManagedBackend { child, shutdown_token: "t".into() };
+        let outcome = super::stop_backend_patiently(
+            &mut backend, port, Duration::from_millis(100), Duration::from_millis(300), Duration::from_millis(50));
+        assert_eq!(outcome, super::StopOutcome::Killed);
+        assert!(!process_alive(pid));
+        drop(server);
     }
 
     #[test]
