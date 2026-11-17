@@ -17,6 +17,7 @@
    - [Paso 3: Verificación de marcaciones](#paso-3-verificación-de-marcaciones)
    - [Paso 4: Revisar datos finales](#paso-4-revisar-datos-finales)
    - [Paso 5: Enviar a la base de datos](#paso-5-enviar-a-la-base-de-datos)
+   - [Continuar una sesión sin terminar](#continuar-una-sesión-sin-terminar)
 5. [Pantalla de resultados](#5-pantalla-de-resultados)
 6. [Empleados sin marcaciones](#6-empleados-sin-marcaciones)
 7. [Página de Configuración](#7-página-de-configuración)
@@ -57,6 +58,8 @@ No se requiere instalación de programas adicionales. La aplicación incluye tod
 Haga doble clic en el ícono de **Cargador de Planilla** en el escritorio o en la carpeta donde fue instalada la aplicación.
 
 La aplicación tardará unos segundos en iniciarse mientras prepara sus componentes internos. Una vez lista, aparecerá la pantalla de inicio donde podrá cargar su archivo.
+
+Si la última vez cerró la aplicación sin terminar de procesar un archivo, la pantalla de inicio le ofrecerá continuar donde se quedó. Vea [Continuar una sesión sin terminar](#continuar-una-sesión-sin-terminar).
 
 ### Si aparece "No se pudo conectar con el servicio"
 
@@ -438,6 +441,37 @@ La barra inferior muestra cuántos registros se enviarán y cuántos serán excl
 
 ---
 
+### Continuar una sesión sin terminar
+
+La aplicación guarda su avance automáticamente mientras trabaja en los pasos de **empleados inactivos**, **verificación** y **revisión**. No hay un botón de "Guardar": cada decisión que toma (entradas y salidas corregidas, turnos aceptados, dobles marcaciones resueltas, horas extras y días no laborados ajustados, el período seleccionado) se guarda unos instantes después.
+
+Si la aplicación se cierra, se reinicia el equipo o el servicio interno se detiene, al volver a abrirla verá una tarjeta **"Sesión sin terminar"** encima del área para cargar archivos:
+
+```
+┌ Sesión sin terminar ───────────────────────────────┐
+│ 1era quincena octubre 2026.csv                      │
+│ Paso: Verificación · Guardada hoy a las 14:20       │
+│                         [Descartar]   [Continuar]   │
+└─────────────────────────────────────────────────────┘
+```
+
+- **Continuar** lo lleva al mismo paso en el que estaba, con todas sus decisiones intactas. No necesita volver a cargar el archivo.
+- **Descartar** le pide confirmación (*"¿Descartar la sesión guardada? Se perderán las decisiones tomadas."*) y borra la sesión guardada.
+
+Solo se guarda **la última sesión**. La sesión guardada se descarta cuando:
+
+- Carga un archivo nuevo. Si ya hay una sesión sin terminar, la aplicación le avisa primero (*"Ya hay una sesión sin terminar. Si carga un archivo nuevo, se descartará."*). Si la carga del archivo nuevo falla, la sesión anterior se conserva.
+- Pulsa **"Nueva carga"** en la barra superior y confirma con **"Sí, descartar"**.
+- El envío termina con todos los registros enviados correctamente.
+
+**Envío parcial.** Si un envío terminó con algunos registros fallidos, la sesión se conserva para que pueda retomarla. La tarjeta muestra además la línea *"Envío parcial: algunos registros ya se enviaron y aparecerán como duplicados."* Al continuar, llegará a la revisión y los registros que ya se enviaron aparecerán marcados como duplicados, por lo que no se enviarán dos veces.
+
+**Envío en curso.** Si abre la aplicación mientras un envío todavía se está procesando, la tarjeta muestra *"Envío en curso, espere a que termine."* y no ofrece **Continuar** hasta que el envío termine.
+
+> **Nota:** La sesión se guarda solo en esta computadora. Los cambios hechos en el último segundo antes de un cierre forzado podrían no quedar guardados.
+
+---
+
 ## 5. Pantalla de resultados
 
 Al completarse el envío, verá una pantalla de resultados que indica cómo terminó el proceso.
@@ -465,7 +499,7 @@ Tiene tres opciones:
 |-------|----------|
 | **Reintentar registros fallidos** | Vuelve a intentar enviar solo los registros que fallaron |
 | **Revisar empleados sin marcaciones** | Abre la pantalla de empleados ausentes (ver sección 6) |
-| **Nueva carga** | Descarta los registros fallidos y regresa a la pantalla de inicio |
+| **Nueva carga** | Regresa a la pantalla de inicio. La sesión queda guardada y puede retomarla con **Continuar** (ver [Continuar una sesión sin terminar](#continuar-una-sesión-sin-terminar)) |
 
 ### Reintentos agotados
 
@@ -660,7 +694,10 @@ Para guardar los cambios, haga clic en **"Guardar cambios"**. Para revertirlos, 
 Sí. La aplicación detecta automáticamente los registros que ya fueron enviados previamente y los marca como "Duplicado". Los registros duplicados serán excluidos del envío — solo se enviarán los registros nuevos.
 
 **¿Qué pasa si cierro la aplicación durante el envío?**
-No cierre la aplicación durante el envío. Si lo hace por accidente, vuelva a abrir la aplicación y cargue el archivo nuevamente. La aplicación detectará los registros que ya se enviaron como duplicados y solo enviará los que falten.
+No cierre la aplicación durante el envío. Si lo hace por accidente, vuelva a abrir la aplicación y pulse **Continuar** en la tarjeta "Sesión sin terminar". Llegará a la revisión, donde los registros que ya se enviaron aparecerán como duplicados y no se volverán a enviar.
+
+**¿Pierdo mi trabajo si la aplicación se cierra a mitad de la verificación?**
+No. El avance se guarda automáticamente. Al volver a abrir la aplicación, pulse **Continuar** en la tarjeta "Sesión sin terminar" (ver [Continuar una sesión sin terminar](#continuar-una-sesión-sin-terminar)).
 
 **¿Puedo editar las horas extras después de la verificación?**
 Sí. En la vista de lista y en la vista de detalle puede modificar las horas extras simples y dobles directamente. Los campos editados se resaltarán en amarillo para que sepa qué valores fueron ajustados manualmente.

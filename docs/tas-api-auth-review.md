@@ -63,3 +63,43 @@ The **real risk** was the `@CrossOrigin(origins = "*")` annotation: any website 
 ### When to Revisit
 
 If the app's deployment model changes (e.g., web-hosted, multi-user, or exposed beyond localhost), a full auth layer should be added at that point.
+
+## Hostile-input contract (TASK-88, 2026-11-16)
+
+`backend/src/test/java/com/planilla/backend/security/ApiHostileInputContractTest.java` derives the
+whole `/api` surface at run time from Spring's `RequestMappingHandlerMapping` (31 endpoints when it was
+added) and sends every one of them garbage JSON, wrong-typed fields, missing / oversized / unknown upload
+tokens (in the body and in path variables) and malformed fields carrying a valid token — about 2,800
+requests. A new endpoint is attacked automatically.
+
+It asserts:
+
+- **Every `/api/tas/**` endpoint:** no 5xx and no unhandled exception.
+- **Every `/api` endpoint:** a request without the victim session's token never returns that session's
+  data and never changes its state or its saved draft.
+- **Ratchet on the rest:** the set of endpoints that still 5xx must equal the OPEN list below exactly, so
+  a newly failing endpoint fails the build and a fixed one must be removed from the list.
+
+Proven able to fail: with a planted `POST /api/tas/plant-5xx` (casts `uploadToken` without a check) and a
+planted `GET /api/tas/plant-leak` (returns every in-memory session), the test failed with
+`unhandled ServletException ... NullPointerException` and `leaked the victim session without its token`.
+Both were removed.
+
+### By design, not a finding
+
+| Endpoint | Why it is token-less |
+|---|---|
+| `GET /api/tas/draft`, `POST /api/tas/draft/resume` | Single-user app bound to `127.0.0.1` with exactly one saved draft; the start screen must find it without a token. |
+| `DELETE /api/tas/draft`, `POST /api/tas/upload` | Discarding the draft, or replacing it with a new upload, is the user's own action on the only draft. |
+
+### Findings
+
+| ID | Finding | Status |
+|---|---|---|
+| H-1 | TAS endpoints threw `ClassCastException` / `NullPointerException` (HTTP 500) on a non-string or missing `uploadToken`, a non-list `reactivate`/`ignore`/`employeeIds`/`resolutions`, non-numeric period fields, or a non-boolean `active`. | **FIXED** — validated before use; CLOSED-by-test. |
+| H-2 | `/resolve` applied entries one by one and could return 400 halfway, leaving a half-applied batch. | **FIXED** — the batch is validated first, then applied under the session lock; CLOSED-by-test (`TasControllerDraftTest`). |
+| H-3 | `POST /api/config/shifts`, `PUT /api/config/shifts/{id}`, `PUT /api/config/employees/{id}`, `POST /api/config/employees/bulk-assign`, `POST /api/config/holidays` cast body fields without type checks: a wrong-typed field is an unhandled `ClassCastException` / `NullPointerException` (HTTP 500). No data leak, no session change. | **OPEN** — tracked in the test's `KNOWN_OPEN_5XX`. |
+
+Not proven: behaviour under concurrent hostile requests, request bodies larger than ~100 KB, and
+non-JSON content types other than multipart on the upload endpoint.
+

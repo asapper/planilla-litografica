@@ -2,7 +2,11 @@
 
 ## Unreleased
 
+### Features
+- **Resume an interrupted TAS session.** Progress through inactive-employee review, verification and review is saved automatically to the local database. After the app closes, crashes or the backend restarts, the start screen shows a "Sesión sin terminar" card to continue at the same step with every decision intact, or to discard it. Only the latest session is kept; uploading a new file (after a confirm) or the confirmed "Nueva carga" discards it. A session whose submission partly failed is kept and flagged so duplicates aren't a surprise, and a second submission for the same session is refused while one is still running.
+
 ### Fixes
+- **Long sessions no longer expire after 30 minutes.** The in-memory upload session now expires after 30 *idle* minutes instead of 30 minutes after the upload, and a session with a saved draft is never evicted (it reloads from the draft if needed).
 - **Swap a single scan between entry and exit.** When a day has only one scan, the app guesses whether it was the entry or the exit, and it often guessed wrong for afternoon exits of the morning shift (they showed up as the entry of a Tarde/Noche shift). Missing-entry/exit cards now have an "Intercambiar entrada/salida" button, and when the entry time changes the shift is re-picked from the new entry so overtime is measured against the right shift length (previously a misread Noche day lost all its overtime).
 - **Specific startup errors.** When the backend can't start, the app now stops waiting and says why: the port is taken by another program, or the service stopped during startup (with its exit code). Previously every failure showed "No se pudo conectar con el servicio." after 20 seconds.
 
