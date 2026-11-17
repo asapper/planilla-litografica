@@ -1,7 +1,29 @@
+use std::io::{Read, Write};
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::mpsc;
 use std::sync::Mutex;
+use std::time::Duration;
 
-struct BackendProcess(Mutex<Option<std::process::Child>>);
+/// The backend we spawned, and the per-launch secret that lets us ask it to shut down.
+struct ManagedBackend {
+    child: std::process::Child,
+    shutdown_token: String,
+}
+
+struct BackendProcess(Mutex<Option<ManagedBackend>>);
+
+/// Set while the window is closing; `close_ready` releases the wait early.
+struct CloseGate {
+    closing: AtomicBool,
+    ready: Mutex<Option<mpsc::Sender<()>>>,
+}
+
+/// How long the window waits for the frontend to save its draft before closing anyway.
+const FRONTEND_SAVE_WAIT: Duration = Duration::from_secs(2);
+/// How long the backend gets to close H2 and exit after the shutdown request, before kill().
+const BACKEND_EXIT_WAIT: Duration = Duration::from_secs(5);
+const APP_CLOSE_EVENT: &str = "app-close-requested";
 
 /// What the shell knows about the backend it launched, surfaced to the frontend
 /// so a failed start shows a specific error instead of a generic health timeout.
@@ -53,9 +75,124 @@ fn backend_status(
     status: tauri::State<BackendStatusState>,
 ) -> BackendStatus {
     let mut status = status.0.lock().unwrap_or_else(|e| e.into_inner());
-    let mut child = process.0.lock().unwrap_or_else(|e| e.into_inner());
-    *status = refresh_backend_status(*status, child.as_mut(), BACKEND_PORT);
+    let mut backend = process.0.lock().unwrap_or_else(|e| e.into_inner());
+    *status = refresh_backend_status(*status, backend.as_mut().map(|b| &mut b.child), BACKEND_PORT);
     *status
+}
+
+#[tauri::command]
+fn close_ready(gate: tauri::State<CloseGate>) {
+    if let Some(ready) = gate.ready.lock().unwrap_or_else(|e| e.into_inner()).take() {
+        let _ = ready.send(());
+    }
+}
+
+/// A per-launch secret for the backend's shutdown endpoint. `RandomState` is seeded from the OS's
+/// randomness, so two hashes give 128 unpredictable bits without pulling in a crate.
+#[cfg(any(not(debug_assertions), test))]
+fn new_shutdown_token() -> String {
+    use std::hash::{BuildHasher, Hasher};
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or_default();
+    let mut parts = [0u64; 2];
+    for (i, part) in parts.iter_mut().enumerate() {
+        let mut h = std::collections::hash_map::RandomState::new().build_hasher();
+        h.write_u128(nanos);
+        h.write_u32(std::process::id());
+        h.write_usize(i);
+        *part = h.finish();
+    }
+    format!("{:016x}{:016x}", parts[0], parts[1])
+}
+
+/// Asks the backend to close its database and exit. Ok only when it accepted (202).
+fn request_shutdown(port: u16, token: &str) -> std::io::Result<()> {
+    use std::net::{SocketAddr, TcpStream};
+    let addr = SocketAddr::from(([127, 0, 0, 1], port));
+    let mut stream = TcpStream::connect_timeout(&addr, Duration::from_millis(500))?;
+    stream.set_read_timeout(Some(Duration::from_secs(2)))?;
+    stream.set_write_timeout(Some(Duration::from_secs(2)))?;
+    write!(
+        stream,
+        "POST /api/system/shutdown HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nX-Shutdown-Token: {token}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+    )?;
+    let mut status_line = [0u8; 12];
+    stream.read_exact(&mut status_line)?;
+    if status_line.starts_with(b"HTTP/1.1 202") {
+        Ok(())
+    } else {
+        Err(std::io::Error::other(format!(
+            "backend refused shutdown: {}",
+            String::from_utf8_lossy(&status_line)
+        )))
+    }
+}
+
+/// Polls the child until it exits or `timeout` passes. True once it has exited.
+fn wait_for_exit(child: &mut std::process::Child, timeout: Duration) -> bool {
+    let deadline = std::time::Instant::now() + timeout;
+    loop {
+        if let Ok(Some(_)) = child.try_wait() {
+            return true;
+        }
+        if std::time::Instant::now() >= deadline {
+            return false;
+        }
+        std::thread::sleep(Duration::from_millis(50));
+    }
+}
+
+/// Stops the backend so H2 closes cleanly; kill() only if it doesn't exit within `grace`.
+fn stop_backend(mut backend: ManagedBackend, port: u16, grace: Duration) {
+    let pid = backend.child.id();
+    match request_shutdown(port, &backend.shutdown_token) {
+        Ok(()) if wait_for_exit(&mut backend.child, grace) => {
+            log::info!("backend (pid={pid}) shut down gracefully");
+            return;
+        }
+        Ok(()) => log::warn!("backend (pid={pid}) accepted shutdown but did not exit in {grace:?}; killing it"),
+        Err(e) => log::warn!("graceful shutdown of backend (pid={pid}) failed: {e}; killing it"),
+    }
+    let _ = backend.child.kill();
+    let _ = backend.child.wait();
+}
+
+fn take_backend(app: &tauri::AppHandle) -> Option<ManagedBackend> {
+    use tauri::Manager;
+    let state = app.state::<BackendProcess>();
+    let mut guard = state.0.lock().unwrap_or_else(|e| e.into_inner());
+    guard.take()
+}
+
+/// The window's close button: give the frontend a moment to save the draft, stop the backend
+/// gracefully, then exit. A second click while this runs is ignored.
+fn begin_close(app: &tauri::AppHandle) {
+    use tauri::{Emitter, Manager};
+    let gate = app.state::<CloseGate>();
+    if gate.closing.swap(true, Ordering::SeqCst) {
+        return;
+    }
+    let (ready_tx, ready_rx) = mpsc::channel();
+    *gate.ready.lock().unwrap_or_else(|e| e.into_inner()) = Some(ready_tx);
+    if let Err(e) = app.emit(APP_CLOSE_EVENT, ()) {
+        log::warn!("could not ask the frontend to save before closing: {e}");
+    }
+    let app = app.clone();
+    std::thread::spawn(move || {
+        if ready_rx.recv_timeout(FRONTEND_SAVE_WAIT).is_err() {
+            log::warn!("frontend did not confirm its save within {FRONTEND_SAVE_WAIT:?}; closing anyway");
+        }
+        // The backend may take a few seconds to close the database; don't leave a dead window up.
+        if let Some(window) = app.get_webview_window("main") {
+            let _ = window.hide();
+        }
+        if let Some(backend) = take_backend(&app) {
+            stop_backend(backend, BACKEND_PORT, BACKEND_EXIT_WAIT);
+        }
+        app.exit(0);
+    });
 }
 
 /// Strips the Windows verbatim/extended-length path prefix (`\\?\`).
@@ -187,9 +324,9 @@ fn open_manual(app: tauri::AppHandle) -> Result<(), String> {
 
 impl Drop for BackendProcess {
     fn drop(&mut self) {
-        if let Some(mut child) = self.0.lock().unwrap_or_else(|e| e.into_inner()).take() {
-            let _ = child.kill();
-            let _ = child.wait();
+        if let Some(mut backend) = self.0.lock().unwrap_or_else(|e| e.into_inner()).take() {
+            let _ = backend.child.kill();
+            let _ = backend.child.wait();
         }
     }
 }
@@ -211,8 +348,19 @@ pub fn run() {
                 .level(log::LevelFilter::Info)
                 .build(),
         )
-        .invoke_handler(tauri::generate_handler![open_manual, backend_status])
+        .invoke_handler(tauri::generate_handler![open_manual, backend_status, close_ready])
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                use tauri::Manager;
+                api.prevent_close();
+                begin_close(window.app_handle());
+            }
+        })
         .manage(BackendProcess(Mutex::new(None)))
+        .manage(CloseGate {
+            closing: AtomicBool::new(false),
+            ready: Mutex::new(None),
+        })
         .manage(BackendStatusState(Mutex::new(BackendStatus::Unmanaged)))
         .setup(|app| {
             #[cfg(not(debug_assertions))]
@@ -308,9 +456,11 @@ pub fn run() {
                     }
                 };
 
+                let shutdown_token = new_shutdown_token();
                 let mut command = Command::new(&java_bin);
                 command
                     .args(["-jar", jar.to_str().unwrap_or_default()])
+                    .env("PLANILLA_SHUTDOWN_TOKEN", &shutdown_token)
                     .stdout(stdout_stdio)
                     .stderr(stderr_stdio);
 
@@ -334,7 +484,7 @@ pub fn run() {
                 log::info!("backend process spawned (pid={})", child.id());
 
                 let state = app.state::<BackendProcess>();
-                *state.0.lock().unwrap() = Some(child);
+                *state.0.lock().unwrap() = Some(ManagedBackend { child, shutdown_token });
                 let status = app.state::<BackendStatusState>();
                 *status.0.lock().unwrap() = BackendStatus::Running { port_free_at_spawn };
             }
@@ -345,21 +495,15 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("error while running tauri application");
 
-    // Explicitly tear the backend down on exit — don't rely solely on `Drop`,
-    // which may not run if the process fast-exits, leaving an orphaned JVM that
-    // locks the DB (and, on Windows, the JRE DLLs during the next install).
+    // Exits that skip the window's close button (quit from the OS, a crash in the
+    // close flow) still stop the backend here — don't rely solely on `Drop`, which
+    // may not run if the process fast-exits, leaving an orphaned JVM that locks the
+    // DB (and, on Windows, the JRE DLLs during the next install).
     app.run(|app_handle, event| {
         if let tauri::RunEvent::ExitRequested { .. } = event {
-            use tauri::Manager;
-            let child = {
-                let state = app_handle.state::<BackendProcess>();
-                let mut guard = state.0.lock().unwrap_or_else(|e| e.into_inner());
-                guard.take()
-            };
-            if let Some(mut child) = child {
-                log::info!("app exiting; terminating backend (pid={})", child.id());
-                let _ = child.kill();
-                let _ = child.wait();
+            if let Some(backend) = take_backend(app_handle) {
+                log::info!("app exiting; stopping backend (pid={})", backend.child.id());
+                stop_backend(backend, BACKEND_PORT, BACKEND_EXIT_WAIT);
             }
         }
     });
@@ -492,6 +636,127 @@ mod tests {
         use super::{BACKEND_PORT, LEGACY_BACKEND_PORT};
         assert!(BACKEND_PORT < 49152, "BACKEND_PORT must be below the Windows ephemeral range");
         assert_ne!(BACKEND_PORT, LEGACY_BACKEND_PORT);
+    }
+
+    #[test]
+    fn shutdown_tokens_are_long_hex_and_differ() {
+        use super::new_shutdown_token;
+        let a = new_shutdown_token();
+        let b = new_shutdown_token();
+        assert_eq!(a.len(), 32);
+        assert!(a.chars().all(|c| c.is_ascii_hexdigit()));
+        assert_ne!(a, b);
+    }
+
+    /// A one-shot fake backend: records the request and answers with `status_line`.
+    fn fake_backend(status_line: &'static str) -> (u16, std::thread::JoinHandle<String>) {
+        use std::io::{Read, Write};
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let handle = std::thread::spawn(move || {
+            let (mut conn, _) = listener.accept().unwrap();
+            conn.set_read_timeout(Some(std::time::Duration::from_secs(2))).unwrap();
+            let mut buf = [0u8; 1024];
+            let n = conn.read(&mut buf).unwrap_or(0);
+            let _ = write!(conn, "{status_line}\r\nContent-Length: 0\r\n\r\n");
+            String::from_utf8_lossy(&buf[..n]).into_owned()
+        });
+        (port, handle)
+    }
+
+    #[test]
+    fn request_shutdown_sends_the_token_and_accepts_202() {
+        let _guard = net_lock();
+        let (port, server) = fake_backend("HTTP/1.1 202 Accepted");
+        super::request_shutdown(port, "tok123").unwrap();
+        let request = server.join().unwrap();
+        assert!(request.starts_with("POST /api/system/shutdown HTTP/1.1\r\n"), "{request}");
+        assert!(request.contains("\r\nX-Shutdown-Token: tok123\r\n"), "{request}");
+    }
+
+    #[test]
+    fn request_shutdown_fails_when_refused_or_nobody_listens() {
+        let _guard = net_lock();
+        let (port, server) = fake_backend("HTTP/1.1 403 Forbidden");
+        assert!(super::request_shutdown(port, "wrong").is_err());
+        server.join().unwrap();
+
+        let free = std::net::TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap().port();
+        assert!(super::request_shutdown(free, "tok").is_err());
+    }
+
+    #[test]
+    fn wait_for_exit_reports_exit_and_timeout() {
+        let _guard = net_lock();
+        use std::time::Duration;
+        let mut quick = spawn_exiting(0);
+        assert!(super::wait_for_exit(&mut quick, Duration::from_millis(500)));
+
+        let mut slow = spawn_long_running();
+        let started = std::time::Instant::now();
+        assert!(!super::wait_for_exit(&mut slow, Duration::from_millis(200)));
+        assert!(started.elapsed() < Duration::from_secs(2));
+        let _ = slow.kill();
+        let _ = slow.wait();
+    }
+
+    #[test]
+    fn stop_backend_kills_a_backend_that_cannot_be_asked() {
+        let _guard = net_lock();
+        use std::time::Duration;
+        let free = std::net::TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap().port();
+        let child = spawn_long_running();
+        let pid = child.id();
+        let backend = super::ManagedBackend { child, shutdown_token: "t".into() };
+        let started = std::time::Instant::now();
+        super::stop_backend(backend, free, Duration::from_millis(200));
+        assert!(started.elapsed() < Duration::from_secs(3));
+        assert!(!process_alive(pid), "the backend must be killed");
+    }
+
+    #[test]
+    fn stop_backend_kills_a_backend_that_accepts_but_never_exits() {
+        let _guard = net_lock();
+        use std::time::Duration;
+        let (port, server) = fake_backend("HTTP/1.1 202 Accepted");
+        let child = spawn_long_running();
+        let pid = child.id();
+        let backend = super::ManagedBackend { child, shutdown_token: "t".into() };
+        super::stop_backend(backend, port, Duration::from_millis(200));
+        server.join().unwrap();
+        assert!(!process_alive(pid), "the backend must be killed after the grace period");
+    }
+
+    #[test]
+    fn stop_backend_leaves_a_gracefully_exited_backend_alone() {
+        let _guard = net_lock();
+        use std::time::Duration;
+        let (port, server) = fake_backend("HTTP/1.1 202 Accepted");
+        let child = spawn_exiting(0);
+        let backend = super::ManagedBackend { child, shutdown_token: "t".into() };
+        let started = std::time::Instant::now();
+        super::stop_backend(backend, port, Duration::from_secs(5));
+        assert!(started.elapsed() < Duration::from_secs(1), "an exited backend must not wait out the grace period");
+        server.join().unwrap();
+    }
+
+    fn process_alive(pid: u32) -> bool {
+        #[cfg(target_os = "windows")]
+        {
+            let out = std::process::Command::new("tasklist")
+                .args(["/FI", &format!("PID eq {pid}"), "/NH"])
+                .output()
+                .unwrap();
+            String::from_utf8_lossy(&out.stdout).contains(&pid.to_string())
+        }
+        #[cfg(not(target_os = "windows"))]
+        {
+            std::process::Command::new("kill")
+                .args(["-0", &pid.to_string()])
+                .status()
+                .map(|s| s.success())
+                .unwrap_or(false)
+        }
     }
 
     #[test]

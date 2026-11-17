@@ -101,7 +101,7 @@ function clearTimer() {
 }
 
 // Debounced, but a steady stream of edits still saves at least every DRAFT_SAVE_MAX_WAIT_MS:
-// the app can be closed at any moment, and closing force-kills the backend.
+// a crash or a forced close can happen at any moment.
 function schedule() {
   const now = Date.now();
   burstStartedAt ??= now;
@@ -160,6 +160,12 @@ function flush(explicitState?: TasStore) {
         flush(next);
       }
     });
+}
+
+// The app is closing: send what is pending and wait until the backend has it.
+export async function saveDraftNow(): Promise<void> {
+  if (timer !== null && !suspended) flush();
+  while (inflight) await inflight;
 }
 
 export function startDraftAutosave(fileNameGetter: () => string): () => void {

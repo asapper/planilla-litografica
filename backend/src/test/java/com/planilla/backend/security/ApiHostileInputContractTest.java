@@ -7,6 +7,7 @@ import com.planilla.backend.controller.TasController;
 import com.planilla.backend.model.EmployeeRow;
 import com.planilla.backend.model.tas.TasFlag;
 import com.planilla.backend.model.tas.TasSession;
+import com.planilla.backend.service.ApplicationExiter;
 import com.planilla.backend.service.DatabaseService;
 import com.planilla.backend.service.tas.TasDraftService;
 import com.planilla.backend.service.tas.TasUploadState;
@@ -21,6 +22,7 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
@@ -52,6 +54,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
+@TestPropertySource(properties = "PLANILLA_SHUTDOWN_TOKEN=hostile-test-shutdown-token")
 class ApiHostileInputContractTest {
 
     private static final String SECRET = "VICTIM-SECRET-5f1c";
@@ -105,6 +108,7 @@ class ApiHostileInputContractTest {
 
     @MockBean DatabaseService databaseService;
     @MockBean(name = "postgresJdbcTemplate") JdbcTemplate postgresJdbcTemplate;
+    @MockBean ApplicationExiter exiter;
 
     private final String victimToken = UUID.randomUUID().toString();
 
@@ -299,7 +303,8 @@ class ApiHostileInputContractTest {
         endpoints.forEach(e -> keys.add(e.key()));
         assertThat(keys).as("the derived surface must include the draft endpoints")
                 .containsAll(TOKENLESS_DRAFT_READS).containsAll(TOKENLESS_DRAFT_REPLACERS)
-                .contains("PUT /api/tas/draft");
+                .contains("PUT /api/tas/draft")
+                .contains("POST /api/system/shutdown");
 
         Map<String, List<String>> failures = new TreeMap<>();
         int requests = 0;
@@ -339,6 +344,7 @@ class ApiHostileInputContractTest {
         List<String> leaks = failures.values().stream().flatMap(List::stream)
                 .filter(f -> f.contains("leaked") || f.contains("changed the victim")).toList();
         assertThat(leaks).as("cross-token leaks or mutations anywhere on /api").isEmpty();
+        org.mockito.Mockito.verify(exiter, org.mockito.Mockito.never()).exitSoon();
 
         Map<String, Map<String, Integer>> observed = new TreeMap<>();
         failures.forEach((endpoint, list) -> {
