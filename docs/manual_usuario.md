@@ -231,7 +231,7 @@ Cuando un día tiene **una sola marcación**, el sistema decide si fue entrada o
 3. La etiqueta cambia para reflejarlo (por ejemplo, de `Falta salida · Entrada 17:31` a `Falta entrada · Salida 17:31`).
 4. Ingrese la hora que falta y haga clic en **"Confirmar"**.
 
-Si la jornada cruza la medianoche (por ejemplo, entrada 22:00 y salida 06:00), el sistema coloca la hora que usted escribe en el día anterior o siguiente según corresponda. Si la jornada resultante dura más de 16 horas, verá el mensaje **"La jornada no puede durar más de 16 horas"**: revise que la hora sea correcta.
+Si la jornada cruza la medianoche (por ejemplo, entrada 22:00 y salida 06:00), el sistema coloca la hora que usted escribe en el día anterior o siguiente según corresponda. La jornada se cuenta en el día en que empezó, igual que cualquier turno de noche completo, salvo que eso la pase a la otra quincena (entrada el 15, salida el 16): en ese caso se queda en la quincena que está procesando. Las horas después de la medianoche de un domingo o feriado se pagan dobles, y las de antes no. Si la jornada resultante dura más de 16 horas, verá el mensaje **"La jornada no puede durar más de 16 horas"**: revise que la hora sea correcta.
 
 Si se equivocó, haga clic en **"Deshacer intercambio"** antes de confirmar. Si ya confirmó, abra de nuevo la fila con **"Editar"**; el intercambio se conserva y puede deshacerlo.
 

@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.planilla.backend.model.EmployeeRow;
 import com.planilla.backend.model.tas.TasScanRecord;
 import com.planilla.backend.model.tas.TasPeriod;
+import com.planilla.backend.model.tas.TasFlag;
 import com.planilla.backend.model.tas.TasSession;
 import com.planilla.backend.model.tas.TasUploadResult;
 import com.planilla.backend.service.DatabaseService;
@@ -2565,5 +2566,116 @@ class TasControllerTest {
                 eq(java.time.LocalDate.of(2026, 10, 1)),
                 eq(java.time.LocalDate.of(2026, 10, 11)),
                 eq(List.of(new TasPeriod(2026, 10, 1))));
+    }
+
+    // ── Night shifts anchored on the exit, and the shift's crossMidnight ──────
+
+    private static Map<String, Object> shift(String id, String name, String start, String end, boolean crossMidnight) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("id", id);
+        m.put("name", name);
+        m.put("startTime", start);
+        m.put("endTime", end);
+        m.put("crossMidnight", crossMidnight);
+        return m;
+    }
+
+    private TasSession seedNightState(String token, String date, TasFlag... flags) {
+        TasSession s = new TasSession();
+        s.setSessionId(70);
+        s.setEmployeeId("emp1");
+        s.setDate(java.time.LocalDate.parse(date));
+        s.setMatchedShiftId("manana");
+        s.setMatchedShiftName("Mañana");
+        s.setCrossMidnight(false);
+        s.setNeedsResolution(true);
+        s.setFlags(new ArrayList<>(List.of(flags)));
+        TasUploadState state = new TasUploadState();
+        state.setUploadToken(token);
+        state.setSessions(new ArrayList<>(List.of(s)));
+        state.setReportStart(java.time.LocalDate.of(2026, 1, 1));
+        state.setReportEnd(java.time.LocalDate.of(2026, 1, 31));
+        tasController.stateStore.put(token, state);
+        when(shiftConfigService.getAllShifts()).thenReturn(List.of(
+                shift("manana", "Mañana", "07:00", "15:00", false),
+                shift("noche", "Noche", "22:00", "06:00", true)));
+        when(reportBuilder.build(any(), any(), any(), any(), any()))
+                .thenReturn(new TasReportBuilder.BuildResult(List.of()));
+        when(reportBuilder.computeAvailablePeriods(any())).thenReturn(List.of());
+        return s;
+    }
+
+    private void resolveTimes(String token, String start, String end) throws Exception {
+        Map<String, Object> res = new LinkedHashMap<>();
+        res.put("sessionId", 70);
+        res.put("resolvedStart", start);
+        res.put("resolvedEnd", end);
+        mvc.perform(post("/api/tas/resolve")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of("uploadToken", token, "resolutions", List.of(res)))))
+           .andExpect(status().isOk());
+    }
+
+    @Test
+    void resolve_nightAnchoredOnItsExit_isDatedByItsStart() throws Exception {
+        TasSession s = seedNightState("night-tok", "2026-01-07", TasFlag.MISSING_ENTRY, TasFlag.BEST_FIT_SHIFT);
+
+        resolveTimes("night-tok", "2026-01-06 22:00", "2026-01-07 06:00");
+
+        assertThat(s.getDate()).isEqualTo(java.time.LocalDate.of(2026, 1, 6));
+        assertThat(s.getMatchedShiftId()).isEqualTo("noche");
+        assertThat(s.isCrossMidnight()).isTrue();
+    }
+
+    @Test
+    void resolve_nightAnchoredOnTheSixteenth_staysInItsFortnight() throws Exception {
+        TasSession s = seedNightState("night-tok", "2026-01-16", TasFlag.MISSING_ENTRY);
+
+        resolveTimes("night-tok", "2026-01-15 22:00", "2026-01-16 06:00");
+
+        assertThat(s.getDate()).isEqualTo(java.time.LocalDate.of(2026, 1, 16));
+        assertThat(s.getEffectiveStart()).isEqualTo(java.time.LocalDateTime.of(2026, 1, 15, 22, 0));
+    }
+
+    @Test
+    void resolve_sameDayTimes_keepTheDate() throws Exception {
+        TasSession s = seedNightState("night-tok", "2026-01-07", TasFlag.MISSING_EXIT);
+
+        resolveTimes("night-tok", "2026-01-07 07:00", "2026-01-07 15:00");
+
+        assertThat(s.getDate()).isEqualTo(java.time.LocalDate.of(2026, 1, 7));
+    }
+
+    @Test
+    void resolve_acceptedShift_carriesItsNameAndCrossMidnight() throws Exception {
+        TasSession s = seedNightState("night-tok", "2026-01-07", TasFlag.SHIFT_MISMATCH);
+
+        Map<String, Object> res = new LinkedHashMap<>();
+        res.put("sessionId", 70);
+        res.put("acceptedShiftId", "noche");
+        mvc.perform(post("/api/tas/resolve")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of("uploadToken", "night-tok", "resolutions", List.of(res)))))
+           .andExpect(status().isOk());
+
+        assertThat(s.getMatchedShiftId()).isEqualTo("noche");
+        assertThat(s.getMatchedShiftName()).isEqualTo("Noche");
+        assertThat(s.isCrossMidnight()).isTrue();
+    }
+
+    @Test
+    void resolve_acceptedShiftMissingFromConfig_keepsTheId() throws Exception {
+        TasSession s = seedNightState("night-tok", "2026-01-07", TasFlag.SHIFT_MISMATCH);
+
+        Map<String, Object> res = new LinkedHashMap<>();
+        res.put("sessionId", 70);
+        res.put("acceptedShiftId", "borrado");
+        mvc.perform(post("/api/tas/resolve")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of("uploadToken", "night-tok", "resolutions", List.of(res)))))
+           .andExpect(status().isOk());
+
+        assertThat(s.getMatchedShiftId()).isEqualTo("borrado");
+        assertThat(s.isCrossMidnight()).isFalse();
     }
 }

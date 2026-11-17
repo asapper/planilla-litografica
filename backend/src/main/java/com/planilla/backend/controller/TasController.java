@@ -390,9 +390,14 @@ public class TasController {
                 && (isSwappedSingleScan(session, start, end) || shiftWasGuessed)) {
             Map<String, Object> bestFit = TasSessionGrouper.findBestFitShift(start, shifts);
             if (bestFit != null) {
-                session.setMatchedShiftId(TasSessionGrouper.getShiftId(bestFit));
-                session.setMatchedShiftName((String) bestFit.get("name"));
+                assignShift(session, bestFit);
             }
+        }
+        // A night anchored on its recorded exit starts the day before: date it by its start like a
+        // complete night, but never across the 15th/16th, which would drop it from this submission.
+        if (session.getDate() != null
+                && TasPeriod.of(start.toLocalDate()).equals(TasPeriod.of(session.getDate()))) {
+            session.setDate(start.toLocalDate());
         }
         session.setEffectiveStart(start);
         session.setLastScan(end);
@@ -406,9 +411,19 @@ public class TasController {
         hoursCalculator.classifyHours(session, shifts);
     }
 
+    private static void assignShift(TasSession session, Map<String, Object> shift) {
+        session.setMatchedShiftId(TasSessionGrouper.getShiftId(shift));
+        session.setMatchedShiftName((String) shift.get("name"));
+        session.setCrossMidnight(Boolean.TRUE.equals(shift.get("crossMidnight")));
+    }
+
     private void applyAcceptedShift(TasSession session, String acceptedShiftId,
                                     List<Map<String, Object>> shifts) {
-        session.setMatchedShiftId(acceptedShiftId);
+        shifts.stream()
+                .filter(shift -> acceptedShiftId.equals(TasSessionGrouper.getShiftId(shift)))
+                .findFirst()
+                .ifPresentOrElse(shift -> assignShift(session, shift),
+                        () -> session.setMatchedShiftId(acceptedShiftId));
         session.getFlags().removeIf(f -> f == TasFlag.SHIFT_MISMATCH);
 
         boolean hasBlockingFlags = session.getFlags().stream()
