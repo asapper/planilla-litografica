@@ -37,13 +37,15 @@ export default function ResumeDraftCard({ draft, onContinue, onDiscard }: Props)
         </p>
       )}
       <div className="mt-4 flex justify-end gap-3">
-        <button className="m3-btn-outlined" onClick={onDiscard}>
-          Descartar
-        </button>
         {!draft.jobActive && (
-          <button className="m3-btn-filled" onClick={onContinue}>
-            Continuar
-          </button>
+          <>
+            <button className="m3-btn-outlined" onClick={onDiscard}>
+              Descartar
+            </button>
+            <button className="m3-btn-filled" onClick={onContinue}>
+              Continuar
+            </button>
+          </>
         )}
       </div>
     </section>

@@ -244,15 +244,31 @@ describe('autosave', () => {
     expect(mockSaveDraft).not.toHaveBeenCalled();
   });
 
-  it('ignores a 409 DRAFT_STALE silently', async () => {
+  const stale = (data: unknown) => new AxiosError('stale', '409', undefined, undefined,
+    { status: 409, statusText: 'Conflict', headers: {}, config: { headers: new AxiosHeaders() }, data });
+
+  it('warns on a 409 DRAFT_STALE with both revisions when they drifted', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    mockSaveDraft.mockRejectedValue(new AxiosError('stale', '409', undefined, undefined,
-      { status: 409, statusText: 'Conflict', headers: {}, config: { headers: new AxiosHeaders() }, data: {} }));
+    mockSaveDraft.mockRejectedValue(stale({ code: 'DRAFT_STALE', currentRevision: 9 }));
+    stop = startDraftAutosave(() => 'f.csv');
+    useTasStore.setState({ tasView: 'review', uploadToken: 'tok', stateRevision: 4 });
+    await vi.runAllTimersAsync();
+    expect(mockSaveDraft).toHaveBeenCalledTimes(1);
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn.mock.calls[0][0]).toContain('revisión local 4');
+    expect(warn.mock.calls[0][0]).toContain('servidor 9');
+    expect(useTasStore.getState().stateRevision).toBe(4);
+    warn.mockRestore();
+  });
+
+  it('warns on a 409 DRAFT_STALE when the server no longer has the session', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    mockSaveDraft.mockRejectedValue(stale({ code: 'DRAFT_STALE', currentRevision: null }));
     stop = startDraftAutosave(() => 'f.csv');
     useTasStore.setState({ tasView: 'review', uploadToken: 'tok' });
     await vi.runAllTimersAsync();
-    expect(mockSaveDraft).toHaveBeenCalledTimes(1);
-    expect(warn).not.toHaveBeenCalled();
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn.mock.calls[0][0]).toContain('ya no tiene esta sesión');
     warn.mockRestore();
   });
 

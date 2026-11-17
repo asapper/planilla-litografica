@@ -130,7 +130,7 @@ export default function TopAppBar({ currentView, onViewChange, tasView, onNewUpl
       {showConfirm && (
         <ConfirmModal
           title="Iniciar nueva carga"
-          message="Esta acción descartará la sesión actual, incluyendo los cambios sin guardar. ¿Deseas continuar?"
+          message="Esta acción descartará la sesión actual y la sesión guardada. ¿Deseas continuar?"
           confirmLabel="Sí, descartar"
           cancelLabel="Cancelar"
           onConfirm={() => {

@@ -64,6 +64,17 @@ export function formatPeriodLabel(period: TasPeriod | null): string | null {
   return `${month.charAt(0).toUpperCase()}${month.slice(1)} ${period.anio} - Quincena ${period.numeroDequincena}`;
 }
 
+// No re-sync on purpose: adopting the server's revision without its data would pair this UI
+// snapshot with a backend state it doesn't match. The next mutating response carries the
+// revision and saves resume; a lasting drift shows up here.
+function warnStale(localRevision: number, serverRevision: unknown) {
+  if (typeof serverRevision === 'number') {
+    console.warn(`Guardado de la sesión rechazado: revisión local ${localRevision}, del servidor ${serverRevision}.`);
+  } else {
+    console.warn('Guardado de la sesión rechazado: el servidor ya no tiene esta sesión.');
+  }
+}
+
 function isSavable(state: TasStore): boolean {
   return SAVABLE_VIEWS.has(state.tasView) && !!state.uploadToken;
 }
@@ -105,7 +116,10 @@ function flush(explicitState?: TasStore) {
     ui: toSnapshot(state) as unknown as Record<string, unknown>,
   })
     .catch(err => {
-      if (axios.isAxiosError(err) && err.response?.status === 409) return;
+      if (axios.isAxiosError(err) && err.response?.status === 409) {
+        warnStale(state.stateRevision, err.response.data?.currentRevision);
+        return;
+      }
       console.warn('No se pudo guardar la sesión en curso.', err);
     })
     .finally(() => {

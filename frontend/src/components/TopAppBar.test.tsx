@@ -200,3 +200,11 @@ describe('Ayuda button', () => {
     openSpy.mockRestore();
   });
 });
+
+describe('Nueva carga confirmation copy', () => {
+  it('says the saved session is discarded too', () => {
+    render(<TopAppBar currentView="tas" onViewChange={noop} tasView="review" onNewUpload={vi.fn()} onDiscardSession={onDiscardSession} />);
+    fireEvent.click(screen.getByRole('button', { name: /nueva carga/i }));
+    expect(screen.getByText('Esta acción descartará la sesión actual y la sesión guardada. ¿Deseas continuar?')).toBeInTheDocument();
+  });
+});

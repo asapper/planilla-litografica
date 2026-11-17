@@ -219,10 +219,11 @@ describe('EmptyState with a saved session', () => {
     expect(screen.getByText('Envío parcial: algunos registros ya se enviaron y aparecerán como duplicados.')).toBeInTheDocument();
   });
 
-  it('shows "Envío en curso" and no Continuar while a job is active', () => {
+  it('shows "Envío en curso" and neither Continuar nor Descartar while a job is active', () => {
     renderWithDraft({ jobActive: true });
     expect(screen.getByText('Envío en curso, espere a que termine.')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Continuar' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Descartar' })).not.toBeInTheDocument();
   });
 
   it('asks before uploading a new file over the saved session, then uploads on confirm', async () => {
