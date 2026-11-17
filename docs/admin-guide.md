@@ -140,7 +140,7 @@ CREATE TABLE tas_draft (
 - The row is replaced by every autosave, deleted when a new file is uploaded, when the user discards the session, or when a submission finishes with every row sent. A submission that ends with failed rows keeps the row and sets `partial_submit`.
 - Deleting `~/.planilla/data` (or resetting the database, see [reset-database.md](reset-database.md)) also deletes the saved session.
 - An unreadable or incompatible row is logged as a `WARN` and deleted on the next read; it never blocks startup.
-- H2 flushes about once per second, so a hard kill can lose the last second of autosaves.
+- The app force-stops the backend whenever it closes, so every draft write and delete runs an H2 `CHECKPOINT` to reach disk right away. The frontend saves 0.5 s after the last change (at least every 3 s during continuous editing) and immediately when the page is hidden; only an edit made in the last half second before a crash can be lost.
 
 **In-memory session expiry.** Upload sessions held in the backend's memory now expire after **30 idle minutes** (no request touching them), not 30 minutes after the upload. The session that matches the saved draft is never evicted, and if it is missing (for example after a backend restart) it is reloaded from `tas_draft` on the next request.
 

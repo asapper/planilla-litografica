@@ -4,7 +4,8 @@ import { saveDraft, deleteDraft } from './tasApi';
 import { MONTH_NAMES_ES } from './dateNames';
 import type { DraftView, TasPeriod, TasView } from './tasTypes';
 
-export const DRAFT_SAVE_DEBOUNCE_MS = 800;
+export const DRAFT_SAVE_DEBOUNCE_MS = 500;
+export const DRAFT_SAVE_MAX_WAIT_MS = 3000;
 
 const SAVABLE_VIEWS: ReadonlySet<TasView> = new Set<TasView>(['inactiveReview', 'verification', 'review']);
 
@@ -85,6 +86,7 @@ function persistedChanged(state: TasStore, prev: TasStore): boolean {
 
 let getFileName: () => string = () => '';
 let timer: ReturnType<typeof setTimeout> | null = null;
+let burstStartedAt: number | null = null;
 let inflight: Promise<void> | null = null;
 let queued = false;
 let queuedState: TasStore | null = null;
@@ -95,6 +97,17 @@ function clearTimer() {
     clearTimeout(timer);
     timer = null;
   }
+  burstStartedAt = null;
+}
+
+// Debounced, but a steady stream of edits still saves at least every DRAFT_SAVE_MAX_WAIT_MS:
+// the app can be closed at any moment, and closing force-kills the backend.
+function schedule() {
+  const now = Date.now();
+  burstStartedAt ??= now;
+  if (timer !== null) clearTimeout(timer);
+  const untilMaxWait = DRAFT_SAVE_MAX_WAIT_MS - (now - burstStartedAt);
+  timer = setTimeout(() => flush(), Math.max(0, Math.min(DRAFT_SAVE_DEBOUNCE_MS, untilMaxWait)));
 }
 
 function flush(explicitState?: TasStore) {
@@ -139,8 +152,7 @@ export function startDraftAutosave(fileNameGetter: () => string): () => void {
     if (suspended) return;
     if (isSavable(state)) {
       if (!persistedChanged(state, prev)) return;
-      clearTimer();
-      timer = setTimeout(() => flush(), DRAFT_SAVE_DEBOUNCE_MS);
+      schedule();
       return;
     }
     // Leaving review for submitting must not drop edits made in the last debounce window.
@@ -151,8 +163,11 @@ export function startDraftAutosave(fileNameGetter: () => string): () => void {
     }
     clearTimer();
   });
+  const saveBeforeClose = () => { if (timer !== null) flush(); };
+  window.addEventListener('pagehide', saveBeforeClose);
   return () => {
     unsubscribe();
+    window.removeEventListener('pagehide', saveBeforeClose);
     clearTimer();
   };
 }

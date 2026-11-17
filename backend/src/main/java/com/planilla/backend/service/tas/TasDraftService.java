@@ -79,6 +79,7 @@ public class TasDraftService {
             token, SCHEMA_VERSION, fileName, view, state.getRevision(),
             token,
             periodLabel, Timestamp.from(Instant.now()), backendJson, uiJson);
+        flushToDisk();
     }
 
     public Optional<Draft> load() {
@@ -151,6 +152,7 @@ public class TasDraftService {
     public void deleteIfToken(String token) {
         try {
             jdbc.update("DELETE FROM tas_draft WHERE id = 1 AND upload_token = ?", token);
+            flushToDisk();
         } catch (Exception e) {
             log.warn("Could not delete the TAS draft for token {}: {}", token, e.getMessage());
         }
@@ -159,6 +161,7 @@ public class TasDraftService {
     public void markPartialIfToken(String token) {
         try {
             jdbc.update("UPDATE tas_draft SET partial_submit = TRUE WHERE id = 1 AND upload_token = ?", token);
+            flushToDisk();
         } catch (Exception e) {
             log.warn("Could not mark the TAS draft as partially submitted: {}", e.getMessage());
         }
@@ -166,6 +169,17 @@ public class TasDraftService {
 
     public void delete() {
         jdbc.update("DELETE FROM tas_draft WHERE id = ?", 1);
+        flushToDisk();
+    }
+
+    // The desktop shell force-kills the backend on every app close, and H2 keeps recent commits
+    // in memory for up to a second; without this a save or delete that already returned can vanish.
+    private void flushToDisk() {
+        try {
+            jdbc.execute("CHECKPOINT");
+        } catch (Exception e) {
+            log.warn("Could not flush the TAS draft to disk: {}", e.getMessage());
+        }
     }
 
     private void deleteQuietly() {

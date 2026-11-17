@@ -20,6 +20,7 @@ const {
   isDraftView,
   PERSISTED_KEYS,
   DRAFT_SAVE_DEBOUNCE_MS,
+  DRAFT_SAVE_MAX_WAIT_MS,
 } = await import('./tasDraft');
 
 const session: TasSession = {
@@ -188,6 +189,40 @@ describe('autosave', () => {
     expect(body.ui.overtimeOverrides).toEqual({ '1': { horasExtrasSimples: 2, horasExtrasDobles: 3 } });
     expect(body.ui.stateRevision).toBe(4);
     expect(body.ui).not.toHaveProperty('jobId');
+  });
+
+  it('saves at least every max-wait interval during a steady stream of edits', async () => {
+    stop = startDraftAutosave(() => 'oct.csv');
+    populate();
+    for (let i = 0; i * (DRAFT_SAVE_DEBOUNCE_MS - 100) < DRAFT_SAVE_MAX_WAIT_MS; i++) {
+      useTasStore.getState().setOvertimeOverride('1', 'horasExtrasDobles', i);
+      await vi.advanceTimersByTimeAsync(DRAFT_SAVE_DEBOUNCE_MS - 100);
+    }
+    expect(mockSaveDraft).toHaveBeenCalled();
+  });
+
+  it('saves a pending change right away when the page is hidden', async () => {
+    stop = startDraftAutosave(() => 'oct.csv');
+    populate();
+    useTasStore.getState().setOvertimeOverride('1', 'horasExtrasDobles', 7);
+    window.dispatchEvent(new Event('pagehide'));
+    expect(mockSaveDraft).toHaveBeenCalledTimes(1);
+    expect(mockSaveDraft.mock.calls[0][0].ui.overtimeOverrides['1'].horasExtrasDobles).toBe(7);
+  });
+
+  it('does not save on pagehide when nothing is pending', async () => {
+    stop = startDraftAutosave(() => 'oct.csv');
+    window.dispatchEvent(new Event('pagehide'));
+    expect(mockSaveDraft).not.toHaveBeenCalled();
+  });
+
+  it('stops listening for pagehide once autosave is stopped', async () => {
+    stop = startDraftAutosave(() => 'oct.csv');
+    populate();
+    stop();
+    stop = null;
+    window.dispatchEvent(new Event('pagehide'));
+    expect(mockSaveDraft).not.toHaveBeenCalled();
   });
 
   it('sends a null file name when none is known', async () => {

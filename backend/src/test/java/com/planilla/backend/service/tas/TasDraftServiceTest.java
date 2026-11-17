@@ -334,4 +334,64 @@ class TasDraftServiceTest {
                 .isInstanceOf(IllegalStateException.class);
         assertThat(service.currentToken()).isNull();
     }
+
+    // ── Durability: the desktop shell force-kills the backend on every app close ──
+
+    private JdbcTemplate fileDb(java.nio.file.Path dir) {
+        JdbcDataSource ds = new JdbcDataSource();
+        ds.setURL("jdbc:h2:file:" + dir.resolve("crash") + ";DB_CLOSE_DELAY=-1");
+        return new JdbcTemplate(ds);
+    }
+
+    @Test
+    void save_survivesAnImmediateHardKill(@org.junit.jupiter.api.io.TempDir java.nio.file.Path dir) throws Exception {
+        JdbcTemplate fileJdbc = fileDb(dir);
+        new ResourceDatabasePopulator(new ClassPathResource("schema-h2.sql")).execute(fileJdbc.getDataSource());
+        TasDraftService fileService = new TasDraftService(fileJdbc, mapper);
+
+        fileService.save("tok", simpleState("tok"), ui("{\"tasView\":\"verification\"}"), "f.csv", "verification", null);
+        fileJdbc.execute("SHUTDOWN IMMEDIATELY");
+
+        assertThat(new TasDraftService(fileDb(dir), mapper).findSummary()).isPresent();
+    }
+
+    @Test
+    void deleteIfToken_survivesAnImmediateHardKill(@org.junit.jupiter.api.io.TempDir java.nio.file.Path dir) throws Exception {
+        JdbcTemplate fileJdbc = fileDb(dir);
+        new ResourceDatabasePopulator(new ClassPathResource("schema-h2.sql")).execute(fileJdbc.getDataSource());
+        TasDraftService fileService = new TasDraftService(fileJdbc, mapper);
+        fileService.save("tok", simpleState("tok"), ui("{}"), "f.csv", "review", null);
+        fileJdbc.execute("CHECKPOINT");
+
+        fileService.deleteIfToken("tok");
+        fileJdbc.execute("SHUTDOWN IMMEDIATELY");
+
+        assertThat(new TasDraftService(fileDb(dir), mapper).findSummary()).isEmpty();
+    }
+
+    @Test
+    void markPartialIfToken_survivesAnImmediateHardKill(@org.junit.jupiter.api.io.TempDir java.nio.file.Path dir) throws Exception {
+        JdbcTemplate fileJdbc = fileDb(dir);
+        new ResourceDatabasePopulator(new ClassPathResource("schema-h2.sql")).execute(fileJdbc.getDataSource());
+        TasDraftService fileService = new TasDraftService(fileJdbc, mapper);
+        fileService.save("tok", simpleState("tok"), ui("{}"), "f.csv", "review", null);
+        fileJdbc.execute("CHECKPOINT");
+
+        fileService.markPartialIfToken("tok");
+        fileJdbc.execute("SHUTDOWN IMMEDIATELY");
+
+        assertThat(new TasDraftService(fileDb(dir), mapper).findSummary()).hasValueSatisfying(sm -> assertThat(sm.partialSubmit()).isTrue());
+    }
+
+    @Test
+    void save_stillSucceedsWhenTheFlushFails() throws Exception {
+        JdbcTemplate spy = org.mockito.Mockito.spy(jdbc);
+        org.mockito.Mockito.doThrow(new org.springframework.dao.DataAccessResourceFailureException("disk"))
+                .when(spy).execute("CHECKPOINT");
+        TasDraftService flaky = new TasDraftService(spy, mapper);
+
+        flaky.save("tok", simpleState("tok"), ui("{}"), "f.csv", "verification", null);
+
+        assertThat(flaky.findSummary()).isPresent();
+    }
 }
