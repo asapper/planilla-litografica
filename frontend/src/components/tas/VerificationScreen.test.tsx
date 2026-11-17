@@ -1021,6 +1021,25 @@ describe('SHORT_DAY sessions', () => {
     expect(screen.queryByText(/Corrección registrada/)).not.toBeInTheDocument();
   });
 
+  it('warns that an edit after registering is not sent until registered again', () => {
+    useTasStore.getState().setFlaggedSessions([makeShortDaySession()]);
+    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
+    useTasStore.getState().setResolvedSession(99, { resolvedStart: '07:00', resolvedEnd: '13:00' });
+    render(<VerificationScreen />);
+
+    fireEvent.change(screen.getByLabelText('Salida'), { target: { value: '14:00' } });
+    expect(screen.getByText('Cambio sin registrar: se enviará la salida registrada 13:00.')).toBeInTheDocument();
+  });
+
+  it('warns that an unregistered edit is not applied', () => {
+    useTasStore.getState().setFlaggedSessions([makeShortDaySession()]);
+    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
+    render(<VerificationScreen />);
+
+    fireEvent.change(screen.getByLabelText('Salida'), { target: { value: '14:00' } });
+    expect(screen.getByText(/Cambio sin registrar: haga clic en "Registrar corrección"/)).toBeInTheDocument();
+  });
+
   it('a resumed correction is shown as registered', () => {
     useTasStore.getState().setFlaggedSessions([makeShortDaySession()]);
     useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
@@ -1209,9 +1228,58 @@ describe('VerificationScreen error display', () => {
     const toast = useToastStore.getState().toasts[0].message;
     expect(toast).toContain('La hora de salida debe ser posterior a la hora de entrada.');
     expect(toast).toContain('Ana López');
-    expect(useTasStore.getState().resolvedSessions[7]).toBeUndefined();
+    expect(useTasStore.getState().resolvedSessions[7]).toBeDefined();
     const card = screen.getByRole('button', { name: /confirmar/i }).closest('div.rounded-shape-md');
     expect(card).toHaveClass('ring-error');
+    expect(screen.getByLabelText('Salida')).toHaveValue('17:00');
+
+    fireEvent.click(screen.getByRole('button', { name: /confirmar/i }));
+    expect(screen.queryByRole('button', { name: /confirmar/i })).not.toBeInTheDocument();
+    expect(document.querySelector('.ring-error')).toBeNull();
+  });
+
+  it('highlights a rejected short-day correction and keeps the typed exit', async () => {
+    useTasStore.getState().setUploadToken('tok-1');
+    useTasStore.getState().setFlaggedSessions([
+      makeSession({
+        sessionId: 9, employeeName: 'Carlos Díaz', date: '2026-03-10', needsResolution: false, flags: ['SHORT_DAY'],
+        effectiveStart: '2026-03-10T07:00:00', lastScan: '2026-03-10T11:00:00',
+        scans: ['2026-03-10T07:00:00', '2026-03-10T11:00:00'],
+      }),
+    ]);
+    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
+    useTasStore.getState().setResolvedSession(9, { resolvedStart: '07:00', resolvedEnd: '13:00' });
+    mockResolveVerification.mockRejectedValue(rejectedWith(400, { code: 'INVALID_TIME_RANGE', sessionId: 9 }));
+
+    render(<VerificationScreen />);
+    fireEvent.click(screen.getByRole('button', { name: /revisar/i }));
+
+    await waitFor(() => expect(useToastStore.getState().toasts).toHaveLength(1));
+    expect(useToastStore.getState().toasts[0].message)
+      .toBe('Ocurrió un error al enviar. Intente nuevamente. Revise Carlos Díaz, 10 mar 2026.');
+    expect(screen.getByLabelText('Salida')).toHaveValue('13:00');
+    expect(screen.getByLabelText('Salida').closest('div.rounded-shape-md')).toHaveClass('ring-error');
+  });
+
+  it('switches to the fortnight of a rejected session from another period', async () => {
+    const otherPeriod: TasPeriod = { anio: 2026, mes: 3, numeroDequincena: 2 };
+    useTasStore.getState().setUploadToken('tok-1');
+    useTasStore.getState().setFlaggedSessions([
+      makeSession({ sessionId: 1, date: '2026-03-05', effectiveStart: '08:00:00', lastScan: '17:00:00' }),
+      makeSession({ sessionId: 2, employeeId: 'E2', employeeName: 'Luis Soto', date: '2026-03-20', effectiveStart: '08:00:00', lastScan: '17:00:00' }),
+    ]);
+    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD, otherPeriod]);
+    useTasStore.getState().setResolvedSession(1, { resolvedStart: '08:00', resolvedEnd: '17:00' });
+    useTasStore.getState().setResolvedSession(2, { resolvedStart: '08:00', resolvedEnd: '17:00' });
+    mockResolveVerification.mockRejectedValue(rejectedWith(400, { code: 'INVALID_TIME_RANGE', message: 'Mal.', sessionId: 2 }));
+
+    render(<VerificationScreen />);
+    fireEvent.click(screen.getByRole('button', { name: /revisar/i }));
+
+    await waitFor(() => expect(useTasStore.getState().selectedPeriod).toEqual(otherPeriod));
+    const card = screen.getByRole('button', { name: /confirmar/i }).closest('div.rounded-shape-md');
+    expect(card).toHaveClass('ring-error');
+    expect(card).toHaveTextContent('Luis Soto');
   });
 
   it('shows the backend message when the error is not tied to a session', async () => {

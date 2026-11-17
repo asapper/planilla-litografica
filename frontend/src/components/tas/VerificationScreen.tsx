@@ -377,6 +377,14 @@ function ShortDayCard({ session, crossMidnight, registered, highlighted, onSaveO
       )}
 
       {changed && (
+        <p className="text-on-surface-variant text-body-sm mb-2">
+          {registered
+            ? `Cambio sin registrar: se enviará la salida registrada ${registered.resolvedEnd}.`
+            : 'Cambio sin registrar: haga clic en "Registrar corrección" para aplicarlo.'}
+        </p>
+      )}
+
+      {changed && (
         <button
           onClick={() => onSaveOverride(entry, exit)}
           disabled={inverted}
@@ -456,7 +464,7 @@ function SessionCard({ session, confirmed, resolved, crossMidnight, highlighted,
   };
   const canConfirm = (!needsEntry || !!entry) && (!needsExit || !!exit) && !timesInverted;
 
-  if (confirmed && !editing) {
+  if (confirmed && !editing && !highlighted) {
     return (
       <button
         type="button"
@@ -736,9 +744,11 @@ export default function VerificationScreen() {
     } catch (err) {
       setTasView('verification');
       const data = axios.isAxiosError(err) ? err.response?.data : undefined;
+      const message = typeof data?.message === 'string' ? data.message : 'Ocurrió un error al enviar. Intente nuevamente.';
       const failed = typeof data?.sessionId === 'number' ? sessionById.get(data.sessionId) : undefined;
       if (failed) {
-        clearResolvedSession(failed.sessionId);
+        const failedPeriod = getSessionPeriod(failed.date);
+        if (!periodsEqual(failedPeriod, selectedPeriod)) setSelectedPeriod(failedPeriod);
         setExpansionOverrides(prev => {
           const next = new Set(prev);
           next.delete(failed.employeeId);
@@ -746,10 +756,9 @@ export default function VerificationScreen() {
         });
         setHighlightedSessionId(failed.sessionId);
         useToastStore.getState().showToast(
-          `${data.message} Revise ${failed.employeeName}, ${formatDate(failed.date)}.`, 'error');
+          `${message} Revise ${failed.employeeName}, ${formatDate(failed.date)}.`, 'error');
         return;
       }
-      const message = typeof data?.message === 'string' ? data.message : 'Ocurrió un error al enviar. Intente nuevamente.';
       useToastStore.getState().showToast(message, 'error');
     }
   };
@@ -802,7 +811,8 @@ export default function VerificationScreen() {
         ) : (
           employeeGroups.map(group => {
             const defaultExpanded = group.pendingCount > 0 || group.items.some(
-              i => i.type === 'same_day_double' && sameDayDoubleResolutions[i.groupKey] === undefined,
+              i => (i.type === 'same_day_double' && sameDayDoubleResolutions[i.groupKey] === undefined)
+                || (i.type === 'session' && i.session.sessionId === highlightedSessionId),
             );
             const expanded = expansionOverrides.has(group.employeeId) ? !defaultExpanded : defaultExpanded;
             return (
@@ -825,9 +835,10 @@ export default function VerificationScreen() {
                           resolved={resolvedSessions[item.session.sessionId]}
                           crossMidnight={matchedShift?.crossMidnight ?? item.session.crossMidnight}
                           highlighted={highlightedSessionId === item.session.sessionId}
-                          onConfirm={(resolvedStart, resolvedEnd, offsets) =>
-                            setResolvedSession(item.session.sessionId, { resolvedStart, resolvedEnd, ...offsets })
-                          }
+                          onConfirm={(resolvedStart, resolvedEnd, offsets) => {
+                            setResolvedSession(item.session.sessionId, { resolvedStart, resolvedEnd, ...offsets });
+                            if (highlightedSessionId === item.session.sessionId) setHighlightedSessionId(null);
+                          }}
                         />
                       );
                     }
@@ -869,9 +880,10 @@ export default function VerificationScreen() {
                   crossMidnight={availableShifts.find(s => s.id === session.matchedShiftId)?.crossMidnight ?? session.crossMidnight}
                   registered={resolvedSessions[session.sessionId]}
                   highlighted={highlightedSessionId === session.sessionId}
-                  onSaveOverride={(resolvedStart, resolvedEnd) =>
-                    setResolvedSession(session.sessionId, { resolvedStart, resolvedEnd })
-                  }
+                  onSaveOverride={(resolvedStart, resolvedEnd) => {
+                    setResolvedSession(session.sessionId, { resolvedStart, resolvedEnd });
+                    if (highlightedSessionId === session.sessionId) setHighlightedSessionId(null);
+                  }}
                   onUndo={() => clearResolvedSession(session.sessionId)}
                 />
               ))}

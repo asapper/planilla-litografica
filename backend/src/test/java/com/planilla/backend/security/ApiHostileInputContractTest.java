@@ -145,9 +145,16 @@ class ApiHostileInputContractTest {
         EmployeeRow row = new EmployeeRow();
         row.setCodigoEmpleado("V1");
         row.setNombreEmpleado(SECRET);
+        TasSession shortDay = new TasSession();
+        shortDay.setSessionId(2);
+        shortDay.setEmployeeId("V1");
+        shortDay.setEmployeeName(SECRET);
+        shortDay.setDate(LocalDate.of(2026, 10, 5));
+        shortDay.setNeedsResolution(false);
+        shortDay.setFlags(new ArrayList<>(List.of(TasFlag.SHORT_DAY)));
         TasUploadState state = new TasUploadState();
         state.setUploadToken(victimToken);
-        state.setSessions(new ArrayList<>(List.of(session)));
+        state.setSessions(new ArrayList<>(List.of(session, shortDay)));
         state.setResolvedRows(new ArrayList<>(List.of(row)));
         state.setAllScans(new ArrayList<>());
         state.setIgnoredEmployeeIds(new HashSet<>());

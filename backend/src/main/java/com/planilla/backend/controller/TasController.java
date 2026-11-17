@@ -357,6 +357,11 @@ public class TasController {
             return sessionError("INVALID_FIELD_FORMAT", "El ID de turno debe ser un texto.", session.getSessionId());
         }
 
+        if (!session.isNeedsResolution() && acceptedShiftIdObj != null) {
+            return sessionError("INVALID_FIELD_FORMAT",
+                    "En una jornada corta solo se puede corregir la hora.", session.getSessionId());
+        }
+
         String resolvedStart   = (String) resolvedStartObj;
         String resolvedEnd     = (String) resolvedEndObj;
         String acceptedShiftId = (String) acceptedShiftIdObj;
@@ -875,6 +880,7 @@ public class TasController {
 
             boolean discard = !keepAll && session.getSessionId() != keepSessionId;
             if (discard) {
+                session.getFlags().removeIf(f -> f == TasFlag.SHORT_DAY);
                 session.setWorkedMinutes(0);
                 session.setWorkedHours(0.0);
                 session.setSimplesMinutes(0);
