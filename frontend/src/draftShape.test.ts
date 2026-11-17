@@ -41,7 +41,9 @@ function shapeOf(file: string, typeName: string): string[] {
   // Literal members collapse to their base type and their values are listed separately, so that
   // compareShapes can let a literal set grow (old drafts still fit) but not lose a member.
   const literalsAt = (path: string, types: readonly ts.Type[]) => {
+    const booleans = types.filter(t => t.flags & ts.TypeFlags.BooleanLiteral).map(t => checker.typeToString(t));
     const values = types.flatMap(t => (t.isStringLiteral() ? [JSON.stringify(t.value)] : t.isNumberLiteral() ? [String(t.value)] : []));
+    if (booleans.length === 1) values.push(booleans[0]);
     if (values.length > 0) out.add(`${path} literals: ${[...new Set(values)].sort().join(', ')}`);
   };
 
@@ -102,6 +104,7 @@ function compareShapes(recorded: string[], actual: string[]): Comparison {
   const was = split(recorded);
   const now = split(actual);
   if (was.structure !== now.structure) return 'changed';
+  for (const path of now.literals.keys()) if (!was.literals.has(path)) return 'changed';
   for (const [path, values] of was.literals) {
     const current = now.literals.get(path);
     if (!current || [...values].some(v => !current.has(v))) return 'changed';
@@ -166,6 +169,16 @@ describe('saved draft shape', () => {
     expect(before).toEqual(['$.done: boolean', '$.n{string} literals: -1, 0', '$.n{string}: number', '$.view literals: "a", "b"', '$.view: string']);
     const now = shapeOfSource(`export type Outer = { view: ${after}; n: Record<string, -1 | 0>; done: boolean }\n`);
     expect(compareShapes(before, now)).toBe(expected);
+  }, 30_000);
+
+  it.each([
+    ['a string narrowed to literals', 'string[]', "('a' | 'b')[]"],
+    ['a number narrowed to literals', 'number', '0 | 1'],
+    ['a boolean narrowed to true', 'boolean', 'true'],
+    ['a boolean narrowed to true or null', 'boolean | null', 'true | null'],
+  ])('treats %s as a change', (_, before, after) => {
+    const was = shapeOfSource(`export type Outer = { x: ${before} }\n`);
+    expect(compareShapes(was, shapeOfSource(`export type Outer = { x: ${after} }\n`))).toBe('changed');
   }, 30_000);
 
   it('treats a numeric literal set that loses a member as a change', () => {
