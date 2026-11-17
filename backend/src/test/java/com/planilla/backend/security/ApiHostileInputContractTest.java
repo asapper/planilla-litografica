@@ -3,6 +3,7 @@ package com.planilla.backend.security;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.planilla.backend.controller.ShutdownController;
 import com.planilla.backend.controller.TasController;
 import com.planilla.backend.model.EmployeeRow;
 import com.planilla.backend.model.tas.TasFlag;
@@ -39,6 +40,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.request;
 
@@ -344,7 +347,11 @@ class ApiHostileInputContractTest {
         List<String> leaks = failures.values().stream().flatMap(List::stream)
                 .filter(f -> f.contains("leaked") || f.contains("changed the victim")).toList();
         assertThat(leaks).as("cross-token leaks or mutations anywhere on /api").isEmpty();
-        org.mockito.Mockito.verify(exiter, org.mockito.Mockito.never()).exitSoon();
+        for (String wrong : List.of("", "x", "hostile-test-shutdown-tokeN", "hostile-test-shutdown-token ")) {
+            mvc.perform(request(org.springframework.http.HttpMethod.POST, "/api/system/shutdown")
+                    .header(ShutdownController.TOKEN_HEADER, wrong));
+        }
+        verify(exiter, never()).exitSoon();
 
         Map<String, Map<String, Integer>> observed = new TreeMap<>();
         failures.forEach((endpoint, list) -> {

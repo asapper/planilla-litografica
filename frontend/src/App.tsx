@@ -4,8 +4,8 @@ import { checkHealth, checkDbHealth } from './api';
 import { getBackendStatus, asStartFailure, type BackendStartFailure } from './backendStatus';
 import AlertMessage from './components/ui/AlertMessage';
 import { uploadTasFile, getDraftSummary, resumeDraft, deleteDraft } from './tasApi';
-import { applySnapshot, discardDraftSession, isDraftView, saveDraftNow, startDraftAutosave } from './tasDraft';
-import { onAppCloseRequested } from './appClose';
+import { applySnapshot, discardDraftSession, isDraftView, startDraftAutosave } from './tasDraft';
+import { onAppCloseRequested, prepareToClose } from './appClose';
 import { useTasStore } from './tasStore';
 import { useToastStore } from './toastStore';
 import EmptyState from './components/EmptyState';
@@ -125,7 +125,7 @@ export default function App() {
 
   useEffect(() => startDraftAutosave(() => fileNameRef.current), []);
 
-  useEffect(() => onAppCloseRequested(saveDraftNow), []);
+  useEffect(() => onAppCloseRequested(prepareToClose), []);
 
   useEffect(() => {
     if (backendState !== 'ready' || tasView !== 'idle') return;

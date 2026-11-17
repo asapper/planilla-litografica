@@ -1,6 +1,7 @@
 package com.planilla.backend.controller;
 
 import com.planilla.backend.service.ApplicationExiter;
+import com.planilla.backend.service.JobService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -28,11 +29,13 @@ public class ShutdownController {
     private static final Logger log = LoggerFactory.getLogger(ShutdownController.class);
 
     private final ApplicationExiter exiter;
+    private final JobService jobService;
     private final byte[] token;
 
-    public ShutdownController(ApplicationExiter exiter,
+    public ShutdownController(ApplicationExiter exiter, JobService jobService,
                               @Value("${PLANILLA_SHUTDOWN_TOKEN:}") String token) {
         this.exiter = exiter;
+        this.jobService = jobService;
         this.token = token.getBytes(StandardCharsets.UTF_8);
     }
 
@@ -43,6 +46,11 @@ public class ShutdownController {
         }
         if (provided == null || !MessageDigest.isEqual(token, provided.getBytes(StandardCharsets.UTF_8))) {
             return ResponseEntity.status(403).body(Map.of("code", "FORBIDDEN", "message", "No autorizado."));
+        }
+        // Stopping mid-batch would leave payroll rows half-sent with no partial-submit mark.
+        if (jobService.isAnyJobActive()) {
+            return ResponseEntity.status(409).body(Map.of("code", "JOB_IN_PROGRESS",
+                    "message", "Hay un envío en curso. Espere a que termine para cerrar."));
         }
         log.info("Shutdown requested by the desktop shell; closing the application.");
         exiter.exitSoon();
