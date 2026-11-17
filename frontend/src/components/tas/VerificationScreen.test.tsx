@@ -37,6 +37,7 @@ function makeSession(overrides: Partial<TasSession> = {}): TasSession {
 
 const mockResult: TasResolveResult = {
   uploadToken: 'tok-2',
+  stateRevision: 5,
   resolvedRows: [
     { codigoEmpleado: 'E1', nombreEmpleado: 'Ana', diasNoLaborados: 0, horasExtrasSimples: 0, horasExtrasDobles: 0, mes: 3, anio: 2026, numeroDequincena: 1, diasTurnoEstimado: 0, accruesOvertime: true },
     { codigoEmpleado: 'E2', nombreEmpleado: 'Luis', diasNoLaborados: 0, horasExtrasSimples: 0, horasExtrasDobles: 0, mes: 3, anio: 2026, numeroDequincena: 1, diasTurnoEstimado: 0, accruesOvertime: true },
@@ -252,6 +253,7 @@ describe('VerificationScreen submit', () => {
     expect(mockSubmitTas).not.toHaveBeenCalled();
     expect(useTasStore.getState().resolvedRowCount).toBe(2);
     expect(useTasStore.getState().resolvedRows).toHaveLength(2);
+    expect(useTasStore.getState().stateRevision).toBe(5);
   });
 
   it('sends full datetime (date + time) for resolved session entries', async () => {
@@ -282,6 +284,7 @@ describe('VerificationScreen submit', () => {
     const secondRoundResult = {
       ...mockResult,
       uploadToken: 'tok-3',
+      stateRevision: 9,
       flaggedSessions: [makeSession({ sessionId: 2, employeeId: 'E2', employeeName: 'Luis', needsResolution: true })],
     };
     mockResolveVerification.mockResolvedValue(secondRoundResult);
@@ -294,6 +297,8 @@ describe('VerificationScreen submit', () => {
       expect(useTasStore.getState().flaggedSessions[0].sessionId).toBe(2);
     });
     expect(useTasStore.getState().resolvedSessions).toEqual({});
+    expect(useTasStore.getState().stateRevision).toBe(9);
+    expect(useTasStore.getState().tasView).not.toBe('review');
     expect(mockSubmitTas).not.toHaveBeenCalled();
   });
 

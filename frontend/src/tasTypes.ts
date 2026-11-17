@@ -64,6 +64,7 @@ export interface SessionSummary {
 
 export interface TasUploadResult {
   uploadToken: string
+  stateRevision: number
   resolvedRows?: ResolvedRow[]
   flaggedSessions: TasSession[]
   inactiveEmployeesFound: InactiveEmployee[]
@@ -77,12 +78,24 @@ export interface TasUploadResult {
 
 export interface TasResolveResult {
   uploadToken: string
+  stateRevision: number
   resolvedRows?: ResolvedRow[]
   flaggedSessions: TasSession[]
   usedFallbackHolidays: boolean
   availablePeriods?: TasPeriod[]
   availableShifts: ShiftOption[]
   sessionSummaries?: Record<string, SessionSummary[]>
+}
+
+export type DraftView = 'inactiveReview' | 'verification' | 'review'
+
+export interface DraftSummary {
+  fileName: string | null
+  view: DraftView
+  periodLabel: string | null
+  savedAt: string
+  partialSubmit: boolean
+  jobActive: boolean
 }
 
 export type InactiveDecision = 'reactivate' | 'ignore'

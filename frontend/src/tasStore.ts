@@ -10,9 +10,10 @@ export interface ResolvedSessionEntry {
   endDayOffset?: 0 | 1;
 }
 
-interface TasStore {
+export interface TasStore {
   tasView: TasView;
   uploadToken: string | null;
+  stateRevision: number;
   processingMessage: string;
   flaggedSessions: TasSession[];
   resolvedSessions: Record<number, ResolvedSessionEntry>;
@@ -47,6 +48,7 @@ interface TasStore {
   setWarnings: (warnings: string[]) => void;
   setTasView: (view: TasView) => void;
   setUploadToken: (token: string | null) => void;
+  setStateRevision: (revision: number) => void;
   setProcessingMessage: (msg: string) => void;
   setFlaggedSessions: (sessions: TasSession[]) => void;
   setResolvedSession: (id: number, entry: ResolvedSessionEntry) => void;
@@ -88,9 +90,10 @@ interface TasStore {
   resetTas: () => void;
 }
 
-const initialState = {
+export const tasInitialState = {
   tasView: 'idle' as TasView,
-  uploadToken: null,
+  uploadToken: null as string | null,
+  stateRevision: 0,
   processingMessage: '',
   flaggedSessions: [],
   resolvedSessions: {},
@@ -125,10 +128,11 @@ const initialState = {
 };
 
 export const useTasStore = create<TasStore>(set => ({
-  ...initialState,
+  ...tasInitialState,
 
   setTasView: (view) => set({ tasView: view }),
   setUploadToken: (token) => set({ uploadToken: token }),
+  setStateRevision: (revision) => set({ stateRevision: revision }),
   setProcessingMessage: (msg) => set({ processingMessage: msg }),
   setFlaggedSessions: (sessions) => set({ flaggedSessions: sessions }),
   setResolvedSession: (id, entry) => set(s => ({
@@ -232,7 +236,7 @@ export const useTasStore = create<TasStore>(set => ({
   }),
   setAllScansExpanded: (keys) => set({ reviewExpandedScans: new Set(keys) }),
   clearAllScansExpanded: () => set({ reviewExpandedScans: new Set() }),
-  resetTas: () => set({ ...initialState }),
+  resetTas: () => set({ ...tasInitialState }),
 }));
 
 if (import.meta.env.DEV) {

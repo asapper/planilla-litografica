@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, waitFor, act, fireEvent } from '@testing-library/react';
 import { useTasStore } from './tasStore';
+import { useToastStore } from './toastStore';
 
 const mockCheckHealth = vi.hoisted(() => vi.fn());
 const mockCheckDbHealth = vi.hoisted(() => vi.fn());
@@ -19,25 +20,56 @@ vi.mock('./backendStatus', async (importOriginal) => ({
 }));
 
 const mockUploadTasFile = vi.hoisted(() => vi.fn());
+const mockGetDraftSummary = vi.hoisted(() => vi.fn());
+const mockResumeDraft = vi.hoisted(() => vi.fn());
+const mockDeleteDraft = vi.hoisted(() => vi.fn());
+const mockSaveDraft = vi.hoisted(() => vi.fn());
 
 vi.mock('./tasApi', () => ({
   uploadTasFile: mockUploadTasFile,
+  getDraftSummary: mockGetDraftSummary,
+  resumeDraft: mockResumeDraft,
+  deleteDraft: mockDeleteDraft,
+  saveDraft: mockSaveDraft,
 }));
 
 vi.mock('./components/EmptyState', () => ({
-  default: ({ onTasFile }: { onTasFile: (file: File) => void }) => (
+  default: ({ onTasFile, draft, onContinueDraft, onDiscardDraft }: {
+    onTasFile: (file: File) => void;
+    draft: { fileName: string | null; jobActive: boolean } | null;
+    onContinueDraft: () => void;
+    onDiscardDraft: () => void;
+  }) => (
     <div data-testid="empty-state">
       <button onClick={() => onTasFile(new File(['x'], 'scans.csv'))}>
         Cargar TAS
       </button>
+      {draft && (
+        <div data-testid="draft-card">
+          <span>{draft.fileName}</span>
+          {draft.jobActive && <span>Envío en curso</span>}
+          <button onClick={onContinueDraft}>Continuar</button>
+          <button onClick={onDiscardDraft}>Descartar</button>
+        </div>
+      )}
     </div>
   ),
 }));
 vi.mock('./components/TopAppBar', () => ({
-  default: ({ tasView, onNewUpload }: { tasView: string; onNewUpload: () => void }) => {
+  default: ({ tasView, currentView, onNewUpload, onDiscardSession, onViewChange }: {
+    tasView: string;
+    currentView: string;
+    onNewUpload: () => void;
+    onDiscardSession: () => void;
+    onViewChange: (v: string) => void;
+  }) => {
     const [showConfirm, setShowConfirm] = useState(false);
     return (
       <div data-testid="top-app-bar">
+        <button onClick={() => onViewChange('config')}>Configuración</button>
+        {currentView === 'config' && tasView === 'idle' && (
+          <button onClick={onNewUpload}>Nueva carga (config)</button>
+        )}
         {tasView !== 'idle' && (
           <>
             <button onClick={() => setShowConfirm(true)}>Nueva carga</button>
@@ -45,7 +77,7 @@ vi.mock('./components/TopAppBar', () => ({
               <button
                 onClick={() => {
                   setShowConfirm(false);
-                  onNewUpload();
+                  onDiscardSession();
                 }}
               >
                 Sí, descartar
@@ -61,7 +93,7 @@ vi.mock('./components/ConfigPage', () => ({
   default: () => <div data-testid="config-page" />,
 }));
 vi.mock('./components/tas/TasUploadFlow', () => ({
-  default: () => <div data-testid="tas-upload-flow" />,
+  default: ({ fileName }: { fileName: string }) => <div data-testid="tas-upload-flow">{fileName}</div>,
 }));
 vi.mock('./components/ErrorBoundary', () => ({
   default: ({ children }: { children: React.ReactNode }) => <>{children}</>,
@@ -71,6 +103,11 @@ const { default: App } = await import('./App');
 
 beforeEach(() => {
   useTasStore.getState().resetTas();
+  useToastStore.setState({ toasts: [] });
+  mockGetDraftSummary.mockReset().mockResolvedValue(null);
+  mockResumeDraft.mockReset();
+  mockDeleteDraft.mockReset().mockResolvedValue(undefined);
+  mockSaveDraft.mockReset().mockResolvedValue(undefined);
   mockCheckHealth.mockResolvedValue(undefined);
   mockCheckDbHealth.mockResolvedValue(true);
   mockGetBackendStatus.mockResolvedValue(null);
@@ -494,5 +531,196 @@ describe('Top bar Nueva carga button', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Sí, descartar' }));
 
     await waitFor(() => expect(screen.getByTestId('empty-state')).toBeInTheDocument());
+  });
+});
+
+describe('resume an interrupted session', () => {
+  const summary = {
+    fileName: '1era quincena octubre 2026.csv',
+    view: 'review',
+    periodLabel: 'Octubre 2026 - Quincena 1',
+    savedAt: '2026-11-16T20:20:00Z',
+    partialSubmit: false,
+    jobActive: false,
+  };
+  const period = { anio: 2026, mes: 10, numeroDequincena: 2 };
+
+  it('fetches the saved session once the backend is ready and shows the card', async () => {
+    mockGetDraftSummary.mockResolvedValue(summary);
+    render(<App />);
+    expect(await screen.findByTestId('draft-card')).toHaveTextContent('1era quincena octubre 2026.csv');
+  });
+
+  it('shows no card when the summary request fails', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    mockGetDraftSummary.mockRejectedValue(new Error('down'));
+    render(<App />);
+    await waitFor(() => expect(warn).toHaveBeenCalled());
+    expect(screen.queryByTestId('draft-card')).not.toBeInTheDocument();
+    warn.mockRestore();
+  });
+
+  it('Continuar restores the snapshot, the file name and the step', async () => {
+    mockGetDraftSummary.mockResolvedValue(summary);
+    mockResumeDraft.mockResolvedValue({
+      uploadToken: 'tok-d',
+      ui: {
+        tasView: 'review',
+        uploadToken: 'tok-d',
+        stateRevision: 3,
+        availablePeriods: [{ anio: 2026, mes: 10, numeroDequincena: 1 }, period],
+        selectedPeriod: period,
+        overtimeOverrides: { E1: { horasExtrasSimples: 2 } },
+        jobId: 'stale',
+      },
+    });
+    useTasStore.setState({ jobId: 'old-job' });
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Continuar' }));
+
+    await waitFor(() => expect(useTasStore.getState().tasView).toBe('review'));
+    const s = useTasStore.getState();
+    expect(s.uploadToken).toBe('tok-d');
+    expect(s.stateRevision).toBe(3);
+    expect(s.selectedPeriod).toEqual(period);
+    expect(s.overtimeOverrides).toEqual({ E1: { horasExtrasSimples: 2 } });
+    expect(s.jobId).toBeNull();
+    expect(screen.getByTestId('tas-upload-flow')).toHaveTextContent('1era quincena octubre 2026.csv');
+  });
+
+  it('shows the error toast, hides the card and stays idle when resume fails', async () => {
+    mockGetDraftSummary.mockResolvedValue(summary);
+    mockResumeDraft.mockRejectedValue(new Error('404'));
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Continuar' }));
+
+    await waitFor(() => expect(useToastStore.getState().toasts.map(t => t.message))
+      .toContain('No se pudo recuperar la sesión anterior.'));
+    expect(screen.queryByTestId('draft-card')).not.toBeInTheDocument();
+    expect(useTasStore.getState().tasView).toBe('idle');
+  });
+
+  it('treats a snapshot with an unknown step as a failed resume', async () => {
+    mockGetDraftSummary.mockResolvedValue(summary);
+    mockResumeDraft.mockResolvedValue({ uploadToken: 'tok-d', ui: { tasView: 'polling' } });
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Continuar' }));
+
+    await waitFor(() => expect(useToastStore.getState().toasts.map(t => t.message))
+      .toContain('No se pudo recuperar la sesión anterior.'));
+    expect(useTasStore.getState().tasView).toBe('idle');
+  });
+
+  it('Descartar deletes the draft and hides the card', async () => {
+    mockGetDraftSummary.mockResolvedValue(summary);
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Descartar' }));
+
+    expect(mockDeleteDraft).toHaveBeenCalledOnce();
+    await waitFor(() => expect(screen.queryByTestId('draft-card')).not.toBeInTheDocument());
+  });
+
+  it('Descartar still hides the card when the delete fails', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    mockGetDraftSummary.mockResolvedValue(summary);
+    mockDeleteDraft.mockRejectedValue(new Error('down'));
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Descartar' }));
+
+    await waitFor(() => expect(warn).toHaveBeenCalled());
+    expect(screen.queryByTestId('draft-card')).not.toBeInTheDocument();
+    warn.mockRestore();
+  });
+
+  it('a failed upload returns to idle and shows the card again', async () => {
+    mockGetDraftSummary.mockResolvedValue(summary);
+    mockUploadTasFile.mockRejectedValue(new Error('network'));
+    render(<App />);
+    await screen.findByTestId('draft-card');
+
+    fireEvent.click(screen.getByRole('button', { name: /cargar tas/i }));
+
+    await waitFor(() => expect(mockGetDraftSummary).toHaveBeenCalledTimes(2));
+    expect(await screen.findByTestId('draft-card')).toBeInTheDocument();
+  });
+
+  it('re-fetches the summary whenever the session returns to idle', async () => {
+    render(<App />);
+    await waitFor(() => expect(mockGetDraftSummary).toHaveBeenCalledTimes(1));
+    act(() => { useTasStore.getState().setTasView('result'); });
+    mockGetDraftSummary.mockResolvedValue({ ...summary, partialSubmit: true });
+
+    act(() => { useTasStore.getState().resetTas(); });
+
+    await waitFor(() => expect(mockGetDraftSummary).toHaveBeenCalledTimes(2));
+    expect(await screen.findByTestId('draft-card')).toBeInTheDocument();
+  });
+
+  it('re-polls while a submission is in progress and stops when it ends', async () => {
+    vi.useFakeTimers();
+    mockGetDraftSummary
+      .mockResolvedValueOnce({ ...summary, jobActive: true })
+      .mockResolvedValue({ ...summary, jobActive: false });
+    render(<App />);
+    await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+    expect(screen.getByText('Envío en curso')).toBeInTheDocument();
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(3_000); });
+
+    expect(mockGetDraftSummary).toHaveBeenCalledTimes(2);
+    expect(screen.queryByText('Envío en curso')).not.toBeInTheDocument();
+    await act(async () => { await vi.advanceTimersByTimeAsync(10_000); });
+    expect(mockGetDraftSummary).toHaveBeenCalledTimes(2);
+  });
+
+  it('records the upload stateRevision and autosaves the session with its file name', async () => {
+    mockUploadTasFile.mockResolvedValue({
+      uploadToken: 'tok-up',
+      stateRevision: 1,
+      flaggedSessions: [],
+      resolvedRows: [],
+      inactiveEmployeesFound: [],
+      absentActiveEmployees: [],
+      usedFallbackHolidays: false,
+      warnings: [],
+    });
+    render(<App />);
+    fireEvent.click(await screen.findByRole('button', { name: /cargar tas/i }));
+    await waitFor(() => expect(useTasStore.getState().tasView).toBe('review'));
+    expect(useTasStore.getState().stateRevision).toBe(1);
+
+    await waitFor(() => expect(mockSaveDraft).toHaveBeenCalled(), { timeout: 2_000 });
+    expect(mockSaveDraft.mock.calls[0][0]).toMatchObject({
+      uploadToken: 'tok-up', stateRevision: 1, fileName: 'scans.csv', view: 'review',
+    });
+  });
+
+  it('the confirmed Nueva carga deletes the draft before resetting', async () => {
+    render(<App />);
+    fireEvent.click(await screen.findByRole('button', { name: /cargar tas/i }));
+    await waitFor(() => expect(useTasStore.getState().tasView).toBe('review'));
+
+    fireEvent.click(screen.getByRole('button', { name: /^nueva carga$/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Sí, descartar' }));
+
+    await waitFor(() => expect(useTasStore.getState().tasView).toBe('idle'));
+    expect(mockDeleteDraft).toHaveBeenCalledOnce();
+  });
+
+  it('the config-page Nueva carga only navigates and keeps the draft', async () => {
+    mockGetDraftSummary.mockResolvedValue(summary);
+    render(<App />);
+    await screen.findByTestId('draft-card');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Configuración' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Nueva carga (config)' }));
+
+    expect(await screen.findByTestId('draft-card')).toBeInTheDocument();
+    expect(mockDeleteDraft).not.toHaveBeenCalled();
   });
 });

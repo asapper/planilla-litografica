@@ -12,6 +12,7 @@ const mockSubmitTas = vi.mocked(tasApi.submitTas);
 
 const mockResult: TasUploadResult = {
   uploadToken: 'tok-2',
+  stateRevision: 2,
   availableShifts: [],
   flaggedSessions: [],
   inactiveEmployeesFound: [],
@@ -226,6 +227,27 @@ describe('ReactivationReviewScreen continue', () => {
         { anio: 2026, mes: 3, numeroDequincena: 1 },
       ])
     );
+  });
+
+  it('records the stateRevision when the review completes', async () => {
+    setup();
+    mockSubmitInactiveReview.mockResolvedValue({ ...mockResult, stateRevision: 3 });
+    render(<ReactivationReviewScreen />);
+    fireEvent.click(screen.getByRole('button', { name: /continuar/i }));
+    await waitFor(() => expect(useTasStore.getState().stateRevision).toBe(3));
+  });
+
+  it('records the stateRevision when inactive employees remain', async () => {
+    setup();
+    mockSubmitInactiveReview.mockResolvedValue({
+      ...mockResult,
+      stateRevision: 4,
+      inactiveEmployeesFound: [{ employeeId: 'E3', name: 'Otro', sessionCount: 1 }],
+    });
+    render(<ReactivationReviewScreen />);
+    fireEvent.click(screen.getByRole('button', { name: /continuar/i }));
+    await waitFor(() => expect(useTasStore.getState().stateRevision).toBe(4));
+    expect(useTasStore.getState().inactiveEmployees).toEqual([{ employeeId: 'E3', name: 'Otro', sessionCount: 1 }]);
   });
 
   it('updates the store with new token from result', async () => {

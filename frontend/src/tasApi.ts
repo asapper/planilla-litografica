@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { API_BASE } from './constants/api';
-import type { TasUploadResult, TasResolveResult, AbsentEmployee, TasPeriod, ResolvedRow, SessionSummary, JobStatus } from './tasTypes';
+import type { TasUploadResult, TasResolveResult, AbsentEmployee, TasPeriod, ResolvedRow, SessionSummary, JobStatus, DraftSummary, DraftView } from './tasTypes';
 
 export type TasResolution =
   | { sessionId: number; resolvedStart: string; resolvedEnd: string }
@@ -52,8 +52,15 @@ export const getAbsentReview = (token: string): Promise<{ absentEmployees: Absen
 export const setAbsentEmployeesActive = (token: string, employeeIds: string[], active: boolean): Promise<{ updated: number; notFound: string[] }> =>
   client.post<{ updated: number; notFound: string[] }>(`/tas/absent-review/${token}/deactivate`, { employeeIds, active }).then(r => r.data);
 
-export const recomputeTas = (token: string): Promise<{ uploadToken: string; resolvedRows: ResolvedRow[]; sessionSummaries: Record<string, SessionSummary[]> }> =>
-  client.post<{ uploadToken: string; resolvedRows: ResolvedRow[]; sessionSummaries: Record<string, SessionSummary[]> }>(`/tas/recompute/${token}`).then(r => r.data);
+export interface RecomputeResult {
+  uploadToken: string;
+  stateRevision: number;
+  resolvedRows: ResolvedRow[];
+  sessionSummaries: Record<string, SessionSummary[]>;
+}
+
+export const recomputeTas = (token: string): Promise<RecomputeResult> =>
+  client.post<RecomputeResult>(`/tas/recompute/${token}`).then(r => r.data);
 
 export const checkDuplicates = (uploadToken: string): Promise<string[]> =>
   client.post<{ duplicates: string[] }>('/tas/check-duplicates', { uploadToken }).then(r => r.data.duplicates);
@@ -63,3 +70,24 @@ export const getTasJobStatus = (jobId: string): Promise<JobStatus> =>
 
 export const retryTasJob = (jobId: string): Promise<{ jobId: string }> =>
   client.post<{ jobId: string }>(`/tas/jobs/${jobId}/retry`).then(r => r.data);
+
+export interface SaveDraftBody {
+  uploadToken: string;
+  stateRevision: number;
+  fileName: string | null;
+  view: DraftView;
+  periodLabel: string | null;
+  ui: Record<string, unknown>;
+}
+
+export const getDraftSummary = (): Promise<DraftSummary | null> =>
+  client.get<DraftSummary>('/tas/draft').then(r => (r.status === 204 ? null : r.data));
+
+export const saveDraft = (body: SaveDraftBody): Promise<void> =>
+  client.put('/tas/draft', body).then(() => undefined);
+
+export const deleteDraft = (): Promise<void> =>
+  client.delete('/tas/draft').then(() => undefined);
+
+export const resumeDraft = (): Promise<{ uploadToken: string; ui: Record<string, unknown> }> =>
+  client.post<{ uploadToken: string; ui: Record<string, unknown> }>('/tas/draft/resume').then(r => r.data);

@@ -11,9 +11,10 @@ interface Props {
   onViewChange: (view: AppView) => void;
   tasView: TasView;
   onNewUpload: () => void;
+  onDiscardSession: () => void;
 }
 
-export default function TopAppBar({ currentView, onViewChange, tasView, onNewUpload }: Props) {
+export default function TopAppBar({ currentView, onViewChange, tasView, onNewUpload, onDiscardSession }: Props) {
   const [showConfirm, setShowConfirm] = useState(false);
   const showToast = useToastStore(s => s.showToast);
   const openingManual = useRef(false);
@@ -134,7 +135,7 @@ export default function TopAppBar({ currentView, onViewChange, tasView, onNewUpl
           cancelLabel="Cancelar"
           onConfirm={() => {
             setShowConfirm(false);
-            onNewUpload();
+            onDiscardSession();
           }}
           onCancel={() => setShowConfirm(false)}
         />

@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { checkHealth, checkDbHealth } from './api';
 import { getBackendStatus, asStartFailure, type BackendStartFailure } from './backendStatus';
 import AlertMessage from './components/ui/AlertMessage';
-import { uploadTasFile } from './tasApi';
+import { uploadTasFile, getDraftSummary, resumeDraft, deleteDraft } from './tasApi';
+import { applySnapshot, discardDraftSession, isDraftView, startDraftAutosave } from './tasDraft';
 import { useTasStore } from './tasStore';
 import { useToastStore } from './toastStore';
 import EmptyState from './components/EmptyState';
@@ -14,6 +15,7 @@ import Spinner from './components/ui/Spinner';
 import TasUploadFlow from './components/tas/TasUploadFlow';
 import ToastContainer from './components/ui/ToastContainer';
 import type { AppView } from './types';
+import type { DraftSummary } from './tasTypes';
 
 const MAX_ATTEMPTS    = 40;
 const RETRY_INTERVAL  = 500;
@@ -27,6 +29,7 @@ const UPLOAD_STAGE_MESSAGES = [
   'Casi listo...',
 ];
 const STAGE_INTERVAL_MS = 5_000;
+const DRAFT_JOB_POLL_MS = 3_000;
 
 // ReviewScreen runs its own faster /db-health poll and shows a contextual banner,
 // so the global banner is suppressed on these views to avoid a conflicting signal.
@@ -42,9 +45,12 @@ export default function App() {
   const [dbHealthy, setDbHealthy] = useState<boolean | null>(null);
   const [currentView, setCurrentView] = useState<AppView>('tas');
   const [tasFileName, setTasFileName] = useState('');
+  const [draftSummary, setDraftSummary] = useState<DraftSummary | null>(null);
+  const fileNameRef = useRef('');
 
   const setTasView         = useTasStore(s => s.setTasView);
   const setUploadToken     = useTasStore(s => s.setUploadToken);
+  const setStateRevision   = useTasStore(s => s.setStateRevision);
   const setFlaggedSessions    = useTasStore(s => s.setFlaggedSessions);
   const setResolvedRowCount   = useTasStore(s => s.setResolvedRowCount);
   const setResolvedRows       = useTasStore(s => s.setResolvedRows);
@@ -79,6 +85,7 @@ export default function App() {
       const result = await uploadTasFile(file);
       clearInterval(stageTimer);
       setUploadToken(result.uploadToken);
+      setStateRevision(result.stateRevision);
       setFlaggedSessions(result.flaggedSessions);
       setResolvedRowCount(result.resolvedRows?.length ?? 0);
       setResolvedRows(result.resolvedRows ?? []);
@@ -107,6 +114,59 @@ export default function App() {
       setTasView('idle');
     }
     return true;
+  };
+
+  useEffect(() => {
+    fileNameRef.current = tasFileName;
+  }, [tasFileName]);
+
+  useEffect(() => startDraftAutosave(() => fileNameRef.current), []);
+
+  useEffect(() => {
+    if (backendState !== 'ready' || tasView !== 'idle') return;
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const load = async () => {
+      try {
+        const summary = await getDraftSummary();
+        if (cancelled) return;
+        setDraftSummary(summary);
+        if (summary?.jobActive) timer = setTimeout(load, DRAFT_JOB_POLL_MS);
+      } catch (err) {
+        if (cancelled) return;
+        console.warn('No se pudo consultar la sesión guardada.', err);
+        setDraftSummary(null);
+      }
+    };
+    load();
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+      setDraftSummary(null);
+    };
+  }, [backendState, tasView]);
+
+  const handleContinueDraft = async () => {
+    const fileName = draftSummary?.fileName ?? '';
+    try {
+      const { uploadToken, ui } = await resumeDraft();
+      if (!isDraftView(ui.tasView)) throw new Error('Vista de borrador inválida.');
+      setTasFileName(fileName);
+      applySnapshot({ ...ui, uploadToken });
+      setCurrentView('tas');
+    } catch {
+      showToast('No se pudo recuperar la sesión anterior.', 'error');
+      setDraftSummary(null);
+    }
+  };
+
+  const handleDiscardDraft = async () => {
+    setDraftSummary(null);
+    try {
+      await deleteDraft();
+    } catch (err) {
+      console.warn('No se pudo descartar la sesión guardada.', err);
+    }
   };
 
   useEffect(() => {
@@ -217,6 +277,10 @@ export default function App() {
           resetTas();
           setCurrentView('tas');
         }}
+        onDiscardSession={async () => {
+          setCurrentView('tas');
+          await discardDraftSession();
+        }}
       />
 
       {dbHealthy === false && !REVIEW_TAS_VIEWS.has(tasView) && (
@@ -230,7 +294,14 @@ export default function App() {
 
       {currentView === 'config' && <ConfigPage />}
 
-      {currentView === 'tas' && tasView === 'idle' && <EmptyState onTasFile={handleTasFile} />}
+      {currentView === 'tas' && tasView === 'idle' && (
+        <EmptyState
+          onTasFile={handleTasFile}
+          draft={draftSummary}
+          onContinueDraft={handleContinueDraft}
+          onDiscardDraft={handleDiscardDraft}
+        />
+      )}
 
       {currentView === 'tas' && tasView !== 'idle' && <TasUploadFlow fileName={tasFileName} />}
 
