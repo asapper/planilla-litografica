@@ -2523,4 +2523,29 @@ class TasControllerTest {
 
         verify(reportBuilder).findIncompletePeriods(isNull(), isNull(), eq(List.of()));
     }
+
+    @Test
+    void coverage_usesSessionDateRange_notRawScanRange() throws Exception {
+        TasUploadState state = new TasUploadState();
+        state.setUploadToken("tok-cov-sess");
+        // Raw scans run to the 15th only because an ignored inactive employee scanned then.
+        state.setReportStart(java.time.LocalDate.of(2026, 10, 1));
+        state.setReportEnd(java.time.LocalDate.of(2026, 10, 15));
+        TasSession first = new TasSession();
+        first.setDate(java.time.LocalDate.of(2026, 10, 2));
+        TasSession last = new TasSession();
+        last.setDate(java.time.LocalDate.of(2026, 10, 11));
+        TasSession undated = new TasSession();
+        state.setSessions(new ArrayList<>(List.of(last, undated, first)));
+        state.setResolvedRows(List.of(periodRow("100", 2026, 10, 1)));
+        tasController.stateStore.put("tok-cov-sess", state);
+        when(reportBuilder.findIncompletePeriods(any(), any(), any())).thenReturn(List.of());
+
+        mvc.perform(get("/api/tas/coverage/tok-cov-sess")).andExpect(status().isOk());
+
+        verify(reportBuilder).findIncompletePeriods(
+                eq(java.time.LocalDate.of(2026, 10, 2)),
+                eq(java.time.LocalDate.of(2026, 10, 11)),
+                eq(List.of(new TasPeriod(2026, 10, 1))));
+    }
 }

@@ -7,6 +7,7 @@ interface ConfirmModalProps {
   cancelLabel: string;
   onConfirm: () => void;
   onCancel: () => void;
+  focusCancel?: boolean;
 }
 
 export default function ConfirmModal({
@@ -16,12 +17,14 @@ export default function ConfirmModal({
   cancelLabel,
   onConfirm,
   onCancel,
+  focusCancel = false,
 }: ConfirmModalProps) {
   const backdropRef = useRef<HTMLDivElement>(null);
+  const cancelRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
-    backdropRef.current?.focus();
-  }, []);
+    (focusCancel ? cancelRef.current : backdropRef.current)?.focus();
+  }, [focusCancel]);
 
   return (
     <div
@@ -31,7 +34,7 @@ export default function ConfirmModal({
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 outline-none"
       onClick={onCancel}
       onKeyDown={e => {
-        if (e.key === 'Enter') { e.preventDefault(); onConfirm(); }
+        if (e.key === 'Enter' && e.target === e.currentTarget) { e.preventDefault(); onConfirm(); }
         else if (e.key === 'Escape') { e.preventDefault(); onCancel(); }
       }}
     >
@@ -43,6 +46,7 @@ export default function ConfirmModal({
         <p className="text-body-sm text-on-surface-variant mb-6">{message}</p>
         <div className="flex gap-3 justify-end">
           <button
+            ref={cancelRef}
             onClick={onCancel}
             className="m3-btn-outlined"
           >

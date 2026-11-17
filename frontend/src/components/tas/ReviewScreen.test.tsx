@@ -425,13 +425,44 @@ describe('ReviewScreen incomplete quincena', () => {
     expect(screen.queryByText(/quincena incompleta/i)).not.toBeInTheDocument();
   });
 
-  it('shows an error toast and allows submitting when the coverage check fails', async () => {
+  it('shows an error toast and asks for confirmation when the coverage check fails', async () => {
     mockGetIncompletePeriods.mockRejectedValue(new Error('boom'));
     await renderReady();
-    await waitFor(() => expect(useToastStore.getState().toasts.map(t => t.message))
-      .toContain('No se pudo verificar que el archivo cubra la quincena completa.'));
+    expect(useToastStore.getState().toasts.map(t => t.message))
+      .toContain('No se pudo verificar que el archivo cubra la quincena completa.');
+
     fireEvent.click(screen.getByRole('button', { name: /^enviar$/i }));
+    expect(screen.getByText('Quincena sin verificar')).toBeInTheDocument();
+    expect(mockSubmitTas).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: /enviar de todas formas/i }));
     await waitFor(() => expect(useTasStore.getState().tasView).toBe('polling'));
+  });
+
+  it('keeps Enviar disabled until the coverage check answers', async () => {
+    let resolve!: (v: IncompletePeriod[]) => void;
+    mockGetIncompletePeriods.mockReturnValue(new Promise(r => { resolve = r; }));
+    useTasStore.getState().setUploadToken('tok-1');
+    useTasStore.getState().setResolvedRows(rows);
+    render(<ReviewScreen />);
+    await waitFor(() => expect(mockCheckDbHealth).toHaveBeenCalled());
+    await act(async () => {});
+
+    expect(screen.getByRole('button', { name: /^enviar$/i })).toBeDisabled();
+    await act(async () => { resolve([october]); });
+    await waitFor(() => expect(screen.getByRole('button', { name: /^enviar$/i })).not.toBeDisabled());
+  });
+
+  it('focuses Cancelar in the confirmation so Enter does not submit', async () => {
+    mockGetIncompletePeriods.mockResolvedValue([october]);
+    await renderReady();
+    await screen.findByText(/quincena incompleta \(/i);
+
+    fireEvent.click(screen.getByRole('button', { name: /^enviar$/i }));
+    const cancel = screen.getByRole('button', { name: /cancelar/i });
+    expect(cancel).toHaveFocus();
+    fireEvent.keyDown(cancel, { key: 'Enter' });
+    expect(mockSubmitTas).not.toHaveBeenCalled();
   });
 
   it('ignores a coverage result that arrives after unmount', async () => {

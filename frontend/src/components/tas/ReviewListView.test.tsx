@@ -304,3 +304,10 @@ describe('ReviewListView incomplete quincena banner', () => {
     expect(screen.getByText(/septiembre 2026 · q2/i)).toBeInTheDocument();
   });
 });
+
+describe('ReviewListView coverage loading', () => {
+  it('disables Enviar while the coverage check is loading', () => {
+    render(<ReviewListView dbHealthy={true} coverageLoading onSubmit={vi.fn()} />);
+    expect(screen.getByRole('button', { name: /^enviar$/i })).toBeDisabled();
+  });
+});

@@ -547,8 +547,15 @@ public class TasController {
                 .map(r -> new TasPeriod(r.getAnio(), r.getMes(), r.getNumeroDequincena()))
                 .collect(Collectors.toList());
 
+        // Session dates, not raw scans: scans of ignored inactive employees would stretch the range.
+        List<TasSession> sessions = state.getSessions() != null ? state.getSessions() : Collections.emptyList();
+        LocalDate dataStart = sessions.stream().map(TasSession::getDate).filter(Objects::nonNull)
+                .min(Comparator.naturalOrder()).orElse(state.getReportStart());
+        LocalDate dataEnd = sessions.stream().map(TasSession::getDate).filter(Objects::nonNull)
+                .max(Comparator.naturalOrder()).orElse(state.getReportEnd());
+
         List<Map<String, Object>> incomplete = reportBuilder
-                .findIncompletePeriods(state.getReportStart(), state.getReportEnd(), periods)
+                .findIncompletePeriods(dataStart, dataEnd, periods)
                 .stream()
                 .map(c -> {
                     Map<String, Object> entry = new LinkedHashMap<>();

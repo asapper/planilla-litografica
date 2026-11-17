@@ -402,4 +402,24 @@ class TasReportBuilderTest {
         assertThat(builder.findIncompletePeriods(LocalDate.of(2026, 10, 1), null, List.of(p))).isEmpty();
         assertThat(builder.findIncompletePeriods(LocalDate.of(2026, 10, 1), LocalDate.of(2026, 10, 15), null)).isEmpty();
     }
+
+    @Test
+    void findIncompletePeriods_warnedDaysEqualDaysDockedFromFullAttendanceEmployee() {
+        LocalDate holiday = LocalDate.of(2026, 10, 14);
+        when(holidayService.isHoliday(holiday)).thenReturn(true);
+        LocalDate dataStart = LocalDate.of(2026, 10, 1);
+        LocalDate dataEnd = LocalDate.of(2026, 10, 11);
+        List<TasSession> sessions = new ArrayList<>();
+        for (LocalDate d = dataStart; !d.isAfter(dataEnd); d = d.plusDays(1)) {
+            sessions.add(resolvedSession("100", d, 0, 0));
+        }
+
+        EmployeeRow row = builder.build(sessions, dataStart, dataEnd, shifts, new TasPeriod(2026, 10, 1)).rows.get(0);
+        List<TasReportBuilder.PeriodCoverage> gaps =
+                builder.findIncompletePeriods(dataStart, dataEnd, List.of(new TasPeriod(2026, 10, 1)));
+
+        assertThat(gaps).singleElement()
+                .satisfies(c -> assertThat(c.missingWorkingDays()).hasSize(row.getDiasNoLaborados()));
+        assertThat(row.getDiasNoLaborados()).isEqualTo(3);
+    }
 }

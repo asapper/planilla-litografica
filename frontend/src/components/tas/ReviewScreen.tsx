@@ -10,6 +10,8 @@ import ConfirmModal from '../ui/ConfirmModal';
 import { incompleteConfirmText } from './coverageText';
 import type { IncompletePeriod } from '../../tasTypes';
 
+const COVERAGE_FAILED_MESSAGE = 'No se pudo verificar que el archivo cubra la quincena completa.';
+
 export default function ReviewScreen() {
   const uploadToken = useTasStore(s => s.uploadToken);
   const overtimeOverrides = useTasStore(s => s.overtimeOverrides);
@@ -26,7 +28,7 @@ export default function ReviewScreen() {
   useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTop = 0; }, []);
 
   const [dbHealthy, setDbHealthy] = useState<boolean | null>(null);
-  const [incompletePeriods, setIncompletePeriods] = useState<IncompletePeriod[]>([]);
+  const [coverage, setCoverage] = useState<IncompletePeriod[] | 'failed' | null>(null);
   const [confirmIncomplete, setConfirmIncomplete] = useState(false);
 
   useEffect(() => {
@@ -55,8 +57,12 @@ export default function ReviewScreen() {
     if (!uploadToken) return;
     let cancelled = false;
     getIncompletePeriods(uploadToken)
-      .then(periods => { if (!cancelled) setIncompletePeriods(periods); })
-      .catch(() => { if (!cancelled) useToastStore.getState().showToast('No se pudo verificar que el archivo cubra la quincena completa.', 'error'); });
+      .then(periods => { if (!cancelled) setCoverage(periods); })
+      .catch(() => {
+        if (cancelled) return;
+        setCoverage('failed');
+        useToastStore.getState().showToast(COVERAGE_FAILED_MESSAGE, 'error');
+      });
     return () => { cancelled = true; };
   }, [uploadToken]);
 
@@ -86,8 +92,11 @@ export default function ReviewScreen() {
     }
   };
 
+  const incompletePeriods = Array.isArray(coverage) ? coverage : [];
+  const coverageLoading = uploadToken !== null && coverage === null;
+
   const requestSubmit = () => {
-    if (incompletePeriods.length > 0) setConfirmIncomplete(true);
+    if (coverage === 'failed' || incompletePeriods.length > 0) setConfirmIncomplete(true);
     else handleSubmit();
   };
 
@@ -95,19 +104,27 @@ export default function ReviewScreen() {
     <div className="fixed inset-0 flex flex-col bg-surface-container-lowest" style={{ paddingTop: 64 }}>
       <div ref={scrollRef} className="flex-1 flex flex-col overflow-auto">
         {reviewSelectedEmployee === null ? (
-          <ReviewListView dbHealthy={dbHealthy} incompletePeriods={incompletePeriods} onSubmit={requestSubmit} />
+          <ReviewListView
+            dbHealthy={dbHealthy}
+            coverageLoading={coverageLoading}
+            incompletePeriods={incompletePeriods}
+            onSubmit={requestSubmit}
+          />
         ) : (
           <ReviewDetailView onBack={() => setReviewSelectedEmployee(null)} />
         )}
       </div>
       {confirmIncomplete && (
         <ConfirmModal
-          title="Quincena incompleta"
-          message={incompleteConfirmText(incompletePeriods)}
+          title={coverage === 'failed' ? 'Quincena sin verificar' : 'Quincena incompleta'}
+          message={coverage === 'failed'
+            ? `${COVERAGE_FAILED_MESSAGE} ¿Desea enviar de todas formas?`
+            : incompleteConfirmText(incompletePeriods)}
           confirmLabel="Enviar de todas formas"
           cancelLabel="Cancelar"
           onConfirm={() => { setConfirmIncomplete(false); handleSubmit(); }}
           onCancel={() => setConfirmIncomplete(false)}
+          focusCancel
         />
       )}
     </div>

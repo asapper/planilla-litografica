@@ -29,8 +29,8 @@ export function incompleteBannerText(p: IncompletePeriod): string {
 }
 
 export function incompleteConfirmText(periods: IncompletePeriod[]): string {
-  const parts = periods.map(p => `${missingDaysText(p)} (${periodLabel(p)})`).join('; ');
-  return `El archivo no tiene marcaciones ${parts}. `
+  const parts = periods.map(p => `${periodLabel(p)}: ${missingDaysText(p)}`).join('; ');
+  return `Faltan marcaciones en el archivo. ${parts}. `
     + 'Si envía ahora, esos días se registrarán como no laborados para todos los empleados. '
     + '¿Desea enviar de todas formas?';
 }

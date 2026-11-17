@@ -146,7 +146,7 @@ public class TasReportBuilder {
             List<LocalDate> missing = new ArrayList<>();
             for (LocalDate d = periodStart(period); !d.isAfter(periodEnd(period)); d = d.plusDays(1)) {
                 boolean outsideData = d.isBefore(dataStart) || d.isAfter(dataEnd);
-                if (outsideData && d.getDayOfWeek() != DayOfWeek.SUNDAY && !holidayService.isHoliday(d)) {
+                if (outsideData && isWorkingDay(d)) {
                     missing.add(d);
                 }
             }
@@ -174,14 +174,15 @@ public class TasReportBuilder {
         return period.numeroDequincena() == 1 ? start.withDayOfMonth(15) : start.withDayOfMonth(start.lengthOfMonth());
     }
 
+    private boolean isWorkingDay(LocalDate d) {
+        return d.getDayOfWeek() != DayOfWeek.SUNDAY && !holidayService.isHoliday(d);
+    }
+
     private int countNonWorkedDays(LocalDate start, LocalDate end, Set<LocalDate> workedDays) {
         int count = 0;
         LocalDate d = start;
         while (!d.isAfter(end)) {
-            DayOfWeek dow = d.getDayOfWeek();
-            if (dow != DayOfWeek.SUNDAY
-                    && !holidayService.isHoliday(d)
-                    && !workedDays.contains(d)) {
+            if (isWorkingDay(d) && !workedDays.contains(d)) {
                 count++;
             }
             d = d.plusDays(1);

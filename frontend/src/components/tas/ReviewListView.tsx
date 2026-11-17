@@ -12,6 +12,7 @@ type FilterType = 'all' | 'estimated' | 'duplicate' | 'adjusted';
 
 interface ReviewListViewProps {
   dbHealthy: boolean | null;
+  coverageLoading?: boolean;
   incompletePeriods?: IncompletePeriod[];
   onSubmit: () => void;
 }
@@ -25,7 +26,7 @@ function sortRows(rows: ResolvedRow[], column: 'name' | 'code', direction: 'asc'
   return direction === 'desc' ? sorted.reverse() : sorted;
 }
 
-export default function ReviewListView({ dbHealthy, incompletePeriods = [], onSubmit }: ReviewListViewProps) {
+export default function ReviewListView({ dbHealthy, coverageLoading = false, incompletePeriods = [], onSubmit }: ReviewListViewProps) {
   const resolvedRows = useTasStore(s => s.resolvedRows);
   const overtimeOverrides = useTasStore(s => s.overtimeOverrides);
   const nonWorkedDaysOverrides = useTasStore(s => s.nonWorkedDaysOverrides);
@@ -412,7 +413,7 @@ export default function ReviewListView({ dbHealthy, incompletePeriods = [], onSu
           </span>
           <button
             onClick={onSubmit}
-            disabled={dbHealthy !== true || allDuplicate || duplicatesLoading}
+            disabled={dbHealthy !== true || allDuplicate || duplicatesLoading || coverageLoading}
             className="m3-btn-filled"
           >
             {allDuplicate ? 'Todos los registros ya fueron enviados' : 'Enviar'}

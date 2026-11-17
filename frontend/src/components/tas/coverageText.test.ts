@@ -44,8 +44,8 @@ describe('coverageText', () => {
       dataStart: '2026-09-28', dataEnd: '2026-10-11', missingWorkingDays: ['2026-09-26'],
     };
     expect(incompleteConfirmText([sep, trailing])).toBe(
-      'El archivo no tiene marcaciones del 26 de septiembre (1 día laborable) (Septiembre 2026 · Q2); '
-      + 'del 12 al 15 de octubre (4 días laborables) (Octubre 2026 · Q1). '
+      'Faltan marcaciones en el archivo. Septiembre 2026 · Q2: del 26 de septiembre (1 día laborable); '
+      + 'Octubre 2026 · Q1: del 12 al 15 de octubre (4 días laborables). '
       + 'Si envía ahora, esos días se registrarán como no laborados para todos los empleados. '
       + '¿Desea enviar de todas formas?');
   });
