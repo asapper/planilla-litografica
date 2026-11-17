@@ -247,6 +247,10 @@ class ApiHostileInputContractTest {
                 Map.of("employeeId", 1, "date", List.of(), "keepSessionId", Map.of()),
                 Map.of("sessionId", 1, "resolvedStart", "9999-99-99 99:99", "resolvedEnd", 5),
                 Map.of("sessionId", 1, "acceptedShiftId", List.of())))), true));
+        out.add(new Attempt(json(Map.of("uploadToken", victimToken, "resolutions", List.of(
+                Map.of("sessionId", 2, "acceptedShiftId", "no-such-shift")))), true));
+        out.add(new Attempt(json(Map.of("uploadToken", victimToken, "resolutions", List.of(
+                Map.of("sessionId", 2, "resolvedStart", "2026-10-05 15:00", "resolvedEnd", "2026-10-05 07:00")))), true));
         out.add(new Attempt(json(Map.of("uploadToken", victimToken, "stateRevision", Long.MAX_VALUE,
                 "view", "verification", "ui", Map.of("x", "y"))), true));
         return out;
