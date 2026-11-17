@@ -1,6 +1,7 @@
 package com.planilla.backend.service;
 
 import com.planilla.backend.model.EmployeeRow;
+import com.planilla.backend.service.tas.TasDraftService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -23,22 +24,42 @@ public class JobService {
     private static final Logger log = LoggerFactory.getLogger(JobService.class);
 
     private final DatabaseService databaseService;
+    private final TasDraftService draftService;
 
     @Value("${job.max-retries:3}")
     private int maxRetries;
 
     private final Map<String, JobState> jobs = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, String> activeJobByToken = new ConcurrentHashMap<>();
     private ExecutorService asyncExecutor = Executors.newFixedThreadPool(4);
 
-    public JobService(DatabaseService databaseService) {
+    public JobService(DatabaseService databaseService, TasDraftService draftService) {
         this.databaseService = databaseService;
+        this.draftService = draftService;
     }
 
-    public String createJob(List<EmployeeRow> rows) {
+    public String createJob(List<EmployeeRow> rows, String uploadToken) {
         String jobId = UUID.randomUUID().toString();
+        claim(uploadToken, jobId);
         List<JobRowState> rowStates = rows.stream().map(JobRowState::new).collect(Collectors.toList());
-        jobs.put(jobId, new JobState(jobId, 1, maxRetries, rowStates));
+        jobs.put(jobId, new JobState(jobId, 1, maxRetries, rowStates, uploadToken));
         return jobId;
+    }
+
+    public boolean isJobActive(String uploadToken) {
+        return uploadToken != null && activeJobByToken.containsKey(uploadToken);
+    }
+
+    private void claim(String uploadToken, String jobId) {
+        if (uploadToken != null && activeJobByToken.putIfAbsent(uploadToken, jobId) != null) {
+            throw new JobInProgressException();
+        }
+    }
+
+    private void release(String uploadToken, String jobId) {
+        if (uploadToken != null) {
+            activeJobByToken.remove(uploadToken, jobId);
+        }
     }
 
     public record JobResult(int submitted, int skipped, int failed, String error) {
@@ -94,14 +115,22 @@ public class JobService {
         return new JobResult(job.submitted(), job.skipped(), job.failed(), firstError);
     }
 
-    public void processJobAsync(String jobId, String uploadToken, Map<String, ?> stateStore) {
-        runJobAsync(jobId, () -> {
-            processJob(jobId);
-            JobState job = jobs.get(jobId);
-            if (job != null && "DONE".equals(job.status.get())) {
-                stateStore.remove(uploadToken);
-            }
-        });
+    public void processJobAsync(String jobId, Map<String, ?> stateStore) {
+        runJobAsync(jobId, stateStore);
+    }
+
+    private void finishForToken(JobState job, Map<String, ?> stateStore) {
+        String token = job.uploadToken;
+        if (token == null) return;
+        String status = job.status.get();
+        if ("DONE".equals(status)) {
+            // Draft first: a getState landing between the two would otherwise rehydrate
+            // the finished session from its draft.
+            draftService.deleteIfToken(token);
+            stateStore.remove(token);
+        } else if ("DONE_WITH_ERRORS".equals(status)) {
+            draftService.markPartialIfToken(token);
+        }
     }
 
     @Scheduled(fixedRate = 300_000)
@@ -176,12 +205,14 @@ public class JobService {
             .collect(Collectors.toList());
 
         String retryId = UUID.randomUUID().toString();
-        jobs.put(retryId, new JobState(retryId, parent.attemptNumber + 1, parent.maxRetries, failedRows));
+        claim(parent.uploadToken, retryId);
+        jobs.put(retryId, new JobState(retryId, parent.attemptNumber + 1, parent.maxRetries, failedRows,
+                parent.uploadToken));
         return retryId;
     }
 
-    public void processRetryJobAsync(String jobId) {
-        runJobAsync(jobId, () -> processJob(jobId));
+    public void processRetryJobAsync(String jobId, Map<String, ?> stateStore) {
+        runJobAsync(jobId, stateStore);
     }
 
     @PreDestroy
@@ -197,15 +228,30 @@ public class JobService {
         }
     }
 
-    private void runJobAsync(String jobId, Runnable task) {
-        CompletableFuture.runAsync(task, asyncExecutor).exceptionally(ex -> {
-            log.error("Job {} failed unexpectedly: {}", jobId, ex.getMessage(), ex);
-            JobState job = jobs.get(jobId);
-            if (job != null) {
-                job.status.set("DONE_WITH_ERRORS");
-            }
-            return null;
-        });
+    private void runJobAsync(String jobId, Map<String, ?> stateStore) {
+        JobState job = jobs.get(jobId);
+        if (job == null) return;
+        try {
+            CompletableFuture.runAsync(() -> runJob(job, stateStore), asyncExecutor);
+        } catch (RuntimeException e) {
+            log.error("Job {} could not be scheduled: {}", jobId, e.getMessage(), e);
+            job.status.set("DONE_WITH_ERRORS");
+            release(job.uploadToken, jobId);
+        }
+    }
+
+    private void runJob(JobState job, Map<String, ?> stateStore) {
+        try {
+            processJob(job.jobId);
+            finishForToken(job, stateStore);
+        } catch (RuntimeException e) {
+            log.error("Job {} failed unexpectedly: {}", job.jobId, e.getMessage(), e);
+            job.status.set("DONE_WITH_ERRORS");
+            finishForToken(job, stateStore);
+        } finally {
+            // A leaked marker would lock the user out of the session with "Envío en curso" forever.
+            release(job.uploadToken, job.jobId);
+        }
     }
 
     static String classifyRowError(Exception e) {

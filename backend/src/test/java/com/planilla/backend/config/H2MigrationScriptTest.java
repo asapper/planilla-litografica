@@ -67,4 +67,14 @@ class H2MigrationScriptTest {
 
         assertThat(columns("holiday_cache")).contains("HOLIDAY_YEAR").doesNotContain("YEAR");
     }
+
+    @Test
+    void schemaCreatesTasDraftTableIdempotently() {
+        runStrict("schema-h2.sql");
+        runStrict("schema-h2.sql");
+
+        assertThat(columns("tas_draft")).contains(
+            "ID", "UPLOAD_TOKEN", "SCHEMA_VERSION", "FILE_NAME", "TAS_VIEW", "STATE_REVISION",
+            "PARTIAL_SUBMIT", "PERIOD_LABEL", "SAVED_AT", "BACKEND_STATE", "UI_STATE");
+    }
 }
