@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Fixes
+- **Swap a single scan between entry and exit.** When a day has only one scan, the app guesses whether it was the entry or the exit, and it often guessed wrong for afternoon exits of the morning shift (they showed up as the entry of a Tarde/Noche shift). Missing-entry/exit cards now have an "Intercambiar entrada/salida" button, and when the entry time changes the shift is re-picked from the new entry so overtime is measured against the right shift length (previously a misread Noche day lost all its overtime).
 - **Specific startup errors.** When the backend can't start, the app now stops waiting and says why: the port is taken by another program, or the service stopped during startup (with its exit code). Previously every failure showed "No se pudo conectar con el servicio." after 20 seconds.
 
 - **Installer waits for the old backend to stop.** The install/uninstall hook now waits (up to ~10 s) until the bundled backend has actually exited, instead of a fixed 1.5 s, and logs in the installer details whether it stopped.

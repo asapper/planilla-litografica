@@ -203,6 +203,8 @@ El sistema encontró una o más marcaciones de salida para ese día, pero no enc
 2. Ingrese la hora de entrada correcta en el campo **"Entrada"** (el campo muestra `--:-- --` cuando está vacío).
 3. Haga clic en **"Confirmar"**.
 
+**¿La hora mostrada como salida es en realidad la entrada?** Cuando un día tiene una sola marcación, el sistema adivina si fue entrada o salida según el turno. Si se equivocó, haga clic en **"Intercambiar entrada/salida"**: la hora registrada pasa al campo **"Entrada"** y usted ingresa la **"Salida"**. Vea [Intercambiar entrada y salida](#intercambiar-entrada-y-salida).
+
 #### Falta salida
 
 **Etiqueta:** `Falta salida · Entrada HH:MM`
@@ -213,6 +215,24 @@ El sistema encontró una marcación de entrada pero no encontró la marcación d
 1. Revise las marcaciones originales para entender el contexto.
 2. Ingrese la hora de salida correcta en el campo **"Salida"**.
 3. Haga clic en **"Confirmar"**.
+
+**¿La hora mostrada como entrada es en realidad la salida?** Es común en marcaciones de la tarde (por ejemplo, 16:58 o 17:30) de empleados del turno de mañana que olvidaron marcar al entrar. Haga clic en **"Intercambiar entrada/salida"**: la hora registrada pasa al campo **"Salida"** y usted ingresa la **"Entrada"**. Vea [Intercambiar entrada y salida](#intercambiar-entrada-y-salida).
+
+#### Intercambiar entrada y salida
+
+Cuando un día tiene **una sola marcación**, el sistema decide si fue entrada o salida comparándola con el horario del turno. Esa suposición puede fallar, por ejemplo cuando un empleado de mañana marca solo al salir a las 17:00: el sistema la toma como entrada de un turno de tarde o de noche.
+
+**Cómo corregirlo:**
+1. En la tarjeta **"Falta entrada"** o **"Falta salida"**, haga clic en **"Intercambiar entrada/salida"**.
+2. La hora registrada se mueve al otro campo, que queda bloqueado, y el campo vacío queda listo para escribir.
+3. La etiqueta cambia para reflejarlo (por ejemplo, de `Falta salida · Entrada 17:31` a `Falta entrada · Salida 17:31`).
+4. Ingrese la hora que falta y haga clic en **"Confirmar"**.
+
+Si la jornada cruza la medianoche (por ejemplo, entrada 22:00 y salida 06:00), el sistema coloca la hora que usted escribe en el día anterior o siguiente según corresponda. Si la jornada resultante dura más de 16 horas, verá el mensaje **"La jornada no puede durar más de 16 horas"**: revise que la hora sea correcta.
+
+Si se equivocó, haga clic en **"Deshacer intercambio"** antes de confirmar. Si ya confirmó, abra de nuevo la fila con **"Editar"**; el intercambio se conserva y puede deshacerlo.
+
+**El turno se ajusta solo:** al confirmar, el sistema vuelve a asignar el turno según la hora de **entrada** que quedó (por ejemplo, una entrada a las 07:00 se cuenta como turno de **Mañana**). Así las horas extra se calculan contra la duración correcta del turno.
 
 #### Cambio de turno
 
@@ -619,6 +639,7 @@ Para guardar los cambios, haga clic en **"Guardar cambios"**. Para revertirlos, 
 **Los datos de un empleado parecen incorrectos:**
 - Verifique que el archivo TAS corresponde al período correcto.
 - Si todos los empleados tienen varios **días no laborados** de más, revise que el reporte cubra la quincena completa: los días que faltan en el archivo (excepto domingos y feriados) se cuentan como no laborados.
+- Si una marcación de la tarde aparece como **entrada** de un turno de tarde o de noche, use **"Intercambiar entrada/salida"** (ver [Intercambiar entrada y salida](#intercambiar-entrada-y-salida)).
 - En la vista de detalle, expanda las marcaciones originales (pastillas azules) para comparar con las horas calculadas.
 - Si el turno asignado no es el correcto, puede ajustarlo desde la página de Configuración > Empleados.
 

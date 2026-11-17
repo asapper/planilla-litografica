@@ -4,6 +4,10 @@ import type { TasView, TasSession, InactiveEmployee, InactiveDecision, AbsentEmp
 export interface ResolvedSessionEntry {
   resolvedStart: string;
   resolvedEnd: string;
+  // Set for swapped single-scan sessions: day offsets relative to the session date
+  // (the recorded scan's date), so an overnight day lands on the right calendar days.
+  startDayOffset?: -1 | 0;
+  endDayOffset?: 0 | 1;
 }
 
 interface TasStore {

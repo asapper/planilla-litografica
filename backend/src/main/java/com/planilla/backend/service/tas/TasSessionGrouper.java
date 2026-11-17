@@ -317,7 +317,7 @@ public class TasSessionGrouper {
         return session;
     }
 
-    private Map<String, Object> findBestFitShift(
+    public static Map<String, Object> findBestFitShift(
             LocalDateTime scanTime, List<Map<String, Object>> shifts) {
         LocalTime scanTimeOfDay = scanTime.toLocalTime();
         int scanMinutes = scanTimeOfDay.getHour() * 60 + scanTimeOfDay.getMinute();
@@ -390,13 +390,13 @@ public class TasSessionGrouper {
         return null;
     }
 
-    private String getShiftId(Map<String, Object> shift) {
+    public static String getShiftId(Map<String, Object> shift) {
         if (shift == null) return null;
         Object id = shift.get("id");
         return id != null ? id.toString() : null;
     }
 
-    private LocalTime parseTime(Object timeObj) {
+    private static LocalTime parseTime(Object timeObj) {
         if (timeObj == null) return LocalTime.MIDNIGHT;
         if (timeObj instanceof LocalTime) return (LocalTime) timeObj;
         String s = timeObj.toString();
