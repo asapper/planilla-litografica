@@ -859,9 +859,10 @@ public class TasController {
     public ResponseEntity<?> resumeDraft() {
         Optional<TasDraftService.Draft> draft = draftService.load();
         if (draft.isEmpty()) {
-            return draftService.currentToken() == null
-                    ? error(404, "NO_DRAFT", "No hay una sesión guardada.")
-                    : error(409, "DRAFT_OUTDATED", DRAFT_OUTDATED_MESSAGE);
+            boolean outdated = draftService.findSummary().map(s -> !s.resumable()).orElse(false);
+            return outdated
+                    ? error(409, "DRAFT_OUTDATED", DRAFT_OUTDATED_MESSAGE)
+                    : error(404, "NO_DRAFT", "No hay una sesión guardada.");
         }
         TasDraftService.Draft d = draft.get();
         TasUploadState state = d.state();

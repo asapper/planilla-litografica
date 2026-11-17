@@ -25,3 +25,6 @@ dist-ssr
 
 # Generated PDF symlink for dev server
 public/manual_usuario.pdf
+
+# Written by draftShape.test.ts when the saved draft shape changes
+draft-shape/ui-shape-actual.txt

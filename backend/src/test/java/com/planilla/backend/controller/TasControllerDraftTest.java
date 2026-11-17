@@ -600,7 +600,8 @@ class TasControllerDraftTest {
     @Test
     void resume_anOutdatedDraftIs409AndLeavesItInPlace() throws Exception {
         when(draftService.load()).thenReturn(Optional.empty());
-        when(draftService.currentToken()).thenReturn("tok");
+        when(draftService.findSummary()).thenReturn(Optional.of(new TasDraftService.Summary(
+                "tok", "oct.csv", "review", null, Instant.now(), false, false, null)));
 
         mvc.perform(post("/api/tas/draft/resume"))
            .andExpect(status().isConflict())
@@ -609,6 +610,17 @@ class TasControllerDraftTest {
 
         verify(draftService, never()).delete();
         assertThat(tasController.stateStore).doesNotContainKey("tok");
+    }
+
+    @Test
+    void resume_aDraftThatCouldNotBeReadIs404NotOutdated() throws Exception {
+        when(draftService.load()).thenReturn(Optional.empty());
+        when(draftService.currentToken()).thenReturn("tok");
+        when(draftService.findSummary()).thenReturn(Optional.empty());
+
+        mvc.perform(post("/api/tas/draft/resume"))
+           .andExpect(status().isNotFound())
+           .andExpect(jsonPath("$.code").value("NO_DRAFT"));
     }
 
     @Test

@@ -13,6 +13,7 @@ import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
 
 @Service
 public class TasDraftService {
@@ -56,6 +57,7 @@ public class TasDraftService {
 
     private final JdbcTemplate jdbc;
     private final ObjectMapper mapper;
+    private final AtomicReference<String> warnedRow = new AtomicReference<>();
 
     public TasDraftService(@Qualifier("h2JdbcTemplate") JdbcTemplate jdbc, ObjectMapper mapper) {
         this.jdbc = jdbc;
@@ -121,8 +123,8 @@ public class TasDraftService {
 
     private Optional<Draft> parse(Row row) {
         if (row.schemaVersion() != SCHEMA_VERSION) {
-            log.warn("TAS draft has schema version {} (expected {}); it can't be resumed.",
-                    row.schemaVersion(), SCHEMA_VERSION);
+            warnOnce(row, "TAS draft has schema version " + row.schemaVersion()
+                    + " (expected " + SCHEMA_VERSION + "); it can't be resumed.");
             return Optional.empty();
         }
         TasUploadState state;
@@ -131,12 +133,18 @@ public class TasDraftService {
             state = mapper.readValue(row.backendState(), TasUploadState.class);
             ui = mapper.readTree(row.uiState());
         } catch (Exception e) {
-            log.warn("TAS draft is unreadable; it can't be resumed: {}", e.getMessage());
+            warnOnce(row, "TAS draft is unreadable; it can't be resumed: " + e.getMessage());
             return Optional.empty();
         }
         state.touch();
         return Optional.of(new Draft(row.uploadToken(), row.fileName(), row.view(), row.periodLabel(),
                 row.savedAt(), row.partialSubmit(), row.stateRevision(), state, ui));
+    }
+
+    // The start screen polls the summary while a job runs; one warning per saved row is enough.
+    private void warnOnce(Row row, String message) {
+        String key = row.uploadToken() + "@" + row.savedAt();
+        if (!key.equals(warnedRow.getAndSet(key))) log.warn(message);
     }
 
     private Integer uiVersion(String uiJson) {

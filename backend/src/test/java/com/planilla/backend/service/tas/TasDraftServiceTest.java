@@ -236,6 +236,31 @@ class TasDraftServiceTest {
     }
 
     @Test
+    void anOutdatedRowWarnsOncePerSavedRowNotOnEveryPoll() throws Exception {
+        ch.qos.logback.classic.Logger logger =
+                (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(TasDraftService.class);
+        ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent> appender =
+                new ch.qos.logback.core.read.ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            service.save("tok", simpleState("tok"), ui("{}"), "f.csv", "review", null);
+            jdbc.update("UPDATE tas_draft SET schema_version = 0");
+            for (int i = 0; i < 5; i++) service.findSummary();
+            service.load();
+            assertThat(appender.list).hasSize(1);
+            assertThat(appender.list.get(0).getFormattedMessage()).contains("schema version 0");
+
+            service.save("tok2", simpleState("tok2"), ui("{}"), "g.csv", "review", null);
+            jdbc.update("UPDATE tas_draft SET schema_version = 0");
+            service.findSummary();
+            assertThat(appender.list).hasSize(2);
+        } finally {
+            logger.detachAppender(appender);
+        }
+    }
+
+    @Test
     void summaryCarriesTheUiVersionOnlyWhenItIsAnInteger() throws Exception {
         service.save("tok", simpleState("tok"), ui("{\"uiVersion\":3}"), "f.csv", "review", null);
         assertThat(service.findSummary().orElseThrow().uiVersion()).isEqualTo(3);

@@ -1,32 +1,32 @@
-$.absentEmployees[].active?: false | true | undefined
+$.absentEmployees[].active?: boolean | undefined
 $.absentEmployees[].employeeId: string
 $.absentEmployees[].name: string
 $.availablePeriods[].anio: number
 $.availablePeriods[].mes: number
 $.availablePeriods[].numeroDequincena: number
-$.availableShifts[].crossMidnight?: false | true | undefined
+$.availableShifts[].crossMidnight?: boolean | undefined
 $.availableShifts[].endTime: string
 $.availableShifts[].id: string
 $.availableShifts[].name: string
 $.availableShifts[].startTime: string
-$.fallbackBannerDismissed: false | true
+$.fallbackBannerDismissed: boolean
 $.flaggedSessions[].assignedShiftId: null | string
 $.flaggedSessions[].assignedShiftName: null | string
-$.flaggedSessions[].crossMidnight: false | true
+$.flaggedSessions[].crossMidnight: boolean
 $.flaggedSessions[].date: string
 $.flaggedSessions[].effectiveStart: null | string
 $.flaggedSessions[].employeeId: string
 $.flaggedSessions[].employeeName: string
-$.flaggedSessions[].flags[]: "BEST_FIT_SHIFT" | "END_CUTOFF" | "MISSING_ENTRY" | "MISSING_EXIT" | "SAME_DAY_DOUBLE" | "SHIFT_MISMATCH" | "SHORT_DAY" | "START_CUTOFF"
+$.flaggedSessions[].flags[]: string
 $.flaggedSessions[].lastScan: null | string
 $.flaggedSessions[].matchedShiftId: null | string
 $.flaggedSessions[].matchedShiftName: null | string
-$.flaggedSessions[].needsResolution: false | true
+$.flaggedSessions[].needsResolution: boolean
 $.flaggedSessions[].scans[]: string
 $.flaggedSessions[].sessionId: number
 $.flaggedSessions[].workedHours: number
 $.flaggedSessions[].workedMinutes: number
-$.inactiveDecisions{string}: "ignore" | "reactivate"
+$.inactiveDecisions{string}: string
 $.inactiveEmployees[].employeeId: string
 $.inactiveEmployees[].name: string
 $.inactiveEmployees[].sessionCount: number
@@ -34,7 +34,7 @@ $.nonWorkedDaysOverrides{string}: number
 $.overtimeOverrides{string}.horasExtrasDobles?: number | undefined
 $.overtimeOverrides{string}.horasExtrasSimples?: number | undefined
 $.resolvedRowCount: number
-$.resolvedRows[].accruesOvertime: false | true
+$.resolvedRows[].accruesOvertime: boolean
 $.resolvedRows[].anio: number
 $.resolvedRows[].codigoEmpleado: string
 $.resolvedRows[].diasNoLaborados: number
@@ -44,11 +44,11 @@ $.resolvedRows[].horasExtrasSimples: number
 $.resolvedRows[].mes: number
 $.resolvedRows[].nombreEmpleado: string
 $.resolvedRows[].numeroDequincena: null | number
-$.resolvedSessions{number}.endDayOffset?: 0 | 1 | undefined
+$.resolvedSessions{number}.endDayOffset?: number | undefined
 $.resolvedSessions{number}.resolvedEnd: string
 $.resolvedSessions{number}.resolvedStart: string
-$.resolvedSessions{number}.startDayOffset?: -1 | 0 | undefined
-$.sameDayDoubleResolutions{string}: "all" | number
+$.resolvedSessions{number}.startDayOffset?: number | undefined
+$.sameDayDoubleResolutions{string}: number | string
 $.selectedPeriod.anio: number
 $.selectedPeriod.mes: number
 $.selectedPeriod.numeroDequincena: number
@@ -57,7 +57,7 @@ $.sessionSummaries{string}[].breakDeductionMinutes?: number | undefined
 $.sessionSummaries{string}[].date: string
 $.sessionSummaries{string}[].doblesMinutes: number
 $.sessionSummaries{string}[].entryTime: null | string
-$.sessionSummaries{string}[].estimatedShift?: false | true | undefined
+$.sessionSummaries{string}[].estimatedShift?: boolean | undefined
 $.sessionSummaries{string}[].exitTime: null | string
 $.sessionSummaries{string}[].scans[]: string
 $.sessionSummaries{string}[].shiftName: null | string
@@ -68,7 +68,7 @@ $.stashedNonWorkedDaysOverrides{string}: number
 $.stashedOvertimeOverrides{string}.horasExtrasDobles?: number | undefined
 $.stashedOvertimeOverrides{string}.horasExtrasSimples?: number | undefined
 $.stateRevision: number
-$.tasView: "absentReview" | "idle" | "inactiveReview" | "polling" | "processing" | "result" | "review" | "submitting" | "verification"
+$.tasView: string
 $.uploadToken: null | string
-$.usedFallbackHolidays: false | true
+$.usedFallbackHolidays: boolean
 $.warnings[]: string
