@@ -112,4 +112,51 @@ class TasControllerJobConcurrencyTest {
 
         await().atMost(Duration.ofSeconds(3)).until(() -> !jobActiveInSummary());
     }
+
+    @Test
+    void aDraftSaveLandingBetweenDraftDeleteAndStateRemovalIsRejected() throws Exception {
+        reset(databaseService);
+        when(databaseService.isDuplicate(any())).thenReturn(false);
+        com.fasterxml.jackson.databind.JsonNode body = new com.fasterxml.jackson.databind.ObjectMapper()
+                .readTree("{\"uploadToken\":\"tok\",\"stateRevision\":0,\"view\":\"review\",\"ui\":{}}");
+        ExecutorService pool = Executors.newSingleThreadExecutor();
+        java.util.concurrent.atomic.AtomicReference<Future<ResponseEntity<?>>> put =
+                new java.util.concurrent.atomic.AtomicReference<>();
+        doAnswer(inv -> {
+            if (put.get() == null) {
+                put.set(pool.submit(() -> controller.saveDraft(body)));
+                try {
+                    put.get().get(300, TimeUnit.MILLISECONDS);
+                } catch (TimeoutException expectedWhileTheLockIsHeld) {
+                    // the PUT must wait for the finishing job
+                }
+            }
+            return null;
+        }).when(draftService).deleteIfToken("tok");
+
+        assertThat(controller.submit(new HashMap<>(Map.of("uploadToken", "tok"))).getStatusCode().value())
+                .isEqualTo(202);
+
+        await().atMost(Duration.ofSeconds(3)).until(() -> put.get() != null && put.get().isDone());
+        assertThat(put.get().get().getStatusCode().value()).isEqualTo(409);
+        verify(draftService, never()).save(any(), any(), any(), any(), any(), any());
+        assertThat(controller.stateStore).doesNotContainKey("tok");
+        pool.shutdown();
+    }
+
+    @Test
+    void submitForAnotherSessionIsRefusedWhileAJobRuns() {
+        EmployeeRow row = new EmployeeRow();
+        row.setCodigoEmpleado("200");
+        TasUploadState other = new TasUploadState();
+        other.setUploadToken("other");
+        other.setSessions(new ArrayList<>());
+        other.setResolvedRows(new ArrayList<>(List.of(row)));
+        controller.stateStore.put("other", other);
+
+        assertThat(controller.submit(new HashMap<>(Map.of("uploadToken", "tok"))).getStatusCode().value())
+                .isEqualTo(202);
+        assertThat(controller.submit(new HashMap<>(Map.of("uploadToken", "other"))).getStatusCode().value())
+                .isEqualTo(409);
+    }
 }

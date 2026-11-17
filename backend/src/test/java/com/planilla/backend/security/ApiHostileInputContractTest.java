@@ -1,6 +1,8 @@
 package com.planilla.backend.security;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.planilla.backend.controller.TasController;
 import com.planilla.backend.model.EmployeeRow;
 import com.planilla.backend.model.tas.TasFlag;
@@ -67,17 +69,20 @@ class ApiHostileInputContractTest {
             "POST /api/tas/upload");
 
     /**
-     * OPEN findings, tracked in docs/tas-api-auth-review.md: these config endpoints cast request-body
-     * values without type checks, so a wrong-typed field is an unhandled ClassCastException (HTTP 500).
-     * No data leaks and no session state changes. Ratchet: the set of failing endpoints must EQUAL this
-     * list, so a newly failing endpoint fails the build and a fixed one must be removed from here.
+     * OPEN finding H-3, tracked in docs/tas-api-auth-review.md: these config endpoints cast request-body
+     * values without type checks, so a wrong-typed field is an unhandled exception (HTTP 500). No data
+     * leaks and no session state changes. Ratchet, pinned per endpoint by failure kind and count: the
+     * observed failures must EQUAL this map, so a new 5xx kind (or more of one) on a listed endpoint,
+     * or any 5xx on another endpoint, fails the build, and a fix must shrink the map.
      */
-    private static final Set<String> KNOWN_OPEN_5XX = Set.of(
-            "POST /api/config/employees/bulk-assign",
-            "POST /api/config/holidays",
-            "POST /api/config/shifts",
-            "PUT /api/config/employees/{id}",
-            "PUT /api/config/shifts/{id}");
+    private static final Map<String, Map<String, Integer>> KNOWN_OPEN_5XX = Map.of(
+            "POST /api/config/employees/bulk-assign", Map.of("unhandled ClassCastException", 16),
+            "POST /api/config/holidays", Map.of("unhandled ClassCastException", 14),
+            "POST /api/config/shifts", Map.of(
+                    "unhandled ClassCastException", 16, "unhandled NullPointerException", 2),
+            "PUT /api/config/employees/{id}", Map.of("unhandled ClassCastException", 112),
+            "PUT /api/config/shifts/{id}", Map.of(
+                    "unhandled ClassCastException", 112, "unhandled NullPointerException", 14));
 
     private static final List<String> FIELD_NAMES = List.of(
             "uploadToken", "reactivate", "ignore", "resolutions", "anio", "mes", "numeroDequincena",
@@ -150,6 +155,39 @@ class ApiHostileInputContractTest {
         store.put(victimToken, state);
         draftService.save(victimToken, state, mapper.readTree("{\"secret\":\"" + SECRET + "\"}"),
                 SECRET + ".csv", "verification", null);
+        victimBaseline = victimFingerprint();
+    }
+
+    private String victimBaseline;
+
+    /**
+     * The victim session's full content, in memory and in the saved draft, minus the idle clock
+     * (any read touches it) and the save time. Comparing this, not just the revision, catches a
+     * mutation that forgets to bump the revision.
+     */
+    private String victimFingerprint() throws Exception {
+        ObjectNode out = mapper.createObjectNode();
+        TasUploadState live = victimState();
+        out.set("live", live == null ? null : withoutClock(mapper.valueToTree(live)));
+        Optional<TasDraftService.Draft> draft = draftService.load();
+        if (draft.isPresent()) {
+            TasDraftService.Draft d = draft.get();
+            ObjectNode saved = mapper.createObjectNode();
+            saved.put("token", d.uploadToken());
+            saved.put("fileName", d.fileName());
+            saved.put("view", d.view());
+            saved.put("revision", d.stateRevision());
+            saved.put("partial", d.partialSubmit());
+            saved.set("state", withoutClock(mapper.valueToTree(d.state())));
+            saved.set("ui", d.ui());
+            out.set("draft", saved);
+        }
+        return mapper.writeValueAsString(out);
+    }
+
+    private static JsonNode withoutClock(JsonNode node) {
+        ((ObjectNode) node).remove("lastAccessedAt");
+        return node;
     }
 
     private TasUploadState victimState() {
@@ -226,7 +264,9 @@ class ApiHostileInputContractTest {
             status = r.getResponse().getStatus();
             content = r.getResponse().getContentAsString();
         } catch (Exception ex) {
-            failures.add(head + " -> unhandled " + ex.getClass().getSimpleName() + ": " + ex.getMessage());
+            Throwable root = ex;
+            while (root.getCause() != null) root = root.getCause();
+            failures.add(head + " -> unhandled " + root.getClass().getSimpleName() + ": " + ex.getMessage());
             return;
         }
         if (status >= 500) {
@@ -236,12 +276,16 @@ class ApiHostileInputContractTest {
         if (!TOKENLESS_DRAFT_READS.contains(e.key()) && content.contains(SECRET)) {
             failures.add(head + " -> leaked the victim session without its token: " + truncate(content));
         }
-        if (!TOKENLESS_DRAFT_REPLACERS.contains(e.key())) {
-            TasUploadState victim = victimState();
-            if (victim == null || victim.getRevision() != 7 || !victimToken.equals(draftService.currentToken())) {
-                failures.add(head + " -> changed the victim session without its token");
-            }
+        if (!TOKENLESS_DRAFT_REPLACERS.contains(e.key()) && !victimFingerprint().equals(victimBaseline)) {
+            failures.add(head + " -> changed the victim session without its token");
         }
+    }
+
+    private static String failureKind(String failure) {
+        String tail = failure.substring(failure.lastIndexOf("] -> ") + 5);
+        if (tail.startsWith("unhandled ")) return tail.substring(0, tail.indexOf(':'));
+        if (tail.startsWith("HTTP ")) return tail.substring(0, 8);
+        return tail;
     }
 
     private static String truncate(String s) {
@@ -296,9 +340,15 @@ class ApiHostileInputContractTest {
                 .filter(f -> f.contains("leaked") || f.contains("changed the victim")).toList();
         assertThat(leaks).as("cross-token leaks or mutations anywhere on /api").isEmpty();
 
-        assertThat(failures.keySet()).as("endpoints failing hostile input must match the tracked OPEN list exactly"
-                + " (new failure = regression; fixed endpoint = remove it from KNOWN_OPEN_5XX). Failures: %s",
+        Map<String, Map<String, Integer>> observed = new TreeMap<>();
+        failures.forEach((endpoint, list) -> {
+            Map<String, Integer> kinds = new TreeMap<>();
+            for (String f : list) kinds.merge(failureKind(f), 1, Integer::sum);
+            observed.put(endpoint, kinds);
+        });
+        assertThat(observed).as("5xx failures must match the tracked OPEN map exactly, per endpoint, kind and"
+                + " count (new failure = regression; a fix must shrink KNOWN_OPEN_5XX). First failures: %s",
                 failures.values().stream().map(l -> l.get(0)).toList())
-                .isEqualTo(new TreeSet<>(KNOWN_OPEN_5XX));
+                .isEqualTo(new TreeMap<>(KNOWN_OPEN_5XX));
     }
 }

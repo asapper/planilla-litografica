@@ -96,6 +96,15 @@ public class TasController {
         return ResponseEntity.status(status).body(Map.of("code", code, "message", message));
     }
 
+    /** Call inside {@code synchronized (state)}: false once the state was replaced or removed. */
+    private boolean isCurrent(String token, TasUploadState state) {
+        return stateStore.get(token) == state;
+    }
+
+    private static ResponseEntity<Map<String, Object>> stateChanged() {
+        return error(409, "STATE_CHANGED", "La sesión cambió. Intente nuevamente.");
+    }
+
     private static ResponseEntity<Map<String, Object>> invalidToken() {
         return error(400, "INVALID_TOKEN", "Token inválido.");
     }
@@ -172,8 +181,8 @@ public class TasController {
         }
 
         synchronized (existing) {
-            if (stateStore.get(token) != existing) {
-                return error(409, "STATE_CHANGED", "La sesión cambió. Intente nuevamente.");
+            if (!isCurrent(token, existing)) {
+                return stateChanged();
             }
 
             for (String empId : reactivate) {
@@ -200,7 +209,7 @@ public class TasController {
             TasUploadState newState = TasUploadState.from(token, result, allScans, ignoredIds);
             newState.setRevision(nextRevision);
             if (!stateStore.replace(token, existing, newState)) {
-                return error(409, "STATE_CHANGED", "La sesión cambió. Intente nuevamente.");
+                return stateChanged();
             }
 
             return ResponseEntity.ok(buildResponseBody(token, result, nextRevision));
@@ -235,6 +244,9 @@ public class TasController {
         List<Map<String, Object>> shifts = shiftConfigService.getAllShifts();
 
         synchronized (state) {
+            if (!isCurrent(token, state)) {
+                return stateChanged();
+            }
             List<TasSession> sessions = state.getSessions();
             if (sessions == null) sessions = Collections.emptyList();
             final List<TasSession> allSessions = sessions;
@@ -255,15 +267,20 @@ public class TasController {
                 if (invalid != null) return invalid;
             }
 
-            operations.forEach(Runnable::run);
-            if (periodFilter != null) {
-                state.setResolvedPeriod(periodFilter);
-            }
+            // Once applying starts the state may be half-mutated even if a step throws: bump anyway
+            // so a pending autosave carrying the old revision is refused instead of pairing it.
+            try {
+                operations.forEach(Runnable::run);
+                if (periodFilter != null) {
+                    state.setResolvedPeriod(periodFilter);
+                }
 
-            TasReportBuilder.BuildResult buildResult = reportBuilder.build(
-                    sessions, state.getReportStart(), state.getReportEnd(), shifts, periodFilter);
-            state.setResolvedRows(buildResult.rows);
-            state.bumpRevision();
+                TasReportBuilder.BuildResult buildResult = reportBuilder.build(
+                        sessions, state.getReportStart(), state.getReportEnd(), shifts, periodFilter);
+                state.setResolvedRows(buildResult.rows);
+            } finally {
+                state.bumpRevision();
+            }
 
             List<TasSession> remainingFlagged = sessions.stream()
                     .filter(TasSession::isNeedsResolution)
@@ -465,6 +482,9 @@ public class TasController {
 
         List<EmployeeRow> rows;
         synchronized (state) {
+            if (!isCurrent(token, state)) {
+                return stateChanged();
+            }
             List<TasSession> sessions = state.getSessions();
             if (sessions == null) sessions = Collections.emptyList();
 
@@ -604,6 +624,9 @@ public class TasController {
         List<Map<String, Object>> shifts = shiftConfigService.getAllShifts();
 
         synchronized (state) {
+            if (!isCurrent(uploadToken, state)) {
+                return stateChanged();
+            }
             List<TasSession> sessions = state.getSessions();
             if (sessions == null) sessions = Collections.emptyList();
 
@@ -675,7 +698,7 @@ public class TasController {
         resp.put("periodLabel", s.periodLabel());
         resp.put("savedAt", s.savedAt());
         resp.put("partialSubmit", s.partialSubmit());
-        resp.put("jobActive", jobService.isJobActive(s.uploadToken()));
+        resp.put("jobActive", jobService.isAnyJobActive());
         return ResponseEntity.ok(resp);
     }
 
@@ -698,11 +721,14 @@ public class TasController {
 
         TasUploadState state = getState(token);
         if (state == null) {
-            return draftStale();
+            return draftStale(null);
         }
         synchronized (state) {
-            if (stateStore.get(token) != state || state.getRevision() != revisionNode.asLong()) {
-                return draftStale();
+            if (!isCurrent(token, state)) {
+                return draftStale(null);
+            }
+            if (state.getRevision() != revisionNode.asLong()) {
+                return draftStale(state.getRevision());
             }
             draftService.save(token, state, ui, fileName, view, periodLabel);
         }
@@ -734,8 +760,12 @@ public class TasController {
         return ResponseEntity.ok(resp);
     }
 
-    private static ResponseEntity<Map<String, Object>> draftStale() {
-        return error(409, "DRAFT_STALE", "La sesión cambió desde este guardado.");
+    private static ResponseEntity<Map<String, Object>> draftStale(Long currentRevision) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("code", "DRAFT_STALE");
+        body.put("message", "La sesión cambió desde este guardado.");
+        body.put("currentRevision", currentRevision);
+        return ResponseEntity.status(409).body(body);
     }
 
     private static String textField(JsonNode body, String field, int maxLength) {

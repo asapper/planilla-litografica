@@ -546,7 +546,7 @@ class TasControllerDraftTest {
         when(draftService.findSummary()).thenReturn(Optional.of(new TasDraftService.Summary(
                 "tok", "oct.csv", "review", "Octubre 2026 - Quincena 1",
                 Instant.parse("2026-11-16T20:20:00Z"), true)));
-        when(jobService.isJobActive("tok")).thenReturn(true);
+        when(jobService.isAnyJobActive()).thenReturn(true);
 
         mvc.perform(get("/api/tas/draft"))
            .andExpect(status().isOk())
@@ -816,5 +816,88 @@ class TasControllerDraftTest {
            .andExpect(jsonPath("$.code").value("INVALID_TIME_FORMAT"));
         assertThat(state.getRevision()).isEqualTo(1);
         assertThat(state.getSessions().get(0).isNeedsResolution()).isTrue();
+    }
+
+    @Test
+    void resolve_whoseApplyThrowsStillBumpsTheRevision() throws Exception {
+        TasUploadState state = stateWith("tok", 2, flagged(1));
+        tasController.stateStore.put("tok", state);
+        stubBuild();
+        doThrow(new IllegalStateException("calc failed")).when(hoursCalculator).classifyHours(any(), any());
+        Map<String, Object> res = Map.of("sessionId", 1,
+                "resolvedStart", "2026-10-03 07:00", "resolvedEnd", "2026-10-03 15:00");
+
+        try {
+            mvc.perform(post("/api/tas/resolve").contentType(MediaType.APPLICATION_JSON)
+                    .content(json(Map.of("uploadToken", "tok", "resolutions", List.of(res)))));
+        } catch (Exception expected) {
+            // the failure propagates; what matters is the revision
+        }
+
+        assertThat(state.getRevision()).isEqualTo(3);
+        assertThat(putDraft(draftBody("tok", 2)).getResponse().getStatus()).isEqualTo(409);
+    }
+
+    private void assertReplacedWhileWaitingForTheLockIs409(String token, TasUploadState old,
+            java.util.concurrent.Callable<MvcResult> request) throws Exception {
+        Future<MvcResult> pending;
+        synchronized (old) {
+            pending = pool.submit(request);
+            Thread.sleep(300);
+            tasController.stateStore.put(token, stateWith(token, old.getRevision()));
+        }
+        MvcResult res = pending.get(5, TimeUnit.SECONDS);
+        assertThat(res.getResponse().getStatus()).isEqualTo(409);
+        assertThat(res.getResponse().getContentAsString()).contains("STATE_CHANGED");
+    }
+
+    @Test
+    void resolve_onAStateReplacedWhileWaitingForTheLockIs409() throws Exception {
+        TasSession session = flagged(1);
+        TasUploadState old = stateWith("tok", 1, session);
+        tasController.stateStore.put("tok", old);
+        stubBuild();
+        Map<String, Object> res = Map.of("sessionId", 1,
+                "resolvedStart", "2026-10-03 07:00", "resolvedEnd", "2026-10-03 15:00");
+
+        assertReplacedWhileWaitingForTheLockIs409("tok", old, () -> mvc.perform(post("/api/tas/resolve")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(Map.of("uploadToken", "tok", "resolutions", List.of(res))))).andReturn());
+        assertThat(old.getRevision()).isEqualTo(1);
+        assertThat(session.isNeedsResolution()).isTrue();
+    }
+
+    @Test
+    void recompute_onAStateReplacedWhileWaitingForTheLockIs409() throws Exception {
+        TasUploadState old = stateWith("tok", 1);
+        tasController.stateStore.put("tok", old);
+        stubBuild();
+
+        assertReplacedWhileWaitingForTheLockIs409("tok", old,
+                () -> mvc.perform(post("/api/tas/recompute/tok")).andReturn());
+        assertThat(old.getRevision()).isEqualTo(1);
+    }
+
+    @Test
+    void submit_onAStateReplacedWhileWaitingForTheLockIs409() throws Exception {
+        EmployeeRow row = new EmployeeRow();
+        row.setCodigoEmpleado("100");
+        TasUploadState old = stateWith("tok", 1);
+        old.setResolvedRows(new ArrayList<>(List.of(row)));
+        tasController.stateStore.put("tok", old);
+
+        assertReplacedWhileWaitingForTheLockIs409("tok", old, () -> mvc.perform(post("/api/tas/submit")
+                .contentType(MediaType.APPLICATION_JSON).content(json(Map.of("uploadToken", "tok")))).andReturn());
+        verify(jobService, never()).createJob(any(), any());
+    }
+
+    @Test
+    void putDraft_staleRevisionReportsTheServerRevision() throws Exception {
+        tasController.stateStore.put("tok", stateWith("tok", 4));
+
+        MvcResult res = putDraft(draftBody("tok", 3));
+
+        assertThat(res.getResponse().getStatus()).isEqualTo(409);
+        assertThat(mapper.readTree(res.getResponse().getContentAsString()).get("currentRevision").asLong()).isEqualTo(4);
     }
 }

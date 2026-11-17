@@ -82,8 +82,8 @@ class JobServiceTest {
 
     @Test
     void createJob_returnsDistinctIds() {
-        String jobId1 = service.createJob(List.of(row("1")), newToken());
-        String jobId2 = service.createJob(List.of(row("2")), newToken());
+        String jobId1 = service.createJob(List.of(row("1")), null);
+        String jobId2 = service.createJob(List.of(row("2")), null);
         assertThat(jobId1).isNotEqualTo(jobId2);
     }
 
@@ -553,9 +553,30 @@ class JobServiceTest {
     }
 
     @Test
-    void createJob_allowsJobsForDifferentTokens() {
-        service.createJob(List.of(row("1")), "tok-a");
+    void createJob_refusesAnyOtherTokenWhileAJobIsActive() throws Exception {
+        java.util.concurrent.CountDownLatch release = blockSubmissions();
+        String first = service.createJob(List.of(row("1")), "tok-a");
+        service.processJobAsync(first, new ConcurrentHashMap<String, Object>());
+
+        assertThatThrownBy(() -> service.createJob(List.of(row("1")), "tok-b"))
+            .isInstanceOf(JobInProgressException.class);
+        assertThat(service.isAnyJobActive()).isTrue();
+
+        release.countDown();
+        await().atMost(Duration.ofSeconds(2)).until(() -> !service.isAnyJobActive());
         assertThatCode(() -> service.createJob(List.of(row("1")), "tok-b")).doesNotThrowAnyException();
+    }
+
+    @Test
+    void retryIsRefusedWhileAJobForAnotherTokenIsActive() throws Exception {
+        when(databaseService.isDuplicate(any())).thenThrow(new RuntimeException("err"));
+        String parent = service.createJob(List.of(row("1")), "tok-a");
+        service.processJobAsync(parent, new ConcurrentHashMap<String, Object>());
+        await().atMost(Duration.ofSeconds(2)).until(() -> !service.isAnyJobActive());
+
+        service.createJob(List.of(row("1")), "tok-b");
+
+        assertThatThrownBy(() -> service.createRetryJob(parent)).isInstanceOf(JobInProgressException.class);
     }
 
     @Test
@@ -664,30 +685,124 @@ class JobServiceTest {
     @Test
     void doneDeletesTheDraftBeforeRemovingTheState() throws Exception {
         when(databaseService.isDuplicate(any())).thenReturn(false);
-        @SuppressWarnings("unchecked")
-        Map<String, Object> store = mock(Map.class);
+        Object state = new Object();
+        ConcurrentHashMap<String, Object> store = spy(new ConcurrentHashMap<String, Object>());
+        store.put("tok", state);
         String jobId = service.createJob(List.of(row("1")), "tok");
 
         service.processJobAsync(jobId, store);
 
-        await().atMost(Duration.ofSeconds(2)).until(() -> !service.isJobActive("tok"));
+        await().atMost(Duration.ofSeconds(2)).until(() -> "DONE".equals(service.getJobStatus(jobId).status()));
         org.mockito.InOrder order = inOrder(draftService, store);
         order.verify(draftService).deleteIfToken("tok");
-        order.verify(store).remove("tok");
+        order.verify(store).remove("tok", state);
         verify(draftService, never()).markPartialIfToken(any());
+        assertThat(store).doesNotContainKey("tok");
+    }
+
+    @Test
+    void doneDeletesTheDraftAndRemovesTheStateWhileHoldingTheStateLock() throws Exception {
+        when(databaseService.isDuplicate(any())).thenReturn(false);
+        Object state = new Object();
+        Map<String, Object> store = new ConcurrentHashMap<>();
+        store.put("tok", state);
+        java.util.concurrent.atomic.AtomicBoolean heldDuringDelete = new java.util.concurrent.atomic.AtomicBoolean();
+        doAnswer(inv -> { heldDuringDelete.set(Thread.holdsLock(state)); return null; })
+            .when(draftService).deleteIfToken("tok");
+        String jobId = service.createJob(List.of(row("1")), "tok");
+
+        service.processJobAsync(jobId, store);
+
+        await().atMost(Duration.ofSeconds(2)).until(() -> "DONE".equals(service.getJobStatus(jobId).status()));
+        assertThat(heldDuringDelete).isTrue();
+        assertThat(store).doesNotContainKey("tok");
+    }
+
+    @Test
+    void doneWithoutAnInMemoryStateStillDeletesTheDraft() throws Exception {
+        when(databaseService.isDuplicate(any())).thenReturn(false);
+        String jobId = service.createJob(List.of(row("1")), "tok");
+
+        service.processJobAsync(jobId, new ConcurrentHashMap<String, Object>());
+
+        await().atMost(Duration.ofSeconds(2)).until(() -> "DONE".equals(service.getJobStatus(jobId).status()));
+        verify(draftService).deleteIfToken("tok");
+    }
+
+    @Test
+    void terminalStatusIsPublishedOnlyAfterTheTokenIsFinishedAndReleased() throws Exception {
+        when(databaseService.isDuplicate(any())).thenReturn(false);
+        doNothing().doThrow(new RuntimeException("row failed")).when(databaseService).submitRow(any());
+        java.util.concurrent.CountDownLatch finishing = new java.util.concurrent.CountDownLatch(1);
+        java.util.concurrent.CountDownLatch release = new java.util.concurrent.CountDownLatch(1);
+        doAnswer(inv -> { finishing.countDown(); release.await(5, java.util.concurrent.TimeUnit.SECONDS); return null; })
+            .when(draftService).markPartialIfToken("tok");
+        String jobId = service.createJob(List.of(row("1"), row("2")), "tok");
+
+        service.processJobAsync(jobId, new ConcurrentHashMap<String, Object>());
+
+        assertThat(finishing.await(2, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+        assertThat(service.getJobStatus(jobId).status()).isEqualTo("IN_PROGRESS");
+        release.countDown();
+        await().atMost(Duration.ofSeconds(2)).until(() -> "DONE_WITH_ERRORS".equals(service.getJobStatus(jobId).status()));
+        assertThat(service.isJobActive("tok")).isFalse();
+        assertThatCode(() -> service.createRetryJob(jobId)).doesNotThrowAnyException();
+    }
+
+    @Test
+    void unreachableDatabaseWithNothingSentDoesNotMarkTheDraftPartial() throws Exception {
+        when(databaseService.isDuplicate(any())).thenThrow(new RuntimeException(new java.net.ConnectException("refused")));
+        String jobId = service.createJob(List.of(row("1"), row("2")), "tok");
+
+        service.processJobAsync(jobId, new ConcurrentHashMap<String, Object>());
+
+        await().atMost(Duration.ofSeconds(2)).until(() -> "DONE_WITH_ERRORS".equals(service.getJobStatus(jobId).status()));
+        verify(draftService, never()).markPartialIfToken(any());
+    }
+
+    @Test
+    void taskThatThrowsBeforeAnyRowDoesNotMarkTheDraftPartial() throws Exception {
+        String jobId = service.createJob(List.of(row("1")), "tok");
+        @SuppressWarnings("unchecked")
+        Map<String, JobState> jobs = (Map<String, JobState>) ReflectionTestUtils.getField(service, "jobs");
+        JobState real = jobs.get(jobId);
+        List<JobRowState> rowsThatExplode = new java.util.ArrayList<>(List.of(new JobRowState(row("1")))) {
+            @Override public java.util.Iterator<JobRowState> iterator() { throw new IllegalStateException("boom"); }
+        };
+        JobState exploding = new JobState(jobId, 1, 3, rowsThatExplode, "tok");
+        jobs.put(jobId, exploding);
+
+        service.processJobAsync(jobId, new ConcurrentHashMap<String, Object>());
+
+        await().atMost(Duration.ofSeconds(2)).until(() -> "DONE_WITH_ERRORS".equals(exploding.status.get()));
+        await().atMost(Duration.ofSeconds(2)).until(() -> !service.isJobActive("tok"));
+        verify(draftService, never()).markPartialIfToken(any());
+        assertThat(real).isNotNull();
+    }
+
+    @Test
+    void skippedDuplicatesAloneStillMarkTheDraftPartial() throws Exception {
+        when(databaseService.isDuplicate(any())).thenReturn(true, false);
+        doThrow(new RuntimeException("row failed")).when(databaseService).submitRow(any());
+        String jobId = service.createJob(List.of(row("1"), row("2")), "tok");
+
+        service.processJobAsync(jobId, new ConcurrentHashMap<String, Object>());
+
+        await().atMost(Duration.ofSeconds(2)).until(() -> "DONE_WITH_ERRORS".equals(service.getJobStatus(jobId).status()));
+        verify(draftService).markPartialIfToken("tok");
     }
 
     @Test
     void doneWithErrorsKeepsStateAndMarksTheDraftPartial() throws Exception {
         when(databaseService.isDuplicate(any())).thenReturn(false);
-        doThrow(new RuntimeException("row failed")).when(databaseService).submitRow(any());
+        doNothing().doThrow(new RuntimeException("row failed")).when(databaseService).submitRow(any());
         Map<String, Object> store = new ConcurrentHashMap<>();
         store.put("tok", new Object());
-        String jobId = service.createJob(List.of(row("1")), "tok");
+        String jobId = service.createJob(List.of(row("1"), row("2")), "tok");
 
         service.processJobAsync(jobId, store);
 
-        await().atMost(Duration.ofSeconds(2)).until(() -> !service.isJobActive("tok"));
+        await().atMost(Duration.ofSeconds(2)).until(() -> "DONE_WITH_ERRORS".equals(service.getJobStatus(jobId).status()));
         assertThat(service.getJobStatus(jobId).status()).isEqualTo("DONE_WITH_ERRORS");
         assertThat(store).containsKey("tok");
         verify(draftService).markPartialIfToken("tok");
@@ -731,5 +846,31 @@ class JobServiceTest {
         assertThat(service.getJobStatus(retry).status()).isEqualTo("DONE");
         assertThat(store).doesNotContainKey("tok");
         verify(draftService).deleteIfToken("tok");
+    }
+
+    @Test
+    void aSessionThatCannotBeSettledStillEndsTheJobAndReleasesTheMarker() throws Exception {
+        when(databaseService.isDuplicate(any())).thenReturn(false);
+        doThrow(new RuntimeException("draft store down")).when(draftService).deleteIfToken("tok");
+        doThrow(new RuntimeException("still down")).when(draftService).markPartialIfToken("tok");
+        Map<String, Object> store = new ConcurrentHashMap<>();
+        store.put("tok", new Object());
+        String jobId = service.createJob(List.of(row("1")), "tok");
+
+        service.processJobAsync(jobId, store);
+
+        await().atMost(Duration.ofSeconds(2)).until(() -> "DONE_WITH_ERRORS".equals(service.getJobStatus(jobId).status()));
+        assertThat(service.isJobActive("tok")).isFalse();
+    }
+
+    @Test
+    void aJobWithoutAnUploadTokenNeverTouchesADraft() throws Exception {
+        when(databaseService.isDuplicate(any())).thenReturn(false);
+        String jobId = service.createJob(List.of(row("1")), null);
+
+        service.processJobAsync(jobId, new ConcurrentHashMap<String, Object>());
+
+        await().atMost(Duration.ofSeconds(2)).until(() -> "DONE".equals(service.getJobStatus(jobId).status()));
+        verifyNoInteractions(draftService);
     }
 }
