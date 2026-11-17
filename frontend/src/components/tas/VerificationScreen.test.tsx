@@ -1038,3 +1038,161 @@ describe('VerificationScreen completion state', () => {
     expect(enviar).not.toHaveTextContent('✓ Revisar');
   });
 });
+
+describe('SessionCard entry/exit swap', () => {
+  const swapButton = () => screen.getByRole('button', { name: 'Intercambiar entrada/salida' });
+  const entryInput = () => screen.getByLabelText('Entrada') as HTMLInputElement;
+  const exitInput  = () => screen.getByLabelText('Salida') as HTMLInputElement;
+
+  function singleScan(flag: 'MISSING_ENTRY' | 'MISSING_EXIT', time: string, overrides: Partial<TasSession> = {}): TasSession {
+    const scan = `2026-03-15T${time}:00`;
+    return makeSession({
+      flags: [flag],
+      scans: [scan],
+      effectiveStart: flag === 'MISSING_EXIT' ? scan : null,
+      lastScan: flag === 'MISSING_ENTRY' ? scan : null,
+      ...overrides,
+    });
+  }
+
+  function renderWith(session: TasSession) {
+    useTasStore.getState().setUploadToken('tok-1');
+    useTasStore.getState().setFlaggedSessions([session]);
+    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
+    render(<VerificationScreen />);
+  }
+
+  async function submittedResolution() {
+    mockResolveVerification.mockResolvedValue(mockResult);
+    fireEvent.click(screen.getByRole('button', { name: /revisar/i }));
+    await waitFor(() => expect(mockResolveVerification).toHaveBeenCalled());
+    return mockResolveVerification.mock.calls[0][1][0];
+  }
+
+  it('moves a scan misread as exit into the entry and lets the user type the exit', async () => {
+    renderWith(singleScan('MISSING_ENTRY', '07:02'));
+    expect(exitInput().value).toBe('07:02');
+    expect(exitInput()).toHaveAttribute('readonly');
+
+    fireEvent.click(swapButton());
+
+    expect(entryInput().value).toBe('07:02');
+    expect(entryInput()).toHaveAttribute('readonly');
+    expect(exitInput().value).toBe('');
+    expect(exitInput()).not.toHaveAttribute('readonly');
+    expect(screen.getByText('Falta salida · Entrada 07:02')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Confirmar' })).toBeDisabled();
+
+    fireEvent.change(exitInput(), { target: { value: '15:00' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmar' }));
+
+    expect(useTasStore.getState().resolvedSessions[1]).toEqual(
+      { resolvedStart: '07:02', resolvedEnd: '15:00', startDayOffset: 0, endDayOffset: 0 });
+    expect(await submittedResolution()).toEqual(
+      { sessionId: 1, resolvedStart: '2026-03-15 07:02', resolvedEnd: '2026-03-15 15:00' });
+  });
+
+  it('moves a scan misread as entry into the exit and lets the user type the entry', async () => {
+    renderWith(singleScan('MISSING_EXIT', '16:58'));
+
+    fireEvent.click(swapButton());
+
+    expect(exitInput().value).toBe('16:58');
+    expect(exitInput()).toHaveAttribute('readonly');
+    expect(entryInput().value).toBe('');
+    expect(entryInput()).not.toHaveAttribute('readonly');
+    expect(screen.getByText('Falta entrada · Salida 16:58')).toBeInTheDocument();
+
+    fireEvent.change(entryInput(), { target: { value: '07:00' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmar' }));
+
+    expect(await submittedResolution()).toEqual(
+      { sessionId: 1, resolvedStart: '2026-03-15 07:00', resolvedEnd: '2026-03-15 16:58' });
+  });
+
+  it('puts the typed exit on the next day when a swapped entry runs past midnight', async () => {
+    renderWith(singleScan('MISSING_ENTRY', '22:00', { crossMidnight: false }));
+    fireEvent.click(swapButton());
+    fireEvent.change(exitInput(), { target: { value: '06:00' } });
+
+    expect(screen.getByText(/Horas calculadas: 8\.0h/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmar' }));
+
+    expect(await submittedResolution()).toEqual(
+      { sessionId: 1, resolvedStart: '2026-03-15 22:00', resolvedEnd: '2026-03-16 06:00' });
+  });
+
+  it('puts the typed entry on the previous day when a swapped exit closes a night shift', async () => {
+    renderWith(singleScan('MISSING_EXIT', '07:02', { crossMidnight: false }));
+    fireEvent.click(swapButton());
+    fireEvent.change(entryInput(), { target: { value: '19:00' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmar' }));
+
+    expect(await submittedResolution()).toEqual(
+      { sessionId: 1, resolvedStart: '2026-03-14 19:00', resolvedEnd: '2026-03-15 07:02' });
+  });
+
+  it('blocks a swapped day longer than 16 hours', () => {
+    renderWith(singleScan('MISSING_ENTRY', '22:00'));
+    fireEvent.click(swapButton());
+    fireEvent.change(exitInput(), { target: { value: '21:00' } });
+
+    expect(screen.getByText('La jornada no puede durar más de 16 horas')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Confirmar' })).toBeDisabled();
+  });
+
+  it('undoes the swap and restores the original layout', () => {
+    renderWith(singleScan('MISSING_ENTRY', '07:02'));
+    fireEvent.click(swapButton());
+    fireEvent.click(screen.getByRole('button', { name: 'Deshacer intercambio' }));
+
+    expect(entryInput().value).toBe('');
+    expect(entryInput()).not.toHaveAttribute('readonly');
+    expect(exitInput().value).toBe('07:02');
+    expect(screen.getByText('Falta entrada · Salida 07:02')).toBeInTheDocument();
+  });
+
+  it('keeps the original submit dates when nothing was swapped', async () => {
+    renderWith(singleScan('MISSING_ENTRY', '15:10'));
+    fireEvent.change(entryInput(), { target: { value: '07:00' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmar' }));
+
+    expect(useTasStore.getState().resolvedSessions[1]).toEqual({ resolvedStart: '07:00', resolvedEnd: '15:10' });
+    expect(await submittedResolution()).toEqual(
+      { sessionId: 1, resolvedStart: '2026-03-15 07:00', resolvedEnd: '2026-03-15 15:10' });
+  });
+
+  it('re-opens a confirmed swapped resolution still swapped', () => {
+    renderWith(singleScan('MISSING_ENTRY', '07:02'));
+    fireEvent.click(swapButton());
+    fireEvent.change(exitInput(), { target: { value: '15:00' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmar' }));
+    fireEvent.click(screen.getByRole('button', { name: /Ana López/ }));
+
+    fireEvent.click(screen.getByRole('button', { name: /Editar Ana López/ }));
+
+    expect(entryInput().value).toBe('07:02');
+    expect(exitInput().value).toBe('15:00');
+    expect(screen.getByRole('button', { name: 'Deshacer intercambio' })).toBeInTheDocument();
+  });
+
+  it('offers no swap on a day with more than one scan', () => {
+    renderWith(makeSession({
+      flags: ['MISSING_ENTRY'],
+      scans: ['2026-03-15T10:00:00', '2026-03-15T15:00:00'],
+      effectiveStart: null,
+      lastScan: '2026-03-15T15:00:00',
+    }));
+    expect(screen.queryByRole('button', { name: 'Intercambiar entrada/salida' })).not.toBeInTheDocument();
+  });
+
+  it('offers no swap when the session has no recorded scan to move', () => {
+    renderWith(makeSession({ flags: ['MISSING_ENTRY'], effectiveStart: null, lastScan: null }));
+    expect(screen.queryByRole('button', { name: 'Intercambiar entrada/salida' })).not.toBeInTheDocument();
+  });
+
+  it('offers no swap when both entry and exit are missing', () => {
+    renderWith(makeSession({ flags: ['MISSING_ENTRY', 'MISSING_EXIT'], scans: ['2026-03-15T08:00:00'], effectiveStart: '2026-03-15T08:00:00', lastScan: null }));
+    expect(screen.queryByRole('button', { name: 'Intercambiar entrada/salida' })).not.toBeInTheDocument();
+  });
+});

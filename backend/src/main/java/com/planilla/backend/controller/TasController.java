@@ -266,6 +266,20 @@ public class TasController {
                     ));
                 }
 
+                // When the user swaps a single scan to the other side, or the shift was
+                // only a best-fit guess, the shift must follow the resolved entry or
+                // overtime is measured against the wrong shift length. A genuinely late
+                // arrival on a matched shift keeps its shift.
+                boolean shiftWasGuessed = session.getFlags() != null
+                        && session.getFlags().contains(TasFlag.BEST_FIT_SHIFT);
+                if (!start.equals(session.getEffectiveStart())
+                        && (isSwappedSingleScan(session, start, end) || shiftWasGuessed)) {
+                    Map<String, Object> bestFit = TasSessionGrouper.findBestFitShift(start, shifts);
+                    if (bestFit != null) {
+                        session.setMatchedShiftId(TasSessionGrouper.getShiftId(bestFit));
+                        session.setMatchedShiftName((String) bestFit.get("name"));
+                    }
+                }
                 session.setEffectiveStart(start);
                 session.setLastScan(end);
                 session.setScans(List.of(start, end));
@@ -560,6 +574,18 @@ public class TasController {
 
     private TasParserService.ParseResult parseFile(MultipartFile file) throws Exception {
         return parserService.parse(file);
+    }
+
+    /** True when the user moved a lone scan from the side the backend guessed to the other side. */
+    static boolean isSwappedSingleScan(TasSession session, LocalDateTime start, LocalDateTime end) {
+        if (session.getScans() == null || session.getScans().size() != 1 || session.getFlags() == null) return false;
+        LocalDateTime scan = session.getScans().get(0);
+        boolean scanWasExit  = session.getFlags().contains(TasFlag.MISSING_ENTRY);
+        boolean scanWasEntry = session.getFlags().contains(TasFlag.MISSING_EXIT);
+        if (scanWasExit == scanWasEntry) return false;
+        return scanWasExit
+                ? start.equals(scan) && !end.equals(scan)
+                : end.equals(scan) && !start.equals(scan);
     }
 
     private TasUploadState buildState(
