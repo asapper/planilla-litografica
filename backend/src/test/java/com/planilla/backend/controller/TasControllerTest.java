@@ -2523,19 +2523,24 @@ class TasControllerTest {
         verify(reportBuilder).findIncompletePeriods(isNull(), isNull(), eq(List.of()));
     }
 
+    private static TasScanRecord scanAt(String employeeId, String timestamp) {
+        TasScanRecord r = new TasScanRecord();
+        r.setEmployeeId(employeeId);
+        r.setTimestamp(java.time.LocalDateTime.parse(timestamp));
+        return r;
+    }
+
     @Test
-    void coverage_usesSessionDateRange_notRawScanRange() throws Exception {
+    void coverage_usesTheFileScans_skippingIgnoredEmployees() throws Exception {
         TasUploadState state = new TasUploadState();
         state.setUploadToken("tok-cov-sess");
-        // Raw scans run to the 15th only because an ignored inactive employee scanned then.
         state.setReportStart(java.time.LocalDate.of(2026, 10, 1));
         state.setReportEnd(java.time.LocalDate.of(2026, 10, 15));
-        TasSession first = new TasSession();
-        first.setDate(java.time.LocalDate.of(2026, 10, 2));
-        TasSession last = new TasSession();
-        last.setDate(java.time.LocalDate.of(2026, 10, 11));
-        TasSession undated = new TasSession();
-        state.setSessions(new ArrayList<>(List.of(last, undated, first)));
+        state.setAllScans(new ArrayList<>(List.of(
+                scanAt("100", "2026-10-11T15:00"),
+                scanAt("900", "2026-10-15T07:00"),
+                scanAt("100", "2026-10-02T07:00"))));
+        state.setIgnoredEmployeeIds(new HashSet<>(Set.of("900")));
         state.setResolvedRows(List.of(periodRow("100", 2026, 10, 1)));
         tasController.stateStore.put("tok-cov-sess", state);
         when(reportBuilder.findIncompletePeriods(any(), any(), any())).thenReturn(List.of());
@@ -2546,6 +2551,24 @@ class TasControllerTest {
                 eq(java.time.LocalDate.of(2026, 10, 2)),
                 eq(java.time.LocalDate.of(2026, 10, 11)),
                 eq(List.of(new TasPeriod(2026, 10, 1))));
+    }
+
+    @Test
+    void coverage_aNightDatedByItsTypedEntry_doesNotHideAMissingFirstDay() throws Exception {
+        TasSession night = seedNightState("tok-cov-night", "2026-01-02", TasFlag.MISSING_ENTRY);
+        TasUploadState state = tasController.stateStore.get("tok-cov-night");
+        state.setAllScans(new ArrayList<>(List.of(
+                scanAt("emp1", "2026-01-02T06:00"), scanAt("emp2", "2026-01-15T15:00"))));
+        state.setIgnoredEmployeeIds(new HashSet<>());
+        resolveTimes("tok-cov-night", "2026-01-01 22:00", "2026-01-02 06:00");
+        assertThat(night.getDate()).isEqualTo(java.time.LocalDate.of(2026, 1, 1));
+        state.setResolvedRows(List.of(periodRow("emp1", 2026, 1, 1)));
+        when(reportBuilder.findIncompletePeriods(any(), any(), any())).thenReturn(List.of());
+
+        mvc.perform(get("/api/tas/coverage/tok-cov-night")).andExpect(status().isOk());
+
+        verify(reportBuilder).findIncompletePeriods(
+                eq(java.time.LocalDate.of(2026, 1, 2)), eq(java.time.LocalDate.of(2026, 1, 15)), any());
     }
 
     @Test
@@ -2677,5 +2700,128 @@ class TasControllerTest {
 
         assertThat(s.getMatchedShiftId()).isEqualTo("borrado");
         assertThat(s.isCrossMidnight()).isFalse();
+    }
+
+    @Test
+    void resolve_twoHalvesOfOneNightResolvedAsTheSameNight_isRefusedNamingTheSession() throws Exception {
+        TasSession entryHalf = seedNightState("night-tok", "2026-01-06", TasFlag.MISSING_EXIT);
+        TasSession exitHalf = new TasSession();
+        exitHalf.setSessionId(71);
+        exitHalf.setEmployeeId("emp1");
+        exitHalf.setDate(java.time.LocalDate.of(2026, 1, 7));
+        exitHalf.setNeedsResolution(true);
+        exitHalf.setFlags(new ArrayList<>(List.of(TasFlag.MISSING_ENTRY)));
+        tasController.stateStore.get("night-tok").getSessions().add(exitHalf);
+
+        Map<String, Object> first = new LinkedHashMap<>();
+        first.put("sessionId", 70);
+        first.put("resolvedStart", "2026-01-06 22:00");
+        first.put("resolvedEnd", "2026-01-07 06:00");
+        Map<String, Object> second = new LinkedHashMap<>(first);
+        second.put("sessionId", 71);
+
+        mvc.perform(post("/api/tas/resolve")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of("uploadToken", "night-tok", "resolutions", List.of(first, second)))))
+           .andExpect(status().isBadRequest())
+           .andExpect(jsonPath("$.code").value("OVERLAPPING_SESSIONS"))
+           .andExpect(jsonPath("$.sessionId").value(70))
+           .andExpect(jsonPath("$.message").value("La jornada se cruza con otra del mismo empleado (06/01 22:00 – 07/01 06:00)."));
+
+        assertThat(entryHalf.isNeedsResolution()).isTrue();
+        assertThat(entryHalf.getDate()).isEqualTo(java.time.LocalDate.of(2026, 1, 6));
+    }
+
+    @Test
+    void resolve_overlappingAnAlreadyCountedDay_isRefused() throws Exception {
+        seedNightState("night-tok", "2026-01-07", TasFlag.MISSING_EXIT);
+        TasSession counted = new TasSession();
+        counted.setSessionId(72);
+        counted.setEmployeeId("emp1");
+        counted.setDate(java.time.LocalDate.of(2026, 1, 7));
+        counted.setEffectiveStart(java.time.LocalDateTime.of(2026, 1, 7, 14, 0));
+        counted.setLastScan(java.time.LocalDateTime.of(2026, 1, 7, 22, 0));
+        counted.setWorkedMinutes(480);
+        counted.setFlags(new ArrayList<>());
+        tasController.stateStore.get("night-tok").getSessions().add(counted);
+
+        Map<String, Object> res = new LinkedHashMap<>();
+        res.put("sessionId", 70);
+        res.put("resolvedStart", "2026-01-07 07:00");
+        res.put("resolvedEnd", "2026-01-07 15:00");
+        mvc.perform(post("/api/tas/resolve")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of("uploadToken", "night-tok", "resolutions", List.of(res)))))
+           .andExpect(status().isBadRequest())
+           .andExpect(jsonPath("$.code").value("OVERLAPPING_SESSIONS"));
+    }
+
+    @Test
+    void resolve_adjacentAndDiscardedDays_doNotCountAsOverlap() throws Exception {
+        seedNightState("night-tok", "2026-01-07", TasFlag.MISSING_EXIT);
+        TasSession before = new TasSession();
+        before.setSessionId(73);
+        before.setEmployeeId("emp1");
+        before.setDate(java.time.LocalDate.of(2026, 1, 6));
+        before.setEffectiveStart(java.time.LocalDateTime.of(2026, 1, 6, 22, 0));
+        before.setLastScan(java.time.LocalDateTime.of(2026, 1, 7, 7, 0));
+        before.setWorkedMinutes(540);
+        before.setFlags(new ArrayList<>());
+        TasSession discarded = new TasSession();
+        discarded.setSessionId(74);
+        discarded.setEmployeeId("emp1");
+        discarded.setDate(java.time.LocalDate.of(2026, 1, 7));
+        discarded.setEffectiveStart(java.time.LocalDateTime.of(2026, 1, 7, 8, 0));
+        discarded.setLastScan(java.time.LocalDateTime.of(2026, 1, 7, 12, 0));
+        discarded.setWorkedMinutes(0);
+        discarded.setFlags(new ArrayList<>());
+        tasController.stateStore.get("night-tok").getSessions().addAll(List.of(before, discarded));
+
+        resolveTimes("night-tok", "2026-01-07 07:00", "2026-01-07 15:00");
+    }
+
+    @Test
+    void resolve_startLaterThanTheSessionDate_movesTheDateForward() throws Exception {
+        TasSession s = seedNightState("night-tok", "2026-01-07", TasFlag.MISSING_EXIT);
+
+        resolveTimes("night-tok", "2026-01-08 07:00", "2026-01-08 15:00");
+
+        assertThat(s.getDate()).isEqualTo(java.time.LocalDate.of(2026, 1, 8));
+    }
+
+    @Test
+    void resolve_nightDatedByItsEntry_countsTheEntryDayAsWorked() throws Exception {
+        seedNightState("night-tok", "2026-01-07", TasFlag.MISSING_ENTRY);
+        TasSession nextNight = new TasSession();
+        nextNight.setSessionId(75);
+        nextNight.setEmployeeId("emp1");
+        nextNight.setEmployeeName("Ana");
+        nextNight.setDate(java.time.LocalDate.of(2026, 1, 7));
+        nextNight.setEffectiveStart(java.time.LocalDateTime.of(2026, 1, 7, 22, 0));
+        nextNight.setLastScan(java.time.LocalDateTime.of(2026, 1, 8, 6, 0));
+        nextNight.setWorkedMinutes(480);
+        nextNight.setFlags(new ArrayList<>());
+        tasController.stateStore.get("night-tok").getSessions().add(nextNight);
+        tasController.stateStore.get("night-tok").setReportEnd(java.time.LocalDate.of(2026, 1, 15));
+
+        com.planilla.backend.service.tas.HolidayService holidays = org.mockito.Mockito.mock(com.planilla.backend.service.tas.HolidayService.class);
+        EmployeeRegistryService registry = org.mockito.Mockito.mock(EmployeeRegistryService.class);
+        when(registry.getAccruesOvertimeFlags(any())).thenReturn(Map.of());
+        TasReportBuilder real = new TasReportBuilder(holidays, registry);
+        when(reportBuilder.build(any(), any(), any(), any(), any())).thenAnswer(inv -> real.build(
+                inv.getArgument(0), inv.getArgument(1), inv.getArgument(2), inv.getArgument(3), inv.getArgument(4)));
+
+        Map<String, Object> res = new LinkedHashMap<>();
+        res.put("sessionId", 70);
+        res.put("resolvedStart", "2026-01-06 22:00");
+        res.put("resolvedEnd", "2026-01-07 06:00");
+        mvc.perform(post("/api/tas/resolve")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of(
+                        "uploadToken", "night-tok", "resolutions", List.of(res),
+                        "anio", 2026, "mes", 1, "numeroDequincena", 1))))
+           .andExpect(status().isOk())
+           // 13 working days from Jan 1 to 15 (two Sundays), both nights worked: Jan 6 and Jan 7.
+           .andExpect(jsonPath("$.resolvedRows[0].diasNoLaborados").value(11));
     }
 }
