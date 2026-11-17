@@ -394,4 +394,18 @@ class TasDraftServiceTest {
 
         assertThat(flaky.findSummary()).isPresent();
     }
+
+    @Test
+    void delete_survivesAnImmediateHardKill(@org.junit.jupiter.api.io.TempDir java.nio.file.Path dir) throws Exception {
+        JdbcTemplate fileJdbc = fileDb(dir);
+        new ResourceDatabasePopulator(new ClassPathResource("schema-h2.sql")).execute(fileJdbc.getDataSource());
+        TasDraftService fileService = new TasDraftService(fileJdbc, mapper);
+        fileService.save("tok", simpleState("tok"), ui("{}"), "f.csv", "review", null);
+        fileJdbc.execute("CHECKPOINT");
+
+        fileService.delete();
+        fileJdbc.execute("SHUTDOWN IMMEDIATELY");
+
+        assertThat(new TasDraftService(fileDb(dir), mapper).findSummary()).isEmpty();
+    }
 }

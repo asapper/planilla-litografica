@@ -210,6 +210,37 @@ describe('autosave', () => {
     expect(mockSaveDraft.mock.calls[0][0].ui.overtimeOverrides['1'].horasExtrasDobles).toBe(7);
   });
 
+  it('on pagehide sends the latest state even while an earlier save is in flight', async () => {
+    let release!: () => void;
+    mockSaveDraft.mockReturnValueOnce(new Promise<void>(r => { release = r; }));
+    stop = startDraftAutosave(() => 'oct.csv');
+    populate();
+    await vi.advanceTimersByTimeAsync(DRAFT_SAVE_DEBOUNCE_MS);
+    expect(mockSaveDraft).toHaveBeenCalledTimes(1);
+
+    useTasStore.getState().setOvertimeOverride('1', 'horasExtrasDobles', 9);
+    window.dispatchEvent(new Event('pagehide'));
+
+    expect(mockSaveDraft).toHaveBeenCalledTimes(2);
+    expect(mockSaveDraft.mock.calls[1][0].ui.overtimeOverrides['1'].horasExtrasDobles).toBe(9);
+    release();
+    await vi.runAllTimersAsync();
+    expect(mockSaveDraft).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not save on pagehide while a discard is in progress', async () => {
+    let release!: () => void;
+    mockDeleteDraft.mockReturnValueOnce(new Promise<void>(r => { release = r; }));
+    stop = startDraftAutosave(() => 'oct.csv');
+    populate();
+    const discarding = discardDraftSession();
+    useTasStore.setState({ tasView: 'review', uploadToken: 'tok', overtimeOverrides: { '2': { horasExtrasSimples: 1 } } });
+    window.dispatchEvent(new Event('pagehide'));
+    expect(mockSaveDraft).not.toHaveBeenCalled();
+    release();
+    await discarding;
+  });
+
   it('does not save on pagehide when nothing is pending', async () => {
     stop = startDraftAutosave(() => 'oct.csv');
     window.dispatchEvent(new Event('pagehide'));

@@ -110,6 +110,36 @@ function schedule() {
   timer = setTimeout(() => flush(), Math.max(0, Math.min(DRAFT_SAVE_DEBOUNCE_MS, untilMaxWait)));
 }
 
+function send(state: TasStore): Promise<void> {
+  return saveDraft({
+    uploadToken: state.uploadToken as string,
+    stateRevision: state.stateRevision,
+    fileName: getFileName() || null,
+    view: state.tasView as DraftView,
+    periodLabel: formatPeriodLabel(state.selectedPeriod),
+    ui: toSnapshot(state) as unknown as Record<string, unknown>,
+  }).catch(err => {
+    if (axios.isAxiosError(err) && err.response?.status === 409) {
+      warnStale(state.stateRevision, err.response.data?.currentRevision);
+      return;
+    }
+    console.warn('No se pudo guardar la sesión en curso.', err);
+  });
+}
+
+// The page is going away, so a save queued behind an in-flight one would never run:
+// send the latest state now. The backend's revision check keeps an out-of-order pair consistent.
+function saveBeforeClose() {
+  if (timer === null || suspended) return;
+  if (!inflight) {
+    flush();
+    return;
+  }
+  clearTimer();
+  const state = useTasStore.getState();
+  if (isSavable(state)) void send(state);
+}
+
 function flush(explicitState?: TasStore) {
   clearTimer();
   if (suspended) return;
@@ -120,21 +150,7 @@ function flush(explicitState?: TasStore) {
   }
   const state = explicitState ?? useTasStore.getState();
   if (!isSavable(state)) return;
-  inflight = saveDraft({
-    uploadToken: state.uploadToken as string,
-    stateRevision: state.stateRevision,
-    fileName: getFileName() || null,
-    view: state.tasView as DraftView,
-    periodLabel: formatPeriodLabel(state.selectedPeriod),
-    ui: toSnapshot(state) as unknown as Record<string, unknown>,
-  })
-    .catch(err => {
-      if (axios.isAxiosError(err) && err.response?.status === 409) {
-        warnStale(state.stateRevision, err.response.data?.currentRevision);
-        return;
-      }
-      console.warn('No se pudo guardar la sesión en curso.', err);
-    })
+  inflight = send(state)
     .finally(() => {
       inflight = null;
       if (queued) {
@@ -163,7 +179,6 @@ export function startDraftAutosave(fileNameGetter: () => string): () => void {
     }
     clearTimer();
   });
-  const saveBeforeClose = () => { if (timer !== null) flush(); };
   window.addEventListener('pagehide', saveBeforeClose);
   return () => {
     unsubscribe();
