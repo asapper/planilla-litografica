@@ -103,6 +103,8 @@ export interface DraftSummary {
   periodLabel: string | null
   savedAt: string
   partialSubmit: boolean
+  resumable: boolean
+  uiVersion: number | null
   jobActive: boolean
 }
 

@@ -4,7 +4,7 @@ import { checkHealth, checkDbHealth } from './api';
 import { getBackendStatus, asStartFailure, type BackendStartFailure } from './backendStatus';
 import AlertMessage from './components/ui/AlertMessage';
 import { uploadTasFile, getDraftSummary, resumeDraft, deleteDraft } from './tasApi';
-import { applySnapshot, discardDraftSession, isDraftView, startDraftAutosave } from './tasDraft';
+import { applySnapshot, discardDraftSession, isDraftView, startDraftAutosave, DRAFT_UI_VERSION } from './tasDraft';
 import { useTasStore } from './tasStore';
 import { useToastStore } from './toastStore';
 import EmptyState from './components/EmptyState';
@@ -152,11 +152,19 @@ export default function App() {
     const fileName = draftSummary?.fileName ?? '';
     try {
       const { uploadToken, ui } = await resumeDraft();
+      if (ui.uiVersion !== DRAFT_UI_VERSION) {
+        setDraftSummary(prev => (prev ? { ...prev, resumable: false } : prev));
+        return;
+      }
       if (!isDraftView(ui.tasView)) throw new Error('Vista de borrador inválida.');
       setTasFileName(fileName);
       applySnapshot({ ...ui, uploadToken });
       setCurrentView('tas');
-    } catch {
+    } catch (err) {
+      if (axios.isAxiosError(err) && err.response?.data?.code === 'DRAFT_OUTDATED') {
+        setDraftSummary(prev => (prev ? { ...prev, resumable: false } : prev));
+        return;
+      }
       showToast('No se pudo recuperar la sesión anterior.', 'error');
       setDraftSummary(null);
     }

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import axios from 'axios';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, waitFor, act, fireEvent } from '@testing-library/react';
 import { useTasStore } from './tasStore';
@@ -36,7 +37,7 @@ vi.mock('./tasApi', () => ({
 vi.mock('./components/EmptyState', () => ({
   default: ({ onTasFile, draft, onContinueDraft, onDiscardDraft }: {
     onTasFile: (file: File) => void;
-    draft: { fileName: string | null; jobActive: boolean } | null;
+    draft: { fileName: string | null; jobActive: boolean; resumable: boolean } | null;
     onContinueDraft: () => void;
     onDiscardDraft: () => void;
   }) => (
@@ -48,6 +49,7 @@ vi.mock('./components/EmptyState', () => ({
         <div data-testid="draft-card">
           <span>{draft.fileName}</span>
           {draft.jobActive && <span>Envío en curso</span>}
+          {!draft.resumable && <span>Otra versión</span>}
           <button onClick={onContinueDraft}>Continuar</button>
           <button onClick={onDiscardDraft}>Descartar</button>
         </div>
@@ -563,6 +565,8 @@ describe('resume an interrupted session', () => {
     periodLabel: 'Octubre 2026 - Quincena 1',
     savedAt: '2026-11-16T20:20:00Z',
     partialSubmit: false,
+    resumable: true,
+    uiVersion: 1,
     jobActive: false,
   };
   const period = { anio: 2026, mes: 10, numeroDequincena: 2 };
@@ -587,6 +591,7 @@ describe('resume an interrupted session', () => {
     mockResumeDraft.mockResolvedValue({
       uploadToken: 'tok-d',
       ui: {
+        uiVersion: 1,
         tasView: 'review',
         uploadToken: 'tok-d',
         stateRevision: 3,
@@ -624,9 +629,40 @@ describe('resume an interrupted session', () => {
     expect(useTasStore.getState().tasView).toBe('idle');
   });
 
+  it.each([
+    ['another', 2],
+    ['no', undefined],
+  ])('keeps the card as not resumable when the resumed snapshot has %s UI version', async (_, uiVersion) => {
+    mockGetDraftSummary.mockResolvedValue(summary);
+    mockResumeDraft.mockResolvedValue({ uploadToken: 'tok-d', ui: { uiVersion, tasView: 'review', stateRevision: 3 } });
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Continuar' }));
+
+    expect(await screen.findByText('Otra versión')).toBeInTheDocument();
+    expect(useTasStore.getState().tasView).toBe('idle');
+    expect(useTasStore.getState().uploadToken).toBeNull();
+    expect(useToastStore.getState().toasts).toHaveLength(0);
+  });
+
+  it('keeps the card as not resumable when the backend answers DRAFT_OUTDATED', async () => {
+    mockGetDraftSummary.mockResolvedValue(summary);
+    mockResumeDraft.mockRejectedValue(new axios.AxiosError('409', undefined, undefined, undefined, {
+      status: 409, data: { code: 'DRAFT_OUTDATED', message: 'otra versión' },
+    } as never));
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Continuar' }));
+
+    expect(await screen.findByText('Otra versión')).toBeInTheDocument();
+    expect(screen.getByTestId('draft-card')).toBeInTheDocument();
+    expect(useTasStore.getState().tasView).toBe('idle');
+    expect(useToastStore.getState().toasts).toHaveLength(0);
+  });
+
   it('treats a snapshot with an unknown step as a failed resume', async () => {
     mockGetDraftSummary.mockResolvedValue(summary);
-    mockResumeDraft.mockResolvedValue({ uploadToken: 'tok-d', ui: { tasView: 'polling' } });
+    mockResumeDraft.mockResolvedValue({ uploadToken: 'tok-d', ui: { uiVersion: 1, tasView: 'polling' } });
     render(<App />);
 
     fireEvent.click(await screen.findByRole('button', { name: 'Continuar' }));

@@ -2,10 +2,14 @@ import axios from 'axios';
 import { useTasStore, tasInitialState, type TasStore } from './tasStore';
 import { saveDraft, deleteDraft } from './tasApi';
 import { MONTH_NAMES_ES } from './dateNames';
-import type { DraftView, TasPeriod, TasView } from './tasTypes';
+import type { DraftSummary, DraftView, TasPeriod, TasView } from './tasTypes';
 
 export const DRAFT_SAVE_DEBOUNCE_MS = 500;
 export const DRAFT_SAVE_MAX_WAIT_MS = 3000;
+
+// Bump when the saved shape of TasSnapshot changes (draftShape.test.ts fails until you do):
+// a draft from another version is then offered only to discard, never resumed half-filled.
+export const DRAFT_UI_VERSION = 1;
 
 const SAVABLE_VIEWS: ReadonlySet<TasView> = new Set<TasView>(['inactiveReview', 'verification', 'review']);
 
@@ -40,6 +44,10 @@ export type TasSnapshot = Pick<TasStore, PersistedKey>;
 
 export function isDraftView(view: unknown): view is DraftView {
   return typeof view === 'string' && SAVABLE_VIEWS.has(view as TasView);
+}
+
+export function canResume(draft: DraftSummary): boolean {
+  return draft.resumable && draft.uiVersion === DRAFT_UI_VERSION;
 }
 
 export function toSnapshot(state: TasStore): TasSnapshot {
@@ -117,7 +125,7 @@ function send(state: TasStore): Promise<void> {
     fileName: getFileName() || null,
     view: state.tasView as DraftView,
     periodLabel: formatPeriodLabel(state.selectedPeriod),
-    ui: toSnapshot(state) as unknown as Record<string, unknown>,
+    ui: { ...toSnapshot(state), uiVersion: DRAFT_UI_VERSION },
   }).catch(err => {
     if (axios.isAxiosError(err) && err.response?.status === 409) {
       warnStale(state.stateRevision, err.response.data?.currentRevision);

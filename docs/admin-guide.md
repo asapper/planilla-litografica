@@ -124,7 +124,7 @@ The same H2 file also keeps the user's latest **unfinished TAS session** so it c
 CREATE TABLE tas_draft (
     id              INT PRIMARY KEY,          -- always 1: only the latest session is kept
     upload_token    VARCHAR(64)  NOT NULL,
-    schema_version  INT          NOT NULL,    -- a draft from an incompatible app version is discarded
+    schema_version  INT          NOT NULL,    -- TasDraftService.SCHEMA_VERSION when saved
     file_name       VARCHAR(255),
     tas_view        VARCHAR(32)  NOT NULL,    -- inactiveReview | verification | review
     state_revision  BIGINT       NOT NULL,
@@ -132,14 +132,15 @@ CREATE TABLE tas_draft (
     period_label    VARCHAR(64),
     saved_at        TIMESTAMP    NOT NULL,
     backend_state   CLOB         NOT NULL,    -- the parsed scans, sessions and resolved rows (JSON)
-    ui_state        CLOB         NOT NULL     -- the user's decisions and overrides (JSON)
+    ui_state        CLOB         NOT NULL     -- the user's decisions and overrides (JSON, with uiVersion)
 );
 ```
 
 - It contains payroll data (employee names, scans, hours) and never leaves the machine — it lives in `%USERPROFILE%\.planilla\data` next to `carga_log`.
 - The row is replaced by every autosave, deleted when a new file is uploaded, when the user discards the session, or when a submission finishes with every row sent. A submission that ends with failed rows keeps the row and sets `partial_submit`.
 - Deleting `~/.planilla/data` (or resetting the database, see [reset-database.md](reset-database.md)) also deletes the saved session.
-- An unreadable or incompatible row is logged as a `WARN` and deleted on the next read; it never blocks startup.
+- **Versions.** Each half of the draft carries a format version: `schema_version` for the backend half (`TasDraftService.SCHEMA_VERSION`) and `uiVersion` inside `ui_state` for the frontend half (`DRAFT_UI_VERSION` in `tasDraft.ts`). A row whose `schema_version` doesn't match, or that can't be read, is logged once as a `WARN` by the backend. A `uiVersion` mismatch is detected by the frontend only, so it logs nothing. Either way the row is kept, and the start screen shows it with *"Esta sesión se guardó con otra versión de la aplicación y no se puede continuar."* and offers only **Descartar**; `POST /api/tas/draft/resume` answers `409 DRAFT_OUTDATED`, and the frontend checks `uiVersion` again on the resumed payload. It never blocks startup, and a new upload replaces it.
+- **Changing the saved shape.** `TasDraftShapeTest` (backend) and `draftShape.test.ts` (frontend) fingerprint the saved types against `backend/src/test/resources/tas-draft/backend-shape-v<N>.txt` and `frontend/draft-shape/ui-shape-v<N>.txt`. Adding, removing, renaming or retyping a saved field (including making it optional or nullable) fails the test until the version is bumped and a new shape file is added next to the old ones. Without the bump, a draft saved before an update would resume with the new fields at their defaults. Literal sets are recorded too and may only grow. Adding a value to a frontend literal union (a new view, flag or decision) fails the test with "A literal set grew": refresh the same shape file, no bump, because old drafts still fit. Removing or renaming one, or narrowing a plain field to literals (`string` to `'a' | 'b'`, `boolean` to `true`), fails it as a shape change and needs a bump: the frontend doesn't check literals at runtime, so an old draft would resume holding a value the new code doesn't know. Widening a literal union back to its plain type also asks for a bump, which errs on the safe side. On the backend, enum constants are not fingerprinted: a draft holding a removed constant fails to read and shows as not resumable on its own. A bump discards every draft saved by the previous version when the user updates, so ship it in a release where no session is likely to be in progress.
 - The app force-stops the backend whenever it closes, so every draft write and delete runs an H2 `CHECKPOINT` to reach disk right away. The frontend saves 0.5 s after the last change (at least every 3 s during continuous editing) and immediately when the page is hidden; only an edit made in the last half second before a crash can be lost.
 
 **In-memory session expiry.** Upload sessions held in the backend's memory now expire after **30 idle minutes** (no request touching them), not 30 minutes after the upload. The session that matches the saved draft is never evicted, and if it is missing (for example after a backend restart) it is reloaded from `tas_draft` on the next request.
