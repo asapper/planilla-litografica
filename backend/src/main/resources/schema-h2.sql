@@ -47,3 +47,17 @@ CREATE TABLE IF NOT EXISTS app_config (
 INSERT INTO app_config (config_key, config_value)
 SELECT 'legalBreakAllowanceMinutes', '45'
 WHERE NOT EXISTS (SELECT 1 FROM app_config WHERE config_key = 'legalBreakAllowanceMinutes');
+
+CREATE TABLE IF NOT EXISTS tas_draft (
+    id              INT PRIMARY KEY,
+    upload_token    VARCHAR(64)  NOT NULL,
+    schema_version  INT          NOT NULL,
+    file_name       VARCHAR(255),
+    tas_view        VARCHAR(32)  NOT NULL,
+    state_revision  BIGINT       NOT NULL,
+    partial_submit  BOOLEAN      NOT NULL DEFAULT FALSE,
+    period_label    VARCHAR(64),
+    saved_at        TIMESTAMP    NOT NULL,
+    backend_state   CLOB         NOT NULL,
+    ui_state        CLOB         NOT NULL
+);

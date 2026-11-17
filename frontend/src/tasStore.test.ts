@@ -119,6 +119,16 @@ describe('setUploadToken', () => {
   });
 });
 
+describe('setStateRevision', () => {
+  it('starts at 0, stores the revision and resets with the session', () => {
+    expect(useTasStore.getState().stateRevision).toBe(0);
+    useTasStore.getState().setStateRevision(7);
+    expect(useTasStore.getState().stateRevision).toBe(7);
+    useTasStore.getState().resetTas();
+    expect(useTasStore.getState().stateRevision).toBe(0);
+  });
+});
+
 // -----------------------------------------------------------------
 // setProcessingMessage
 // -----------------------------------------------------------------

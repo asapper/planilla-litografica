@@ -543,6 +543,7 @@ export default function VerificationScreen() {
   const setUsedFallbackHolidays  = useTasStore(s => s.setUsedFallbackHolidays);
   const setFlaggedSessions    = useTasStore(s => s.setFlaggedSessions);
   const setUploadToken        = useTasStore(s => s.setUploadToken);
+  const setStateRevision      = useTasStore(s => s.setStateRevision);
   const availablePeriods      = useTasStore(s => s.availablePeriods);
   const selectedPeriod        = useTasStore(s => s.selectedPeriod);
   const setSelectedPeriod     = useTasStore(s => s.setSelectedPeriod);
@@ -673,12 +674,14 @@ export default function VerificationScreen() {
         clearResolvedSessions();
         setFlaggedSessions(result.flaggedSessions);
         setUploadToken(result.uploadToken);
+        setStateRevision(result.stateRevision);
         setAvailablePeriods(result.availablePeriods ?? []);
         setAvailableShifts(result.availableShifts ?? []);
         return;
       }
       setFlaggedSessions(result.flaggedSessions);
       setUploadToken(result.uploadToken);
+      setStateRevision(result.stateRevision);
       setResolvedRowCount(result.resolvedRows?.length ?? 0);
       setResolvedRows(result.resolvedRows ?? []);
       setSessionSummaries(result.sessionSummaries ?? {});

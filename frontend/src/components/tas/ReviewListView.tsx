@@ -50,6 +50,7 @@ export default function ReviewListView({ dbHealthy, coverageLoading = false, inc
   const selectedPeriod = useTasStore(s => s.selectedPeriod);
   const setTasView = useTasStore(s => s.setTasView);
   const setSessionSummaries = useTasStore(s => s.setSessionSummaries);
+  const setStateRevision = useTasStore(s => s.setStateRevision);
   const uploadToken = useTasStore(s => s.uploadToken);
 
   const [search, setSearch] = useState('');
@@ -104,6 +105,7 @@ export default function ReviewListView({ dbHealthy, coverageLoading = false, inc
         const result = await recomputeTas(uploadToken);
         setResolvedRows(result.resolvedRows);
         setSessionSummaries(result.sessionSummaries);
+        setStateRevision(result.stateRevision);
         if (newAccruesOvertime) {
           restoreOvertimeOverrides(row.codigoEmpleado);
           restoreNonWorkedDaysOverride(row.codigoEmpleado);

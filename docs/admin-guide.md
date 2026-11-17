@@ -116,6 +116,34 @@ One row is written per employee per successful submission. On the next upload at
 
 The H2 database also holds all Config page data (shifts, employees, holidays, general settings) in separate tables (`shift_config`, `employee_registry`, `holiday_cache`, `app_config`). Deleting the database file resets all configuration — only do this intentionally.
 
+### Saved TAS session (`tas_draft`)
+
+The same H2 file also keeps the user's latest **unfinished TAS session** so it can be resumed after the app closes, crashes or the backend restarts (the "Sesión sin terminar" card on the start screen).
+
+```sql
+CREATE TABLE tas_draft (
+    id              INT PRIMARY KEY,          -- always 1: only the latest session is kept
+    upload_token    VARCHAR(64)  NOT NULL,
+    schema_version  INT          NOT NULL,    -- a draft from an incompatible app version is discarded
+    file_name       VARCHAR(255),
+    tas_view        VARCHAR(32)  NOT NULL,    -- inactiveReview | verification | review
+    state_revision  BIGINT       NOT NULL,
+    partial_submit  BOOLEAN      NOT NULL DEFAULT FALSE,
+    period_label    VARCHAR(64),
+    saved_at        TIMESTAMP    NOT NULL,
+    backend_state   CLOB         NOT NULL,    -- the parsed scans, sessions and resolved rows (JSON)
+    ui_state        CLOB         NOT NULL     -- the user's decisions and overrides (JSON)
+);
+```
+
+- It contains payroll data (employee names, scans, hours) and never leaves the machine — it lives in `%USERPROFILE%\.planilla\data` next to `carga_log`.
+- The row is replaced by every autosave, deleted when a new file is uploaded, when the user discards the session, or when a submission finishes with every row sent. A submission that ends with failed rows keeps the row and sets `partial_submit`.
+- Deleting `~/.planilla/data` (or resetting the database, see [reset-database.md](reset-database.md)) also deletes the saved session.
+- An unreadable or incompatible row is logged as a `WARN` and deleted on the next read; it never blocks startup.
+- The app force-stops the backend whenever it closes, so every draft write and delete runs an H2 `CHECKPOINT` to reach disk right away. The frontend saves 0.5 s after the last change (at least every 3 s during continuous editing) and immediately when the page is hidden; only an edit made in the last half second before a crash can be lost.
+
+**In-memory session expiry.** Upload sessions held in the backend's memory now expire after **30 idle minutes** (no request touching them), not 30 minutes after the upload. The session that matches the saved draft is never evicted, and if it is missing (for example after a backend restart) it is reloaded from `tas_draft` on the next request.
+
 ---
 
 ## 5. Config Page

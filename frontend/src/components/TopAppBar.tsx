@@ -11,9 +11,10 @@ interface Props {
   onViewChange: (view: AppView) => void;
   tasView: TasView;
   onNewUpload: () => void;
+  onDiscardSession: () => void;
 }
 
-export default function TopAppBar({ currentView, onViewChange, tasView, onNewUpload }: Props) {
+export default function TopAppBar({ currentView, onViewChange, tasView, onNewUpload, onDiscardSession }: Props) {
   const [showConfirm, setShowConfirm] = useState(false);
   const showToast = useToastStore(s => s.showToast);
   const openingManual = useRef(false);
@@ -129,12 +130,12 @@ export default function TopAppBar({ currentView, onViewChange, tasView, onNewUpl
       {showConfirm && (
         <ConfirmModal
           title="Iniciar nueva carga"
-          message="Esta acción descartará la sesión actual, incluyendo los cambios sin guardar. ¿Deseas continuar?"
+          message="Esta acción descartará la sesión actual y la sesión guardada. ¿Deseas continuar?"
           confirmLabel="Sí, descartar"
           cancelLabel="Cancelar"
           onConfirm={() => {
             setShowConfirm(false);
-            onNewUpload();
+            onDiscardSession();
           }}
           onCancel={() => setShowConfirm(false)}
         />

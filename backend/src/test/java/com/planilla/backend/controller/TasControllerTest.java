@@ -45,6 +45,7 @@ class TasControllerTest {
     @MockBean JobService              jobService;
     @MockBean ShiftConfigService      shiftConfigService;
     @MockBean DatabaseService         databaseService;
+    @MockBean TasDraftService         draftService;
 
     @AfterEach
     void clearStateStore() { tasController.stateStore.clear(); }
@@ -978,7 +979,7 @@ class TasControllerTest {
 
         String token = (String) mapper.readValue(uploadResponse, Map.class).get("uploadToken");
 
-        when(jobService.createJob(any())).thenReturn("job-123");
+        when(jobService.createJob(any(), any())).thenReturn("job-123");
 
         mvc.perform(post("/api/tas/submit")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -1061,7 +1062,7 @@ class TasControllerTest {
                     "anio", 2026, "mes", 3, "numeroDequincena", 2))))
            .andExpect(status().isOk());
 
-        when(jobService.createJob(any())).thenReturn("job-456");
+        when(jobService.createJob(any(), any())).thenReturn("job-456");
 
         mvc.perform(post("/api/tas/submit")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -1515,7 +1516,7 @@ class TasControllerTest {
            .andExpect(status().isOk())
            .andExpect(jsonPath("$.jobId").value("retry-id"));
 
-        verify(jobService).processRetryJobAsync("retry-id");
+        verify(jobService).processRetryJobAsync(eq("retry-id"), any());
     }
 
     @Test
@@ -1576,7 +1577,7 @@ class TasControllerTest {
 
         String token = (String) mapper.readValue(uploadResponse, Map.class).get("uploadToken");
 
-        when(jobService.createJob(any())).thenReturn("job-override");
+        when(jobService.createJob(any(), any())).thenReturn("job-override");
 
         Map<String, Object> overrides = Map.of("100", Map.of("horasExtrasSimples", 15, "horasExtrasDobles", 4));
         Map<String, Object> body = Map.of("uploadToken", token, "overtimeOverrides", overrides);
@@ -1588,7 +1589,7 @@ class TasControllerTest {
            .andExpect(jsonPath("$.jobId").value("job-override"));
 
         var captor = org.mockito.ArgumentCaptor.forClass(List.class);
-        verify(jobService).createJob(captor.capture());
+        verify(jobService).createJob(captor.capture(), any());
         List<EmployeeRow> submitted = captor.getValue();
         assertThat(submitted).hasSize(1);
         assertThat(submitted.get(0).getHorasExtrasSimples()).isEqualTo(15);
@@ -1621,7 +1622,7 @@ class TasControllerTest {
 
         String token = (String) mapper.readValue(uploadResponse, Map.class).get("uploadToken");
 
-        when(jobService.createJob(any())).thenReturn("job-nonaccruing");
+        when(jobService.createJob(any(), any())).thenReturn("job-nonaccruing");
 
         Map<String, Object> overrides = Map.of("100", Map.of("horasExtrasSimples", 15, "horasExtrasDobles", 4));
         Map<String, Object> body = Map.of("uploadToken", token, "overtimeOverrides", overrides);
@@ -1632,7 +1633,7 @@ class TasControllerTest {
            .andExpect(status().isAccepted());
 
         var captor = org.mockito.ArgumentCaptor.forClass(List.class);
-        verify(jobService).createJob(captor.capture());
+        verify(jobService).createJob(captor.capture(), any());
         List<EmployeeRow> submitted = captor.getValue();
         assertThat(submitted.get(0).getHorasExtrasSimples()).isEqualTo(0);
         assertThat(submitted.get(0).getHorasExtrasDobles()).isEqualTo(0);
@@ -1697,7 +1698,7 @@ class TasControllerTest {
 
         String token = (String) mapper.readValue(uploadResponse, Map.class).get("uploadToken");
 
-        when(jobService.createJob(any())).thenReturn("job-nochange");
+        when(jobService.createJob(any(), any())).thenReturn("job-nochange");
 
         Map<String, Object> body = Map.of("uploadToken", token, "overtimeOverrides", Map.of());
 
@@ -1707,7 +1708,7 @@ class TasControllerTest {
            .andExpect(status().isAccepted());
 
         var captor = org.mockito.ArgumentCaptor.forClass(List.class);
-        verify(jobService).createJob(captor.capture());
+        verify(jobService).createJob(captor.capture(), any());
         List<EmployeeRow> submitted = captor.getValue();
         assertThat(submitted.get(0).getHorasExtrasSimples()).isEqualTo(8);
         assertThat(submitted.get(0).getHorasExtrasDobles()).isEqualTo(2);
@@ -1738,7 +1739,7 @@ class TasControllerTest {
 
         String token = (String) mapper.readValue(uploadResponse, Map.class).get("uploadToken");
 
-        when(jobService.createJob(any())).thenReturn("job-partial");
+        when(jobService.createJob(any(), any())).thenReturn("job-partial");
 
         Map<String, Object> overrides = Map.of("100", Map.of("horasExtrasSimples", 20));
         Map<String, Object> body = Map.of("uploadToken", token, "overtimeOverrides", overrides);
@@ -1749,7 +1750,7 @@ class TasControllerTest {
            .andExpect(status().isAccepted());
 
         var captor = org.mockito.ArgumentCaptor.forClass(List.class);
-        verify(jobService).createJob(captor.capture());
+        verify(jobService).createJob(captor.capture(), any());
         List<EmployeeRow> submitted = captor.getValue();
         assertThat(submitted.get(0).getHorasExtrasSimples()).isEqualTo(20);
         assertThat(submitted.get(0).getHorasExtrasDobles()).isEqualTo(2);
@@ -1774,7 +1775,7 @@ class TasControllerTest {
         state.setResolvedRows(new ArrayList<>(List.of(row)));
         tasController.stateStore.put("tok-int3", state);
 
-        when(jobService.createJob(any())).thenReturn("job-int3-1", "job-int3-2");
+        when(jobService.createJob(any(), any())).thenReturn("job-int3-1", "job-int3-2");
 
         Map<String, Object> overrides = Map.of("emp1", Map.of("horasExtrasSimples", 5.0));
         Map<String, Object> body = Map.of("uploadToken", "tok-int3", "overtimeOverrides", overrides);
@@ -1884,7 +1885,7 @@ class TasControllerTest {
            .andReturn().getResponse().getContentAsString();
         String token = (String) mapper.readValue(uploadResponse, Map.class).get("uploadToken");
 
-        when(jobService.createJob(any())).thenReturn("job-dias");
+        when(jobService.createJob(any(), any())).thenReturn("job-dias");
 
         Map<String, Object> body = Map.of(
             "uploadToken", token,
@@ -1898,7 +1899,7 @@ class TasControllerTest {
            .andExpect(status().isAccepted());
 
         var captor = org.mockito.ArgumentCaptor.forClass(List.class);
-        verify(jobService).createJob(captor.capture());
+        verify(jobService).createJob(captor.capture(), any());
         List<EmployeeRow> submitted = captor.getValue();
         assertThat(submitted.get(0).getDiasNoLaborados()).isEqualTo(5);
     }
@@ -1994,7 +1995,7 @@ class TasControllerTest {
            .andReturn().getResponse().getContentAsString();
         String token = (String) mapper.readValue(uploadResponse, Map.class).get("uploadToken");
 
-        when(jobService.createJob(any())).thenReturn("job-nochange-dias");
+        when(jobService.createJob(any(), any())).thenReturn("job-nochange-dias");
 
         Map<String, Object> body = Map.of(
             "uploadToken", token,
@@ -2008,7 +2009,7 @@ class TasControllerTest {
            .andExpect(status().isAccepted());
 
         var captor = org.mockito.ArgumentCaptor.forClass(List.class);
-        verify(jobService).createJob(captor.capture());
+        verify(jobService).createJob(captor.capture(), any());
         List<EmployeeRow> submitted = captor.getValue();
         assertThat(submitted.get(0).getDiasNoLaborados()).isEqualTo(4);
     }
@@ -2300,11 +2301,8 @@ class TasControllerTest {
 
     @Test
     void evictStaleStates_removesEntriesOlderThan30Minutes() {
-        TasUploadState stale = new TasUploadState() {
-            @Override public java.time.Instant getCreatedAt() {
-                return java.time.Instant.now().minusSeconds(1900); // >31 min ago
-            }
-        };
+        TasUploadState stale = new TasUploadState();
+        stale.setLastAccessedAt(java.time.Instant.now().minusSeconds(1900));
         stale.setUploadToken("stale-token");
         tasController.stateStore.put("stale-token", stale);
 
@@ -2545,6 +2543,26 @@ class TasControllerTest {
 
         verify(reportBuilder).findIncompletePeriods(
                 eq(java.time.LocalDate.of(2026, 10, 2)),
+                eq(java.time.LocalDate.of(2026, 10, 11)),
+                eq(List.of(new TasPeriod(2026, 10, 1))));
+    }
+
+    @Test
+    void coverage_afterEviction_rehydratesFromTheDraft() throws Exception {
+        TasUploadState saved = new TasUploadState();
+        saved.setUploadToken("tok-cov-draft");
+        saved.setReportStart(java.time.LocalDate.of(2026, 10, 1));
+        saved.setReportEnd(java.time.LocalDate.of(2026, 10, 11));
+        saved.setResolvedRows(List.of(periodRow("100", 2026, 10, 1)));
+        when(draftService.loadState("tok-cov-draft")).thenReturn(saved);
+        when(reportBuilder.findIncompletePeriods(any(), any(), any())).thenReturn(List.of());
+
+        mvc.perform(get("/api/tas/coverage/tok-cov-draft"))
+           .andExpect(status().isOk())
+           .andExpect(jsonPath("$.incompletePeriods.length()").value(0));
+
+        verify(reportBuilder).findIncompletePeriods(
+                eq(java.time.LocalDate.of(2026, 10, 1)),
                 eq(java.time.LocalDate.of(2026, 10, 11)),
                 eq(List.of(new TasPeriod(2026, 10, 1))));
     }

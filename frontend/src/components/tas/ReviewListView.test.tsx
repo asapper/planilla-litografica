@@ -271,7 +271,7 @@ describe('ReviewListView accruesOvertime toggle', () => {
       id: 'E1', code: 'E1', name: 'Ana López', shiftId: null, shiftName: null, active: true, accruesOvertime: false,
     });
     const newRows = [{ ...rows[0], accruesOvertime: false, horasExtrasSimples: 0, horasExtrasDobles: 0 }, rows[1], rows[2]];
-    mockRecomputeTas.mockResolvedValue({ uploadToken: 'tok-1', resolvedRows: newRows, sessionSummaries: {} });
+    mockRecomputeTas.mockResolvedValue({ uploadToken: 'tok-1', stateRevision: 6, resolvedRows: newRows, sessionSummaries: {} });
 
     render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} />);
     fireEvent.click(screen.getByLabelText(/desactivar acumulado Ana López/i));
@@ -280,6 +280,7 @@ describe('ReviewListView accruesOvertime toggle', () => {
       expect(useTasStore.getState().nonWorkedDaysOverrides['E1']).toBeUndefined();
       expect(useTasStore.getState().stashedNonWorkedDaysOverrides['E1']).toBe(3);
     });
+    expect(useTasStore.getState().stateRevision).toBe(6);
   });
 });
 

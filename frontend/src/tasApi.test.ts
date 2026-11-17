@@ -3,10 +3,12 @@ import type { TasUploadResult, AbsentEmployee, TasPeriod, ResolvedRow } from './
 
 const mockPost = vi.hoisted(() => vi.fn());
 const mockGet  = vi.hoisted(() => vi.fn());
+const mockPut  = vi.hoisted(() => vi.fn());
+const mockDelete = vi.hoisted(() => vi.fn());
 
 vi.mock('axios', () => ({
   default: {
-    create: vi.fn(() => ({ post: mockPost, get: mockGet })),
+    create: vi.fn(() => ({ post: mockPost, get: mockGet, put: mockPut, delete: mockDelete })),
   },
 }));
 
@@ -19,10 +21,15 @@ const {
   setAbsentEmployeesActive,
   recomputeTas,
   checkDuplicates,
+  getDraftSummary,
+  saveDraft,
+  deleteDraft,
+  resumeDraft,
 } = await import('./tasApi');
 
 const mockResult: TasUploadResult = {
   uploadToken: 'tok-abc',
+  stateRevision: 1,
   availableShifts: [],
   flaggedSessions: [],
   inactiveEmployeesFound: [],
@@ -34,6 +41,8 @@ const mockResult: TasUploadResult = {
 beforeEach(() => {
   mockPost.mockReset();
   mockGet.mockReset();
+  mockPut.mockReset();
+  mockDelete.mockReset();
 });
 
 // -----------------------------------------------------------------
@@ -226,5 +235,42 @@ describe('checkDuplicates', () => {
   it('propagates errors', async () => {
     mockPost.mockRejectedValue(new Error('not found'));
     await expect(checkDuplicates('tok')).rejects.toThrow('not found');
+  });
+});
+
+// -----------------------------------------------------------------
+// draft
+// -----------------------------------------------------------------
+
+describe('draft API', () => {
+  it('getDraftSummary returns null on 204', async () => {
+    mockGet.mockResolvedValue({ status: 204, data: '' });
+    expect(await getDraftSummary()).toBeNull();
+    expect(mockGet).toHaveBeenCalledWith('/tas/draft');
+  });
+
+  it('getDraftSummary returns the summary on 200', async () => {
+    const summary = { fileName: 'a.csv', view: 'review', periodLabel: null, savedAt: '2026-11-16T20:20:00Z', partialSubmit: false, jobActive: false };
+    mockGet.mockResolvedValue({ status: 200, data: summary });
+    expect(await getDraftSummary()).toEqual(summary);
+  });
+
+  it('saveDraft PUTs the body', async () => {
+    mockPut.mockResolvedValue({ status: 204 });
+    const body = { uploadToken: 't', stateRevision: 2, fileName: 'a.csv', view: 'review' as const, periodLabel: null, ui: { a: 1 } };
+    await saveDraft(body);
+    expect(mockPut).toHaveBeenCalledWith('/tas/draft', body);
+  });
+
+  it('deleteDraft DELETEs the draft', async () => {
+    mockDelete.mockResolvedValue({ status: 204 });
+    await deleteDraft();
+    expect(mockDelete).toHaveBeenCalledWith('/tas/draft');
+  });
+
+  it('resumeDraft POSTs and returns token and ui', async () => {
+    mockPost.mockResolvedValue({ data: { uploadToken: 't', ui: { tasView: 'review' } } });
+    expect(await resumeDraft()).toEqual({ uploadToken: 't', ui: { tasView: 'review' } });
+    expect(mockPost).toHaveBeenCalledWith('/tas/draft/resume');
   });
 });

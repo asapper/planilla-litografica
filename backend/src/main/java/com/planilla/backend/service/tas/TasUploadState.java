@@ -5,16 +5,20 @@ import com.planilla.backend.model.tas.TasAbsentEmployee;
 import com.planilla.backend.model.tas.TasPeriod;
 import com.planilla.backend.model.tas.TasScanRecord;
 import com.planilla.backend.model.tas.TasSession;
+import com.planilla.backend.model.tas.TasUploadResult;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
 public class TasUploadState {
 
     private String uploadToken;
-    private final Instant createdAt = Instant.now();
+    private volatile Instant lastAccessedAt = Instant.now();
+    private long revision;
     private List<TasScanRecord> allScans;
     private List<TasSession> sessions;
     private List<EmployeeRow> resolvedRows;
@@ -27,7 +31,34 @@ public class TasUploadState {
 
     public TasUploadState() {}
 
-    public Instant getCreatedAt() { return createdAt; }
+    public static TasUploadState from(
+            String token,
+            TasUploadResult result,
+            List<TasScanRecord> allScans,
+            Set<String> ignoredEmployeeIds) {
+
+        TasUploadState state = new TasUploadState();
+        state.setUploadToken(token);
+        state.setAllScans(allScans);
+        state.setSessions(result.getAllSessions() != null
+                ? result.getAllSessions()
+                : Collections.emptyList());
+        state.setResolvedRows(result.getResolvedRows());
+        state.setUsedFallbackHolidays(result.isUsedFallbackHolidays());
+        state.setAbsentEmployees(result.getAbsentActiveEmployees());
+        state.setIgnoredEmployeeIds(new HashSet<>(ignoredEmployeeIds));
+        state.setReportStart(result.getReportStart());
+        state.setReportEnd(result.getReportEnd());
+        return state;
+    }
+
+    public Instant getLastAccessedAt() { return lastAccessedAt; }
+    public void setLastAccessedAt(Instant lastAccessedAt) { this.lastAccessedAt = lastAccessedAt; }
+    public void touch() { this.lastAccessedAt = Instant.now(); }
+
+    public long getRevision() { return revision; }
+    public void setRevision(long revision) { this.revision = revision; }
+    public void bumpRevision() { this.revision++; }
 
     public String getUploadToken() { return uploadToken; }
     public void setUploadToken(String uploadToken) { this.uploadToken = uploadToken; }
