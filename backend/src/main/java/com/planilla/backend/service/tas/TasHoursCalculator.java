@@ -233,10 +233,9 @@ public class TasHoursCalculator {
     public void classifyHours(TasSession session, List<Map<String, Object>> shifts) {
         int totalMinutes = session.getWorkedMinutes();
 
-        boolean startIsSpecial = isSpecialDay(session.getDate());
-
         LocalDateTime effectiveStart = session.getEffectiveStart();
         LocalDateTime lastScan = session.getLastScan();
+        boolean startIsSpecial = isSpecialDay(effectiveStart != null ? effectiveStart.toLocalDate() : session.getDate());
         boolean crossesIntoNextDay = effectiveStart != null && lastScan != null
                 && lastScan.toLocalDate().isAfter(effectiveStart.toLocalDate());
 

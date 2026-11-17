@@ -97,6 +97,10 @@ public class TasController {
         return ResponseEntity.status(status).body(Map.of("code", code, "message", message));
     }
 
+    private static ResponseEntity<Map<String, Object>> sessionError(String code, String message, int sessionId) {
+        return ResponseEntity.status(400).body(Map.of("code", code, "message", message, "sessionId", sessionId));
+    }
+
     /** Call inside {@code synchronized (state)}: false once the state was replaced or removed. */
     private boolean isCurrent(String token, TasUploadState state) {
         return stateStore.get(token) == state;
@@ -253,20 +257,23 @@ public class TasController {
             final List<TasSession> allSessions = sessions;
 
             Map<Integer, TasSession> flaggedBySessionId = sessions.stream()
-                    .filter(TasSession::isNeedsResolution)
+                    .filter(TasSession::shownForVerification)
                     .collect(Collectors.toMap(TasSession::getSessionId, s -> s));
 
             // Validate the whole batch before touching the state: a 400 halfway through
             // must leave the state and its revision exactly as they were.
             List<Runnable> operations = new ArrayList<>();
+            Map<TasSession, LocalDateTime[]> plannedTimes = new LinkedHashMap<>();
             for (Object item : resolutions) {
                 if (!(item instanceof Map<?, ?> res)) {
                     return error(400, "INVALID_FIELD_FORMAT", "Cada resolución debe ser un objeto.");
                 }
                 ResponseEntity<Map<String, Object>> invalid =
-                        planResolution(res, flaggedBySessionId, allSessions, shifts, operations);
+                        planResolution(res, flaggedBySessionId, allSessions, shifts, operations, plannedTimes);
                 if (invalid != null) return invalid;
             }
+            ResponseEntity<Map<String, Object>> overlap = findOverlap(plannedTimes, allSessions);
+            if (overlap != null) return overlap;
 
             // Once applying starts the state may be half-mutated even if a step throws: bump anyway
             // so a pending autosave carrying the old revision is refused instead of pairing it.
@@ -284,7 +291,7 @@ public class TasController {
             }
 
             List<TasSession> remainingFlagged = sessions.stream()
-                    .filter(TasSession::isNeedsResolution)
+                    .filter(TasSession::shownForVerification)
                     .collect(Collectors.toList());
 
             Map<String, Object> resp = new LinkedHashMap<>();
@@ -305,7 +312,8 @@ public class TasController {
             Map<Integer, TasSession> flaggedBySessionId,
             List<TasSession> sessions,
             List<Map<String, Object>> shifts,
-            List<Runnable> operations) {
+            List<Runnable> operations,
+            Map<TasSession, LocalDateTime[]> plannedTimes) {
 
         Object employeeIdObj = res.get("employeeId");
         Object dateObj = res.get("date");
@@ -344,13 +352,18 @@ public class TasController {
         Object acceptedShiftIdObj = res.get("acceptedShiftId");
 
         if (resolvedStartObj != null && !(resolvedStartObj instanceof String)) {
-            return error(400, "INVALID_TIME_FORMAT", "Formato de hora inválido. Use yyyy-MM-dd HH:mm.");
+            return sessionError("INVALID_TIME_FORMAT", "Formato de hora inválido. Use yyyy-MM-dd HH:mm.", session.getSessionId());
         }
         if (resolvedEndObj != null && !(resolvedEndObj instanceof String)) {
-            return error(400, "INVALID_TIME_FORMAT", "Formato de hora inválido. Use yyyy-MM-dd HH:mm.");
+            return sessionError("INVALID_TIME_FORMAT", "Formato de hora inválido. Use yyyy-MM-dd HH:mm.", session.getSessionId());
         }
         if (acceptedShiftIdObj != null && !(acceptedShiftIdObj instanceof String)) {
-            return error(400, "INVALID_FIELD_FORMAT", "El ID de turno debe ser un texto.");
+            return sessionError("INVALID_FIELD_FORMAT", "El ID de turno debe ser un texto.", session.getSessionId());
+        }
+
+        if (!session.isNeedsResolution() && acceptedShiftIdObj != null) {
+            return sessionError("INVALID_FIELD_FORMAT",
+                    "En una jornada corta solo se puede corregir la hora.", session.getSessionId());
         }
 
         String resolvedStart   = (String) resolvedStartObj;
@@ -365,15 +378,45 @@ public class TasController {
                 start = LocalDateTime.parse(resolvedStart, dtf);
                 end   = LocalDateTime.parse(resolvedEnd, dtf);
             } catch (java.time.format.DateTimeParseException e) {
-                return error(400, "INVALID_TIME_FORMAT", "Formato de hora inválido. Use yyyy-MM-dd HH:mm.");
+                return sessionError("INVALID_TIME_FORMAT", "Formato de hora inválido. Use yyyy-MM-dd HH:mm.", session.getSessionId());
             }
             if (!end.isAfter(start)) {
-                return error(400, "INVALID_TIME_RANGE",
-                        "La hora de salida debe ser posterior a la hora de entrada.");
+                return sessionError("INVALID_TIME_RANGE",
+                        "La hora de salida debe ser posterior a la hora de entrada.", session.getSessionId());
             }
+            plannedTimes.put(session, new LocalDateTime[] {start, end});
             operations.add(() -> applyResolvedTimes(session, start, end, shifts));
         } else if (acceptedShiftId != null) {
             operations.add(() -> applyAcceptedShift(session, acceptedShiftId, shifts));
+        }
+        return null;
+    }
+
+    /**
+     * A typed-in day must not overlap another counted day of the same employee: two halves of one
+     * night resolved as the same night would be paid twice.
+     */
+    private static ResponseEntity<Map<String, Object>> findOverlap(
+            Map<TasSession, LocalDateTime[]> plannedTimes, List<TasSession> sessions) {
+        DateTimeFormatter shown = DateTimeFormatter.ofPattern("dd/MM HH:mm");
+        for (Map.Entry<TasSession, LocalDateTime[]> planned : plannedTimes.entrySet()) {
+            TasSession session = planned.getKey();
+            LocalDateTime start = planned.getValue()[0];
+            LocalDateTime end = planned.getValue()[1];
+            for (TasSession other : sessions) {
+                if (other == session || !Objects.equals(other.getEmployeeId(), session.getEmployeeId())) continue;
+                LocalDateTime[] otherPlanned = plannedTimes.get(other);
+                if (otherPlanned == null && (other.isNeedsResolution() || other.getWorkedMinutes() == 0)) continue;
+                LocalDateTime otherStart = otherPlanned != null ? otherPlanned[0] : other.getEffectiveStart();
+                LocalDateTime otherEnd = otherPlanned != null ? otherPlanned[1] : other.getLastScan();
+                if (otherStart == null || otherEnd == null) continue;
+                if (start.isBefore(otherEnd) && otherStart.isBefore(end)) {
+                    return sessionError("OVERLAPPING_SESSIONS",
+                            "La jornada se cruza con otra del mismo empleado (" + otherStart.format(shown)
+                                    + " – " + otherEnd.format(shown) + ").",
+                            session.getSessionId());
+                }
+            }
         }
         return null;
     }
@@ -390,9 +433,14 @@ public class TasController {
                 && (isSwappedSingleScan(session, start, end) || shiftWasGuessed)) {
             Map<String, Object> bestFit = TasSessionGrouper.findBestFitShift(start, shifts);
             if (bestFit != null) {
-                session.setMatchedShiftId(TasSessionGrouper.getShiftId(bestFit));
-                session.setMatchedShiftName((String) bestFit.get("name"));
+                assignShift(session, bestFit);
             }
+        }
+        // A night anchored on its recorded exit starts the day before: date it by its start like a
+        // complete night, but never across the 15th/16th, which would drop it from this submission.
+        if (session.getDate() != null
+                && TasPeriod.of(start.toLocalDate()).equals(TasPeriod.of(session.getDate()))) {
+            session.setDate(start.toLocalDate());
         }
         session.setEffectiveStart(start);
         session.setLastScan(end);
@@ -406,9 +454,19 @@ public class TasController {
         hoursCalculator.classifyHours(session, shifts);
     }
 
+    private static void assignShift(TasSession session, Map<String, Object> shift) {
+        session.setMatchedShiftId(TasSessionGrouper.getShiftId(shift));
+        session.setMatchedShiftName((String) shift.get("name"));
+        session.setCrossMidnight(Boolean.TRUE.equals(shift.get("crossMidnight")));
+    }
+
     private void applyAcceptedShift(TasSession session, String acceptedShiftId,
                                     List<Map<String, Object>> shifts) {
-        session.setMatchedShiftId(acceptedShiftId);
+        shifts.stream()
+                .filter(shift -> acceptedShiftId.equals(TasSessionGrouper.getShiftId(shift)))
+                .findFirst()
+                .ifPresentOrElse(shift -> assignShift(session, shift),
+                        () -> session.setMatchedShiftId(acceptedShiftId));
         session.getFlags().removeIf(f -> f == TasFlag.SHIFT_MISMATCH);
 
         boolean hasBlockingFlags = session.getFlags().stream()
@@ -660,12 +718,16 @@ public class TasController {
                     .map(r -> new TasPeriod(r.getAnio(), r.getMes(), r.getNumeroDequincena()))
                     .collect(Collectors.toList());
 
-            // Session dates, not raw scans: scans of ignored inactive employees would stretch the range.
-            List<TasSession> sessions = state.getSessions() != null ? state.getSessions() : Collections.emptyList();
-            LocalDate dataStart = sessions.stream().map(TasSession::getDate).filter(Objects::nonNull)
-                    .min(Comparator.naturalOrder()).orElse(state.getReportStart());
-            LocalDate dataEnd = sessions.stream().map(TasSession::getDate).filter(Objects::nonNull)
-                    .max(Comparator.naturalOrder()).orElse(state.getReportEnd());
+            // The file's own scans: session dates move when a night is dated by a typed-in entry, and
+            // scans of ignored inactive employees would stretch the range.
+            Set<String> ignored = state.getIgnoredEmployeeIds() != null ? state.getIgnoredEmployeeIds() : Set.of();
+            List<TasScanRecord> scans = state.getAllScans() != null ? state.getAllScans() : Collections.emptyList();
+            List<LocalDate> scanDates = scans.stream()
+                    .filter(scan -> scan.getTimestamp() != null && !ignored.contains(scan.getEmployeeId()))
+                    .map(scan -> scan.getTimestamp().toLocalDate())
+                    .collect(Collectors.toList());
+            LocalDate dataStart = scanDates.stream().min(Comparator.naturalOrder()).orElse(state.getReportStart());
+            LocalDate dataEnd = scanDates.stream().max(Comparator.naturalOrder()).orElse(state.getReportEnd());
 
             incomplete = reportBuilder
                     .findIncompletePeriods(dataStart, dataEnd, periods)
@@ -871,6 +933,7 @@ public class TasController {
 
             boolean discard = !keepAll && session.getSessionId() != keepSessionId;
             if (discard) {
+                session.getFlags().removeIf(f -> f == TasFlag.SHORT_DAY);
                 session.setWorkedMinutes(0);
                 session.setWorkedHours(0.0);
                 session.setSimplesMinutes(0);

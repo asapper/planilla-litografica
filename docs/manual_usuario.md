@@ -231,7 +231,7 @@ Cuando un día tiene **una sola marcación**, el sistema decide si fue entrada o
 3. La etiqueta cambia para reflejarlo (por ejemplo, de `Falta salida · Entrada 17:31` a `Falta entrada · Salida 17:31`).
 4. Ingrese la hora que falta y haga clic en **"Confirmar"**.
 
-Si la jornada cruza la medianoche (por ejemplo, entrada 22:00 y salida 06:00), el sistema coloca la hora que usted escribe en el día anterior o siguiente según corresponda. Si la jornada resultante dura más de 16 horas, verá el mensaje **"La jornada no puede durar más de 16 horas"**: revise que la hora sea correcta.
+Si la jornada cruza la medianoche (por ejemplo, entrada 22:00 y salida 06:00), el sistema coloca la hora que usted escribe en el día anterior o siguiente según corresponda. La jornada se cuenta en el día en que empezó, igual que cualquier turno de noche completo, salvo que eso la pase a la otra quincena (entrada el 15, salida el 16): en ese caso se queda en la quincena que está procesando. Las horas después de la medianoche de un domingo o feriado se pagan dobles, y las de antes no. Si la jornada resultante dura más de 16 horas, verá el mensaje **"La jornada no puede durar más de 16 horas"**: revise que la hora sea correcta.
 
 Si se equivocó, haga clic en **"Deshacer intercambio"** antes de confirmar. Si ya confirmó, abra de nuevo la fila con **"Editar"**; el intercambio se conserva y puede deshacerlo.
 
@@ -256,20 +256,21 @@ El sistema detectó dos sesiones de trabajo diferentes para el mismo empleado en
 
 **Qué hacer:**
 1. Revise ambas sesiones detectadas.
-2. Decida si desea conservar una de las dos sesiones o mantener ambas.
-3. Haga clic en **"Confirmar"**.
+2. La opción **"Mantener todas"** viene seleccionada y se aplica sola: no necesita hacer nada para continuar, y la tarjeta no cuenta como pendiente.
+3. Si una de las sesiones sobra, seleccione la que desea conservar. La tarjeta se cierra y muestra **"Confirmado"**; puede reabrirla con **"Editar"**.
 
 #### Jornada corta
 
 **Etiqueta:** `Jornada corta`
 
-El empleado salió significativamente antes de lo esperado según su turno asignado. La aplicación le muestra la sesión detectada para que pueda revisarla.
+El empleado salió significativamente antes de lo esperado según su turno asignado. Estas sesiones aparecen al final de la pantalla, en la sección **"Jornadas cortas"**, cada vez que la verificación se abre por otro motivo. Son informativas: no bloquean el botón **"Revisar"**. Si el archivo no tiene nada más que revisar, la aplicación pasa directo a la revisión y las jornadas cortas se pagan tal como se marcaron.
 
 **Qué hacer:**
 1. Revise las horas de entrada y salida detectadas.
-2. Si la salida temprana es correcta, confirme la sesión tal como está.
-3. Si la hora de salida es incorrecta, corrija el campo **"Salida"** con la hora correcta.
-4. Haga clic en **"Confirmar"**.
+2. Si la salida temprana es correcta, no haga nada.
+3. Si la hora de salida es incorrecta, corrija el campo **"Salida"** y haga clic en **"Registrar corrección"**. La tarjeta muestra **"Corrección registrada · Salida HH:MM"**; con **"Deshacer"** vuelve a la hora marcada.
+
+Si la salida queda antes de la entrada en un turno de día, verá **"La hora de salida debe ser posterior a la hora de entrada."** y el botón queda deshabilitado. En un turno de noche, una salida después de la medianoche es válida.
 
 #### Corte de período
 

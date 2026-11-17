@@ -713,4 +713,47 @@ class TasHoursCalculatorTest {
         assertThat(s.getSimplesMinutes()).isEqualTo(120);
         assertThat(s.getDoblesMinutes()).isEqualTo(0);
     }
+
+    private TasSession nightSession(LocalDate date, LocalDateTime start, LocalDateTime end) {
+        TasSession s = new TasSession();
+        s.setEmployeeId("100");
+        s.setDate(date);
+        s.setMatchedShiftId("noche");
+        s.setCrossMidnight(true);
+        s.setFlags(new ArrayList<>());
+        s.setEffectiveStart(start);
+        s.setLastScan(end);
+        s.setWorkedMinutes((int) java.time.Duration.between(start, end).toMinutes());
+        return s;
+    }
+
+    private List<Map<String, Object>> nocheShifts() {
+        Map<String, Object> noche = new LinkedHashMap<>();
+        noche.put("id", "noche");
+        noche.put("name", "Noche");
+        noche.put("startTime", "22:00");
+        noche.put("endTime", "06:00");
+        noche.put("crossMidnight", true);
+        return List.of(noche);
+    }
+
+    @Test
+    void classifyHours_saturdayNightDatedByItsSundayExit_paysOnlyTheSundayPartDouble() {
+        TasSession s = nightSession(LocalDate.of(2026, 3, 8),
+            LocalDateTime.of(2026, 3, 7, 22, 0), LocalDateTime.of(2026, 3, 8, 6, 0));
+
+        calculator.classifyHours(s, nocheShifts());
+
+        assertThat(s.getDoblesMinutes()).isEqualTo(360);
+    }
+
+    @Test
+    void classifyHours_sundayNightDatedByItsMondayExit_paysTheSundayPartDouble() {
+        TasSession s = nightSession(LocalDate.of(2026, 3, 9),
+            LocalDateTime.of(2026, 3, 8, 22, 0), LocalDateTime.of(2026, 3, 9, 6, 0));
+
+        calculator.classifyHours(s, nocheShifts());
+
+        assertThat(s.getDoblesMinutes()).isEqualTo(120);
+    }
 }

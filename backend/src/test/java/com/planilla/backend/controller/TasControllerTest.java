@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.planilla.backend.model.EmployeeRow;
 import com.planilla.backend.model.tas.TasScanRecord;
 import com.planilla.backend.model.tas.TasPeriod;
+import com.planilla.backend.model.tas.TasFlag;
 import com.planilla.backend.model.tas.TasSession;
 import com.planilla.backend.model.tas.TasUploadResult;
 import com.planilla.backend.service.DatabaseService;
@@ -2294,7 +2295,118 @@ class TasControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(mapper.writeValueAsString(body)))
            .andExpect(status().isBadRequest())
-           .andExpect(jsonPath("$.code").value("INVALID_TIME_RANGE"));
+           .andExpect(jsonPath("$.code").value("INVALID_TIME_RANGE"))
+           .andExpect(jsonPath("$.sessionId").value(43));
+    }
+
+    @Test
+    void resolve_nonStringResolvedStart_namesTheSession() throws Exception {
+        seedResolveState(46);
+        when(shiftConfigService.getAllShifts()).thenReturn(List.of());
+
+        Map<String, Object> res = new java.util.LinkedHashMap<>();
+        res.put("sessionId", 46);
+        res.put("resolvedStart", 7);
+        res.put("resolvedEnd", "2026-01-01 08:00");
+
+        mvc.perform(post("/api/tas/resolve")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of("uploadToken", "res-tok", "resolutions", List.of(res)))))
+           .andExpect(status().isBadRequest())
+           .andExpect(jsonPath("$.code").value("INVALID_TIME_FORMAT"))
+           .andExpect(jsonPath("$.sessionId").value(46));
+    }
+
+    @Test
+    void resolve_shortDayCorrection_isAppliedAndOtherShortDaysStayListed() throws Exception {
+        TasSession corrected = shortDaySession(50, "2026-01-05");
+        TasSession untouched = shortDaySession(51, "2026-01-06");
+        TasUploadState state = new TasUploadState();
+        state.setUploadToken("short-tok");
+        state.setSessions(new ArrayList<>(List.of(corrected, untouched)));
+        state.setReportStart(java.time.LocalDate.of(2026, 1, 1));
+        state.setReportEnd(java.time.LocalDate.of(2026, 1, 15));
+        tasController.stateStore.put("short-tok", state);
+        when(shiftConfigService.getAllShifts()).thenReturn(List.of());
+        when(reportBuilder.build(any(), any(), any(), any(), any()))
+            .thenReturn(new TasReportBuilder.BuildResult(List.of()));
+        when(reportBuilder.computeAvailablePeriods(any())).thenReturn(List.of());
+
+        Map<String, Object> res = new java.util.LinkedHashMap<>();
+        res.put("sessionId", 50);
+        res.put("resolvedStart", "2026-01-05 07:00");
+        res.put("resolvedEnd",   "2026-01-05 15:00");
+
+        mvc.perform(post("/api/tas/resolve")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of("uploadToken", "short-tok", "resolutions", List.of(res)))))
+           .andExpect(status().isOk())
+           .andExpect(jsonPath("$.flaggedSessions.length()").value(1))
+           .andExpect(jsonPath("$.flaggedSessions[0].sessionId").value(51));
+
+        assertThat(corrected.getLastScan()).isEqualTo(java.time.LocalDateTime.of(2026, 1, 5, 15, 0));
+        assertThat(corrected.getWorkedMinutes()).isEqualTo(480);
+        assertThat(corrected.getFlags()).isEmpty();
+    }
+
+    @Test
+    void resolve_shortDay_refusesAShiftChange() throws Exception {
+        TasSession s = shortDaySession(52, "2026-01-05");
+        TasUploadState state = new TasUploadState();
+        state.setUploadToken("short-tok");
+        state.setSessions(new ArrayList<>(List.of(s)));
+        tasController.stateStore.put("short-tok", state);
+        when(shiftConfigService.getAllShifts()).thenReturn(List.of());
+
+        Map<String, Object> res = new java.util.LinkedHashMap<>();
+        res.put("sessionId", 52);
+        res.put("acceptedShiftId", "cualquiera");
+
+        mvc.perform(post("/api/tas/resolve")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of("uploadToken", "short-tok", "resolutions", List.of(res)))))
+           .andExpect(status().isBadRequest())
+           .andExpect(jsonPath("$.code").value("INVALID_FIELD_FORMAT"))
+           .andExpect(jsonPath("$.sessionId").value(52));
+        assertThat(s.getMatchedShiftId()).isNull();
+    }
+
+    @Test
+    void resolve_discardedHalfOfADouble_isNotListedAsAShortDay() throws Exception {
+        TasSession kept = sameDayDoubleSession(10, "manana", "Manana");
+        TasSession discarded = sameDayDoubleSession(11, "tarde", "Tarde");
+        discarded.getFlags().add(com.planilla.backend.model.tas.TasFlag.SHORT_DAY);
+        TasUploadState state = new TasUploadState();
+        state.setUploadToken("double-tok");
+        state.setSessions(new ArrayList<>(List.of(kept, discarded)));
+        tasController.stateStore.put("double-tok", state);
+        when(shiftConfigService.getAllShifts()).thenReturn(List.of());
+        when(reportBuilder.build(any(), any(), any(), any(), any()))
+            .thenReturn(new TasReportBuilder.BuildResult(List.of()));
+        when(reportBuilder.computeAvailablePeriods(any())).thenReturn(List.of());
+
+        Map<String, Object> res = new java.util.LinkedHashMap<>();
+        res.put("employeeId", "100");
+        res.put("date", "2026-03-10");
+        res.put("keepSessionId", 10);
+
+        mvc.perform(post("/api/tas/resolve")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of("uploadToken", "double-tok", "resolutions", List.of(res)))))
+           .andExpect(status().isOk())
+           .andExpect(jsonPath("$.flaggedSessions.length()").value(0));
+    }
+
+    private TasSession shortDaySession(int sessionId, String date) {
+        TasSession s = new TasSession();
+        s.setSessionId(sessionId);
+        s.setEmployeeId("emp1");
+        s.setDate(java.time.LocalDate.parse(date));
+        s.setEffectiveStart(java.time.LocalDate.parse(date).atTime(7, 0));
+        s.setLastScan(java.time.LocalDate.parse(date).atTime(11, 0));
+        s.setNeedsResolution(false);
+        s.setFlags(new ArrayList<>(List.of(com.planilla.backend.model.tas.TasFlag.SHORT_DAY)));
+        return s;
     }
 
     // ── SEC-2: stateStore TTL eviction ───────────────────────────────────────
@@ -2522,19 +2634,24 @@ class TasControllerTest {
         verify(reportBuilder).findIncompletePeriods(isNull(), isNull(), eq(List.of()));
     }
 
+    private static TasScanRecord scanAt(String employeeId, String timestamp) {
+        TasScanRecord r = new TasScanRecord();
+        r.setEmployeeId(employeeId);
+        r.setTimestamp(java.time.LocalDateTime.parse(timestamp));
+        return r;
+    }
+
     @Test
-    void coverage_usesSessionDateRange_notRawScanRange() throws Exception {
+    void coverage_usesTheFileScans_skippingIgnoredEmployees() throws Exception {
         TasUploadState state = new TasUploadState();
         state.setUploadToken("tok-cov-sess");
-        // Raw scans run to the 15th only because an ignored inactive employee scanned then.
         state.setReportStart(java.time.LocalDate.of(2026, 10, 1));
         state.setReportEnd(java.time.LocalDate.of(2026, 10, 15));
-        TasSession first = new TasSession();
-        first.setDate(java.time.LocalDate.of(2026, 10, 2));
-        TasSession last = new TasSession();
-        last.setDate(java.time.LocalDate.of(2026, 10, 11));
-        TasSession undated = new TasSession();
-        state.setSessions(new ArrayList<>(List.of(last, undated, first)));
+        state.setAllScans(new ArrayList<>(List.of(
+                scanAt("100", "2026-10-11T15:00"),
+                scanAt("900", "2026-10-15T07:00"),
+                scanAt("100", "2026-10-02T07:00"))));
+        state.setIgnoredEmployeeIds(new HashSet<>(Set.of("900")));
         state.setResolvedRows(List.of(periodRow("100", 2026, 10, 1)));
         tasController.stateStore.put("tok-cov-sess", state);
         when(reportBuilder.findIncompletePeriods(any(), any(), any())).thenReturn(List.of());
@@ -2545,6 +2662,24 @@ class TasControllerTest {
                 eq(java.time.LocalDate.of(2026, 10, 2)),
                 eq(java.time.LocalDate.of(2026, 10, 11)),
                 eq(List.of(new TasPeriod(2026, 10, 1))));
+    }
+
+    @Test
+    void coverage_aNightDatedByItsTypedEntry_doesNotHideAMissingFirstDay() throws Exception {
+        TasSession night = seedNightState("tok-cov-night", "2026-01-02", TasFlag.MISSING_ENTRY);
+        TasUploadState state = tasController.stateStore.get("tok-cov-night");
+        state.setAllScans(new ArrayList<>(List.of(
+                scanAt("emp1", "2026-01-02T06:00"), scanAt("emp2", "2026-01-15T15:00"))));
+        state.setIgnoredEmployeeIds(new HashSet<>());
+        resolveTimes("tok-cov-night", "2026-01-01 22:00", "2026-01-02 06:00");
+        assertThat(night.getDate()).isEqualTo(java.time.LocalDate.of(2026, 1, 1));
+        state.setResolvedRows(List.of(periodRow("emp1", 2026, 1, 1)));
+        when(reportBuilder.findIncompletePeriods(any(), any(), any())).thenReturn(List.of());
+
+        mvc.perform(get("/api/tas/coverage/tok-cov-night")).andExpect(status().isOk());
+
+        verify(reportBuilder).findIncompletePeriods(
+                eq(java.time.LocalDate.of(2026, 1, 2)), eq(java.time.LocalDate.of(2026, 1, 15)), any());
     }
 
     @Test
@@ -2565,5 +2700,239 @@ class TasControllerTest {
                 eq(java.time.LocalDate.of(2026, 10, 1)),
                 eq(java.time.LocalDate.of(2026, 10, 11)),
                 eq(List.of(new TasPeriod(2026, 10, 1))));
+    }
+
+    // ── Night shifts anchored on the exit, and the shift's crossMidnight ──────
+
+    private static Map<String, Object> shift(String id, String name, String start, String end, boolean crossMidnight) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("id", id);
+        m.put("name", name);
+        m.put("startTime", start);
+        m.put("endTime", end);
+        m.put("crossMidnight", crossMidnight);
+        return m;
+    }
+
+    private TasSession seedNightState(String token, String date, TasFlag... flags) {
+        TasSession s = new TasSession();
+        s.setSessionId(70);
+        s.setEmployeeId("emp1");
+        s.setDate(java.time.LocalDate.parse(date));
+        s.setMatchedShiftId("manana");
+        s.setMatchedShiftName("Mañana");
+        s.setCrossMidnight(false);
+        s.setNeedsResolution(true);
+        s.setFlags(new ArrayList<>(List.of(flags)));
+        TasUploadState state = new TasUploadState();
+        state.setUploadToken(token);
+        state.setSessions(new ArrayList<>(List.of(s)));
+        state.setReportStart(java.time.LocalDate.of(2026, 1, 1));
+        state.setReportEnd(java.time.LocalDate.of(2026, 1, 31));
+        tasController.stateStore.put(token, state);
+        when(shiftConfigService.getAllShifts()).thenReturn(List.of(
+                shift("manana", "Mañana", "07:00", "15:00", false),
+                shift("noche", "Noche", "22:00", "06:00", true)));
+        when(reportBuilder.build(any(), any(), any(), any(), any()))
+                .thenReturn(new TasReportBuilder.BuildResult(List.of()));
+        when(reportBuilder.computeAvailablePeriods(any())).thenReturn(List.of());
+        return s;
+    }
+
+    private void resolveTimes(String token, String start, String end) throws Exception {
+        Map<String, Object> res = new LinkedHashMap<>();
+        res.put("sessionId", 70);
+        res.put("resolvedStart", start);
+        res.put("resolvedEnd", end);
+        mvc.perform(post("/api/tas/resolve")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of("uploadToken", token, "resolutions", List.of(res)))))
+           .andExpect(status().isOk());
+    }
+
+    @Test
+    void resolve_nightAnchoredOnItsExit_isDatedByItsStart() throws Exception {
+        TasSession s = seedNightState("night-tok", "2026-01-07", TasFlag.MISSING_ENTRY, TasFlag.BEST_FIT_SHIFT);
+
+        resolveTimes("night-tok", "2026-01-06 22:00", "2026-01-07 06:00");
+
+        assertThat(s.getDate()).isEqualTo(java.time.LocalDate.of(2026, 1, 6));
+        assertThat(s.getMatchedShiftId()).isEqualTo("noche");
+        assertThat(s.isCrossMidnight()).isTrue();
+    }
+
+    @Test
+    void resolve_nightAnchoredOnTheSixteenth_staysInItsFortnight() throws Exception {
+        TasSession s = seedNightState("night-tok", "2026-01-16", TasFlag.MISSING_ENTRY);
+
+        resolveTimes("night-tok", "2026-01-15 22:00", "2026-01-16 06:00");
+
+        assertThat(s.getDate()).isEqualTo(java.time.LocalDate.of(2026, 1, 16));
+        assertThat(s.getEffectiveStart()).isEqualTo(java.time.LocalDateTime.of(2026, 1, 15, 22, 0));
+    }
+
+    @Test
+    void resolve_sameDayTimes_keepTheDate() throws Exception {
+        TasSession s = seedNightState("night-tok", "2026-01-07", TasFlag.MISSING_EXIT);
+
+        resolveTimes("night-tok", "2026-01-07 07:00", "2026-01-07 15:00");
+
+        assertThat(s.getDate()).isEqualTo(java.time.LocalDate.of(2026, 1, 7));
+    }
+
+    @Test
+    void resolve_acceptedShift_carriesItsNameAndCrossMidnight() throws Exception {
+        TasSession s = seedNightState("night-tok", "2026-01-07", TasFlag.SHIFT_MISMATCH);
+
+        Map<String, Object> res = new LinkedHashMap<>();
+        res.put("sessionId", 70);
+        res.put("acceptedShiftId", "noche");
+        mvc.perform(post("/api/tas/resolve")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of("uploadToken", "night-tok", "resolutions", List.of(res)))))
+           .andExpect(status().isOk());
+
+        assertThat(s.getMatchedShiftId()).isEqualTo("noche");
+        assertThat(s.getMatchedShiftName()).isEqualTo("Noche");
+        assertThat(s.isCrossMidnight()).isTrue();
+    }
+
+    @Test
+    void resolve_acceptedShiftMissingFromConfig_keepsTheId() throws Exception {
+        TasSession s = seedNightState("night-tok", "2026-01-07", TasFlag.SHIFT_MISMATCH);
+
+        Map<String, Object> res = new LinkedHashMap<>();
+        res.put("sessionId", 70);
+        res.put("acceptedShiftId", "borrado");
+        mvc.perform(post("/api/tas/resolve")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of("uploadToken", "night-tok", "resolutions", List.of(res)))))
+           .andExpect(status().isOk());
+
+        assertThat(s.getMatchedShiftId()).isEqualTo("borrado");
+        assertThat(s.isCrossMidnight()).isFalse();
+    }
+
+    @Test
+    void resolve_twoHalvesOfOneNightResolvedAsTheSameNight_isRefusedNamingTheSession() throws Exception {
+        TasSession entryHalf = seedNightState("night-tok", "2026-01-06", TasFlag.MISSING_EXIT);
+        TasSession exitHalf = new TasSession();
+        exitHalf.setSessionId(71);
+        exitHalf.setEmployeeId("emp1");
+        exitHalf.setDate(java.time.LocalDate.of(2026, 1, 7));
+        exitHalf.setNeedsResolution(true);
+        exitHalf.setFlags(new ArrayList<>(List.of(TasFlag.MISSING_ENTRY)));
+        tasController.stateStore.get("night-tok").getSessions().add(exitHalf);
+
+        Map<String, Object> first = new LinkedHashMap<>();
+        first.put("sessionId", 70);
+        first.put("resolvedStart", "2026-01-06 22:00");
+        first.put("resolvedEnd", "2026-01-07 06:00");
+        Map<String, Object> second = new LinkedHashMap<>(first);
+        second.put("sessionId", 71);
+
+        mvc.perform(post("/api/tas/resolve")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of("uploadToken", "night-tok", "resolutions", List.of(first, second)))))
+           .andExpect(status().isBadRequest())
+           .andExpect(jsonPath("$.code").value("OVERLAPPING_SESSIONS"))
+           .andExpect(jsonPath("$.sessionId").value(70))
+           .andExpect(jsonPath("$.message").value("La jornada se cruza con otra del mismo empleado (06/01 22:00 – 07/01 06:00)."));
+
+        assertThat(entryHalf.isNeedsResolution()).isTrue();
+        assertThat(entryHalf.getDate()).isEqualTo(java.time.LocalDate.of(2026, 1, 6));
+    }
+
+    @Test
+    void resolve_overlappingAnAlreadyCountedDay_isRefused() throws Exception {
+        seedNightState("night-tok", "2026-01-07", TasFlag.MISSING_EXIT);
+        TasSession counted = new TasSession();
+        counted.setSessionId(72);
+        counted.setEmployeeId("emp1");
+        counted.setDate(java.time.LocalDate.of(2026, 1, 7));
+        counted.setEffectiveStart(java.time.LocalDateTime.of(2026, 1, 7, 14, 0));
+        counted.setLastScan(java.time.LocalDateTime.of(2026, 1, 7, 22, 0));
+        counted.setWorkedMinutes(480);
+        counted.setFlags(new ArrayList<>());
+        tasController.stateStore.get("night-tok").getSessions().add(counted);
+
+        Map<String, Object> res = new LinkedHashMap<>();
+        res.put("sessionId", 70);
+        res.put("resolvedStart", "2026-01-07 07:00");
+        res.put("resolvedEnd", "2026-01-07 15:00");
+        mvc.perform(post("/api/tas/resolve")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of("uploadToken", "night-tok", "resolutions", List.of(res)))))
+           .andExpect(status().isBadRequest())
+           .andExpect(jsonPath("$.code").value("OVERLAPPING_SESSIONS"));
+    }
+
+    @Test
+    void resolve_adjacentAndDiscardedDays_doNotCountAsOverlap() throws Exception {
+        seedNightState("night-tok", "2026-01-07", TasFlag.MISSING_EXIT);
+        TasSession before = new TasSession();
+        before.setSessionId(73);
+        before.setEmployeeId("emp1");
+        before.setDate(java.time.LocalDate.of(2026, 1, 6));
+        before.setEffectiveStart(java.time.LocalDateTime.of(2026, 1, 6, 22, 0));
+        before.setLastScan(java.time.LocalDateTime.of(2026, 1, 7, 7, 0));
+        before.setWorkedMinutes(540);
+        before.setFlags(new ArrayList<>());
+        TasSession discarded = new TasSession();
+        discarded.setSessionId(74);
+        discarded.setEmployeeId("emp1");
+        discarded.setDate(java.time.LocalDate.of(2026, 1, 7));
+        discarded.setEffectiveStart(java.time.LocalDateTime.of(2026, 1, 7, 8, 0));
+        discarded.setLastScan(java.time.LocalDateTime.of(2026, 1, 7, 12, 0));
+        discarded.setWorkedMinutes(0);
+        discarded.setFlags(new ArrayList<>());
+        tasController.stateStore.get("night-tok").getSessions().addAll(List.of(before, discarded));
+
+        resolveTimes("night-tok", "2026-01-07 07:00", "2026-01-07 15:00");
+    }
+
+    @Test
+    void resolve_startLaterThanTheSessionDate_movesTheDateForward() throws Exception {
+        TasSession s = seedNightState("night-tok", "2026-01-07", TasFlag.MISSING_EXIT);
+
+        resolveTimes("night-tok", "2026-01-08 07:00", "2026-01-08 15:00");
+
+        assertThat(s.getDate()).isEqualTo(java.time.LocalDate.of(2026, 1, 8));
+    }
+
+    @Test
+    void resolve_nightDatedByItsEntry_countsTheEntryDayAsWorked() throws Exception {
+        seedNightState("night-tok", "2026-01-07", TasFlag.MISSING_ENTRY);
+        TasSession nextNight = new TasSession();
+        nextNight.setSessionId(75);
+        nextNight.setEmployeeId("emp1");
+        nextNight.setEmployeeName("Ana");
+        nextNight.setDate(java.time.LocalDate.of(2026, 1, 7));
+        nextNight.setEffectiveStart(java.time.LocalDateTime.of(2026, 1, 7, 22, 0));
+        nextNight.setLastScan(java.time.LocalDateTime.of(2026, 1, 8, 6, 0));
+        nextNight.setWorkedMinutes(480);
+        nextNight.setFlags(new ArrayList<>());
+        tasController.stateStore.get("night-tok").getSessions().add(nextNight);
+        tasController.stateStore.get("night-tok").setReportEnd(java.time.LocalDate.of(2026, 1, 15));
+
+        com.planilla.backend.service.tas.HolidayService holidays = org.mockito.Mockito.mock(com.planilla.backend.service.tas.HolidayService.class);
+        EmployeeRegistryService registry = org.mockito.Mockito.mock(EmployeeRegistryService.class);
+        when(registry.getAccruesOvertimeFlags(any())).thenReturn(Map.of());
+        TasReportBuilder real = new TasReportBuilder(holidays, registry);
+        when(reportBuilder.build(any(), any(), any(), any(), any())).thenAnswer(inv -> real.build(
+                inv.getArgument(0), inv.getArgument(1), inv.getArgument(2), inv.getArgument(3), inv.getArgument(4)));
+
+        Map<String, Object> res = new LinkedHashMap<>();
+        res.put("sessionId", 70);
+        res.put("resolvedStart", "2026-01-06 22:00");
+        res.put("resolvedEnd", "2026-01-07 06:00");
+        mvc.perform(post("/api/tas/resolve")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of(
+                        "uploadToken", "night-tok", "resolutions", List.of(res),
+                        "anio", 2026, "mes", 1, "numeroDequincena", 1))))
+           .andExpect(status().isOk())
+           // 13 working days from Jan 1 to 15 (two Sundays), both nights worked: Jan 6 and Jan 7.
+           .andExpect(jsonPath("$.resolvedRows[0].diasNoLaborados").value(11));
     }
 }

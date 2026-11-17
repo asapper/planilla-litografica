@@ -18,7 +18,6 @@ export function buildEmployeeGroups(
   shiftMismatchOnly: TasSession[],
   sameDayDoubleGroups: Map<string, TasSession[]>,
   resolvedSessions: Record<number, ResolvedSessionEntry>,
-  sameDayDoubleResolutions: Record<string, number | 'all'> = {},
 ): EmployeeGroupData[] {
   const groups = new Map<string, EmployeeGroupData>();
 
@@ -46,7 +45,6 @@ export function buildEmployeeGroups(
     const first = sessions[0];
     const group = getGroup(first.employeeId, first.employeeName);
     group.items.push({ type: 'same_day_double', groupKey, sessions, date: first.date });
-    if (sameDayDoubleResolutions[groupKey] === undefined) group.pendingCount += 1;
   }
 
   // Keep items in stable chronological order regardless of resolved state:
