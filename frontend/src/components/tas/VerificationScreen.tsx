@@ -627,7 +627,7 @@ export default function VerificationScreen() {
           const session = sessionById.get(Number(id));
           const date = session?.date ?? '';
           const matchedShift = availableShifts.find(s => s.id === session?.matchedShiftId);
-          const isCrossMidnight = !!matchedShift?.crossMidnight;
+          const isCrossMidnight = matchedShift?.crossMidnight ?? session?.crossMidnight ?? false;
           const [eh] = resolved.resolvedStart.split(':').map(Number);
           const [xh] = resolved.resolvedEnd.split(':').map(Number);
           let startDate = date;

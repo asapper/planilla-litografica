@@ -306,6 +306,28 @@ describe('TAS multi-period upload routing', () => {
       ])
     );
   });
+
+  it('stores availableShifts after a successful upload', async () => {
+    const shifts = [{ id: 'noche', name: 'Noche', startTime: '19:00', endTime: '07:00', crossMidnight: true }];
+    mockUploadTasFile.mockResolvedValue({
+      uploadToken: 'tok-1',
+      flaggedSessions: [],
+      resolvedRows: [],
+      inactiveEmployeesFound: [],
+      absentActiveEmployees: [],
+      usedFallbackHolidays: false,
+      warnings: [],
+      availablePeriods: [{ anio: 2026, mes: 3, numeroDequincena: 1 }],
+      availableShifts: shifts,
+    });
+
+    render(<App />);
+    await waitFor(() => expect(screen.getByTestId('empty-state')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('button', { name: /cargar tas/i }));
+
+    await waitFor(() => expect(useTasStore.getState().availableShifts).toEqual(shifts));
+  });
 });
 
 describe('TAS Nueva carga redirect', () => {

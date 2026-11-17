@@ -53,6 +53,7 @@ export default function App() {
   const setWarnings          = useTasStore(s => s.setWarnings);
   const setUsedFallbackHolidays = useTasStore(s => s.setUsedFallbackHolidays);
   const setAvailablePeriods = useTasStore(s => s.setAvailablePeriods);
+  const setAvailableShifts = useTasStore(s => s.setAvailableShifts);
   const setProcessingMessage = useTasStore(s => s.setProcessingMessage);
   const setError           = useTasStore(s => s.setError);
   const setSessionSummaries = useTasStore(s => s.setSessionSummaries);
@@ -88,6 +89,7 @@ export default function App() {
       setWarnings(result.warnings ?? []);
       setUsedFallbackHolidays(result.usedFallbackHolidays);
       setAvailablePeriods(result.availablePeriods ?? []);
+      setAvailableShifts(result.availableShifts ?? []);
       if (result.inactiveEmployeesFound.length > 0) {
         setTasView('inactiveReview');
       } else {
