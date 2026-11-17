@@ -545,7 +545,7 @@ class TasControllerDraftTest {
     void getDraft_returnsTheSummaryWithJobActive() throws Exception {
         when(draftService.findSummary()).thenReturn(Optional.of(new TasDraftService.Summary(
                 "tok", "oct.csv", "review", "Octubre 2026 - Quincena 1",
-                Instant.parse("2026-11-16T20:20:00Z"), true)));
+                Instant.parse("2026-11-16T20:20:00Z"), true, true, 1)));
         when(jobService.isAnyJobActive()).thenReturn(true);
 
         mvc.perform(get("/api/tas/draft"))
@@ -556,6 +556,8 @@ class TasControllerDraftTest {
            .andExpect(jsonPath("$.savedAt").value("2026-11-16T20:20:00Z"))
            .andExpect(jsonPath("$.partialSubmit").value(true))
            .andExpect(jsonPath("$.jobActive").value(true))
+           .andExpect(jsonPath("$.resumable").value(true))
+           .andExpect(jsonPath("$.uiVersion").value(1))
            .andExpect(jsonPath("$.uploadToken").doesNotExist())
            .andExpect(jsonPath("$.ui").doesNotExist());
     }
@@ -563,7 +565,7 @@ class TasControllerDraftTest {
     @Test
     void getDraft_jobActiveFalseWhenNoJobRuns() throws Exception {
         when(draftService.findSummary()).thenReturn(Optional.of(new TasDraftService.Summary(
-                "tok", null, "verification", null, Instant.now(), false)));
+                "tok", null, "verification", null, Instant.now(), false, true, 1)));
 
         mvc.perform(get("/api/tas/draft"))
            .andExpect(status().isOk())
@@ -582,6 +584,31 @@ class TasControllerDraftTest {
         mvc.perform(post("/api/tas/draft/resume"))
            .andExpect(status().isNotFound())
            .andExpect(jsonPath("$.code").value("NO_DRAFT"));
+    }
+
+    @Test
+    void getDraft_reportsAnOutdatedDraftAsNotResumable() throws Exception {
+        when(draftService.findSummary()).thenReturn(Optional.of(new TasDraftService.Summary(
+                "tok", "oct.csv", "review", null, Instant.now(), false, false, null)));
+
+        mvc.perform(get("/api/tas/draft"))
+           .andExpect(status().isOk())
+           .andExpect(jsonPath("$.resumable").value(false))
+           .andExpect(jsonPath("$.uiVersion").doesNotExist());
+    }
+
+    @Test
+    void resume_anOutdatedDraftIs409AndLeavesItInPlace() throws Exception {
+        when(draftService.load()).thenReturn(Optional.empty());
+        when(draftService.currentToken()).thenReturn("tok");
+
+        mvc.perform(post("/api/tas/draft/resume"))
+           .andExpect(status().isConflict())
+           .andExpect(jsonPath("$.code").value("DRAFT_OUTDATED"))
+           .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("otra versión")));
+
+        verify(draftService, never()).delete();
+        assertThat(tasController.stateStore).doesNotContainKey("tok");
     }
 
     @Test

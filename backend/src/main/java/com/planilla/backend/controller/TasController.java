@@ -51,6 +51,8 @@ public class TasController {
     private static final int MAX_TOKEN_LENGTH = 64;
     private static final int MAX_FILE_NAME_LENGTH = 255;
     private static final int MAX_PERIOD_LABEL_LENGTH = 64;
+    private static final String DRAFT_OUTDATED_MESSAGE =
+            "La sesión guardada es de otra versión de la aplicación y no se puede continuar.";
 
     public TasController(
             TasParserService parserService,
@@ -808,6 +810,8 @@ public class TasController {
         resp.put("periodLabel", s.periodLabel());
         resp.put("savedAt", s.savedAt());
         resp.put("partialSubmit", s.partialSubmit());
+        resp.put("resumable", s.resumable());
+        resp.put("uiVersion", s.uiVersion());
         resp.put("jobActive", jobService.isAnyJobActive());
         return ResponseEntity.ok(resp);
     }
@@ -855,7 +859,9 @@ public class TasController {
     public ResponseEntity<?> resumeDraft() {
         Optional<TasDraftService.Draft> draft = draftService.load();
         if (draft.isEmpty()) {
-            return error(404, "NO_DRAFT", "No hay una sesión guardada.");
+            return draftService.currentToken() == null
+                    ? error(404, "NO_DRAFT", "No hay una sesión guardada.")
+                    : error(409, "DRAFT_OUTDATED", DRAFT_OUTDATED_MESSAGE);
         }
         TasDraftService.Draft d = draft.get();
         TasUploadState state = d.state();

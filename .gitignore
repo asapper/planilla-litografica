@@ -56,3 +56,4 @@ backlog/*
 
 # ── Incident artifacts (may contain production DB copies / payroll data) ─────
 error_logs/
+draft-shape/ui-shape-actual.txt

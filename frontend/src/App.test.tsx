@@ -563,6 +563,8 @@ describe('resume an interrupted session', () => {
     periodLabel: 'Octubre 2026 - Quincena 1',
     savedAt: '2026-11-16T20:20:00Z',
     partialSubmit: false,
+    resumable: true,
+    uiVersion: 1,
     jobActive: false,
   };
   const period = { anio: 2026, mes: 10, numeroDequincena: 2 };

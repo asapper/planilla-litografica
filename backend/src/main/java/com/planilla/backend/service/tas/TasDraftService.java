@@ -38,7 +38,9 @@ public class TasDraftService {
             String view,
             String periodLabel,
             Instant savedAt,
-            boolean partialSubmit) {}
+            boolean partialSubmit,
+            boolean resumable,
+            Integer uiVersion) {}
 
     private record Row(
             String uploadToken,
@@ -83,6 +85,18 @@ public class TasDraftService {
     }
 
     public Optional<Draft> load() {
+        return readRow().flatMap(this::parse);
+    }
+
+    // An outdated or unreadable draft is kept, not deleted: the start screen lists it as one that
+    // can't be continued, so the user knows to upload the file again instead of losing it silently.
+    public Optional<Summary> findSummary() {
+        return readRow().map(row -> new Summary(row.uploadToken(), row.fileName(), row.view(),
+                row.periodLabel(), row.savedAt(), row.partialSubmit(), parse(row).isPresent(),
+                uiVersion(row.uiState())));
+    }
+
+    private Optional<Row> readRow() {
         try {
             List<Row> rows = jdbc.query(
                 "SELECT upload_token, schema_version, file_name, tas_view, state_revision, partial_submit,"
@@ -98,36 +112,40 @@ public class TasDraftService {
                     rs.getTimestamp("saved_at").toInstant(),
                     rs.getString("backend_state"),
                     rs.getString("ui_state")));
-            if (rows.isEmpty()) return Optional.empty();
-            Row row = rows.get(0);
-            if (row.schemaVersion() != SCHEMA_VERSION) {
-                log.warn("Discarding TAS draft with schema version {} (expected {}).",
-                        row.schemaVersion(), SCHEMA_VERSION);
-                deleteQuietly();
-                return Optional.empty();
-            }
-            TasUploadState state;
-            JsonNode ui;
-            try {
-                state = mapper.readValue(row.backendState(), TasUploadState.class);
-                ui = mapper.readTree(row.uiState());
-            } catch (Exception e) {
-                log.warn("Discarding unreadable TAS draft: {}", e.getMessage());
-                deleteQuietly();
-                return Optional.empty();
-            }
-            state.touch();
-            return Optional.of(new Draft(row.uploadToken(), row.fileName(), row.view(), row.periodLabel(),
-                    row.savedAt(), row.partialSubmit(), row.stateRevision(), state, ui));
+            return rows.stream().findFirst();
         } catch (Exception e) {
             log.warn("Could not read the TAS draft: {}", e.getMessage());
             return Optional.empty();
         }
     }
 
-    public Optional<Summary> findSummary() {
-        return load().map(d -> new Summary(d.uploadToken(), d.fileName(), d.view(), d.periodLabel(),
-                d.savedAt(), d.partialSubmit()));
+    private Optional<Draft> parse(Row row) {
+        if (row.schemaVersion() != SCHEMA_VERSION) {
+            log.warn("TAS draft has schema version {} (expected {}); it can't be resumed.",
+                    row.schemaVersion(), SCHEMA_VERSION);
+            return Optional.empty();
+        }
+        TasUploadState state;
+        JsonNode ui;
+        try {
+            state = mapper.readValue(row.backendState(), TasUploadState.class);
+            ui = mapper.readTree(row.uiState());
+        } catch (Exception e) {
+            log.warn("TAS draft is unreadable; it can't be resumed: {}", e.getMessage());
+            return Optional.empty();
+        }
+        state.touch();
+        return Optional.of(new Draft(row.uploadToken(), row.fileName(), row.view(), row.periodLabel(),
+                row.savedAt(), row.partialSubmit(), row.stateRevision(), state, ui));
+    }
+
+    private Integer uiVersion(String uiJson) {
+        try {
+            JsonNode version = mapper.readTree(uiJson).path("uiVersion");
+            return version.isInt() ? version.intValue() : null;
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     public TasUploadState loadState(String token) {
@@ -179,14 +197,6 @@ public class TasDraftService {
             jdbc.execute("CHECKPOINT");
         } catch (Exception e) {
             log.warn("Could not flush the TAS draft to disk: {}", e.getMessage());
-        }
-    }
-
-    private void deleteQuietly() {
-        try {
-            delete();
-        } catch (Exception e) {
-            log.warn("Could not delete the TAS draft: {}", e.getMessage());
         }
     }
 }

@@ -53,7 +53,7 @@ class TasControllerJobConcurrencyTest {
         state.setResolvedRows(new ArrayList<>(List.of(row)));
         controller.stateStore.put("tok", state);
         when(draftService.findSummary()).thenReturn(Optional.of(new TasDraftService.Summary(
-                "tok", "oct.csv", "review", null, Instant.now(), false)));
+                "tok", "oct.csv", "review", null, Instant.now(), false, true, 1)));
     }
 
     @AfterEach
