@@ -60,6 +60,10 @@ function toMinutes(hhmm: string): number {
   return h * 60 + m;
 }
 
+function isoDateOf(timestamp: string | null | undefined): string | null {
+  return timestamp && /^\d{4}-\d{2}-\d{2}T/.test(timestamp) ? timestamp.slice(0, 10) : null;
+}
+
 function shiftIsoDate(date: string, days: number): string {
   if (days === 0 || !date) return date;
   const [y, m, d] = date.split('-').map(Number);
@@ -628,16 +632,24 @@ export default function VerificationScreen() {
           const session = sessionById.get(Number(id));
           const date = session?.date ?? '';
           const matchedShift = availableShifts.find(s => s.id === session?.matchedShiftId);
-          const isCrossMidnight = !!matchedShift?.crossMidnight;
-          const [eh] = resolved.resolvedStart.split(':').map(Number);
-          const [xh] = resolved.resolvedEnd.split(':').map(Number);
+          const isCrossMidnight = matchedShift?.crossMidnight ?? session?.crossMidnight ?? false;
           let startDate = date;
           let endDate = date;
           if (resolved.startDayOffset !== undefined || resolved.endDayOffset !== undefined) {
             startDate = shiftIsoDate(date, resolved.startDayOffset ?? 0);
             endDate   = shiftIsoDate(date, resolved.endDayOffset ?? 0);
-          } else if (isCrossMidnight && xh < eh && date) {
-            endDate = shiftIsoDate(date, 1);
+          } else if (date) {
+            const overnight = isCrossMidnight && toMinutes(resolved.resolvedEnd) <= toMinutes(resolved.resolvedStart);
+            // Anchor on the recorded scan: a recorded night exit sits on the day after the shift started.
+            const exitWasRecorded = !!session?.flags.includes('MISSING_ENTRY') && !session.flags.includes('MISSING_EXIT');
+            const recordedExitDate = exitWasRecorded ? isoDateOf(session?.lastScan) : null;
+            if (recordedExitDate) {
+              endDate = recordedExitDate;
+              startDate = overnight ? shiftIsoDate(recordedExitDate, -1) : recordedExitDate;
+            } else {
+              startDate = isoDateOf(session?.effectiveStart) ?? date;
+              endDate = overnight ? shiftIsoDate(startDate, 1) : startDate;
+            }
           }
           return {
             sessionId: Number(id),

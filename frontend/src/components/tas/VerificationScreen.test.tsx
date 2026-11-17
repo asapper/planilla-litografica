@@ -277,6 +277,115 @@ describe('VerificationScreen submit', () => {
     });
   });
 
+  it('puts an overnight exit on the next day when the shift list is empty but the session crosses midnight', async () => {
+    useTasStore.getState().setUploadToken('tok-1');
+    useTasStore.getState().setFlaggedSessions([
+      makeSession({ sessionId: 1, date: '2026-03-15', flags: ['MISSING_EXIT'], matchedShiftId: 'noche', crossMidnight: true,
+        effectiveStart: '2026-03-15T19:00:00', lastScan: null }),
+    ]);
+    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
+    useTasStore.getState().setAvailableShifts([]);
+    mockResolveVerification.mockResolvedValue(mockResult);
+
+    render(<VerificationScreen />);
+    fireEvent.change(screen.getByLabelText('Salida'), { target: { value: '07:04' } });
+    fireEvent.click(screen.getByRole('button', { name: /confirmar/i }));
+    fireEvent.click(screen.getByRole('button', { name: /revisar/i }));
+
+    await waitFor(() => expect(mockResolveVerification).toHaveBeenCalledOnce());
+    const [, payload] = mockResolveVerification.mock.calls[0];
+    expect(payload).toContainEqual({ sessionId: 1, resolvedStart: '2026-03-15 19:00', resolvedEnd: '2026-03-16 07:04' });
+  });
+
+  it('puts a typed night entry on the day before a recorded after-midnight exit', async () => {
+    useTasStore.getState().setUploadToken('tok-1');
+    useTasStore.getState().setFlaggedSessions([
+      makeSession({ sessionId: 1, date: '2026-03-15', flags: ['MISSING_ENTRY'], matchedShiftId: 'noche', crossMidnight: true,
+        effectiveStart: null, lastScan: '2026-03-15T01:00:00' }),
+    ]);
+    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
+    useTasStore.getState().setAvailableShifts([
+      { id: 'noche', name: 'Noche', startTime: '19:00', endTime: '07:00', crossMidnight: true },
+    ]);
+    mockResolveVerification.mockResolvedValue(mockResult);
+
+    render(<VerificationScreen />);
+    fireEvent.change(screen.getByLabelText('Entrada'), { target: { value: '19:00' } });
+    fireEvent.click(screen.getByRole('button', { name: /confirmar/i }));
+    fireEvent.click(screen.getByRole('button', { name: /revisar/i }));
+
+    await waitFor(() => expect(mockResolveVerification).toHaveBeenCalledOnce());
+    const [, payload] = mockResolveVerification.mock.calls[0];
+    expect(payload).toContainEqual({ sessionId: 1, resolvedStart: '2026-03-14 19:00', resolvedEnd: '2026-03-15 01:00' });
+  });
+
+  it('anchors on the entry when a lone scan is flagged both missing entry and missing exit', async () => {
+    useTasStore.getState().setUploadToken('tok-1');
+    useTasStore.getState().setFlaggedSessions([
+      makeSession({ sessionId: 1, date: '2026-03-14', flags: ['MISSING_ENTRY', 'MISSING_EXIT'], matchedShiftId: 'noche', crossMidnight: true,
+        effectiveStart: '2026-03-14T20:30:00', lastScan: '2026-03-14T20:30:00' }),
+    ]);
+    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
+    useTasStore.getState().setAvailableShifts([
+      { id: 'noche', name: 'Noche', startTime: '19:00', endTime: '07:00', crossMidnight: true },
+    ]);
+    mockResolveVerification.mockResolvedValue(mockResult);
+
+    render(<VerificationScreen />);
+    fireEvent.change(screen.getByLabelText('Entrada'), { target: { value: '20:30' } });
+    fireEvent.change(screen.getByLabelText('Salida'), { target: { value: '07:00' } });
+    fireEvent.click(screen.getByRole('button', { name: /confirmar/i }));
+    fireEvent.click(screen.getByRole('button', { name: /revisar/i }));
+
+    await waitFor(() => expect(mockResolveVerification).toHaveBeenCalledOnce());
+    const [, payload] = mockResolveVerification.mock.calls[0];
+    expect(payload).toContainEqual({ sessionId: 1, resolvedStart: '2026-03-14 20:30', resolvedEnd: '2026-03-15 07:00' });
+  });
+
+  it('treats an exit a few minutes before the entry in the same hour as overnight', async () => {
+    useTasStore.getState().setUploadToken('tok-1');
+    useTasStore.getState().setFlaggedSessions([
+      makeSession({ sessionId: 1, date: '2026-03-15', flags: ['MISSING_EXIT'], matchedShiftId: 'noche', crossMidnight: true,
+        effectiveStart: '2026-03-15T19:30:00', lastScan: null }),
+    ]);
+    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
+    useTasStore.getState().setAvailableShifts([
+      { id: 'noche', name: 'Noche', startTime: '19:00', endTime: '07:00', crossMidnight: true },
+    ]);
+    mockResolveVerification.mockResolvedValue(mockResult);
+
+    render(<VerificationScreen />);
+    fireEvent.change(screen.getByLabelText('Salida'), { target: { value: '19:10' } });
+    fireEvent.click(screen.getByRole('button', { name: /confirmar/i }));
+    fireEvent.click(screen.getByRole('button', { name: /revisar/i }));
+
+    await waitFor(() => expect(mockResolveVerification).toHaveBeenCalledOnce());
+    const [, payload] = mockResolveVerification.mock.calls[0];
+    expect(payload).toContainEqual({ sessionId: 1, resolvedStart: '2026-03-15 19:30', resolvedEnd: '2026-03-16 19:10' });
+  });
+
+  it('keeps an overnight exit on the same day when the matched shift does not cross midnight, even if the session flag says so', async () => {
+    useTasStore.getState().setUploadToken('tok-1');
+    useTasStore.getState().setFlaggedSessions([
+      makeSession({ sessionId: 1, date: '2026-03-15', flags: ['MISSING_EXIT'], matchedShiftId: 'tarde', crossMidnight: true,
+        effectiveStart: '2026-03-15T15:00:00', lastScan: null }),
+    ]);
+    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
+    useTasStore.getState().setAvailableShifts([
+      { id: 'tarde', name: 'Tarde', startTime: '15:00', endTime: '23:00', crossMidnight: false },
+    ]);
+    mockResolveVerification.mockResolvedValue(mockResult);
+
+    render(<VerificationScreen />);
+    fireEvent.change(screen.getByLabelText('Salida'), { target: { value: '23:00' } });
+    fireEvent.click(screen.getByRole('button', { name: /confirmar/i }));
+    fireEvent.click(screen.getByRole('button', { name: /revisar/i }));
+
+    await waitFor(() => expect(mockResolveVerification).toHaveBeenCalledOnce());
+    const [, payload] = mockResolveVerification.mock.calls[0];
+    expect(payload).toContainEqual({ sessionId: 1, resolvedStart: '2026-03-15 15:00', resolvedEnd: '2026-03-15 23:00' });
+  });
+
   it('clears resolvedSessions and stays in verification when resolve returns more flagged sessions', async () => {
     useTasStore.getState().setUploadToken('tok-1');
     useTasStore.getState().setFlaggedSessions([makeSession({ effectiveStart: '08:00:00', lastScan: '17:00:00' })]);
