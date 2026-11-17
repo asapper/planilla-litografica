@@ -640,7 +640,8 @@ export default function VerificationScreen() {
           } else if (date) {
             const overnight = isCrossMidnight && toMinutes(resolved.resolvedEnd) <= toMinutes(resolved.resolvedStart);
             // Anchor on the recorded scan: a recorded night exit sits on the day after the shift started.
-            const recordedExitDate = session?.flags.includes('MISSING_ENTRY') ? isoDateOf(session.lastScan) : null;
+            const exitWasRecorded = !!session?.flags.includes('MISSING_ENTRY') && !session.flags.includes('MISSING_EXIT');
+            const recordedExitDate = exitWasRecorded ? isoDateOf(session?.lastScan) : null;
             if (recordedExitDate) {
               endDate = recordedExitDate;
               startDate = overnight ? shiftIsoDate(recordedExitDate, -1) : recordedExitDate;

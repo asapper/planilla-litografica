@@ -317,6 +317,29 @@ describe('VerificationScreen submit', () => {
     expect(payload).toContainEqual({ sessionId: 1, resolvedStart: '2026-03-14 19:00', resolvedEnd: '2026-03-15 01:00' });
   });
 
+  it('anchors on the entry when a lone scan is flagged both missing entry and missing exit', async () => {
+    useTasStore.getState().setUploadToken('tok-1');
+    useTasStore.getState().setFlaggedSessions([
+      makeSession({ sessionId: 1, date: '2026-03-14', flags: ['MISSING_ENTRY', 'MISSING_EXIT'], matchedShiftId: 'noche', crossMidnight: true,
+        effectiveStart: '2026-03-14T20:30:00', lastScan: '2026-03-14T20:30:00' }),
+    ]);
+    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
+    useTasStore.getState().setAvailableShifts([
+      { id: 'noche', name: 'Noche', startTime: '19:00', endTime: '07:00', crossMidnight: true },
+    ]);
+    mockResolveVerification.mockResolvedValue(mockResult);
+
+    render(<VerificationScreen />);
+    fireEvent.change(screen.getByLabelText('Entrada'), { target: { value: '20:30' } });
+    fireEvent.change(screen.getByLabelText('Salida'), { target: { value: '07:00' } });
+    fireEvent.click(screen.getByRole('button', { name: /confirmar/i }));
+    fireEvent.click(screen.getByRole('button', { name: /revisar/i }));
+
+    await waitFor(() => expect(mockResolveVerification).toHaveBeenCalledOnce());
+    const [, payload] = mockResolveVerification.mock.calls[0];
+    expect(payload).toContainEqual({ sessionId: 1, resolvedStart: '2026-03-14 20:30', resolvedEnd: '2026-03-15 07:00' });
+  });
+
   it('treats an exit a few minutes before the entry in the same hour as overnight', async () => {
     useTasStore.getState().setUploadToken('tok-1');
     useTasStore.getState().setFlaggedSessions([
