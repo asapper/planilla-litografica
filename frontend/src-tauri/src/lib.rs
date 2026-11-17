@@ -592,19 +592,16 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("error while running tauri application");
 
-    // Exits that skip the window's close button (quit from the OS, a crash in the
-    // close flow) still stop the backend here — don't rely solely on `Drop`, which
-    // may not run if the process fast-exits, leaving an orphaned JVM that locks the
-    // DB (and, on Windows, the JRE DLLs during the next install).
-    // The close button goes through `begin_close`. Anything else ends here with the window already
-    // gone (a Windows logoff, Cmd+Q on macOS: tao reports those only as `Exit`, and the last
-    // window being destroyed as `ExitRequested` with no code), so nothing can be refused or shown:
-    // let a running submission finish, then stop the backend. `Drop` alone may not run if the
-    // process fast-exits, leaving an orphaned JVM that locks the DB and the JRE DLLs.
+    // The close button goes through `begin_close`. Other exits end here and can't be refused: a
+    // Windows logoff (WM_ENDSESSION; Windows may end the session before the wait is over), Cmd+Q on
+    // macOS (tao reports it only as `Exit`), or the last window being destroyed. Let a running
+    // submission finish, then stop the backend. `Drop` alone may not run if the process fast-exits,
+    // leaving an orphaned JVM that locks the DB and the JRE DLLs.
     app.run(|app_handle, event| {
         if matches!(event, tauri::RunEvent::ExitRequested { .. } | tauri::RunEvent::Exit) {
             if let Some(mut backend) = take_backend(app_handle) {
                 log::info!("app exiting; stopping backend (pid={})", backend.child.id());
+                set_main_window_visible(app_handle, false);
                 stop_backend_patiently(
                     &mut backend,
                     BACKEND_PORT,
