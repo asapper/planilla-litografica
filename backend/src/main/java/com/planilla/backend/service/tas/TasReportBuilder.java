@@ -93,14 +93,7 @@ public class TasReportBuilder {
                 double simplesHours = hours[0];
                 double doblesHours  = hours[1];
 
-                LocalDate qStart = period.numeroDequincena() == 1
-                        ? LocalDate.of(period.anio(), period.mes(), 1)
-                        : LocalDate.of(period.anio(), period.mes(), 16);
-                LocalDate qEnd = period.numeroDequincena() == 1
-                        ? LocalDate.of(period.anio(), period.mes(), 15)
-                        : qStart.withDayOfMonth(qStart.lengthOfMonth());
-
-                int nonWorkedDays = countNonWorkedDays(qStart, qEnd, workedDays);
+                int nonWorkedDays = countNonWorkedDays(periodStart(period), periodEnd(period), workedDays);
 
                 EmployeeRow row = new EmployeeRow();
                 row.setCodigoEmpleado(empId);
@@ -136,20 +129,60 @@ public class TasReportBuilder {
         return sessions.stream()
                 .map(s -> TasPeriod.of(s.getDate()))
                 .distinct()
-                .sorted(Comparator.comparingInt(TasPeriod::anio)
-                        .thenComparingInt(TasPeriod::mes)
-                        .thenComparingInt(TasPeriod::numeroDequincena))
+                .sorted(PERIOD_ORDER)
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * Working days of each period that fall outside the file's scan range. They are
+     * counted as non-worked for every employee, so a file exported for the wrong range
+     * silently docks everyone's pay.
+     */
+    public List<PeriodCoverage> findIncompletePeriods(
+            LocalDate dataStart, LocalDate dataEnd, Collection<TasPeriod> periods) {
+        if (dataStart == null || dataEnd == null || periods == null) return List.of();
+        List<PeriodCoverage> incomplete = new ArrayList<>();
+        periods.stream().distinct().sorted(PERIOD_ORDER).forEach(period -> {
+            List<LocalDate> missing = new ArrayList<>();
+            for (LocalDate d = periodStart(period); !d.isAfter(periodEnd(period)); d = d.plusDays(1)) {
+                boolean outsideData = d.isBefore(dataStart) || d.isAfter(dataEnd);
+                if (outsideData && isWorkingDay(d)) {
+                    missing.add(d);
+                }
+            }
+            if (!missing.isEmpty()) {
+                incomplete.add(new PeriodCoverage(period, periodStart(period), periodEnd(period),
+                        dataStart, dataEnd, missing));
+            }
+        });
+        return incomplete;
+    }
+
+    public record PeriodCoverage(TasPeriod period, LocalDate periodStart, LocalDate periodEnd,
+                                 LocalDate dataStart, LocalDate dataEnd, List<LocalDate> missingWorkingDays) {}
+
+    private static final Comparator<TasPeriod> PERIOD_ORDER = Comparator.comparingInt(TasPeriod::anio)
+            .thenComparingInt(TasPeriod::mes)
+            .thenComparingInt(TasPeriod::numeroDequincena);
+
+    private static LocalDate periodStart(TasPeriod period) {
+        return LocalDate.of(period.anio(), period.mes(), period.numeroDequincena() == 1 ? 1 : 16);
+    }
+
+    private static LocalDate periodEnd(TasPeriod period) {
+        LocalDate start = periodStart(period);
+        return period.numeroDequincena() == 1 ? start.withDayOfMonth(15) : start.withDayOfMonth(start.lengthOfMonth());
+    }
+
+    private boolean isWorkingDay(LocalDate d) {
+        return d.getDayOfWeek() != DayOfWeek.SUNDAY && !holidayService.isHoliday(d);
     }
 
     private int countNonWorkedDays(LocalDate start, LocalDate end, Set<LocalDate> workedDays) {
         int count = 0;
         LocalDate d = start;
         while (!d.isAfter(end)) {
-            DayOfWeek dow = d.getDayOfWeek();
-            if (dow != DayOfWeek.SUNDAY
-                    && !holidayService.isHoliday(d)
-                    && !workedDays.contains(d)) {
+            if (isWorkingDay(d) && !workedDays.contains(d)) {
                 count++;
             }
             d = d.plusDays(1);

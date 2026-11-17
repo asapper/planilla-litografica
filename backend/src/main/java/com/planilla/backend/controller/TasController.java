@@ -22,6 +22,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
@@ -642,6 +643,53 @@ public class TasController {
             resp.put("sessionSummaries", buildSessionSummaries(sessions, state.getResolvedPeriod()));
             return ResponseEntity.ok(resp);
         }
+    }
+
+    @GetMapping("/coverage/{uploadToken}")
+    public ResponseEntity<?> coverage(@PathVariable String uploadToken) {
+        TasUploadState state = getState(uploadToken);
+        if (state == null) {
+            return invalidToken();
+        }
+
+        List<Map<String, Object>> incomplete;
+        synchronized (state) {
+            List<EmployeeRow> rows = state.getResolvedRows() != null ? state.getResolvedRows() : Collections.emptyList();
+            List<TasPeriod> periods = rows.stream()
+                    .filter(r -> r.getNumeroDequincena() != null)
+                    .map(r -> new TasPeriod(r.getAnio(), r.getMes(), r.getNumeroDequincena()))
+                    .collect(Collectors.toList());
+
+            // Session dates, not raw scans: scans of ignored inactive employees would stretch the range.
+            List<TasSession> sessions = state.getSessions() != null ? state.getSessions() : Collections.emptyList();
+            LocalDate dataStart = sessions.stream().map(TasSession::getDate).filter(Objects::nonNull)
+                    .min(Comparator.naturalOrder()).orElse(state.getReportStart());
+            LocalDate dataEnd = sessions.stream().map(TasSession::getDate).filter(Objects::nonNull)
+                    .max(Comparator.naturalOrder()).orElse(state.getReportEnd());
+
+            incomplete = reportBuilder
+                    .findIncompletePeriods(dataStart, dataEnd, periods)
+                    .stream()
+                    .map(c -> {
+                        Map<String, Object> entry = new LinkedHashMap<>();
+                        entry.put("anio", c.period().anio());
+                        entry.put("mes", c.period().mes());
+                        entry.put("numeroDequincena", c.period().numeroDequincena());
+                        entry.put("periodStart", c.periodStart().toString());
+                        entry.put("periodEnd", c.periodEnd().toString());
+                        entry.put("dataStart", c.dataStart().toString());
+                        entry.put("dataEnd", c.dataEnd().toString());
+                        entry.put("missingWorkingDays", c.missingWorkingDays().stream()
+                                .map(LocalDate::toString).collect(Collectors.toList()));
+                        return entry;
+                    })
+                    .collect(Collectors.toList());
+        }
+
+        Map<String, Object> resp = new LinkedHashMap<>();
+        resp.put("uploadToken", uploadToken);
+        resp.put("incompletePeriods", incomplete);
+        return ResponseEntity.ok(resp);
     }
 
     @GetMapping("/absent-review/{uploadToken}")

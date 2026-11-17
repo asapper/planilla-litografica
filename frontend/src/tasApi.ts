@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { API_BASE } from './constants/api';
-import type { TasUploadResult, TasResolveResult, AbsentEmployee, TasPeriod, ResolvedRow, SessionSummary, JobStatus, DraftSummary, DraftView } from './tasTypes';
+import type { TasUploadResult, TasResolveResult, AbsentEmployee, TasPeriod, IncompletePeriod, ResolvedRow, SessionSummary, JobStatus, DraftSummary, DraftView } from './tasTypes';
 
 export type TasResolution =
   | { sessionId: number; resolvedStart: string; resolvedEnd: string }
@@ -61,6 +61,9 @@ export interface RecomputeResult {
 
 export const recomputeTas = (token: string): Promise<RecomputeResult> =>
   client.post<RecomputeResult>(`/tas/recompute/${token}`).then(r => r.data);
+
+export const getIncompletePeriods = (token: string): Promise<IncompletePeriod[]> =>
+  client.get<{ incompletePeriods: IncompletePeriod[] }>(`/tas/coverage/${token}`).then(r => r.data.incompletePeriods);
 
 export const checkDuplicates = (uploadToken: string): Promise<string[]> =>
   client.post<{ duplicates: string[] }>('/tas/check-duplicates', { uploadToken }).then(r => r.data.duplicates);

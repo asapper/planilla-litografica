@@ -7,7 +7,7 @@ import { useToastStore } from '../../toastStore';
 import * as tasApi from '../../tasApi';
 import '../../configApi';
 import * as api from '../../api';
-import type { ResolvedRow, SessionSummary } from '../../tasTypes';
+import type { IncompletePeriod, ResolvedRow, SessionSummary } from '../../tasTypes';
 
 vi.mock('../../tasApi');
 vi.mock('../../configApi');
@@ -16,6 +16,7 @@ vi.mock('../../api');
 const mockSubmitTas = vi.mocked(tasApi.submitTas);
 const mockCheckDbHealth = vi.mocked(api.checkDbHealth);
 const mockCheckDuplicates = vi.mocked(tasApi.checkDuplicates);
+const mockGetIncompletePeriods = vi.mocked(tasApi.getIncompletePeriods);
 
 const rows: ResolvedRow[] = [
   { codigoEmpleado: 'E1', nombreEmpleado: 'Ana López', diasNoLaborados: 0, horasExtrasSimples: 2, horasExtrasDobles: 0, mes: 3, anio: 2026, numeroDequincena: 1, diasTurnoEstimado: 0, accruesOvertime: true },
@@ -38,6 +39,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mockCheckDbHealth.mockResolvedValue(true);
   mockCheckDuplicates.mockResolvedValue([]);
+  mockGetIncompletePeriods.mockResolvedValue([]);
 });
 
 describe('ReviewScreen routing', () => {
@@ -355,5 +357,131 @@ describe('ReviewScreen duplicate detection', () => {
     await waitFor(() => {
       expect(screen.getByRole('button', { name: /todos los registros ya fueron enviados/i })).toBeDisabled();
     });
+  });
+});
+
+describe('ReviewScreen incomplete quincena', () => {
+  const october: IncompletePeriod = {
+    anio: 2026, mes: 10, numeroDequincena: 1,
+    periodStart: '2026-10-01', periodEnd: '2026-10-15',
+    dataStart: '2026-09-28', dataEnd: '2026-10-11',
+    missingWorkingDays: ['2026-10-12', '2026-10-13', '2026-10-14', '2026-10-15'],
+  };
+
+  const renderReady = async () => {
+    useTasStore.getState().setUploadToken('tok-1');
+    useTasStore.getState().setResolvedRows(rows);
+    mockSubmitTas.mockResolvedValue({ jobId: 'job-1' });
+    render(<ReviewScreen />);
+    await waitFor(() => expect(screen.getByRole('button', { name: /^enviar$/i })).not.toBeDisabled());
+  };
+
+  it('fetches coverage for the upload token on mount', async () => {
+    await renderReady();
+    expect(mockGetIncompletePeriods).toHaveBeenCalledWith('tok-1');
+  });
+
+  it('does not fetch coverage without an upload token', () => {
+    render(<ReviewScreen />);
+    expect(mockGetIncompletePeriods).not.toHaveBeenCalled();
+  });
+
+  it('shows a warning banner naming the missing days', async () => {
+    mockGetIncompletePeriods.mockResolvedValue([october]);
+    await renderReady();
+    expect(await screen.findByText(/quincena incompleta \(octubre 2026 · q1\).*del 12 al 15 de octubre \(4 días laborables\)/i)).toBeInTheDocument();
+  });
+
+  it('asks for confirmation before submitting and does not submit on cancel', async () => {
+    mockGetIncompletePeriods.mockResolvedValue([october]);
+    await renderReady();
+    await screen.findByText(/quincena incompleta \(/i);
+
+    fireEvent.click(screen.getByRole('button', { name: /^enviar$/i }));
+    expect(screen.getByText(/si envía ahora, esos días se registrarán como no laborados/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /cancelar/i }));
+
+    expect(screen.queryByText(/si envía ahora/i)).not.toBeInTheDocument();
+    expect(mockSubmitTas).not.toHaveBeenCalled();
+    expect(useTasStore.getState().tasView).not.toBe('polling');
+  });
+
+  it('submits after confirming', async () => {
+    mockGetIncompletePeriods.mockResolvedValue([october]);
+    await renderReady();
+    await screen.findByText(/quincena incompleta \(/i);
+
+    fireEvent.click(screen.getByRole('button', { name: /^enviar$/i }));
+    fireEvent.click(screen.getByRole('button', { name: /enviar de todas formas/i }));
+
+    await waitFor(() => expect(useTasStore.getState().tasView).toBe('polling'));
+    expect(mockSubmitTas).toHaveBeenCalledWith('tok-1', {}, {});
+  });
+
+  it('submits without confirmation when the file covers the quincena', async () => {
+    await renderReady();
+    fireEvent.click(screen.getByRole('button', { name: /^enviar$/i }));
+    await waitFor(() => expect(useTasStore.getState().tasView).toBe('polling'));
+    expect(screen.queryByText(/quincena incompleta/i)).not.toBeInTheDocument();
+  });
+
+  it('shows an error toast and asks for confirmation when the coverage check fails', async () => {
+    mockGetIncompletePeriods.mockRejectedValue(new Error('boom'));
+    await renderReady();
+    expect(useToastStore.getState().toasts.map(t => t.message))
+      .toContain('No se pudo verificar que el archivo cubra la quincena completa.');
+
+    fireEvent.click(screen.getByRole('button', { name: /^enviar$/i }));
+    expect(screen.getByText('Quincena sin verificar')).toBeInTheDocument();
+    expect(mockSubmitTas).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: /enviar de todas formas/i }));
+    await waitFor(() => expect(useTasStore.getState().tasView).toBe('polling'));
+  });
+
+  it('keeps Enviar disabled until the coverage check answers', async () => {
+    let resolve!: (v: IncompletePeriod[]) => void;
+    mockGetIncompletePeriods.mockReturnValue(new Promise(r => { resolve = r; }));
+    useTasStore.getState().setUploadToken('tok-1');
+    useTasStore.getState().setResolvedRows(rows);
+    render(<ReviewScreen />);
+    await waitFor(() => expect(mockCheckDbHealth).toHaveBeenCalled());
+    await act(async () => {});
+
+    expect(screen.getByRole('button', { name: /^enviar$/i })).toBeDisabled();
+    await act(async () => { resolve([october]); });
+    await waitFor(() => expect(screen.getByRole('button', { name: /^enviar$/i })).not.toBeDisabled());
+  });
+
+  it('focuses Cancelar in the confirmation so Enter does not submit', async () => {
+    mockGetIncompletePeriods.mockResolvedValue([october]);
+    await renderReady();
+    await screen.findByText(/quincena incompleta \(/i);
+
+    fireEvent.click(screen.getByRole('button', { name: /^enviar$/i }));
+    const cancel = screen.getByRole('button', { name: /cancelar/i });
+    expect(cancel).toHaveFocus();
+    fireEvent.keyDown(cancel, { key: 'Enter' });
+    expect(mockSubmitTas).not.toHaveBeenCalled();
+  });
+
+  it('ignores a coverage result that arrives after unmount', async () => {
+    let resolve!: (v: IncompletePeriod[]) => void;
+    mockGetIncompletePeriods.mockReturnValue(new Promise(r => { resolve = r; }));
+    useTasStore.getState().setUploadToken('tok-1');
+    const { unmount } = render(<ReviewScreen />);
+    unmount();
+    await act(async () => { resolve([october]); });
+    expect(screen.queryByText(/quincena incompleta/i)).not.toBeInTheDocument();
+  });
+
+  it('ignores a coverage failure that arrives after unmount', async () => {
+    let reject!: (e: Error) => void;
+    mockGetIncompletePeriods.mockReturnValue(new Promise((_, r) => { reject = r; }));
+    useTasStore.getState().setUploadToken('tok-1');
+    const { unmount } = render(<ReviewScreen />);
+    unmount();
+    await act(async () => { reject(new Error('late')); });
+    expect(useToastStore.getState().toasts).toHaveLength(0);
   });
 });

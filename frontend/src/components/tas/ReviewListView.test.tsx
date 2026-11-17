@@ -283,3 +283,32 @@ describe('ReviewListView accruesOvertime toggle', () => {
     expect(useTasStore.getState().stateRevision).toBe(6);
   });
 });
+
+describe('ReviewListView incomplete quincena banner', () => {
+  it('renders no banner by default', () => {
+    render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} />);
+    expect(screen.queryByText(/quincena incompleta/i)).not.toBeInTheDocument();
+  });
+
+  it('renders one banner per incomplete period', () => {
+    render(
+      <ReviewListView
+        dbHealthy={true}
+        onSubmit={vi.fn()}
+        incompletePeriods={[
+          { anio: 2026, mes: 9, numeroDequincena: 2, periodStart: '2026-09-16', periodEnd: '2026-09-30', dataStart: '2026-09-28', dataEnd: '2026-10-11', missingWorkingDays: ['2026-09-26'] },
+          { anio: 2026, mes: 10, numeroDequincena: 1, periodStart: '2026-10-01', periodEnd: '2026-10-15', dataStart: '2026-09-28', dataEnd: '2026-10-11', missingWorkingDays: ['2026-10-12'] },
+        ]}
+      />,
+    );
+    expect(screen.getAllByText(/quincena incompleta/i)).toHaveLength(2);
+    expect(screen.getByText(/septiembre 2026 · q2/i)).toBeInTheDocument();
+  });
+});
+
+describe('ReviewListView coverage loading', () => {
+  it('disables Enviar while the coverage check is loading', () => {
+    render(<ReviewListView dbHealthy={true} coverageLoading onSubmit={vi.fn()} />);
+    expect(screen.getByRole('button', { name: /^enviar$/i })).toBeDisabled();
+  });
+});

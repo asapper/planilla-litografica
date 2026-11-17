@@ -33,6 +33,14 @@ export interface TasPeriod {
   numeroDequincena: number
 }
 
+export interface IncompletePeriod extends TasPeriod {
+  periodStart: string
+  periodEnd: string
+  dataStart: string
+  dataEnd: string
+  missingWorkingDays: string[]
+}
+
 export interface InactiveEmployee { employeeId: string; name: string; sessionCount: number }
 export interface AbsentEmployee { employeeId: string; name: string; active?: boolean }
 
