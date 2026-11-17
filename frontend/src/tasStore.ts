@@ -52,6 +52,7 @@ export interface TasStore {
   setProcessingMessage: (msg: string) => void;
   setFlaggedSessions: (sessions: TasSession[]) => void;
   setResolvedSession: (id: number, entry: ResolvedSessionEntry) => void;
+  clearResolvedSession: (id: number) => void;
   clearResolvedSessions: () => void;
   setShiftAcceptance: (sessionId: number, acceptedShiftId: string) => void;
   setSameDayDoubleResolution: (groupKey: string, keepSessionId: number | 'all') => void;
@@ -138,6 +139,10 @@ export const useTasStore = create<TasStore>(set => ({
   setResolvedSession: (id, entry) => set(s => ({
     resolvedSessions: { ...s.resolvedSessions, [id]: entry },
   })),
+  clearResolvedSession: (id) => set(s => {
+    const { [id]: _, ...rest } = s.resolvedSessions;
+    return { resolvedSessions: rest };
+  }),
   clearResolvedSessions: () => set({ resolvedSessions: {}, shiftAcceptances: {}, sameDayDoubleResolutions: {} }),
   setShiftAcceptance: (sessionId, acceptedShiftId) => set(s => ({
     shiftAcceptances: { ...s.shiftAcceptances, [sessionId]: acceptedShiftId },

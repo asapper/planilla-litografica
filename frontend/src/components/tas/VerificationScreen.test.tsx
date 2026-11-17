@@ -716,13 +716,20 @@ describe('VerificationScreen same-day double group', () => {
     expect(useTasStore.getState().sameDayDoubleResolutions['E1|2026-03-15']).toBe(1);
   });
 
-  it('Revisar is disabled until same-day-double is resolved', () => {
+  it('the preselected "Mantener todas" does not block Revisar and is submitted as all', async () => {
+    useTasStore.getState().setUploadToken('tok-1');
+    mockResolveVerification.mockResolvedValue(mockResult);
     render(<VerificationScreen />);
-    expect(screen.getByRole('button', { name: /revisar/i })).toBeDisabled();
 
-    const radios = screen.getAllByRole('radio');
-    fireEvent.click(radios[0]);
-    expect(screen.getByRole('button', { name: /revisar/i })).not.toBeDisabled();
+    expect(screen.queryByText(/por resolver/)).not.toBeInTheDocument();
+    expect(screen.getAllByRole('radio')).toHaveLength(3);
+    const revisar = screen.getByRole('button', { name: /revisar/i });
+    expect(revisar).not.toBeDisabled();
+
+    fireEvent.click(revisar);
+    await waitFor(() => expect(useTasStore.getState().tasView).toBe('review'));
+    const [, payload] = mockResolveVerification.mock.calls[0];
+    expect(payload).toContainEqual({ employeeId: 'E1', date: '2026-03-15', keepSessionId: 'all' });
   });
 
   it('collapses to a Confirmado chip after a selection and re-opens via Editar/Listo', () => {
@@ -997,6 +1004,71 @@ describe('SHORT_DAY sessions', () => {
     const resolved = useTasStore.getState().resolvedSessions[99];
     expect(resolved).toEqual({ resolvedStart: '07:00', resolvedEnd: '13:00' });
   });
+
+  it('shows the registered correction and Deshacer removes it', () => {
+    useTasStore.getState().setFlaggedSessions([makeShortDaySession()]);
+    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
+    render(<VerificationScreen />);
+
+    fireEvent.change(screen.getByLabelText('Salida'), { target: { value: '13:00' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Registrar corrección' }));
+    expect(screen.getByText('Corrección registrada · Salida 13:00')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Registrar corrección' })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Deshacer' }));
+    expect(useTasStore.getState().resolvedSessions[99]).toBeUndefined();
+    expect(screen.getByLabelText('Salida')).toHaveValue('11:00');
+    expect(screen.queryByText(/Corrección registrada/)).not.toBeInTheDocument();
+  });
+
+  it('a resumed correction is shown as registered', () => {
+    useTasStore.getState().setFlaggedSessions([makeShortDaySession()]);
+    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
+    useTasStore.getState().setResolvedSession(99, { resolvedStart: '07:00', resolvedEnd: '14:30' });
+    render(<VerificationScreen />);
+    expect(screen.getByLabelText('Salida')).toHaveValue('14:30');
+    expect(screen.getByText('Corrección registrada · Salida 14:30')).toBeInTheDocument();
+  });
+
+  it('an exit before the entry on a day shift is refused before Revisar', () => {
+    useTasStore.getState().setFlaggedSessions([makeShortDaySession()]);
+    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
+    render(<VerificationScreen />);
+
+    fireEvent.change(screen.getByLabelText('Salida'), { target: { value: '06:00' } });
+    expect(screen.getByRole('alert')).toHaveTextContent('La hora de salida debe ser posterior a la hora de entrada.');
+    expect(screen.getByRole('button', { name: 'Registrar corrección' })).toBeDisabled();
+  });
+
+  it('an exit after midnight is accepted on a night shift', () => {
+    useTasStore.getState().setFlaggedSessions([makeShortDaySession({
+      effectiveStart: '2026-03-10T22:00:00', lastScan: '2026-03-11T02:00:00',
+      scans: ['2026-03-10T22:00:00', '2026-03-11T02:00:00'], matchedShiftId: 'N1',
+    })]);
+    useTasStore.getState().setAvailableShifts([
+      { id: 'N1', name: 'Noche', startTime: '22:00', endTime: '06:00', crossMidnight: true },
+    ]);
+    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
+    render(<VerificationScreen />);
+
+    fireEvent.change(screen.getByLabelText('Salida'), { target: { value: '05:30' } });
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Registrar corrección' })).not.toBeDisabled();
+  });
+
+  it('submits a registered correction with the right calendar days', async () => {
+    useTasStore.getState().setUploadToken('tok-1');
+    useTasStore.getState().setFlaggedSessions([makeShortDaySession()]);
+    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
+    useTasStore.getState().setResolvedSession(99, { resolvedStart: '07:00', resolvedEnd: '13:00' });
+    mockResolveVerification.mockResolvedValue(mockResult);
+    render(<VerificationScreen />);
+
+    fireEvent.click(screen.getByRole('button', { name: /revisar/i }));
+    await waitFor(() => expect(mockResolveVerification).toHaveBeenCalled());
+    expect(mockResolveVerification.mock.calls[0][1]).toContainEqual(
+      { sessionId: 99, resolvedStart: '2026-03-10 07:00', resolvedEnd: '2026-03-10 13:00' });
+  });
 });
 
 describe('SessionCard time validation', () => {
@@ -1110,6 +1182,55 @@ describe('VerificationScreen error display', () => {
     });
     expect(useToastStore.getState().toasts[0].message).toBe('Ocurrió un error al enviar. Intente nuevamente.');
     expect(useToastStore.getState().toasts[0].variant).toBe('error');
+  });
+
+  function rejectedWith(status: number, data: Record<string, unknown>) {
+    return Object.assign(new Error('Request failed'), { isAxiosError: true, response: { status, data } });
+  }
+
+  it('names the session the backend rejected, reopens its card and highlights it', async () => {
+    useTasStore.getState().setUploadToken('tok-1');
+    useTasStore.getState().setFlaggedSessions([
+      makeSession({ sessionId: 7, employeeName: 'Ana López', date: '2026-03-12', effectiveStart: '08:00:00', lastScan: '17:00:00' }),
+    ]);
+    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
+    mockResolveVerification.mockRejectedValue(rejectedWith(400, {
+      code: 'INVALID_TIME_RANGE',
+      message: 'La hora de salida debe ser posterior a la hora de entrada.',
+      sessionId: 7,
+    }));
+
+    render(<VerificationScreen />);
+    fireEvent.click(screen.getByRole('button', { name: /confirmar/i }));
+    expect(useTasStore.getState().resolvedSessions[7]).toBeDefined();
+    fireEvent.click(screen.getByRole('button', { name: /revisar/i }));
+
+    await waitFor(() => expect(useToastStore.getState().toasts).toHaveLength(1));
+    const toast = useToastStore.getState().toasts[0].message;
+    expect(toast).toContain('La hora de salida debe ser posterior a la hora de entrada.');
+    expect(toast).toContain('Ana López');
+    expect(useTasStore.getState().resolvedSessions[7]).toBeUndefined();
+    const card = screen.getByRole('button', { name: /confirmar/i }).closest('div.rounded-shape-md');
+    expect(card).toHaveClass('ring-error');
+  });
+
+  it('shows the backend message when the error is not tied to a session', async () => {
+    useTasStore.getState().setUploadToken('tok-1');
+    useTasStore.getState().setFlaggedSessions([
+      makeSession({ sessionId: 1, effectiveStart: '08:00:00', lastScan: '17:00:00' }),
+    ]);
+    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
+    mockResolveVerification.mockRejectedValue(rejectedWith(409, {
+      code: 'STATE_CHANGED', message: 'La sesión cambió en otra ventana.',
+    }));
+
+    render(<VerificationScreen />);
+    fireEvent.click(screen.getByRole('button', { name: /confirmar/i }));
+    fireEvent.click(screen.getByRole('button', { name: /revisar/i }));
+
+    await waitFor(() => expect(useToastStore.getState().toasts).toHaveLength(1));
+    expect(useToastStore.getState().toasts[0].message).toBe('La sesión cambió en otra ventana.');
+    expect(useTasStore.getState().resolvedSessions[1]).toBeDefined();
   });
 });
 

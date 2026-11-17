@@ -149,7 +149,7 @@ class TasSmokeTest {
     }
 
     private static boolean goesToVerification(TasUploadResult result) {
-        return !result.getFlaggedSessions().isEmpty();
+        return result.getFlaggedSessions().stream().anyMatch(TasSession::isNeedsResolution);
     }
 
     private static List<TasSession> sessionsWithFlag(TasUploadResult result, TasFlag flag) {
@@ -303,6 +303,7 @@ class TasSmokeTest {
         assertThat(goesToVerification(result)).isFalse();
         assertThat(result.getAllSessions()).hasSize(3);
         assertThat(sessionsWithFlag(result, TasFlag.SHORT_DAY)).hasSize(2);
+        assertThat(flaggedSessions(result)).hasSize(2).noneMatch(TasSession::isNeedsResolution);
 
         EmployeeRow emp = findEmployee(result, "108");
         assertThat(emp.getDiasNoLaborados()).isEqualTo(10);
@@ -564,9 +565,11 @@ class TasSmokeTest {
         // Jul 2: 07:00 → single scan → MISSING_EXIT
         assertThat(sessionsWithFlag(result, TasFlag.MISSING_EXIT)).hasSize(1);
 
-        // Only MISSING_EXIT needs resolution (SHORT_DAY doesn't block)
-        assertThat(flaggedSessions(result)).hasSize(1);
-        assertThat(flaggedSessions(result).get(0).getDate()).isEqualTo(LocalDate.of(2026, 7, 2));
+        // Only MISSING_EXIT needs resolution; the SHORT_DAY is listed for correction without blocking
+        assertThat(flaggedSessions(result)).hasSize(2);
+        List<TasSession> blocking = flaggedSessions(result).stream().filter(TasSession::isNeedsResolution).toList();
+        assertThat(blocking).hasSize(1);
+        assertThat(blocking.get(0).getDate()).isEqualTo(LocalDate.of(2026, 7, 2));
     }
 
     @Test

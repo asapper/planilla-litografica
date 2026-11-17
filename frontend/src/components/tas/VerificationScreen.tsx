@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import axios from 'axios';
 import { useTasStore, type ResolvedSessionEntry } from '../../tasStore';
 import { resolveVerification } from '../../tasApi';
 import type { TasResolution } from '../../tasApi';
@@ -58,6 +59,16 @@ const MAX_SWAPPED_SPAN_MINUTES = 16 * 60;
 function toMinutes(hhmm: string): number {
   const [h, m] = hhmm.split(':').map(Number);
   return h * 60 + m;
+}
+
+const HIGHLIGHT_RING = 'ring-2 ring-error';
+
+function useHighlightScroll(highlighted: boolean) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (highlighted) ref.current?.scrollIntoView?.({ block: 'center' });
+  }, [highlighted]);
+  return ref;
 }
 
 function isoDateOf(timestamp: string | null | undefined): string | null {
@@ -285,16 +296,28 @@ function SameDayDoubleGroupCard({ sessions, choice, resolved, onChange }: SameDa
 
 interface ShortDayCardProps {
   session: TasSession;
+  crossMidnight: boolean;
+  registered?: ResolvedSessionEntry;
+  highlighted: boolean;
   onSaveOverride: (resolvedStart: string, resolvedEnd: string) => void;
+  onUndo: () => void;
 }
 
-function ShortDayCard({ session, onSaveOverride }: ShortDayCardProps) {
+function ShortDayCard({ session, crossMidnight, registered, highlighted, onSaveOverride, onUndo }: ShortDayCardProps) {
   const originalExit = toHHMM(session.lastScan);
-  const [exit, setExit] = useState(originalExit);
-  const changed = !!exit && exit !== originalExit;
+  const entry = toHHMM(session.effectiveStart);
+  const [exit, setExit] = useState(registered?.resolvedEnd ?? originalExit);
+  const ref = useHighlightScroll(highlighted);
+  const changed = !!exit && exit !== (registered?.resolvedEnd ?? originalExit);
+  const inverted = !!entry && !!exit && calcHours(entry, exit, crossMidnight) === '—';
+
+  const undo = () => {
+    setExit(originalExit);
+    onUndo();
+  };
 
   return (
-    <div className="bg-surface-container-lowest rounded-shape-md border border-outline-variant p-4 shadow-sm">
+    <div ref={ref} className={`bg-surface-container-lowest rounded-shape-md border border-outline-variant p-4 shadow-sm ${highlighted ? HIGHLIGHT_RING : ''}`}>
       <div className="flex items-center gap-3 mb-2">
         <span className="font-medium text-on-surface">{session.employeeName}</span>
         <span className="text-on-surface-variant text-body-sm">{formatDate(session.date)}</span>
@@ -319,7 +342,7 @@ function ShortDayCard({ session, onSaveOverride }: ShortDayCardProps) {
           <input
             type="time"
             lang="en-US"
-            value={toHHMM(session.effectiveStart)}
+            value={entry}
             readOnly
             aria-label="Entrada"
             className="h-9 px-3 rounded-shape-sm border border-outline-variant bg-surface-container text-body-md text-on-surface-variant cursor-default"
@@ -338,9 +361,25 @@ function ShortDayCard({ session, onSaveOverride }: ShortDayCardProps) {
         </div>
       </div>
 
+      {inverted && (
+        <p role="alert" className="text-error text-body-sm mb-3">
+          La hora de salida debe ser posterior a la hora de entrada.
+        </p>
+      )}
+
+      {registered && !changed && (
+        <div className="flex items-center gap-3">
+          <span className="text-success text-body-sm font-medium">Corrección registrada · Salida {registered.resolvedEnd}</span>
+          <button type="button" onClick={undo} className="m3-btn-text">
+            Deshacer
+          </button>
+        </div>
+      )}
+
       {changed && (
         <button
-          onClick={() => onSaveOverride(toHHMM(session.effectiveStart), exit)}
+          onClick={() => onSaveOverride(entry, exit)}
+          disabled={inverted}
           className="m3-btn-filled"
         >
           Registrar corrección
@@ -355,10 +394,12 @@ interface SessionCardProps {
   confirmed: boolean;
   resolved?: { resolvedStart: string; resolvedEnd: string };
   crossMidnight: boolean;
+  highlighted: boolean;
   onConfirm: (resolvedStart: string, resolvedEnd: string, offsets?: Pick<ResolvedSessionEntry, 'startDayOffset' | 'endDayOffset'>) => void;
 }
 
-function SessionCard({ session, confirmed, resolved, crossMidnight, onConfirm }: SessionCardProps) {
+function SessionCard({ session, confirmed, resolved, crossMidnight, highlighted, onConfirm }: SessionCardProps) {
+  const ref = useHighlightScroll(highlighted);
   // Prefill from the stored resolution (so re-opening a confirmed row shows what
   // was entered, even after the group collapsed and re-mounted the card).
   const [entry, setEntry] = useState(resolved?.resolvedStart ?? toHHMM(session.effectiveStart));
@@ -435,7 +476,7 @@ function SessionCard({ session, confirmed, resolved, crossMidnight, onConfirm }:
   }
 
   return (
-    <div className="bg-surface-container-lowest rounded-shape-md border border-outline-variant p-4 shadow-sm">
+    <div ref={ref} className={`bg-surface-container-lowest rounded-shape-md border border-outline-variant p-4 shadow-sm ${highlighted ? HIGHLIGHT_RING : ''}`}>
       <div className="flex items-center gap-3 mb-2">
         <span className="font-medium text-on-surface">{session.employeeName}</span>
         <span className="text-on-surface-variant text-body-sm">{formatDate(session.date)}</span>
@@ -553,6 +594,7 @@ export default function VerificationScreen() {
   const shiftAcceptances    = useTasStore(s => s.shiftAcceptances);
   const setShiftAcceptance  = useTasStore(s => s.setShiftAcceptance);
   const sameDayDoubleResolutions    = useTasStore(s => s.sameDayDoubleResolutions);
+  const clearResolvedSession        = useTasStore(s => s.clearResolvedSession);
   const setSameDayDoubleResolution  = useTasStore(s => s.setSameDayDoubleResolution);
   const scrollRef = useRef<HTMLDivElement>(null);
   useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTop = 0; }, []);
@@ -561,6 +603,7 @@ export default function VerificationScreen() {
   // expanded/collapsed state), so a manual toggle doesn't permanently "stick"
   // once the underlying default changes (e.g. a group auto-collapses on resolve).
   const [expansionOverrides, setExpansionOverrides] = useState<Set<string>>(new Set());
+  const [highlightedSessionId, setHighlightedSessionId] = useState<number | null>(null);
 
   const needsResolutionSessions = flaggedSessions.filter(
     s => s.needsResolution && periodsEqual(getSessionPeriod(s.date), selectedPeriod),
@@ -585,7 +628,7 @@ export default function VerificationScreen() {
     sameDayDoubleGroups.set(key, group);
   }
 
-  const rawGroups = buildEmployeeGroups(regular, allShiftMismatchOnly, sameDayDoubleGroups, resolvedSessions, sameDayDoubleResolutions);
+  const rawGroups = buildEmployeeGroups(regular, allShiftMismatchOnly, sameDayDoubleGroups, resolvedSessions);
 
   // Freeze the initial sort order so that resolving an employee's items doesn't
   // move their group to the bottom of the list mid-session. Reset when the
@@ -625,8 +668,9 @@ export default function VerificationScreen() {
 
   const handleSubmit = async () => {
     if (!uploadToken) return;
+    setHighlightedSessionId(null);
+    const sessionById = new Map(flaggedSessions.map(s => [s.sessionId, s]));
     try {
-      const sessionById = new Map(flaggedSessions.map(s => [s.sessionId, s]));
       const resolutions: TasResolution[] = [
         ...Object.entries(resolvedSessions).map(([id, resolved]) => {
           const session = sessionById.get(Number(id));
@@ -689,9 +733,24 @@ export default function VerificationScreen() {
       setAvailablePeriods(result.availablePeriods ?? []);
       setAvailableShifts(result.availableShifts ?? []);
       setTasView('review');
-    } catch {
+    } catch (err) {
       setTasView('verification');
-      useToastStore.getState().showToast('Ocurrió un error al enviar. Intente nuevamente.', 'error');
+      const data = axios.isAxiosError(err) ? err.response?.data : undefined;
+      const failed = typeof data?.sessionId === 'number' ? sessionById.get(data.sessionId) : undefined;
+      if (failed) {
+        clearResolvedSession(failed.sessionId);
+        setExpansionOverrides(prev => {
+          const next = new Set(prev);
+          next.delete(failed.employeeId);
+          return next;
+        });
+        setHighlightedSessionId(failed.sessionId);
+        useToastStore.getState().showToast(
+          `${data.message} Revise ${failed.employeeName}, ${formatDate(failed.date)}.`, 'error');
+        return;
+      }
+      const message = typeof data?.message === 'string' ? data.message : 'Ocurrió un error al enviar. Intente nuevamente.';
+      useToastStore.getState().showToast(message, 'error');
     }
   };
 
@@ -742,7 +801,9 @@ export default function VerificationScreen() {
           </div>
         ) : (
           employeeGroups.map(group => {
-            const defaultExpanded = group.pendingCount > 0;
+            const defaultExpanded = group.pendingCount > 0 || group.items.some(
+              i => i.type === 'same_day_double' && sameDayDoubleResolutions[i.groupKey] === undefined,
+            );
             const expanded = expansionOverrides.has(group.employeeId) ? !defaultExpanded : defaultExpanded;
             return (
               <EmployeeGroup
@@ -763,6 +824,7 @@ export default function VerificationScreen() {
                           confirmed={!!resolvedSessions[item.session.sessionId]}
                           resolved={resolvedSessions[item.session.sessionId]}
                           crossMidnight={matchedShift?.crossMidnight ?? item.session.crossMidnight}
+                          highlighted={highlightedSessionId === item.session.sessionId}
                           onConfirm={(resolvedStart, resolvedEnd, offsets) =>
                             setResolvedSession(item.session.sessionId, { resolvedStart, resolvedEnd, ...offsets })
                           }
@@ -804,9 +866,13 @@ export default function VerificationScreen() {
                 <ShortDayCard
                   key={session.sessionId}
                   session={session}
+                  crossMidnight={availableShifts.find(s => s.id === session.matchedShiftId)?.crossMidnight ?? session.crossMidnight}
+                  registered={resolvedSessions[session.sessionId]}
+                  highlighted={highlightedSessionId === session.sessionId}
                   onSaveOverride={(resolvedStart, resolvedEnd) =>
                     setResolvedSession(session.sessionId, { resolvedStart, resolvedEnd })
                   }
+                  onUndo={() => clearResolvedSession(session.sessionId)}
                 />
               ))}
             </div>

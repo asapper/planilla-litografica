@@ -29,6 +29,11 @@ public class TasSession {
 
     public TasSession() {}
 
+    /** Sessions the verification screen lists: blocking ones, and short days she may correct. */
+    public static boolean shownForVerification(TasSession s) {
+        return s.needsResolution || (s.flags != null && s.flags.contains(TasFlag.SHORT_DAY));
+    }
+
     public int getSessionId() { return sessionId; }
     public void setSessionId(int sessionId) { this.sessionId = sessionId; }
 
