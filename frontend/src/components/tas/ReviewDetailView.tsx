@@ -49,6 +49,7 @@ export default function ReviewDetailView({ onBack }: ReviewDetailViewProps) {
   const uploadToken = useTasStore(s => s.uploadToken);
   const setResolvedRows = useTasStore(s => s.setResolvedRows);
   const setSessionSummaries = useTasStore(s => s.setSessionSummaries);
+  const setStateRevision = useTasStore(s => s.setStateRevision);
   const duplicateCodes = useTasStore(s => s.duplicateCodes);
   const sortColumn = useTasStore(s => s.reviewSortColumn);
   const sortDirection = useTasStore(s => s.reviewSortDirection);
@@ -107,6 +108,7 @@ export default function ReviewDetailView({ onBack }: ReviewDetailViewProps) {
         const result = await recomputeTas(uploadToken);
         setResolvedRows(result.resolvedRows);
         setSessionSummaries(result.sessionSummaries);
+        setStateRevision(result.stateRevision);
         if (newAccruesOvertime) {
           restoreOvertimeOverrides(row.codigoEmpleado);
           restoreNonWorkedDaysOverride(row.codigoEmpleado);

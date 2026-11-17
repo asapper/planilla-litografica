@@ -8,6 +8,9 @@ the next launch.
 This only affects the **local** H2 database. Payroll rows already submitted to
 the remote PostgreSQL are **not** removed.
 
+A reset also discards any **saved unfinished TAS session** (the "Sesión sin
+terminar" card), which lives in the same file (`tas_draft` table).
+
 ## Location
 
 ```

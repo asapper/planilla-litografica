@@ -297,13 +297,14 @@ describe('ReviewDetailView accruesOvertime toggle', () => {
       id: 'E1', code: 'E1', name: 'Ana López', shiftId: null, shiftName: null, active: true, accruesOvertime: false,
     });
     const newRows = [{ ...rows[0], accruesOvertime: false, horasExtrasSimples: 0, horasExtrasDobles: 0 }, rows[1], rows[2]];
-    mockRecomputeTas.mockResolvedValue({ uploadToken: 'tok-1', resolvedRows: newRows, sessionSummaries: summaries });
+    mockRecomputeTas.mockResolvedValue({ uploadToken: 'tok-1', stateRevision: 6, resolvedRows: newRows, sessionSummaries: summaries });
 
     render(<ReviewDetailView onBack={onBack} />);
     fireEvent.click(screen.getByRole('switch'));
 
     await waitFor(() => expect(mockUpdateAccruesOvertime).toHaveBeenCalledWith('E1', false));
     await waitFor(() => expect(mockRecomputeTas).toHaveBeenCalledWith('tok-1'));
+    await waitFor(() => expect(useTasStore.getState().stateRevision).toBe(6));
   });
 
   it('stashes nonWorkedDaysOverride when accruesOvertime is toggled off', async () => {
@@ -312,7 +313,7 @@ describe('ReviewDetailView accruesOvertime toggle', () => {
       id: 'E1', code: 'E1', name: 'Ana López', shiftId: null, shiftName: null, active: true, accruesOvertime: false,
     });
     const newRows = [{ ...rows[0], accruesOvertime: false, horasExtrasSimples: 0, horasExtrasDobles: 0 }, rows[1], rows[2]];
-    mockRecomputeTas.mockResolvedValue({ uploadToken: 'tok-1', resolvedRows: newRows, sessionSummaries: summaries });
+    mockRecomputeTas.mockResolvedValue({ uploadToken: 'tok-1', stateRevision: 6, resolvedRows: newRows, sessionSummaries: summaries });
 
     render(<ReviewDetailView onBack={onBack} />);
     fireEvent.click(screen.getByRole('switch'));
@@ -329,7 +330,7 @@ describe('ReviewDetailView accruesOvertime toggle', () => {
       id: 'E1', code: 'E1', name: 'Ana López', shiftId: null, shiftName: null, active: true, accruesOvertime: false,
     });
     const offRows = [{ ...rows[0], accruesOvertime: false, horasExtrasSimples: 0, horasExtrasDobles: 0 }, rows[1], rows[2]];
-    mockRecomputeTas.mockResolvedValue({ uploadToken: 'tok-1', resolvedRows: offRows, sessionSummaries: summaries });
+    mockRecomputeTas.mockResolvedValue({ uploadToken: 'tok-1', stateRevision: 6, resolvedRows: offRows, sessionSummaries: summaries });
 
     render(<ReviewDetailView onBack={onBack} />);
     fireEvent.click(screen.getByRole('switch'));
@@ -339,7 +340,7 @@ describe('ReviewDetailView accruesOvertime toggle', () => {
       id: 'E1', code: 'E1', name: 'Ana López', shiftId: null, shiftName: null, active: true, accruesOvertime: true,
     });
     const onRows = [{ ...rows[0], accruesOvertime: true }, rows[1], rows[2]];
-    mockRecomputeTas.mockResolvedValue({ uploadToken: 'tok-1', resolvedRows: onRows, sessionSummaries: summaries });
+    mockRecomputeTas.mockResolvedValue({ uploadToken: 'tok-1', stateRevision: 6, resolvedRows: onRows, sessionSummaries: summaries });
 
     fireEvent.click(screen.getByRole('switch'));
     await waitFor(() => {

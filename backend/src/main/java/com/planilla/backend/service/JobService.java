@@ -1,6 +1,7 @@
 package com.planilla.backend.service;
 
 import com.planilla.backend.model.EmployeeRow;
+import com.planilla.backend.service.tas.TasDraftService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -23,22 +24,52 @@ public class JobService {
     private static final Logger log = LoggerFactory.getLogger(JobService.class);
 
     private final DatabaseService databaseService;
+    private final TasDraftService draftService;
 
     @Value("${job.max-retries:3}")
     private int maxRetries;
 
     private final Map<String, JobState> jobs = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, String> activeJobByToken = new ConcurrentHashMap<>();
     private ExecutorService asyncExecutor = Executors.newFixedThreadPool(4);
 
-    public JobService(DatabaseService databaseService) {
+    public JobService(DatabaseService databaseService, TasDraftService draftService) {
         this.databaseService = databaseService;
+        this.draftService = draftService;
     }
 
-    public String createJob(List<EmployeeRow> rows) {
+    public String createJob(List<EmployeeRow> rows, String uploadToken) {
         String jobId = UUID.randomUUID().toString();
+        claim(uploadToken, jobId);
         List<JobRowState> rowStates = rows.stream().map(JobRowState::new).collect(Collectors.toList());
-        jobs.put(jobId, new JobState(jobId, 1, maxRetries, rowStates));
+        jobs.put(jobId, new JobState(jobId, 1, maxRetries, rowStates, uploadToken));
         return jobId;
+    }
+
+    public boolean isAnyJobActive() {
+        return !activeJobByToken.isEmpty();
+    }
+
+    public boolean isJobActive(String uploadToken) {
+        return uploadToken != null && activeJobByToken.containsKey(uploadToken);
+    }
+
+    // Single-user app: two concurrent jobs, even for different upload tokens (a reload, then a
+    // re-upload of the same CSV), could load the same payroll rows into PostgreSQL twice.
+    private void claim(String uploadToken, String jobId) {
+        if (uploadToken == null) return;
+        synchronized (activeJobByToken) {
+            if (!activeJobByToken.isEmpty()) {
+                throw new JobInProgressException();
+            }
+            activeJobByToken.put(uploadToken, jobId);
+        }
+    }
+
+    private void release(String uploadToken, String jobId) {
+        if (uploadToken != null) {
+            activeJobByToken.remove(uploadToken, jobId);
+        }
     }
 
     public record JobResult(int submitted, int skipped, int failed, String error) {
@@ -48,7 +79,17 @@ public class JobService {
     public JobResult processJob(String jobId) {
         JobState job = jobs.get(jobId);
         if (job == null) return new JobResult(0, 0, 0, null);
+        JobResult result = submitRows(job);
+        job.status.set(terminalStatus(job));
+        return result;
+    }
 
+    private static String terminalStatus(JobState job) {
+        return job.failed() > 0 ? "DONE_WITH_ERRORS" : "DONE";
+    }
+
+    private JobResult submitRows(JobState job) {
+        String jobId = job.jobId;
         job.status.set("IN_PROGRESS");
         log.info("Job {} started — {} rows, attempt {}/{}", jobId, job.totalRows(), job.attemptNumber, job.maxRetries);
 
@@ -86,22 +127,42 @@ public class JobService {
             }
         }
 
-        String finalStatus = job.failed() > 0 ? "DONE_WITH_ERRORS" : "DONE";
-        job.status.set(finalStatus);
         log.info("Job {} finished — status={} submitted={} skipped={} failed={}",
-            jobId, finalStatus, job.submitted(), job.skipped(), job.failed());
+            jobId, terminalStatus(job), job.submitted(), job.skipped(), job.failed());
 
         return new JobResult(job.submitted(), job.skipped(), job.failed(), firstError);
     }
 
-    public void processJobAsync(String jobId, String uploadToken, Map<String, ?> stateStore) {
-        runJobAsync(jobId, () -> {
-            processJob(jobId);
-            JobState job = jobs.get(jobId);
-            if (job != null && "DONE".equals(job.status.get())) {
-                stateStore.remove(uploadToken);
-            }
+    public void processJobAsync(String jobId, Map<String, ?> stateStore) {
+        runJobAsync(jobId, stateStore);
+    }
+
+    private void finishForToken(JobState job, String status, Map<String, ?> stateStore) {
+        String token = job.uploadToken;
+        if (token == null) return;
+        if ("DONE".equals(status)) {
+            clearFinishedSession(token, stateStore);
+        } else if (job.submitted() > 0 || job.skipped() > 0) {
+            draftService.markPartialIfToken(token);
+        }
+    }
+
+    /**
+     * Draft first, then the state, both under the state's lock: a draft PUT re-checks the state's
+     * identity under the same lock, so one landing in between gets 409 instead of rewriting the draft
+     * of a fully submitted session. With no state in memory, the delete runs inside compute so it is
+     * atomic with a concurrent rehydrate of the same token.
+     */
+    private <V> void clearFinishedSession(String token, Map<String, V> stateStore) {
+        V state = stateStore.compute(token, (k, v) -> {
+            if (v == null) draftService.deleteIfToken(k);
+            return v;
         });
+        if (state == null) return;
+        synchronized (state) {
+            draftService.deleteIfToken(token);
+            stateStore.remove(token, state);
+        }
     }
 
     @Scheduled(fixedRate = 300_000)
@@ -176,12 +237,14 @@ public class JobService {
             .collect(Collectors.toList());
 
         String retryId = UUID.randomUUID().toString();
-        jobs.put(retryId, new JobState(retryId, parent.attemptNumber + 1, parent.maxRetries, failedRows));
+        claim(parent.uploadToken, retryId);
+        jobs.put(retryId, new JobState(retryId, parent.attemptNumber + 1, parent.maxRetries, failedRows,
+                parent.uploadToken));
         return retryId;
     }
 
-    public void processRetryJobAsync(String jobId) {
-        runJobAsync(jobId, () -> processJob(jobId));
+    public void processRetryJobAsync(String jobId, Map<String, ?> stateStore) {
+        runJobAsync(jobId, stateStore);
     }
 
     @PreDestroy
@@ -197,15 +260,39 @@ public class JobService {
         }
     }
 
-    private void runJobAsync(String jobId, Runnable task) {
-        CompletableFuture.runAsync(task, asyncExecutor).exceptionally(ex -> {
-            log.error("Job {} failed unexpectedly: {}", jobId, ex.getMessage(), ex);
-            JobState job = jobs.get(jobId);
-            if (job != null) {
-                job.status.set("DONE_WITH_ERRORS");
+    private void runJobAsync(String jobId, Map<String, ?> stateStore) {
+        JobState job = jobs.get(jobId);
+        if (job == null) return;
+        try {
+            CompletableFuture.runAsync(() -> runJob(job, stateStore), asyncExecutor);
+        } catch (RuntimeException e) {
+            log.error("Job {} could not be scheduled: {}", jobId, e.getMessage(), e);
+            job.status.set("DONE_WITH_ERRORS");
+            release(job.uploadToken, jobId);
+        }
+    }
+
+    // The terminal status is published last: whoever sees it (the polling screen, Reintentar) must
+    // find the draft already settled and the marker already released.
+    private void runJob(JobState job, Map<String, ?> stateStore) {
+        String status = "DONE_WITH_ERRORS";
+        try {
+            submitRows(job);
+            status = terminalStatus(job);
+            finishForToken(job, status, stateStore);
+        } catch (RuntimeException e) {
+            log.error("Job {} failed unexpectedly: {}", job.jobId, e.getMessage(), e);
+            status = "DONE_WITH_ERRORS";
+            try {
+                finishForToken(job, status, stateStore);
+            } catch (RuntimeException again) {
+                log.error("Job {} could not settle its session: {}", job.jobId, again.getMessage(), again);
             }
-            return null;
-        });
+        } finally {
+            // A leaked marker would lock the user out of the session with "Envío en curso" forever.
+            release(job.uploadToken, job.jobId);
+            job.status.set(status);
+        }
     }
 
     static String classifyRowError(Exception e) {

@@ -5,7 +5,7 @@ import ConfirmModal from './ConfirmModal';
 describe('ConfirmModal', () => {
   const baseProps = {
     title: 'Iniciar nueva carga',
-    message: 'Esta acción descartará la sesión actual, incluyendo los cambios sin guardar. ¿Deseas continuar?',
+    message: 'Esta acción descartará la sesión actual y la sesión guardada. ¿Deseas continuar?',
     confirmLabel: 'Sí, descartar',
     cancelLabel: 'Cancelar',
     onConfirm: vi.fn(),

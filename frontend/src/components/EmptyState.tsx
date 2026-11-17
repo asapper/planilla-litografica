@@ -3,23 +3,46 @@ import { isTasFile } from '../isTasFile';
 import ScreenLayout from './ui/ScreenLayout';
 import IconBadge from './ui/IconBadge';
 import AlertMessage from './ui/AlertMessage';
+import ConfirmModal from './ui/ConfirmModal';
+import ResumeDraftCard from './ResumeDraftCard';
+import type { DraftSummary } from '../tasTypes';
 
 interface Props {
   onTasFile: (file: File) => Promise<boolean>;
+  draft: DraftSummary | null;
+  onContinueDraft: () => void;
+  onDiscardDraft: () => void;
 }
 
-export default function EmptyState({ onTasFile }: Props) {
+export default function EmptyState({ onTasFile, draft, onContinueDraft, onDiscardDraft }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
 
   const [dragging, setDragging] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
+
+  const uploadFile = async (file: File) => {
+    setLoading(true);
+    try {
+      await onTasFile(file);
+    } catch {
+      setError('No se pudo procesar el archivo TAS. Intente nuevamente.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleFile = async (file: File) => {
     setError(null);
     setLoading(true);
     try {
       if (await isTasFile(file)) {
+        if (draft) {
+          setPendingFile(file);
+          return;
+        }
         await onTasFile(file);
       } else {
         setError('El archivo no tiene el formato esperado de marcaciones TAS.');
@@ -72,6 +95,14 @@ export default function EmptyState({ onTasFile }: Props) {
         Sube tu archivo CSV para comenzar
       </p>
 
+      {draft && (
+        <ResumeDraftCard
+          draft={draft}
+          onContinue={onContinueDraft}
+          onDiscard={() => setConfirmDiscard(true)}
+        />
+      )}
+
       <button
         className="m3-btn-filled w-full mb-4"
         onClick={() => inputRef.current?.click()}
@@ -105,6 +136,35 @@ export default function EmptyState({ onTasFile }: Props) {
       {error && <AlertMessage message={error} className="mt-4" />}
 
       <input ref={inputRef} type="file" accept=".csv" className="hidden" onChange={onFileChange} />
+
+      {confirmDiscard && (
+        <ConfirmModal
+          title="Descartar sesión"
+          message="¿Descartar la sesión guardada? Se perderán las decisiones tomadas."
+          confirmLabel="Sí, descartar"
+          cancelLabel="Cancelar"
+          onConfirm={() => {
+            setConfirmDiscard(false);
+            onDiscardDraft();
+          }}
+          onCancel={() => setConfirmDiscard(false)}
+        />
+      )}
+
+      {pendingFile && (
+        <ConfirmModal
+          title="Cargar archivo nuevo"
+          message="Ya hay una sesión sin terminar. Si carga un archivo nuevo, se descartará."
+          confirmLabel="Cargar archivo"
+          cancelLabel="Cancelar"
+          onConfirm={() => {
+            const file = pendingFile;
+            setPendingFile(null);
+            uploadFile(file);
+          }}
+          onCancel={() => setPendingFile(null)}
+        />
+      )}
     </ScreenLayout>
   );
 }

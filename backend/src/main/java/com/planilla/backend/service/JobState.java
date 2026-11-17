@@ -10,14 +10,16 @@ class JobState {
     final int attemptNumber;
     final int maxRetries;
     final List<JobRowState> rows;
+    final String uploadToken;
     final AtomicReference<String> status = new AtomicReference<>("PENDING");
     final Instant createdAt = Instant.now();
 
-    JobState(String jobId, int attemptNumber, int maxRetries, List<JobRowState> rows) {
+    JobState(String jobId, int attemptNumber, int maxRetries, List<JobRowState> rows, String uploadToken) {
         this.jobId = jobId;
         this.attemptNumber = attemptNumber;
         this.maxRetries = maxRetries;
         this.rows = rows;
+        this.uploadToken = uploadToken;
     }
 
     int totalRows()  { return rows.size(); }
