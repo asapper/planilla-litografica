@@ -22,6 +22,7 @@ const {
   DRAFT_SAVE_DEBOUNCE_MS,
   DRAFT_SAVE_MAX_WAIT_MS,
   saveDraftNow,
+  DRAFT_UI_VERSION,
 } = await import('./tasDraft');
 
 const session: TasSession = {
@@ -190,6 +191,7 @@ describe('autosave', () => {
     expect(body.ui.overtimeOverrides).toEqual({ '1': { horasExtrasSimples: 2, horasExtrasDobles: 3 } });
     expect(body.ui.stateRevision).toBe(4);
     expect(body.ui).not.toHaveProperty('jobId');
+    expect(body.ui.uiVersion).toBe(DRAFT_UI_VERSION);
   });
 
   it('saves at least every max-wait interval during a steady stream of edits', async () => {

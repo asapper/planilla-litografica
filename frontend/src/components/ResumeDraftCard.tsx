@@ -1,5 +1,6 @@
 import type { DraftSummary, DraftView } from '../tasTypes';
 import { formatSavedAt } from '../formatSavedAt';
+import { canResume } from '../tasDraft';
 
 const STEP_LABELS: Record<DraftView, string> = {
   inactiveReview: 'Empleados inactivos',
@@ -14,6 +15,7 @@ interface Props {
 }
 
 export default function ResumeDraftCard({ draft, onContinue, onDiscard }: Props) {
+  const resumable = canResume(draft);
   return (
     <section
       aria-label="Sesión sin terminar"
@@ -31,6 +33,11 @@ export default function ResumeDraftCard({ draft, onContinue, onDiscard }: Props)
           Envío parcial: algunos registros ya se enviaron y aparecerán como duplicados.
         </p>
       )}
+      {!resumable && (
+        <p className="mt-2 text-body-sm text-on-warning-container bg-warning-container rounded-shape-sm px-3 py-2">
+          Esta sesión se guardó con otra versión de la aplicación y no se puede continuar. Descártela y vuelva a cargar el archivo.
+        </p>
+      )}
       {draft.jobActive && (
         <p className="mt-2 text-body-sm text-on-surface-variant" role="status">
           Envío en curso, espere a que termine.
@@ -42,9 +49,11 @@ export default function ResumeDraftCard({ draft, onContinue, onDiscard }: Props)
             <button className="m3-btn-outlined" onClick={onDiscard}>
               Descartar
             </button>
-            <button className="m3-btn-filled" onClick={onContinue}>
-              Continuar
-            </button>
+            {resumable && (
+              <button className="m3-btn-filled" onClick={onContinue}>
+                Continuar
+              </button>
+            )}
           </>
         )}
       </div>

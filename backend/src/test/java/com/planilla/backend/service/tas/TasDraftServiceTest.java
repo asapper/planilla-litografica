@@ -188,40 +188,89 @@ class TasDraftServiceTest {
         assertThat(service.loadState("x")).isNull();
     }
 
-    @Test
-    void schemaMismatchIsDiscarded() throws Exception {
-        service.save("tok", simpleState("tok"), ui("{}"), "f.csv", "review", null);
-        jdbc.update("UPDATE tas_draft SET schema_version = ?", TasDraftService.SCHEMA_VERSION + 1);
+    private int rowCount() {
+        return jdbc.queryForObject("SELECT COUNT(*) FROM tas_draft", Integer.class);
+    }
 
-        assertThat(service.findSummary()).isEmpty();
-        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM tas_draft", Integer.class)).isZero();
+    private void assertKeptButNotResumable() {
+        assertThat(service.load()).isEmpty();
+        assertThat(service.loadState("tok")).isNull();
+        TasDraftService.Summary summary = service.findSummary().orElseThrow();
+        assertThat(summary.resumable()).isFalse();
+        assertThat(summary.fileName()).isEqualTo("f.csv");
+        assertThat(rowCount()).isOne();
     }
 
     @Test
-    void corruptBackendStateIsDiscarded() throws Exception {
+    void schemaMismatchIsKeptButNotResumable() throws Exception {
+        service.save("tok", simpleState("tok"), ui("{\"uiVersion\":1}"), "f.csv", "review", null);
+        jdbc.update("UPDATE tas_draft SET schema_version = ?", TasDraftService.SCHEMA_VERSION + 1);
+
+        assertKeptButNotResumable();
+        assertThat(service.findSummary().orElseThrow().uiVersion()).isEqualTo(1);
+    }
+
+    @Test
+    void corruptBackendStateIsKeptButNotResumable() throws Exception {
         service.save("tok", simpleState("tok"), ui("{}"), "f.csv", "review", null);
         jdbc.update("UPDATE tas_draft SET backend_state = '{not json'");
 
-        assertThat(service.load()).isEmpty();
-        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM tas_draft", Integer.class)).isZero();
+        assertKeptButNotResumable();
     }
 
     @Test
-    void corruptUiStateIsDiscardedBySummary() throws Exception {
+    void corruptUiStateIsKeptButNotResumable() throws Exception {
         service.save("tok", simpleState("tok"), ui("{}"), "f.csv", "review", null);
         jdbc.update("UPDATE tas_draft SET ui_state = '[1,'");
 
-        assertThat(service.findSummary()).isEmpty();
-        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM tas_draft", Integer.class)).isZero();
+        assertKeptButNotResumable();
+        assertThat(service.findSummary().orElseThrow().uiVersion()).isNull();
     }
 
     @Test
-    void wrongTypedBackendStateIsDiscarded() throws Exception {
+    void wrongTypedBackendStateIsKeptButNotResumable() throws Exception {
         service.save("tok", simpleState("tok"), ui("{}"), "f.csv", "review", null);
         jdbc.update("UPDATE tas_draft SET backend_state = '{\"sessions\": 5}'");
 
-        assertThat(service.loadState("tok")).isNull();
-        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM tas_draft", Integer.class)).isZero();
+        assertKeptButNotResumable();
+    }
+
+    @Test
+    void anOutdatedRowWarnsOncePerSavedRowNotOnEveryPoll() throws Exception {
+        ch.qos.logback.classic.Logger logger =
+                (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(TasDraftService.class);
+        ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent> appender =
+                new ch.qos.logback.core.read.ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            service.save("tok", simpleState("tok"), ui("{}"), "f.csv", "review", null);
+            jdbc.update("UPDATE tas_draft SET schema_version = 0");
+            for (int i = 0; i < 5; i++) service.findSummary();
+            service.load();
+            assertThat(appender.list).hasSize(1);
+            assertThat(appender.list.get(0).getFormattedMessage()).contains("schema version 0");
+
+            service.save("tok2", simpleState("tok2"), ui("{}"), "g.csv", "review", null);
+            jdbc.update("UPDATE tas_draft SET schema_version = 0");
+            service.findSummary();
+            assertThat(appender.list).hasSize(2);
+        } finally {
+            logger.detachAppender(appender);
+        }
+    }
+
+    @Test
+    void summaryCarriesTheUiVersionOnlyWhenItIsAnInteger() throws Exception {
+        service.save("tok", simpleState("tok"), ui("{\"uiVersion\":3}"), "f.csv", "review", null);
+        assertThat(service.findSummary().orElseThrow().uiVersion()).isEqualTo(3);
+        assertThat(service.findSummary().orElseThrow().resumable()).isTrue();
+
+        service.save("tok", simpleState("tok"), ui("{\"uiVersion\":\"3\"}"), "f.csv", "review", null);
+        assertThat(service.findSummary().orElseThrow().uiVersion()).isNull();
+
+        service.save("tok", simpleState("tok"), ui("{}"), "f.csv", "review", null);
+        assertThat(service.findSummary().orElseThrow().uiVersion()).isNull();
     }
 
     @Test
@@ -310,17 +359,6 @@ class TasDraftServiceTest {
         service.save("tok", simpleState("tok"), ui("{}"), "f.csv", "review", null);
         service.delete();
         assertThat(service.load()).isEmpty();
-    }
-
-    @Test
-    void discardSurvivesAFailingDelete() throws Exception {
-        service.save("tok", simpleState("tok"), ui("{}"), "f.csv", "review", null);
-        jdbc.update("UPDATE tas_draft SET schema_version = 0");
-        JdbcTemplate failingDeletes = spy(jdbc);
-        doThrow(new org.springframework.dao.DataAccessResourceFailureException("locked"))
-                .when(failingDeletes).update(startsWith("DELETE"), any(Object[].class));
-
-        assertThat(new TasDraftService(failingDeletes, mapper).load()).isEmpty();
     }
 
     @Test

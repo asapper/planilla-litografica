@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import EmptyState from './EmptyState';
+import { DRAFT_UI_VERSION } from '../tasDraft';
 import * as isTasFileModule from '../isTasFile';
 
 vi.mock('../isTasFile');
@@ -159,6 +160,8 @@ describe('EmptyState with a saved session', () => {
     periodLabel: 'Octubre 2026 - Quincena 1',
     savedAt: new Date().toISOString(),
     partialSubmit: false,
+    resumable: true,
+    uiVersion: DRAFT_UI_VERSION,
     jobActive: false,
   };
 
