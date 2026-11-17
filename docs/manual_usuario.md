@@ -466,7 +466,7 @@ Solo se guarda **la última sesión**. La sesión guardada se descarta cuando:
 
 **Envío parcial.** Si un envío terminó con algunos registros fallidos, la sesión se conserva para que pueda retomarla. La tarjeta muestra además la línea *"Envío parcial: algunos registros ya se enviaron y aparecerán como duplicados."* Al continuar, llegará a la revisión y los registros que ya se enviaron aparecerán marcados como duplicados, por lo que no se enviarán dos veces.
 
-**Envío en curso.** Si abre la aplicación mientras un envío todavía se está procesando, la tarjeta muestra *"Envío en curso, espere a que termine."* y no ofrece **Continuar** hasta que el envío termine.
+**Envío en curso.** Si abre la aplicación mientras un envío todavía se está procesando, la tarjeta muestra *"Envío en curso, espere a que termine."* y no ofrece **Continuar** ni **Descartar** hasta que el envío termine. Mientras tanto la aplicación tampoco acepta otro envío, aunque cargue de nuevo el archivo.
 
 > **Nota:** La sesión se guarda solo en esta computadora. Los cambios hechos en el último segundo antes de un cierre forzado podrían no quedar guardados.
 

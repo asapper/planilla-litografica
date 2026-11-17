@@ -76,14 +76,25 @@ It asserts:
 
 - **Every `/api/tas/**` endpoint:** no 5xx and no unhandled exception.
 - **Every `/api` endpoint:** a request without the victim session's token never returns that session's
-  data and never changes its state or its saved draft.
-- **Ratchet on the rest:** the set of endpoints that still 5xx must equal the OPEN list below exactly, so
-  a newly failing endpoint fails the build and a fixed one must be removed from the list.
+  data and never changes it. "Changes" is checked by comparing the victim's full serialized state, in
+  memory and in the saved draft (minus the idle clock and save time), before and after each request —
+  not just its revision.
+- **Ratchet on the rest:** the observed 5xx failures must equal the OPEN map below exactly, **per
+  endpoint, failure kind and count**, so a newly failing endpoint, a new kind of 5xx on an already-listed
+  endpoint, or more of a known one fails the build, and a fix must shrink the map.
 
-Proven able to fail: with a planted `POST /api/tas/plant-5xx` (casts `uploadToken` without a check) and a
-planted `GET /api/tas/plant-leak` (returns every in-memory session), the test failed with
-`unhandled ServletException ... NullPointerException` and `leaked the victim session without its token`.
-Both were removed.
+Proven able to fail:
+- a planted `POST /api/tas/plant-5xx` (casts `uploadToken` without a check) and a planted
+  `GET /api/tas/plant-leak` (returns every in-memory session) failed with
+  `unhandled ServletException ... NullPointerException` and `leaked the victim session without its token`;
+- a planted `POST /api/tas/plant-mutate` that renames the sessions of every in-memory state **without
+  bumping the revision** (invisible to the earlier revision/draft-token check) failed with
+  `changed the victim session without its token`;
+- a planted `IllegalStateException` in `POST /api/config/holidays` (an already-listed endpoint) failed with
+  `{"unhandled ClassCastException"=14, "unhandled IllegalStateException"=1}` against the pinned
+  `{"unhandled ClassCastException"=14}`.
+
+All plants were removed.
 
 ### By design, not a finding
 
@@ -98,7 +109,9 @@ Both were removed.
 |---|---|---|
 | H-1 | TAS endpoints threw `ClassCastException` / `NullPointerException` (HTTP 500) on a non-string or missing `uploadToken`, a non-list `reactivate`/`ignore`/`employeeIds`/`resolutions`, non-numeric period fields, or a non-boolean `active`. | **FIXED** — validated before use; CLOSED-by-test. |
 | H-2 | `/resolve` applied entries one by one and could return 400 halfway, leaving a half-applied batch. | **FIXED** — the batch is validated first, then applied under the session lock; CLOSED-by-test (`TasControllerDraftTest`). |
-| H-3 | `POST /api/config/shifts`, `PUT /api/config/shifts/{id}`, `PUT /api/config/employees/{id}`, `POST /api/config/employees/bulk-assign`, `POST /api/config/holidays` cast body fields without type checks: a wrong-typed field is an unhandled `ClassCastException` / `NullPointerException` (HTTP 500). No data leak, no session change. | **OPEN** — tracked in the test's `KNOWN_OPEN_5XX`. |
+| H-3 | `POST /api/config/shifts`, `PUT /api/config/shifts/{id}`, `PUT /api/config/employees/{id}`, `POST /api/config/employees/bulk-assign`, `POST /api/config/holidays` cast body fields without type checks: a wrong-typed field is an unhandled `ClassCastException` / `NullPointerException` (HTTP 500). No data leak, no session change. | **OPEN** — pinned per kind and count in the test's `KNOWN_OPEN_5XX`. |
+| H-4 | Two submissions could run at once for different upload tokens (reload while polling → discard → re-upload the same CSV), loading the same payroll rows twice; the duplicate check reads `carga_log`, written only after each row returns. | **FIXED** — `/submit` and retry refuse with 409 `JOB_IN_PROGRESS` while any job is active, and the start card hides Descartar while one runs; CLOSED-by-test (`JobServiceTest`, `TasControllerJobConcurrencyTest`). |
+| H-5 | A draft PUT landing between a finished job's draft delete and its state removal rewrote the draft, offering a fully submitted session on the next start. | **FIXED** — delete and removal run under the state's lock, so the PUT's identity check 409s; CLOSED-by-test (`TasControllerJobConcurrencyTest`). |
 
 Not proven: behaviour under concurrent hostile requests, request bodies larger than ~100 KB, and
 non-JSON content types other than multipart on the upload endpoint.
