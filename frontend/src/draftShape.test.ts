@@ -38,8 +38,13 @@ function shapeOf(file: string, typeName: string): string[] {
   const out = new Set<string>();
   const open = new Set<ts.Type>();
 
-  // Literal members collapse to their base type: a draft saved before a new view or flag existed
-  // still reads back, so adding one must not force a version bump.
+  // Literal members collapse to their base type and their values are listed separately, so that
+  // compareShapes can let a literal set grow (old drafts still fit) but not lose a member.
+  const literalsAt = (path: string, types: readonly ts.Type[]) => {
+    const values = types.flatMap(t => (t.isStringLiteral() ? [JSON.stringify(t.value)] : t.isNumberLiteral() ? [String(t.value)] : []));
+    if (values.length > 0) out.add(`${path} literals: ${[...new Set(values)].sort().join(', ')}`);
+  };
+
   const scalar = (type: ts.Type): string => {
     if (type.flags & (ts.TypeFlags.Any | ts.TypeFlags.Unknown)) throw new Error(`untyped value in ${typeName}`);
     if (type.flags & ts.TypeFlags.StringLike) return 'string';
@@ -52,6 +57,7 @@ function shapeOf(file: string, typeName: string): string[] {
     if (type.isUnion()) {
       const members = [...new Set(type.types.map(t => (isObject(t) ? 'object' : scalar(t))))].sort();
       out.add(`${path}: ${members.join(' | ')}`);
+      literalsAt(path, type.types);
       for (const t of type.types) if (isObject(t)) describeType(t, path);
       return;
     }
@@ -61,6 +67,7 @@ function shapeOf(file: string, typeName: string): string[] {
     }
     if (!isObject(type)) {
       out.add(`${path}: ${scalar(type)}`);
+      literalsAt(path, [type]);
       return;
     }
     if (open.has(type)) return;
@@ -79,21 +86,46 @@ function shapeOf(file: string, typeName: string): string[] {
   return [...out].sort();
 }
 
+type Comparison = 'same' | 'grew' | 'changed';
+
+function compareShapes(recorded: string[], actual: string[]): Comparison {
+  const split = (lines: string[]) => {
+    const structure: string[] = [];
+    const literals = new Map<string, Set<string>>();
+    for (const line of lines) {
+      const at = line.indexOf(' literals: ');
+      if (at < 0) structure.push(line);
+      else literals.set(line.slice(0, at), new Set(line.slice(at + ' literals: '.length).split(', ')));
+    }
+    return { structure: structure.join('\n'), literals };
+  };
+  const was = split(recorded);
+  const now = split(actual);
+  if (was.structure !== now.structure) return 'changed';
+  for (const [path, values] of was.literals) {
+    const current = now.literals.get(path);
+    if (!current || [...values].some(v => !current.has(v))) return 'changed';
+  }
+  return recorded.join('\n') === actual.join('\n') ? 'same' : 'grew';
+}
+
 function isObject(type: ts.Type): boolean {
   return (type.flags & (ts.TypeFlags.Object | ts.TypeFlags.Intersection)) !== 0;
 }
 
 describe('saved draft shape', () => {
   it('matches DRAFT_UI_VERSION', () => {
-    const actual = shapeOf(resolve(__dirname, 'tasDraft.ts'), 'TasSnapshot').join('\n') + '\n';
-    const expected = existsSync(shapeFile(DRAFT_UI_VERSION)) ? readFileSync(shapeFile(DRAFT_UI_VERSION), 'utf8') : null;
-    if (expected !== actual) {
+    const actual = shapeOf(resolve(__dirname, 'tasDraft.ts'), 'TasSnapshot');
+    const file = shapeFile(DRAFT_UI_VERSION);
+    const recorded = existsSync(file) ? readFileSync(file, 'utf8').trimEnd().split('\n') : [];
+    const result = compareShapes(recorded, actual);
+    if (result !== 'same') {
       const written = resolve(SHAPES_DIR, 'ui-shape-actual.txt');
-      writeFileSync(written, actual);
-      expect.fail(
-        `The saved draft's shape changed (actual shape in ${written}). Bump DRAFT_UI_VERSION in tasDraft.ts and save ` +
-        `that file as draft-shape/ui-shape-v${DRAFT_UI_VERSION + 1}.txt; keep the older files.`,
-      );
+      writeFileSync(written, actual.join('\n') + '\n');
+      expect.fail(result === 'grew'
+        ? `A literal set grew (actual shape in ${written}). Old drafts still fit: replace draft-shape/ui-shape-v${DRAFT_UI_VERSION}.txt with it, no version bump.`
+        : `The saved draft's shape changed (actual shape in ${written}). Bump DRAFT_UI_VERSION in tasDraft.ts and save ` +
+          `that file as draft-shape/ui-shape-v${DRAFT_UI_VERSION + 1}.txt; keep the older files.`);
     }
   }, 30_000);
 
@@ -124,10 +156,21 @@ describe('saved draft shape', () => {
     expect(shapeOfSource(before + outer)).toContain('$.both.id: number');
   }, 30_000);
 
-  it('does not ask for a bump when a literal union only gains a member', () => {
-    const before = shapeOfSource("export type Outer = { view: 'a' | 'b'; done: boolean }\n");
-    expect(shapeOfSource("export type Outer = { view: 'a' | 'b' | 'c'; done: boolean }\n")).toEqual(before);
-    expect(before).toEqual(['$.done: boolean', '$.view: string']);
+  it.each([
+    ['gains a member', "'a' | 'b' | 'c'", 'grew'],
+    ['loses a member', "'a'", 'changed'],
+    ['renames a member', "'a' | 'z'", 'changed'],
+    ['keeps its members', "'b' | 'a'", 'same'],
+  ] as const)('a literal union that %s', (_, after, expected) => {
+    const before = shapeOfSource("export type Outer = { view: 'a' | 'b'; n: Record<string, -1 | 0>; done: boolean }\n");
+    expect(before).toEqual(['$.done: boolean', '$.n{string} literals: -1, 0', '$.n{string}: number', '$.view literals: "a", "b"', '$.view: string']);
+    const now = shapeOfSource(`export type Outer = { view: ${after}; n: Record<string, -1 | 0>; done: boolean }\n`);
+    expect(compareShapes(before, now)).toBe(expected);
+  }, 30_000);
+
+  it('treats a numeric literal set that loses a member as a change', () => {
+    const before = shapeOfSource('export type Outer = { n: -1 | 0 }\n');
+    expect(compareShapes(before, shapeOfSource('export type Outer = { n: 0 | 1 }\n'))).toBe('changed');
   }, 30_000);
 
   it.each([

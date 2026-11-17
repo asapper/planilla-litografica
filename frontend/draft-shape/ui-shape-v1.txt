@@ -17,6 +17,7 @@ $.flaggedSessions[].date: string
 $.flaggedSessions[].effectiveStart: null | string
 $.flaggedSessions[].employeeId: string
 $.flaggedSessions[].employeeName: string
+$.flaggedSessions[].flags[] literals: "BEST_FIT_SHIFT", "END_CUTOFF", "MISSING_ENTRY", "MISSING_EXIT", "SAME_DAY_DOUBLE", "SHIFT_MISMATCH", "SHORT_DAY", "START_CUTOFF"
 $.flaggedSessions[].flags[]: string
 $.flaggedSessions[].lastScan: null | string
 $.flaggedSessions[].matchedShiftId: null | string
@@ -26,6 +27,7 @@ $.flaggedSessions[].scans[]: string
 $.flaggedSessions[].sessionId: number
 $.flaggedSessions[].workedHours: number
 $.flaggedSessions[].workedMinutes: number
+$.inactiveDecisions{string} literals: "ignore", "reactivate"
 $.inactiveDecisions{string}: string
 $.inactiveEmployees[].employeeId: string
 $.inactiveEmployees[].name: string
@@ -44,10 +46,13 @@ $.resolvedRows[].horasExtrasSimples: number
 $.resolvedRows[].mes: number
 $.resolvedRows[].nombreEmpleado: string
 $.resolvedRows[].numeroDequincena: null | number
+$.resolvedSessions{number}.endDayOffset? literals: 0, 1
 $.resolvedSessions{number}.endDayOffset?: number | undefined
 $.resolvedSessions{number}.resolvedEnd: string
 $.resolvedSessions{number}.resolvedStart: string
+$.resolvedSessions{number}.startDayOffset? literals: -1, 0
 $.resolvedSessions{number}.startDayOffset?: number | undefined
+$.sameDayDoubleResolutions{string} literals: "all"
 $.sameDayDoubleResolutions{string}: number | string
 $.selectedPeriod.anio: number
 $.selectedPeriod.mes: number
@@ -68,6 +73,7 @@ $.stashedNonWorkedDaysOverrides{string}: number
 $.stashedOvertimeOverrides{string}.horasExtrasDobles?: number | undefined
 $.stashedOvertimeOverrides{string}.horasExtrasSimples?: number | undefined
 $.stateRevision: number
+$.tasView literals: "absentReview", "idle", "inactiveReview", "polling", "processing", "result", "review", "submitting", "verification"
 $.tasView: string
 $.uploadToken: null | string
 $.usedFallbackHolidays: boolean
