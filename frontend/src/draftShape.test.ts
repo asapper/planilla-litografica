@@ -88,6 +88,11 @@ function shapeOf(file: string, typeName: string): string[] {
   return [...out].sort();
 }
 
+// A Windows checkout may turn the file's line endings into CRLF.
+function recordedLines(text: string): string[] {
+  return text.trimEnd().split(/\r?\n/);
+}
+
 type Comparison = 'same' | 'grew' | 'changed';
 
 function compareShapes(recorded: string[], actual: string[]): Comparison {
@@ -120,7 +125,7 @@ describe('saved draft shape', () => {
   it('matches DRAFT_UI_VERSION', () => {
     const actual = shapeOf(resolve(__dirname, 'tasDraft.ts'), 'TasSnapshot');
     const file = shapeFile(DRAFT_UI_VERSION);
-    const recorded = existsSync(file) ? readFileSync(file, 'utf8').trimEnd().split('\n') : [];
+    const recorded = existsSync(file) ? recordedLines(readFileSync(file, 'utf8')) : [];
     const result = compareShapes(recorded, actual);
     if (result !== 'same') {
       const written = resolve(SHAPES_DIR, 'ui-shape-actual.txt');
@@ -131,6 +136,11 @@ describe('saved draft shape', () => {
           `that file as draft-shape/ui-shape-v${DRAFT_UI_VERSION + 1}.txt; keep the older files.`);
     }
   }, 30_000);
+
+  it('reads a Windows checkout of a shape file like the LF one', () => {
+    expect(recordedLines('$: a\r\n$.b: b\r\n')).toEqual(recordedLines('$: a\n$.b: b\n'));
+    expect(recordedLines('$: a\n$.b: b\n')).toEqual(['$: a', '$.b: b']);
+  });
 
   it('keeps a shape file for every version so far', () => {
     for (let v = 1; v <= DRAFT_UI_VERSION; v++) expect(existsSync(shapeFile(v)), `ui-shape-v${v}.txt`).toBe(true);
