@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Fixes
+- **Only this install's backend is stopped, however its path is written.** The installer and the app's startup check compared path text, so an install reached through an 8.3 short name (`PROGRA~1`), a junction or a `subst` drive was not recognised, and the installer said "Backend stopped." when it wasn't. The app's startup check was broader still: it stopped every `java.exe` running a `backend.jar`, including another install's backend. Both now run one shared script, `stop-backend.ps1`, which matches the process whose executable is the same file as this install's `jre\bin\java.exe` (volume and file id), and a Windows CI job runs it against real processes for each of those path forms. Where Add-Type is blocked, it falls back to the old full-path comparison instead of failing. On macOS the app matches its own `java` path exactly instead of any `backend.jar`.
+
 ## v1.3.1 — 2026-11-18
 
 ### Fixes

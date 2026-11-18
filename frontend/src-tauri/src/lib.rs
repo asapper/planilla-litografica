@@ -360,32 +360,84 @@ fn wait_until_port_closed(port: u16, attempts: u32, sleep: std::time::Duration) 
     !port_is_open(port)
 }
 
-/// Terminates any bundled-JRE backend (`java -jar backend.jar`) left running from
-/// a previous, unclean exit. We must own exactly one backend (H2 is single-writer),
-/// so rather than reuse an orphan we can't manage, we kill it and spawn our own.
+/// Terminates the backend JVM bundled with this install (`<resource_dir>/jre/bin/java`)
+/// left running from a previous, unclean exit. We must own exactly one backend (H2 is
+/// single-writer), so rather than reuse an orphan we can't manage, we kill it and spawn
+/// our own. Only this install's JVM is matched: another install's backend, or any other
+/// Java program, is left alone.
 #[cfg(not(debug_assertions))]
-fn terminate_orphan_backend() {
+fn terminate_orphan_backend(resource_dir: &std::path::Path, java_bin: &std::path::Path) {
     use std::process::Command;
     #[cfg(target_os = "windows")]
     {
         use std::os::windows::process::CommandExt;
         const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        let _ = java_bin;
+        let script = powershell_encoded(STOP_BACKEND_SCRIPT);
         let status = Command::new("powershell")
             .args([
                 "-NoProfile",
                 "-NonInteractive",
-                "-Command",
-                "Get-CimInstance Win32_Process | Where-Object { $_.Name -eq 'java.exe' -and $_.CommandLine -like '*backend.jar*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }",
+                "-EncodedCommand",
+                script.as_str(),
             ])
+            .env("PLANILLA_INSTDIR", resource_dir)
             .creation_flags(CREATE_NO_WINDOW)
             .status();
         log_termination_result(status);
     }
     #[cfg(not(target_os = "windows"))]
     {
-        let status = Command::new("pkill").args(["-f", "backend.jar"]).status();
+        let _ = resource_dir;
+        let pids = match Command::new("ps").args(["-axo", "pid=,args="]).output() {
+            Ok(out) => pids_running(&String::from_utf8_lossy(&out.stdout), java_bin),
+            Err(e) => {
+                log::warn!("failed to list processes: {e}");
+                return;
+            }
+        };
+        if pids.is_empty() {
+            log::info!("no orphan backend running from {}", java_bin.display());
+            return;
+        }
+        let status = Command::new("kill").args(pids.iter().map(u32::to_string)).status();
         log_termination_result(status);
     }
+}
+
+/// Shared with the installer hook, so both stop exactly the same process.
+#[cfg(any(all(not(debug_assertions), target_os = "windows"), test))]
+const STOP_BACKEND_SCRIPT: &str = include_str!("../stop-backend.ps1");
+
+/// The form `powershell -EncodedCommand` takes: base64 of the script in UTF-16LE. The
+/// script never goes through command-line quoting.
+#[cfg(any(all(not(debug_assertions), target_os = "windows"), test))]
+fn powershell_encoded(script: &str) -> String {
+    const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let bytes: Vec<u8> = script.encode_utf16().flat_map(u16::to_le_bytes).collect();
+    let mut out = String::with_capacity(bytes.len().div_ceil(3) * 4);
+    for chunk in bytes.chunks(3) {
+        let n = chunk.iter().enumerate().fold(0u32, |n, (i, b)| n | (u32::from(*b) << (16 - 8 * i)));
+        for i in 0..4 {
+            out.push(if i <= chunk.len() { ALPHABET[(n >> (18 - 6 * i) & 63) as usize] as char } else { '=' });
+        }
+    }
+    out
+}
+
+/// Pids in `ps -axo pid=,args=` output whose program is exactly `exe`.
+#[cfg(any(all(not(debug_assertions), not(target_os = "windows")), test))]
+fn pids_running(ps_output: &str, exe: &std::path::Path) -> Vec<u32> {
+    let exe = exe.to_string_lossy();
+    ps_output
+        .lines()
+        .filter_map(|line| {
+            let (pid, args) = line.trim_start().split_once(' ')?;
+            let args = args.trim_start();
+            let rest = args.strip_prefix(exe.as_ref())?;
+            (rest.is_empty() || rest.starts_with(' ')).then(|| pid.parse().ok())?
+        })
+        .collect()
 }
 
 #[cfg(not(debug_assertions))]
@@ -487,7 +539,7 @@ pub fn run() {
                     log::info!(
                         "a pre-1.2.2 backend is on 127.0.0.1:{LEGACY_BACKEND_PORT}; terminating it so it releases the H2 lock"
                     );
-                    terminate_orphan_backend();
+                    terminate_orphan_backend(&resource_dir, &java_bin);
                     if !wait_until_port_closed(
                         LEGACY_BACKEND_PORT,
                         25,
@@ -503,7 +555,7 @@ pub fn run() {
                     log::info!(
                         "a backend is already on 127.0.0.1:{BACKEND_PORT} (orphaned from a previous run); terminating it before spawning our own"
                     );
-                    terminate_orphan_backend();
+                    terminate_orphan_backend(&resource_dir, &java_bin);
                     // Wait for the port — and therefore the H2 file lock — to be
                     // released so our new backend doesn't collide on the single-writer DB.
                     if !wait_until_port_closed(
@@ -511,11 +563,13 @@ pub fn run() {
                         25,
                         std::time::Duration::from_millis(200),
                     ) {
-                        // Couldn't kill it (e.g. an elevated/AV-held JVM). Reusing the
+                        // Another install's backend (left alone on purpose), or ours but
+                        // unkillable (e.g. an elevated/AV-held JVM). Reusing the
                         // stubborn backend is safe; spawning a second would crash on the
                         // H2 lock. We don't own it, so it won't be torn down on exit.
                         log::warn!(
-                            "backend on 127.0.0.1:{BACKEND_PORT} did not exit after termination; reusing it instead of spawning a duplicate"
+                            "backend on 127.0.0.1:{BACKEND_PORT} is still running: it is not this install's ({}) or could not be stopped; reusing it instead of spawning a duplicate",
+                            java_bin.display()
                         );
                         return Ok(());
                     }
@@ -616,7 +670,7 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
-    use super::strip_verbatim_prefix;
+    use super::{pids_running, powershell_encoded, strip_verbatim_prefix, STOP_BACKEND_SCRIPT};
     use std::path::{Path, PathBuf};
 
     /// Serializes tests that bind real ports or spawn processes: a child spawned
@@ -979,6 +1033,59 @@ mod tests {
     fn leaves_unc_verbatim_path_untouched() {
         let p = PathBuf::from(r"\\?\UNC\server\share\backend.jar");
         assert_eq!(strip_verbatim_prefix(&p), p);
+    }
+
+    #[test]
+    fn encodes_powershell_commands_as_utf16_base64() {
+        assert_eq!(powershell_encoded(""), "");
+        assert_eq!(powershell_encoded("a"), "YQA=");
+        assert_eq!(powershell_encoded("exit 2"), "ZQB4AGkAdAAgADIA");
+        assert_eq!(powershell_encoded("é"), "6QA=");
+    }
+
+    #[test]
+    fn the_shared_stop_script_is_embedded() {
+        assert!(STOP_BACKEND_SCRIPT.contains("PLANILLA_INSTDIR"));
+        assert!(STOP_BACKEND_SCRIPT.contains("GetFileInformationByHandle"));
+    }
+
+    #[test]
+    fn finds_only_processes_running_exactly_this_java() {
+        let java = Path::new("/Applications/Cargador.app/Contents/Resources/jre/bin/java");
+        let ps = "  101 /Applications/Cargador.app/Contents/Resources/jre/bin/java -jar /Applications/Cargador.app/Contents/Resources/backend.jar\n\
+                   202 /Users/me/Other.app/Contents/Resources/jre/bin/java -jar backend.jar\n\
+                   303 /usr/bin/java -jar /Applications/Cargador.app/Contents/Resources/backend.jar\n\
+                   404 /Applications/Cargador.app/Contents/Resources/jre/bin/javac Foo.java\n\
+                   505 /Applications/Cargador.app/Contents/Resources/jre/bin/java\n\
+                   garbage\n";
+        assert_eq!(pids_running(ps, java), vec![101, 505]);
+        assert!(pids_running("", java).is_empty());
+    }
+
+    #[test]
+    fn the_encoded_stop_script_decodes_back_to_the_script() {
+        let alphabet = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+        let encoded = powershell_encoded(STOP_BACKEND_SCRIPT);
+        let mut bytes = Vec::new();
+        for chunk in encoded.as_bytes().chunks(4) {
+            let n = chunk.iter().enumerate().fold(0u32, |n, (i, c)| {
+                let v = alphabet.iter().position(|a| a == c).unwrap_or(0) as u32;
+                n | (v << (18 - 6 * i))
+            });
+            let len = 3 - chunk.iter().filter(|c| **c == b'=').count();
+            bytes.extend_from_slice(&n.to_be_bytes()[1..1 + len]);
+        }
+        let units: Vec<u16> = bytes.chunks(2).map(|b| u16::from_le_bytes([b[0], b[1]])).collect();
+        assert_eq!(String::from_utf16(&units).unwrap(), STOP_BACKEND_SCRIPT);
+    }
+
+    #[test]
+    fn finds_this_java_under_a_path_with_spaces() {
+        let java = Path::new("/Applications/Cargador de Planilla.app/Contents/Resources/jre/bin/java");
+        let ps = "  7 /Applications/Cargador de Planilla.app/Contents/Resources/jre/bin/java -jar /Applications/Cargador de Planilla.app/Contents/Resources/backend.jar\n\
+                   8 /Applications/Cargador de Planilla Copy.app/Contents/Resources/jre/bin/java -jar backend.jar\n\
+                   9 /Applications/Cargador\n";
+        assert_eq!(pids_running(ps, java), vec![7]);
     }
 
     #[test]
