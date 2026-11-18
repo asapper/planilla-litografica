@@ -133,7 +133,7 @@ async function uploadFile(page: Page) {
 
 async function setTasStoreState(page: Page, state: Record<string, unknown>) {
   await page.evaluate((s) => {
-    const store = (window as any).__ZUSTAND_TAS_STORE__;
+    const store = (window as unknown as Record<string, { setState: (s: unknown) => void } | undefined>).__ZUSTAND_TAS_STORE__;
     if (store) store.setState(s);
   }, state);
 }
