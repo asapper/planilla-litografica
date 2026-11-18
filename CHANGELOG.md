@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## v1.3.0 — 2026-11-18
+
+Resume an interrupted session, a safe close, and fixes to how verification handles lone scans, typed-in nights and the 15th/16th cut.
 
 ### Features
 - **Resume an interrupted TAS session.** Progress through inactive-employee review, verification and review is saved automatically to the local database. After the app closes, crashes or the backend restarts, the start screen shows a "Sesión sin terminar" card to continue at the same step with every decision intact, or to discard it. Only the latest session is kept; uploading a new file (after a confirm) or the confirmed "Nueva carga" discards it. A session whose submission partly failed is kept and flagged so duplicates aren't a surprise, and a second submission for the same session is refused while one is still running.
