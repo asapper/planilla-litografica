@@ -3092,8 +3092,8 @@ class TasControllerTest {
     private List<TasSession> seedSingleScanDouble(String token) {
         TasSession morning = new TasSession();
         morning.setSessionId(1);
-        morning.setEmployeeId("296");
-        morning.setEmployeeName("Molina");
+        morning.setEmployeeId("128");
+        morning.setEmployeeName("Ramírez");
         morning.setDate(java.time.LocalDate.of(2026, 9, 29));
         morning.setEffectiveStart(java.time.LocalDateTime.of(2026, 9, 29, 7, 8));
         morning.setLastScan(java.time.LocalDateTime.of(2026, 9, 29, 7, 8));
@@ -3103,8 +3103,8 @@ class TasControllerTest {
         morning.setFlags(new ArrayList<>(List.of(TasFlag.SAME_DAY_DOUBLE, TasFlag.MISSING_EXIT)));
         TasSession evening = new TasSession();
         evening.setSessionId(2);
-        evening.setEmployeeId("296");
-        evening.setEmployeeName("Molina");
+        evening.setEmployeeId("128");
+        evening.setEmployeeName("Ramírez");
         evening.setDate(java.time.LocalDate.of(2026, 9, 29));
         evening.setEffectiveStart(java.time.LocalDateTime.of(2026, 9, 29, 22, 3));
         evening.setLastScan(java.time.LocalDateTime.of(2026, 9, 29, 22, 3));
@@ -3133,7 +3133,7 @@ class TasControllerTest {
 
     private static Map<String, Object> keep(Object keepSessionId) {
         Map<String, Object> res = new LinkedHashMap<>();
-        res.put("employeeId", "296");
+        res.put("employeeId", "128");
         res.put("date", "2026-09-29");
         res.put("keepSessionId", keepSessionId);
         return res;

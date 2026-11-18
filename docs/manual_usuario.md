@@ -269,7 +269,7 @@ El sistema detectó dos sesiones de trabajo diferentes para el mismo empleado en
 - **Una de las sesiones**: se conserva esa marcación y debajo aparece su tarjeta para escribir la hora que falta. La otra se descarta.
 - **"Mantener todas"**: aparecen las dos tarjetas y debe completar ambas.
 
-![Doble marcación de marcaciones sueltas (07:08 y 22:03) con la opción "Una sola jornada" y las tarjetas para completar la hora que falta](screenshots/23-verification-double-single-scans.png)
+![Doble marcación de marcaciones sueltas (07:08 y 22:03): se ofrece "Una sola jornada", "Mantener todas" viene seleccionada y debajo están las tarjetas para completar la hora que falta](screenshots/23-verification-double-single-scans.png)
 
 Las horas se envían junto con la elección al pulsar **"Revisar"**, en un solo paso.
 
@@ -733,13 +733,17 @@ Para guardar los cambios, haga clic en **"Guardar cambios"**. Para revertirlos, 
 Sí. La aplicación detecta automáticamente los registros que ya fueron enviados previamente y los marca como "Duplicado". Los registros duplicados serán excluidos del envío — solo se enviarán los registros nuevos.
 
 **¿Qué pasa si cierro la aplicación durante el envío?**
-No cierre la aplicación durante el envío. Si lo hace por accidente, vuelva a abrir la aplicación y pulse **Continuar** en la tarjeta "Sesión sin terminar". Llegará a la revisión, donde los registros que ya se enviaron aparecerán como duplicados y no se volverán a enviar.
+No cierre la aplicación durante el envío. Si se cerró por accidente, vuelva a abrirla y mire la pantalla de inicio:
+
+- Si la tarjeta "Sesión sin terminar" dice *"Envío en curso, espere a que termine."*, el envío sigue en marcha. Espere: la tarjeta cambia sola cuando termina.
+- Si la tarjeta dice *"Envío parcial…"*, o aparece sin ningún aviso, pulse **Continuar**. Llegará a la revisión, donde los registros que ya llegaron a la base de datos aparecen como duplicados y no se vuelven a enviar.
+- Si no aparece la tarjeta, el envío terminó con todos los registros enviados.
 
 **¿Pierdo mi trabajo si la aplicación se cierra a mitad de la verificación?**
 No. El avance se guarda automáticamente. Al volver a abrir la aplicación, pulse **Continuar** en la tarjeta "Sesión sin terminar" (ver [Continuar una sesión sin terminar](#continuar-una-sesión-sin-terminar)).
 
 **¿Puedo editar las horas extras después de la verificación?**
-Sí. En la vista de lista y en la vista de detalle puede modificar las horas extras simples y dobles directamente. Los campos editados se resaltarán en amarillo para que sepa qué valores fueron ajustados manualmente.
+Sí. En la vista de lista y en la vista de detalle puede modificar las horas extras simples y dobles directamente. Los valores ajustados se distinguen: en la vista de lista con un borde azul y el valor original entre paréntesis (por ejemplo, "era 3"); en la vista de detalle, en amarillo.
 
 **¿Qué hago si el archivo abarca dos quincenas?**
 Cuando el archivo TAS contiene marcaciones de más de una quincena, la aplicación le mostrará un selector de período en la pantalla de verificación. Seleccione la quincena que desea procesar. Para procesar la otra quincena, deberá volver a cargar el archivo y seleccionar el otro período.

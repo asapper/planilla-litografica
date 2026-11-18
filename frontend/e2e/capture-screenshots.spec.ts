@@ -581,7 +581,8 @@ async function reviewWithIncompleteQuincena(page: Page) {
   await mockTasUpload(page, {
     ...mock.UPLOAD_RESULT_WITH_FLAGS,
     flaggedSessions: [],
-    resolvedRows: mock.RESOLVED_ROWS,
+    // The three missing working days count as not worked for everyone, as the banner says.
+    resolvedRows: mock.RESOLVED_ROWS.map(r => ({ ...r, diasNoLaborados: r.diasNoLaborados + 3 })),
     availablePeriods: [{ anio: 2026, mes: 6, numeroDequincena: 1 }],
     absentActiveEmployees: [],
   });

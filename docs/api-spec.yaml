@@ -123,7 +123,7 @@ components:
         nombre_empleado:
           type: string
           description: Display only — not sent to stored procedure
-          example: "DIEGUEZ EQUITE, JOSE ARMANDO"
+          example: "RAMIREZ SOTO, TOMAS ANDRES"
         dias_no_laborados:
           type: integer
           minimum: 0
