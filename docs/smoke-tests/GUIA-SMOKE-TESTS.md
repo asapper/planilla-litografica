@@ -811,6 +811,23 @@ Verifica que la media hora de overtime (30 min) produce `0.5` y no se trunca a e
 
 ---
 
+## 28 — Doble marcación de marcaciones sueltas
+**Archivo:** `28-same-day-double-single-scans.csv`
+**Empleado:** Molina Mauro (ID 296)
+**Turno asignado:** Mañana (07:00–15:00)
+
+### Flujo esperado
+1. **Verificación:** Sí. El 29 sep aparece una **Doble marcación** con dos marcaciones sueltas: Mañana 07:08 y Noche 22:03 (14 h 55 min, más que el máximo de 14 h, por eso se separaron).
+2. La tarjeta dice *"Cada marcación está sola"*, marca **2 por resolver** y "Revisar" está deshabilitado.
+3. Elegir **"Una sola jornada (07:08 – 22:03)"** → la tarjeta pasa a "Confirmado" y "Revisar" se habilita.
+4. **Revisar** → directo a revisión (sin segunda vuelta de verificación).
+
+### Resumen esperado
+- 28 y 30 sep: jornadas normales de Mañana.
+- 29 sep: una jornada de 07:08 a 22:03; la marcación de las 22:03 se descarta.
+
+---
+
 ## Resumen: ¿A qué pantalla va cada test?
 
 | Test | Archivo | Va a verificación? | Razón |
@@ -834,6 +851,7 @@ Verifica que la media hora de overtime (30 min) produce `0.5` y no se trunca a e
 | 17   | new-employee | **NO** → Review directo | 0 flags, empleado nuevo |
 | 18   | noche-missing-exit | **SÍ** (Mañana default: solo MISSING_EXIT; Noche pre-config: START_CUTOFF + MISSING_EXIT) | Ejercita input de salida cross-midnight |
 | 27   | decimal-overtime | **NO** → Review directo | 0.5h simples (30 min), verifica precisión decimal en extras |
+| 28   | same-day-double-single-scans | **SÍ** → Verificación | Doble marcación de marcaciones sueltas: "Una sola jornada 07:08 – 22:03", un solo paso |
 
 ## Checklist General de Verificación
 

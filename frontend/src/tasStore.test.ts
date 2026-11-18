@@ -654,3 +654,17 @@ describe('resetTas', () => {
     expect(s.duplicatesLoading).toBe(false);
   });
 });
+
+describe('review scan expansion', () => {
+  it('toggles one day and expands or clears them all', () => {
+    const store = useTasStore.getState();
+    store.toggleReviewScanExpanded('2026-10-01');
+    expect(useTasStore.getState().reviewExpandedScans.has('2026-10-01')).toBe(true);
+    useTasStore.getState().toggleReviewScanExpanded('2026-10-01');
+    expect(useTasStore.getState().reviewExpandedScans.size).toBe(0);
+    useTasStore.getState().setAllScansExpanded(['a', 'b']);
+    expect([...useTasStore.getState().reviewExpandedScans]).toEqual(['a', 'b']);
+    useTasStore.getState().clearAllScansExpanded();
+    expect(useTasStore.getState().reviewExpandedScans.size).toBe(0);
+  });
+});

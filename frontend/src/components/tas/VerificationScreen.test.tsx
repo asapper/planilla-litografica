@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import VerificationScreen from './VerificationScreen';
 import { useTasStore } from '../../tasStore';
 import { useToastStore } from '../../toastStore';
@@ -730,6 +730,18 @@ describe('VerificationScreen same-day double group', () => {
     await waitFor(() => expect(useTasStore.getState().tasView).toBe('review'));
     const [, payload] = mockResolveVerification.mock.calls[0];
     expect(payload).toContainEqual({ employeeId: 'E1', date: '2026-03-15', keepSessionId: 'all' });
+  });
+
+  it('changing the choice of a decided double while editing keeps the group open', () => {
+    useTasStore.getState().setSameDayDoubleResolution('E1|2026-03-15', 1);
+    render(<VerificationScreen />);
+    fireEvent.click(screen.getByRole('button', { name: /Ana López/ }));
+    fireEvent.click(screen.getByRole('button', { name: /editar ana lópez/i }));
+
+    fireEvent.click(screen.getAllByRole('radio')[1]);
+    expect(useTasStore.getState().sameDayDoubleResolutions['E1|2026-03-15']).toBe(2);
+    expect(screen.getAllByRole('radio')).toHaveLength(3);
+    expect(screen.getByRole('button', { name: /listo/i })).toBeInTheDocument();
   });
 
   it('collapses to a Confirmado chip after a selection and re-opens via Editar/Listo', () => {
@@ -1497,5 +1509,224 @@ describe('SessionCard entry/exit swap', () => {
   it('offers no swap when both entry and exit are missing', () => {
     renderWith(makeSession({ flags: ['MISSING_ENTRY', 'MISSING_EXIT'], scans: ['2026-03-15T08:00:00'], effectiveStart: '2026-03-15T08:00:00', lastScan: null }));
     expect(screen.queryByRole('button', { name: 'Intercambiar entrada/salida' })).not.toBeInTheDocument();
+  });
+});
+
+describe('VerificationScreen night across the 15th/16th (TASK-97)', () => {
+  const Q2: TasPeriod = { anio: 2026, mes: 3, numeroDequincena: 2 };
+  const NOTE = /Esta jornada empezó el 15 mar 2026 y le corresponde a Marzo 2026 - Quincena 1, por eso no se incluye en este envío\. Verifique que se haya pagado en esa quincena\./;
+
+  beforeEach(() => {
+    useTasStore.getState().setAvailablePeriods([Q2]);
+    useTasStore.getState().setUploadToken('tok-1');
+    mockResolveVerification.mockResolvedValue(mockResult);
+  });
+
+  it('a swapped exit on the 16th with its entry on the 15th says it is paid in the first fortnight', async () => {
+    useTasStore.getState().setFlaggedSessions([makeSession({
+      date: '2026-03-16', flags: ['MISSING_EXIT', 'BEST_FIT_SHIFT'],
+      scans: ['2026-03-16T07:02:00'], effectiveStart: '2026-03-16T07:02:00', lastScan: '2026-03-16T07:02:00',
+    })]);
+    render(<VerificationScreen />);
+    fireEvent.click(screen.getByRole('button', { name: 'Intercambiar entrada/salida' }));
+    expect(screen.queryByText(NOTE)).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Entrada'), { target: { value: '19:14' } });
+
+    expect(screen.getByText(NOTE)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmar' }));
+    fireEvent.click(screen.getByRole('button', { name: /Ana López/ }));
+    expect(screen.getByText('Confirmado')).toBeInTheDocument();
+    expect(screen.getByText(NOTE)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /revisar/i }));
+    await waitFor(() => expect(mockResolveVerification).toHaveBeenCalledOnce());
+    expect(mockResolveVerification.mock.calls[0][1]).toContainEqual(expect.objectContaining({
+      resolvedStart: '2026-03-15 19:14', resolvedEnd: '2026-03-16 07:02' }));
+  });
+
+  it('a recorded night exit on the 16th with a typed entry before midnight says so too', () => {
+    useTasStore.getState().setFlaggedSessions([makeSession({
+      date: '2026-03-16', flags: ['MISSING_ENTRY', 'START_CUTOFF'], crossMidnight: true,
+      matchedShiftId: 'noche', matchedShiftName: 'Noche',
+      scans: ['2026-03-16T06:00:00'], lastScan: '2026-03-16T06:00:00',
+    })]);
+    render(<VerificationScreen />);
+    fireEvent.change(screen.getByLabelText('Entrada'), { target: { value: '22:00' } });
+    expect(screen.getByText(NOTE)).toBeInTheDocument();
+  });
+
+  it('a night that starts on the 16th stays in this fortnight without the note', () => {
+    useTasStore.getState().setFlaggedSessions([makeSession({
+      date: '2026-03-16', flags: ['MISSING_EXIT'], crossMidnight: true,
+      matchedShiftId: 'noche', matchedShiftName: 'Noche',
+      scans: ['2026-03-16T22:00:00'], effectiveStart: '2026-03-16T22:00:00', lastScan: '2026-03-16T22:00:00',
+    })]);
+    render(<VerificationScreen />);
+    fireEvent.change(screen.getByLabelText('Salida'), { target: { value: '06:00' } });
+    expect(screen.queryByText(/Esta jornada empezó/)).not.toBeInTheDocument();
+  });
+});
+
+describe('VerificationScreen same-day double made of single scans (TASK-98)', () => {
+  const MORNING = makeSession({
+    sessionId: 1, date: '2026-03-10', flags: ['SAME_DAY_DOUBLE', 'MISSING_EXIT'],
+    scans: ['2026-03-10T07:08:00'], effectiveStart: '2026-03-10T07:08:00', lastScan: '2026-03-10T07:08:00',
+    matchedShiftId: 'manana', matchedShiftName: 'Mañana',
+  });
+  const EVENING = makeSession({
+    sessionId: 2, date: '2026-03-10', flags: ['BEST_FIT_SHIFT', 'SAME_DAY_DOUBLE', 'MISSING_EXIT'],
+    scans: ['2026-03-10T22:03:00'], effectiveStart: '2026-03-10T22:03:00', lastScan: '2026-03-10T22:03:00',
+    matchedShiftId: 'noche', matchedShiftName: 'Noche', crossMidnight: true,
+  });
+  const KEY = 'E1|2026-03-10';
+
+  beforeEach(() => {
+    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
+    useTasStore.getState().setUploadToken('tok-1');
+    useTasStore.getState().setFlaggedSessions([MORNING, EVENING]);
+    mockResolveVerification.mockResolvedValue(mockResult);
+  });
+
+  const revisar = () => screen.getByRole('button', { name: /revisar/i });
+  const timeCards = () => screen.getAllByRole('button', { name: 'Confirmar' }).map(b => b.parentElement as HTMLElement);
+
+  it('says the scans are alone, offers one day from the first to the last scan, and blocks Revisar', () => {
+    render(<VerificationScreen />);
+    expect(screen.getByText(/Cada marcación está sola/)).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'Una sola jornada (07:08 – 22:03)' })).not.toBeChecked();
+    expect(screen.getByRole('radio', { name: /mantener todas/i })).toBeChecked();
+    expect(timeCards()).toHaveLength(2);
+    expect(screen.getAllByText('2 por resolver').length).toBeGreaterThan(0);
+    expect(revisar()).toBeDisabled();
+    expect(screen.queryByText(/se aplicará automáticamente/)).not.toBeInTheDocument();
+  });
+
+  it('"Una sola jornada" sends one day 07:08–22:03 and drops the other scan', async () => {
+    render(<VerificationScreen />);
+    fireEvent.click(screen.getByRole('radio', { name: /una sola jornada/i }));
+
+    expect(screen.queryByText(/por resolver/)).not.toBeInTheDocument();
+    fireEvent.click(revisar());
+    await waitFor(() => expect(mockResolveVerification).toHaveBeenCalledOnce());
+    const [, payload] = mockResolveVerification.mock.calls[0];
+    expect(payload).toContainEqual({ employeeId: 'E1', date: '2026-03-10', keepSessionId: 1 });
+    expect(payload).toContainEqual(expect.objectContaining({
+      sessionId: 1, resolvedStart: '2026-03-10 07:08', resolvedEnd: '2026-03-10 22:03' }));
+    expect(payload.some(r => 'sessionId' in r && r.sessionId === 2)).toBe(false);
+  });
+
+  it('collapses to "Una sola jornada" once merged', () => {
+    render(<VerificationScreen />);
+    fireEvent.click(screen.getByRole('radio', { name: /una sola jornada/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Ana López/ }));
+    expect(screen.getByText('Una sola jornada (07:08–22:03)')).toBeInTheDocument();
+    expect(screen.getByText('Confirmado')).toBeInTheDocument();
+  });
+
+  it('keeping one scan asks only for its exit and never sends the discarded one', async () => {
+    useTasStore.getState().setResolvedSession(2, { resolvedStart: '22:03', resolvedEnd: '06:00' });
+    render(<VerificationScreen />);
+    fireEvent.click(screen.getByRole('radio', { name: /Mañana \(07:08–07:08\)/ }));
+
+    expect(timeCards()).toHaveLength(1);
+    expect(screen.getAllByText('1 por resolver').length).toBeGreaterThan(0);
+    const card = timeCards()[0];
+    fireEvent.change(within(card).getByLabelText('Salida'), { target: { value: '15:00' } });
+    fireEvent.click(within(card).getByRole('button', { name: 'Confirmar' }));
+    expect(revisar()).not.toBeDisabled();
+
+    fireEvent.click(revisar());
+    await waitFor(() => expect(mockResolveVerification).toHaveBeenCalledOnce());
+    const [, payload] = mockResolveVerification.mock.calls[0];
+    expect(payload).toContainEqual({ employeeId: 'E1', date: '2026-03-10', keepSessionId: 1 });
+    expect(payload).toContainEqual(expect.objectContaining({ sessionId: 1, resolvedEnd: '2026-03-10 15:00' }));
+    expect(payload.some(r => 'sessionId' in r && r.sessionId === 2)).toBe(false);
+  });
+
+  it('leaving "Una sola jornada" for a single scan clears the merged times so its exit is asked', () => {
+    render(<VerificationScreen />);
+    fireEvent.click(screen.getByRole('radio', { name: /una sola jornada/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Ana López/ }));
+    fireEvent.click(screen.getByRole('button', { name: /editar ana lópez/i }));
+    fireEvent.click(screen.getByRole('radio', { name: /Mañana \(07:08–07:08\)/ }));
+
+    expect(useTasStore.getState().resolvedSessions[1]).toBeUndefined();
+    expect(useTasStore.getState().sameDayDoubleResolutions[KEY]).toBe(1);
+    expect(within(timeCards()[0]).getByLabelText('Salida')).toHaveValue('');
+  });
+
+  it('keeping both sends both typed days in one pass', async () => {
+    render(<VerificationScreen />);
+    const morningCard = timeCards()[0];
+    fireEvent.change(within(morningCard).getByLabelText('Salida'), { target: { value: '15:00' } });
+    fireEvent.click(within(morningCard).getByRole('button', { name: 'Confirmar' }));
+    // The confirmed morning card collapses, so the evening card is the only one left open.
+    const eveningCard = timeCards()[0];
+    fireEvent.change(within(eveningCard).getByLabelText('Salida'), { target: { value: '06:00' } });
+    fireEvent.click(within(eveningCard).getByRole('button', { name: 'Confirmar' }));
+
+    fireEvent.click(revisar());
+    await waitFor(() => expect(mockResolveVerification).toHaveBeenCalledOnce());
+    const [, payload] = mockResolveVerification.mock.calls[0];
+    expect(payload).toContainEqual({ employeeId: 'E1', date: '2026-03-10', keepSessionId: 'all' });
+    expect(payload).toContainEqual(expect.objectContaining({ sessionId: 1, resolvedEnd: '2026-03-10 15:00' }));
+    expect(payload).toContainEqual(expect.objectContaining({
+      sessionId: 2, resolvedStart: '2026-03-10 22:03', resolvedEnd: '2026-03-11 06:00' }));
+  });
+
+  it('changing the choice keeps the times already typed for a half', () => {
+    render(<VerificationScreen />);
+    const morningCard = timeCards()[0];
+    fireEvent.change(within(morningCard).getByLabelText('Salida'), { target: { value: '15:00' } });
+    fireEvent.click(within(morningCard).getByRole('button', { name: 'Confirmar' }));
+
+    fireEvent.click(screen.getByRole('radio', { name: /Mañana \(07:08–07:08\)/ }));
+    expect(useTasStore.getState().resolvedSessions[1]).toEqual({ resolvedStart: '07:08', resolvedEnd: '15:00' });
+    expect(screen.queryAllByText(/por resolver/)).toHaveLength(0);
+  });
+
+  it('a resumed session with the day merged shows it as one day, ready to send', () => {
+    useTasStore.getState().setSameDayDoubleResolution(KEY, 1);
+    useTasStore.getState().setResolvedSession(1, { resolvedStart: '07:08', resolvedEnd: '22:03' });
+    render(<VerificationScreen />);
+    expect(revisar()).not.toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: /Ana López/ }));
+    expect(screen.getByText('Una sola jornada (07:08–22:03)')).toBeInTheDocument();
+  });
+
+  it('times typed in another period are not sent with this one', async () => {
+    const Q2: TasPeriod = { anio: 2026, mes: 3, numeroDequincena: 2 };
+    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD, Q2]);
+    useTasStore.getState().setFlaggedSessions([MORNING, EVENING, makeSession({ sessionId: 9, date: '2026-03-20' })]);
+    render(<VerificationScreen />);
+    fireEvent.click(screen.getByRole('radio', { name: /una sola jornada/i }));
+    fireEvent.change(screen.getByLabelText(/periodo/i), { target: { value: '2026-3-2' } });
+    fireEvent.change(screen.getByLabelText('Entrada'), { target: { value: '07:00' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmar' }));
+
+    fireEvent.click(revisar());
+    await waitFor(() => expect(mockResolveVerification).toHaveBeenCalledOnce());
+    const [, payload] = mockResolveVerification.mock.calls[0];
+    expect(payload.map(r => ('sessionId' in r ? r.sessionId : r.employeeId))).toEqual([9]);
+  });
+
+  it('offers no single day when the scans are more than 16 hours apart', () => {
+    useTasStore.getState().setFlaggedSessions([
+      { ...MORNING, scans: ['2026-03-10T05:00:00'], effectiveStart: '2026-03-10T05:00:00', lastScan: '2026-03-10T05:00:00' },
+      { ...EVENING, scans: ['2026-03-10T23:30:00'], effectiveStart: '2026-03-10T23:30:00', lastScan: '2026-03-10T23:30:00' },
+    ]);
+    render(<VerificationScreen />);
+    expect(screen.queryByRole('radio', { name: /una sola jornada/i })).not.toBeInTheDocument();
+    expect(timeCards()).toHaveLength(2);
+  });
+
+  it('a double of two complete days is unchanged: no single-day option and no time cards', () => {
+    useTasStore.getState().setFlaggedSessions([
+      { ...MORNING, flags: ['SAME_DAY_DOUBLE'], scans: ['2026-03-10T07:00:00', '2026-03-10T15:00:00'], lastScan: '2026-03-10T15:00:00' },
+      { ...EVENING, flags: ['SAME_DAY_DOUBLE'], scans: ['2026-03-10T15:05:00', '2026-03-10T23:00:00'], effectiveStart: '2026-03-10T15:05:00', lastScan: '2026-03-10T23:00:00' },
+    ]);
+    render(<VerificationScreen />);
+    expect(screen.queryByRole('radio', { name: /una sola jornada/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Confirmar' })).not.toBeInTheDocument();
+    expect(revisar()).not.toBeDisabled();
   });
 });

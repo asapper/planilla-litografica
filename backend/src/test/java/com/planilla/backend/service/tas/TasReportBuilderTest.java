@@ -422,4 +422,45 @@ class TasReportBuilderTest {
                 .satisfies(c -> assertThat(c.missingWorkingDays()).hasSize(row.getDiasNoLaborados()));
         assertThat(row.getDiasNoLaborados()).isEqualTo(3);
     }
+
+    private TasSession nightFromTheFifteenth(String empId) {
+        TasSession night = resolvedSession(empId, LocalDate.of(2026, 1, 15), 60, 0);
+        night.setEmployeeName("Ana");
+        night.setEffectiveStart(LocalDate.of(2026, 1, 15).atTime(22, 0));
+        night.setLastScan(LocalDate.of(2026, 1, 16).atTime(6, 0));
+        night.setScans(List.of(night.getEffectiveStart(), night.getLastScan()));
+        return night;
+    }
+
+    @Test
+    void build_secondFortnight_keepsARowForAnEmployeeWhoseOnlyScanThereIsANightsExit() {
+        TasReportBuilder.BuildResult result = builder.build(List.of(nightFromTheFifteenth("E1")),
+                LocalDate.of(2026, 1, 16), LocalDate.of(2026, 1, 31), shifts, new TasPeriod(2026, 1, 2));
+
+        assertThat(result.rows).hasSize(1);
+        assertThat(result.rows.get(0).getNombreEmpleado()).isEqualTo("Ana");
+        assertThat(result.rows.get(0).getNumeroDequincena()).isEqualTo(2);
+        assertThat(result.rows.get(0).getDiasNoLaborados()).isEqualTo(14);
+        assertThat(result.rows.get(0).getHorasExtrasSimples()).isZero();
+    }
+
+    @Test
+    void build_firstFortnight_paysTheNightFromTheFifteenth() {
+        TasReportBuilder.BuildResult result = builder.build(List.of(nightFromTheFifteenth("E1")),
+                LocalDate.of(2026, 1, 1), LocalDate.of(2026, 1, 15), shifts, new TasPeriod(2026, 1, 1));
+
+        assertThat(result.rows).hasSize(1);
+        assertThat(result.rows.get(0).getHorasExtrasSimples()).isEqualTo(1.0);
+    }
+
+    @Test
+    void computeAvailablePeriods_onlyOffersPeriodsTheFileReaches() {
+        List<TasSession> sessions = List.of(nightFromTheFifteenth("E1"));
+        assertThat(builder.computeAvailablePeriods(sessions, LocalDate.of(2026, 1, 16), LocalDate.of(2026, 1, 31)))
+                .containsExactly(new TasPeriod(2026, 1, 2));
+        assertThat(builder.computeAvailablePeriods(sessions, LocalDate.of(2026, 1, 1), LocalDate.of(2026, 1, 31)))
+                .containsExactly(new TasPeriod(2026, 1, 1), new TasPeriod(2026, 1, 2));
+        assertThat(builder.computeAvailablePeriods(sessions, null, null))
+                .containsExactly(new TasPeriod(2026, 1, 1), new TasPeriod(2026, 1, 2));
+    }
 }

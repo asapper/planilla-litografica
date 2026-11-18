@@ -25,6 +25,9 @@ const {
   saveDraft,
   deleteDraft,
   resumeDraft,
+  getIncompletePeriods,
+  getTasJobStatus,
+  retryTasJob,
 } = await import('./tasApi');
 
 const mockResult: TasUploadResult = {
@@ -272,5 +275,26 @@ describe('draft API', () => {
     mockPost.mockResolvedValue({ data: { uploadToken: 't', ui: { tasView: 'review' } } });
     expect(await resumeDraft()).toEqual({ uploadToken: 't', ui: { tasView: 'review' } });
     expect(mockPost).toHaveBeenCalledWith('/tas/draft/resume');
+  });
+});
+
+describe('coverage and job endpoints', () => {
+  it('getIncompletePeriods reads the incomplete periods of the upload', async () => {
+    const periods = [{ anio: 2026, mes: 10, numeroDequincena: 1, missingWorkingDays: ['2026-10-14'] }];
+    mockGet.mockResolvedValue({ data: { incompletePeriods: periods } });
+    await expect(getIncompletePeriods('tok')).resolves.toEqual(periods);
+    expect(mockGet).toHaveBeenCalledWith('/tas/coverage/tok');
+  });
+
+  it('getTasJobStatus reads the job', async () => {
+    mockGet.mockResolvedValue({ data: { jobId: 'j1', status: 'DONE' } });
+    await expect(getTasJobStatus('j1')).resolves.toEqual({ jobId: 'j1', status: 'DONE' });
+    expect(mockGet).toHaveBeenCalledWith('/tas/jobs/j1');
+  });
+
+  it('retryTasJob posts to the retry endpoint and returns the new job id', async () => {
+    mockPost.mockResolvedValue({ data: { jobId: 'j2' } });
+    await expect(retryTasJob('j1')).resolves.toEqual({ jobId: 'j2' });
+    expect(mockPost).toHaveBeenCalledWith('/tas/jobs/j1/retry');
   });
 });
