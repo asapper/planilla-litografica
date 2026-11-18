@@ -245,5 +245,5 @@ export const useTasStore = create<TasStore>(set => ({
 }));
 
 if (import.meta.env.DEV) {
-  (window as any).__ZUSTAND_TAS_STORE__ = useTasStore;
+  (window as unknown as Record<string, unknown>).__ZUSTAND_TAS_STORE__ = useTasStore;
 }
