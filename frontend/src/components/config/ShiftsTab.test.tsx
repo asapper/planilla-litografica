@@ -41,6 +41,13 @@ describe('ShiftsTab loading', () => {
     expect(document.querySelector('svg')).toBeInTheDocument();
   });
 
+  it('shows the cached shifts at once while it refetches', () => {
+    useConfigStore.setState(st => ({ shifts: { ...st.shifts, data: [shift1] } }));
+    mockGetShifts.mockReturnValue(new Promise(() => {}));
+    render(<ShiftsTab />);
+    expect(screen.getByDisplayValue('Diurno')).toBeInTheDocument();
+  });
+
   it('fetches shifts on mount', async () => {
     render(<ShiftsTab />);
     await waitFor(() => expect(mockGetShifts).toHaveBeenCalledOnce());
