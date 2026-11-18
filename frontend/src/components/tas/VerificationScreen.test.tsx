@@ -1502,7 +1502,7 @@ describe('SessionCard entry/exit swap', () => {
 
 describe('VerificationScreen night across the 15th/16th (TASK-97)', () => {
   const Q2: TasPeriod = { anio: 2026, mes: 3, numeroDequincena: 2 };
-  const NOTE = /Esta jornada empezó el 15 mar 2026: se paga en Marzo 2026 - Quincena 1 y no se incluye en este envío\./;
+  const NOTE = /Esta jornada empezó el 15 mar 2026 y le corresponde a Marzo 2026 - Quincena 1, por eso no se incluye en este envío\. Verifique que se haya pagado en esa quincena\./;
 
   beforeEach(() => {
     useTasStore.getState().setAvailablePeriods([Q2]);
@@ -1522,6 +1522,9 @@ describe('VerificationScreen night across the 15th/16th (TASK-97)', () => {
 
     expect(screen.getByText(NOTE)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Confirmar' }));
+    fireEvent.click(screen.getByRole('button', { name: /Ana López/ }));
+    expect(screen.getByText('Confirmado')).toBeInTheDocument();
+    expect(screen.getByText(NOTE)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /revisar/i }));
     await waitFor(() => expect(mockResolveVerification).toHaveBeenCalledOnce());
     expect(mockResolveVerification.mock.calls[0][1]).toContainEqual(expect.objectContaining({

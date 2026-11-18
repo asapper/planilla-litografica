@@ -281,7 +281,8 @@ Un turno de noche toca el primer o el último día del archivo, así que puede f
 **Una jornada de noche se paga en la quincena del día en que empezó**, nunca en las dos. Una noche del 15 al 16 se paga en la primera quincena:
 
 - Al procesar la **primera quincena**, la entrada del 15 aparece sin salida: escriba la hora de salida del 16 y la jornada se paga en esa quincena.
-- Al procesar la **segunda quincena**, la salida del 16 aparece sin entrada. Si escribe una entrada del día 15, la tarjeta muestra *"Esta jornada empezó el 15 …: se paga en … Quincena 1 y no se incluye en este envío."* La jornada no se vuelve a pagar en la segunda quincena.
+- Al procesar la **segunda quincena**, la salida del 16 aparece sin entrada. Si escribe una entrada del día 15, la tarjeta muestra *"Esta jornada empezó el 15 … y le corresponde a … Quincena 1, por eso no se incluye en este envío. Verifique que se haya pagado en esa quincena."* La jornada no se vuelve a pagar en la segunda quincena.
+- Si el archivo de la primera quincena se exportó antes de que empezara esa noche, la entrada del 15 no estaba en él y la jornada no se pagó en ninguna quincena. Revise ese caso antes de enviar la segunda quincena.
 
 **Qué hacer:**
 1. Revise las horas de entrada y salida que muestra el sistema y complete la que falta.

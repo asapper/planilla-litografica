@@ -487,6 +487,9 @@ function SessionCard({ session, confirmed, resolved, crossMidnight, highlighted,
     : null;
   const startPeriod = startDate ? getSessionPeriod(startDate) : null;
   const paidElsewhere = !!startPeriod && !periodsEqual(startPeriod, getSessionPeriod(session.date));
+  const paidElsewhereNote = paidElsewhere && startDate && startPeriod
+    ? `Esta jornada empezó el ${formatDate(startDate)} y le corresponde a ${periodLabel(startPeriod)}, por eso no se incluye en este envío. Verifique que se haya pagado en esa quincena.`
+    : null;
   const canConfirm = (!needsEntry || !!entry) && (!needsExit || !!exit) && !timesInverted;
 
   if (confirmed && !editing && !highlighted) {
@@ -501,6 +504,9 @@ function SessionCard({ session, confirmed, resolved, crossMidnight, highlighted,
           <span className="font-medium text-on-surface">{session.employeeName}</span>
           <span className="mx-2 text-on-surface-variant">·</span>
           <span className="text-on-surface-variant text-body-sm">{formatDate(session.date)}</span>
+          {paidElsewhereNote && (
+            <p className="text-body-sm text-on-surface-variant mt-1">{paidElsewhereNote}</p>
+          )}
         </div>
         <span className="text-success text-body-sm font-medium">Confirmado</span>
         <span className="text-primary text-label-sm">Editar</span>
@@ -593,10 +599,8 @@ function SessionCard({ session, confirmed, resolved, crossMidnight, highlighted,
         </p>
       )}
 
-      {paidElsewhere && startDate && startPeriod && (
-        <p className="text-body-sm text-on-surface-variant mb-2" role="note">
-          Esta jornada empezó el {formatDate(startDate)}: se paga en {periodLabel(startPeriod)} y no se incluye en este envío.
-        </p>
+      {paidElsewhereNote && (
+        <p className="text-body-sm text-on-surface-variant mb-2" role="note">{paidElsewhereNote}</p>
       )}
 
       <button
