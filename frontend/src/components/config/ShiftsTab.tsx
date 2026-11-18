@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import axios from 'axios';
 import { useConfigStore } from '../../configStore';
 import { useToastStore } from '../../toastStore';
 import { getShifts, createShift, updateShift, deleteShift } from '../../configApi';
@@ -201,14 +202,14 @@ export default function ShiftsTab() {
   const setShiftsError = useConfigStore(s => s.setShiftsError);
   const showToast = useToastStore(s => s.showToast);
 
-  const [localShifts, setLocalShifts] = useState<Shift[]>([]);
+  const [localShifts, setLocalShifts] = useState<Shift[]>(shiftsData ?? []);
   const [deleteErrors, setDeleteErrors] = useState<Record<string, string>>({});
 
-  useEffect(() => {
-    if (shiftsData) {
-      setLocalShifts(shiftsData);
-    }
-  }, [shiftsData]);
+  const [seenShiftsData, setSeenShiftsData] = useState(shiftsData);
+  if (seenShiftsData !== shiftsData) {
+    setSeenShiftsData(shiftsData);
+    if (shiftsData) setLocalShifts(shiftsData);
+  }
 
   useEffect(() => {
     setShiftsLoading(true);
@@ -275,8 +276,8 @@ export default function ShiftsTab() {
         delete next[id];
         return next;
       });
-    } catch (err: any) {
-      const body = err?.response?.data;
+    } catch (err) {
+      const body = axios.isAxiosError(err) ? err.response?.data : undefined;
       if (body?.error === 'SHIFT_HAS_ACTIVE_EMPLOYEES') {
         const count = body?.activeEmployeeCount ?? '';
         const msg = count

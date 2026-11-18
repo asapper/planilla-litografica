@@ -1,3 +1,4 @@
+import { AxiosError } from 'axios';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { useConfigStore } from '../../configStore';
@@ -239,9 +240,9 @@ describe('ShiftsTab delete', () => {
   });
 
   it('shows error when delete is blocked due to active employees', async () => {
-    mockDeleteShift.mockRejectedValue({
-      response: { data: { error: 'SHIFT_HAS_ACTIVE_EMPLOYEES', activeEmployeeCount: 3 } },
-    });
+    mockDeleteShift.mockRejectedValue(new AxiosError('409', undefined, undefined, undefined, {
+      status: 409, data: { error: 'SHIFT_HAS_ACTIVE_EMPLOYEES', activeEmployeeCount: 3 },
+    } as never));
     render(<ShiftsTab />);
     await waitFor(() => screen.getByDisplayValue('Diurno'));
     fireEvent.click(screen.getByRole('button', { name: /eliminar turno/i }));

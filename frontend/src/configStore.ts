@@ -79,5 +79,5 @@ export const useConfigStore = create<ConfigStore>(set => ({
 }));
 
 if (import.meta.env.DEV) {
-  (window as any).__ZUSTAND_CONFIG_STORE__ = useConfigStore;
+  (window as unknown as Record<string, unknown>).__ZUSTAND_CONFIG_STORE__ = useConfigStore;
 }

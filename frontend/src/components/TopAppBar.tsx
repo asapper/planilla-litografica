@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { APP_BAR } from '../constants/colors';
 import type { AppView } from '../types';
@@ -36,9 +36,11 @@ export default function TopAppBar({ currentView, onViewChange, tasView, onNewUpl
     }
   };
 
-  useEffect(() => {
+  const [seenTasView, setSeenTasView] = useState(tasView);
+  if (seenTasView !== tasView) {
+    setSeenTasView(tasView);
     if (tasView === 'submitting') setShowConfirm(false);
-  }, [tasView]);
+  }
 
   return (
     <header
