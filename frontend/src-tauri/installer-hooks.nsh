@@ -15,7 +15,8 @@
 
 ; The PowerShell script kills the JVM, then polls (up to ~10 s) until it is gone. It exits
 ; 0 once no bundled java.exe remains, 1 if one is still running, 2 if it was not given the
-; install path and 3 if the process list could not be read.
+; install path and 3 if the process list could not be read. nsExec gives "error" or "timeout"
+; when PowerShell itself did not run.
 ; The install path reaches it through an environment variable, and only the bundled
 ; jre\bin\java.exe is matched, by its full path: pasted into the script, a ' in the path
 ; (C:\Users\O'Brien) broke the quoting and [ or ] were read as -like wildcards, so the
@@ -31,8 +32,10 @@
     DetailPrint "WARNING: could not check for a running backend (the install path was not passed on). If the install fails on a locked file, close java.exe in Task Manager and run the installer again."
   ${ElseIf} $0 == "3"
     DetailPrint "WARNING: could not check for a running backend (the process list could not be read). If the install fails on a locked file, close java.exe in Task Manager and run the installer again."
-  ${Else}
+  ${ElseIf} $0 == "1"
     DetailPrint "WARNING: a bundled backend (java.exe) is still running (result: $0). If the install fails on a locked file, close it in Task Manager and run the installer again."
+  ${Else}
+    DetailPrint "WARNING: could not check for a running backend (PowerShell did not run: $0). If the install fails on a locked file, close java.exe in Task Manager and run the installer again."
   ${EndIf}
   System::Call 'kernel32::SetEnvironmentVariable(t "PLANILLA_INSTDIR", p 0)i'
   Sleep 500
