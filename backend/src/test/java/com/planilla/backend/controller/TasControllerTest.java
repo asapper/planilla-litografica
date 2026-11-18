@@ -2762,13 +2762,71 @@ class TasControllerTest {
     }
 
     @Test
-    void resolve_nightAnchoredOnTheSixteenth_staysInItsFortnight() throws Exception {
+    void resolve_nightFromTheFifteenthIntoTheSixteenth_isDatedTheFifteenth() throws Exception {
         TasSession s = seedNightState("night-tok", "2026-01-16", TasFlag.MISSING_ENTRY);
 
         resolveTimes("night-tok", "2026-01-15 22:00", "2026-01-16 06:00");
 
-        assertThat(s.getDate()).isEqualTo(java.time.LocalDate.of(2026, 1, 16));
+        assertThat(s.getDate()).isEqualTo(java.time.LocalDate.of(2026, 1, 15));
         assertThat(s.getEffectiveStart()).isEqualTo(java.time.LocalDateTime.of(2026, 1, 15, 22, 0));
+    }
+
+    private void useRealReportBuilder() {
+        com.planilla.backend.service.tas.HolidayService holidays = org.mockito.Mockito.mock(com.planilla.backend.service.tas.HolidayService.class);
+        EmployeeRegistryService registry = org.mockito.Mockito.mock(EmployeeRegistryService.class);
+        when(registry.getAccruesOvertimeFlags(any())).thenReturn(Map.of());
+        TasReportBuilder real = new TasReportBuilder(holidays, registry);
+        when(reportBuilder.build(any(), any(), any(), any(), any())).thenAnswer(inv -> real.build(
+                inv.getArgument(0), inv.getArgument(1), inv.getArgument(2), inv.getArgument(3), inv.getArgument(4)));
+        when(reportBuilder.computeAvailablePeriods(any(), any(), any())).thenAnswer(inv -> real.computeAvailablePeriods(
+                inv.getArgument(0), inv.getArgument(1), inv.getArgument(2)));
+    }
+
+    private void resolveNightForPeriod(String token, String start, String end, int quincena, int expectedNotWorked) throws Exception {
+        Map<String, Object> res = new LinkedHashMap<>();
+        res.put("sessionId", 70);
+        res.put("resolvedStart", start);
+        res.put("resolvedEnd", end);
+        mvc.perform(post("/api/tas/resolve")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of(
+                        "uploadToken", token, "resolutions", List.of(res),
+                        "anio", 2026, "mes", 1, "numeroDequincena", quincena))))
+           .andExpect(status().isOk())
+           .andExpect(jsonPath("$.resolvedRows[0].diasNoLaborados").value(expectedNotWorked));
+    }
+
+    @Test
+    void resolve_fifteenthNightInTheFirstFortnightsFile_isPaidInTheFirstFortnight() throws Exception {
+        TasSession entryHalf = seedNightState("q1-tok", "2026-01-15", TasFlag.MISSING_EXIT, TasFlag.END_CUTOFF);
+        entryHalf.setEffectiveStart(java.time.LocalDateTime.of(2026, 1, 15, 22, 0));
+        tasController.stateStore.get("q1-tok").setReportEnd(java.time.LocalDate.of(2026, 1, 15));
+        useRealReportBuilder();
+
+        // 13 working days from Jan 1 to 15 (two Sundays); the night of the 15th is worked.
+        resolveNightForPeriod("q1-tok", "2026-01-15 22:00", "2026-01-16 06:00", 1, 12);
+        assertThat(entryHalf.getDate()).isEqualTo(java.time.LocalDate.of(2026, 1, 15));
+    }
+
+    @Test
+    void resolve_fifteenthNightInTheSecondFortnightsFile_isNotPaidAgain() throws Exception {
+        TasSession exitHalf = seedNightState("q2-tok", "2026-01-16", TasFlag.MISSING_ENTRY, TasFlag.START_CUTOFF);
+        exitHalf.setLastScan(java.time.LocalDateTime.of(2026, 1, 16, 6, 0));
+        tasController.stateStore.get("q2-tok").setReportStart(java.time.LocalDate.of(2026, 1, 16));
+        TasSession laterDay = new TasSession();
+        laterDay.setSessionId(71);
+        laterDay.setEmployeeId("emp1");
+        laterDay.setDate(java.time.LocalDate.of(2026, 1, 20));
+        laterDay.setEffectiveStart(java.time.LocalDateTime.of(2026, 1, 20, 7, 0));
+        laterDay.setLastScan(java.time.LocalDateTime.of(2026, 1, 20, 15, 0));
+        laterDay.setWorkedMinutes(480);
+        laterDay.setFlags(new ArrayList<>());
+        tasController.stateStore.get("q2-tok").getSessions().add(laterDay);
+        useRealReportBuilder();
+
+        // 14 working days from Jan 16 to 31 (two Sundays), only the 20th worked: the night belongs to the 15th.
+        resolveNightForPeriod("q2-tok", "2026-01-15 22:00", "2026-01-16 06:00", 2, 13);
+        assertThat(exitHalf.getDate()).isEqualTo(java.time.LocalDate.of(2026, 1, 15));
     }
 
     @Test
@@ -2934,6 +2992,99 @@ class TasControllerTest {
            .andExpect(status().isOk())
            // 13 working days from Jan 1 to 15 (two Sundays), both nights worked: Jan 6 and Jan 7.
            .andExpect(jsonPath("$.resolvedRows[0].diasNoLaborados").value(11));
+    }
+
+    private TasSession seedSecondFortnightExit(String token, String exitDate) {
+        TasSession exitHalf = seedNightState(token, exitDate, TasFlag.MISSING_ENTRY, TasFlag.START_CUTOFF);
+        java.time.LocalDateTime exit = java.time.LocalDate.parse(exitDate).atTime(6, 0);
+        exitHalf.setLastScan(exit);
+        exitHalf.setScans(new ArrayList<>(List.of(exit)));
+        TasUploadState state = tasController.stateStore.get(token);
+        state.setReportStart(java.time.LocalDate.parse(exitDate));
+        TasScanRecord scan = new TasScanRecord();
+        scan.setEmployeeId("emp1");
+        scan.setTimestamp(exit);
+        state.setAllScans(new ArrayList<>(List.of(scan)));
+        useRealReportBuilder();
+        return exitHalf;
+    }
+
+    @Test
+    void resolve_aMovedNightThatWasTheOnlySessionStillLeavesARowForTheSecondFortnight() throws Exception {
+        seedSecondFortnightExit("only-tok", "2026-01-16");
+
+        // 14 working days from Jan 16 to 31 (two Sundays), none worked.
+        resolveNightForPeriod("only-tok", "2026-01-15 22:00", "2026-01-16 06:00", 2, 14);
+    }
+
+    @Test
+    void resolve_aMovedNightDoesNotOpenAFortnightTheFileDoesNotCover() throws Exception {
+        seedSecondFortnightExit("periods-tok", "2026-01-16");
+        Map<String, Object> res = new LinkedHashMap<>();
+        res.put("sessionId", 70);
+        res.put("resolvedStart", "2026-01-15 22:00");
+        res.put("resolvedEnd", "2026-01-16 06:00");
+
+        mvc.perform(post("/api/tas/resolve")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of("uploadToken", "periods-tok", "resolutions", List.of(res),
+                        "anio", 2026, "mes", 1, "numeroDequincena", 2))))
+           .andExpect(status().isOk())
+           .andExpect(jsonPath("$.availablePeriods.length()").value(1))
+           .andExpect(jsonPath("$.availablePeriods[0].numeroDequincena").value(2));
+    }
+
+    @Test
+    void resolve_aNightFromTheLastDayOfTheMonthIsPaidInThatMonth() throws Exception {
+        TasSession exitHalf = seedSecondFortnightExit("month-tok", "2026-02-01");
+        tasController.stateStore.get("month-tok").setReportEnd(java.time.LocalDate.of(2026, 2, 15));
+
+        Map<String, Object> res = new LinkedHashMap<>();
+        res.put("sessionId", 70);
+        res.put("resolvedStart", "2026-01-31 22:00");
+        res.put("resolvedEnd", "2026-02-01 06:00");
+        mvc.perform(post("/api/tas/resolve")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of("uploadToken", "month-tok", "resolutions", List.of(res),
+                        "anio", 2026, "mes", 2, "numeroDequincena", 1))))
+           .andExpect(status().isOk())
+           // The night belongs to January 31, so February pays none of its hours.
+           .andExpect(jsonPath("$.resolvedRows[0].mes").value(2))
+           .andExpect(jsonPath("$.resolvedRows[0].horasExtrasSimples").value(0.0));
+
+        assertThat(exitHalf.getDate()).isEqualTo(java.time.LocalDate.of(2026, 1, 31));
+    }
+
+    @Test
+    void resolve_aStartFarFromTheSessionsDayIsRefusedNamingIt() throws Exception {
+        TasSession s = seedNightState("hostile-tok", "2026-01-16", TasFlag.MISSING_ENTRY);
+        Map<String, Object> res = new LinkedHashMap<>();
+        res.put("sessionId", 70);
+        res.put("resolvedStart", "2025-06-01 07:00");
+        res.put("resolvedEnd", "2025-06-01 15:00");
+
+        mvc.perform(post("/api/tas/resolve")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of("uploadToken", "hostile-tok", "resolutions", List.of(res)))))
+           .andExpect(status().isBadRequest())
+           .andExpect(jsonPath("$.code").value("INVALID_TIME_RANGE"))
+           .andExpect(jsonPath("$.sessionId").value(70));
+        assertThat(s.getDate()).isEqualTo(java.time.LocalDate.of(2026, 1, 16));
+    }
+
+    @Test
+    void resolve_aDayLongerThanSixteenHoursIsRefused() throws Exception {
+        seedNightState("long-tok", "2026-01-16", TasFlag.MISSING_EXIT);
+        Map<String, Object> res = new LinkedHashMap<>();
+        res.put("sessionId", 70);
+        res.put("resolvedStart", "2026-01-16 07:00");
+        res.put("resolvedEnd", "2026-01-17 07:00");
+
+        mvc.perform(post("/api/tas/resolve")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of("uploadToken", "long-tok", "resolutions", List.of(res)))))
+           .andExpect(status().isBadRequest())
+           .andExpect(jsonPath("$.message").value("La jornada no puede durar más de 16 horas."));
     }
 
     // ── TASK-98: a double made of single scans ───────────────────────────────

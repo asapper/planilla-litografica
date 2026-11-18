@@ -51,6 +51,7 @@ public class TasController {
     private static final int MAX_TOKEN_LENGTH = 64;
     private static final int MAX_FILE_NAME_LENGTH = 255;
     private static final int MAX_PERIOD_LABEL_LENGTH = 64;
+    private static final long MAX_RESOLVED_SPAN_MINUTES = 16 * 60;
     private static final String DRAFT_OUTDATED_MESSAGE =
             "La sesión guardada es de otra versión de la aplicación y no se puede continuar.";
 
@@ -309,7 +310,8 @@ public class TasController {
             resp.put("resolvedRows", state.getResolvedRows());
             resp.put("flaggedSessions", remainingFlagged);
             resp.put("usedFallbackHolidays", state.isUsedFallbackHolidays());
-            resp.put("availablePeriods", reportBuilder.computeAvailablePeriods(sessions));
+            LocalDate[] dataRange = fileDataRange(state);
+            resp.put("availablePeriods", reportBuilder.computeAvailablePeriods(sessions, dataRange[0], dataRange[1]));
             resp.put("availableShifts", mapAvailableShifts(shifts));
             resp.put("sessionSummaries", buildSessionSummaries(sessions, periodFilter));
             return ResponseEntity.ok(resp);
@@ -396,6 +398,15 @@ public class TasController {
                 return sessionError("INVALID_TIME_RANGE",
                         "La hora de salida debe ser posterior a la hora de entrada.", session.getSessionId());
             }
+            if (session.getDate() != null && (start.toLocalDate().isBefore(session.getDate().minusDays(1))
+                    || start.toLocalDate().isAfter(session.getDate().plusDays(1)))) {
+                return sessionError("INVALID_TIME_RANGE",
+                        "La entrada debe ser el mismo día de la jornada, el anterior o el siguiente.", session.getSessionId());
+            }
+            if (java.time.Duration.between(start, end).toMinutes() > MAX_RESOLVED_SPAN_MINUTES) {
+                return sessionError("INVALID_TIME_RANGE",
+                        "La jornada no puede durar más de 16 horas.", session.getSessionId());
+            }
             plannedTimes.put(session, new LocalDateTime[] {start, end});
             operations.add(() -> applyResolvedTimes(session, start, end, shifts));
         } else if (acceptedShiftId != null) {
@@ -472,12 +483,9 @@ public class TasController {
                 assignShift(session, bestFit);
             }
         }
-        // A night anchored on its recorded exit starts the day before: date it by its start like a
-        // complete night, but never across the 15th/16th, which would drop it from this submission.
-        if (session.getDate() != null
-                && TasPeriod.of(start.toLocalDate()).equals(TasPeriod.of(session.getDate()))) {
-            session.setDate(start.toLocalDate());
-        }
+        // A night is paid on the day it starts, also across the 15th/16th: a night from the 15th into
+        // the 16th belongs to the first fortnight, so the second one must not pay its exit half again.
+        session.setDate(start.toLocalDate());
         session.setEffectiveStart(start);
         session.setLastScan(end);
         session.setScans(List.of(start, end));
@@ -754,16 +762,9 @@ public class TasController {
                     .map(r -> new TasPeriod(r.getAnio(), r.getMes(), r.getNumeroDequincena()))
                     .collect(Collectors.toList());
 
-            // The file's own scans: session dates move when a night is dated by a typed-in entry, and
-            // scans of ignored inactive employees would stretch the range.
-            Set<String> ignored = state.getIgnoredEmployeeIds() != null ? state.getIgnoredEmployeeIds() : Set.of();
-            List<TasScanRecord> scans = state.getAllScans() != null ? state.getAllScans() : Collections.emptyList();
-            List<LocalDate> scanDates = scans.stream()
-                    .filter(scan -> scan.getTimestamp() != null && !ignored.contains(scan.getEmployeeId()))
-                    .map(scan -> scan.getTimestamp().toLocalDate())
-                    .collect(Collectors.toList());
-            LocalDate dataStart = scanDates.stream().min(Comparator.naturalOrder()).orElse(state.getReportStart());
-            LocalDate dataEnd = scanDates.stream().max(Comparator.naturalOrder()).orElse(state.getReportEnd());
+            LocalDate[] dataRange = fileDataRange(state);
+            LocalDate dataStart = dataRange[0];
+            LocalDate dataEnd = dataRange[1];
 
             incomplete = reportBuilder
                     .findIncompletePeriods(dataStart, dataEnd, periods)
@@ -1037,6 +1038,21 @@ public class TasController {
         }
 
         return result;
+    }
+
+    // The file's own scans: session dates move when a night is dated by a typed-in entry, and
+    // scans of ignored inactive employees would stretch the range.
+    private static LocalDate[] fileDataRange(TasUploadState state) {
+        Set<String> ignored = state.getIgnoredEmployeeIds() != null ? state.getIgnoredEmployeeIds() : Set.of();
+        List<TasScanRecord> scans = state.getAllScans() != null ? state.getAllScans() : Collections.emptyList();
+        List<LocalDate> scanDates = scans.stream()
+                .filter(scan -> scan.getTimestamp() != null && !ignored.contains(scan.getEmployeeId()))
+                .map(scan -> scan.getTimestamp().toLocalDate())
+                .collect(Collectors.toList());
+        return new LocalDate[] {
+            scanDates.stream().min(Comparator.naturalOrder()).orElse(state.getReportStart()),
+            scanDates.stream().max(Comparator.naturalOrder()).orElse(state.getReportEnd()),
+        };
     }
 
     private Map<String, Object> buildResponseBody(String token, TasUploadResult result, long stateRevision) {

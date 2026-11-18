@@ -97,6 +97,27 @@ function calcHours(entry: string, exit: string, crossMidnight: boolean): string 
   return `${hours.toFixed(1)}h`;
 }
 
+function resolutionDates(
+  session: TasSession, resolved: ResolvedSessionEntry, isCrossMidnight: boolean,
+): { startDate: string; endDate: string } {
+  const date = session.date;
+  if (resolved.startDayOffset !== undefined || resolved.endDayOffset !== undefined) {
+    return {
+      startDate: shiftIsoDate(date, resolved.startDayOffset ?? 0),
+      endDate: shiftIsoDate(date, resolved.endDayOffset ?? 0),
+    };
+  }
+  const overnight = isCrossMidnight && toMinutes(resolved.resolvedEnd) <= toMinutes(resolved.resolvedStart);
+  // Anchor on the recorded scan: a recorded night exit sits on the day after the shift started.
+  const exitWasRecorded = session.flags.includes('MISSING_ENTRY') && !session.flags.includes('MISSING_EXIT');
+  const recordedExitDate = exitWasRecorded ? isoDateOf(session.lastScan) : null;
+  if (recordedExitDate) {
+    return { startDate: overnight ? shiftIsoDate(recordedExitDate, -1) : recordedExitDate, endDate: recordedExitDate };
+  }
+  const startDate = isoDateOf(session.effectiveStart) ?? date;
+  return { startDate, endDate: overnight ? shiftIsoDate(startDate, 1) : startDate };
+}
+
 function getSessionPeriod(dateStr: string): TasPeriod {
   const [anio, mes, day] = dateStr.split('-').map(Number);
   return { anio, mes, numeroDequincena: day <= 15 ? 1 : 2 };
@@ -502,15 +523,22 @@ function SessionCard({ session, confirmed, resolved, crossMidnight, highlighted,
   const hoursPreview = swappedSpanTooLong ? '—' : calcHours(entry, exit, swapped || crossMidnight);
   const timesInverted = !!entry && !!exit && hoursPreview === '—';
 
-  const confirm = () => {
-    if (!swapped) {
-      onConfirm(entry, exit);
-      return;
-    }
-    onConfirm(entry, exit, originallyNeedsEntry
+  const offsets: Pick<ResolvedSessionEntry, 'startDayOffset' | 'endDayOffset'> | undefined = swapped
+    ? (originallyNeedsEntry
       ? { startDayOffset: 0, endDayOffset: overnight ? 1 : 0 }
-      : { startDayOffset: overnight ? -1 : 0, endDayOffset: 0 });
-  };
+      : { startDayOffset: overnight ? -1 : 0, endDayOffset: 0 })
+    : undefined;
+  const confirm = () => onConfirm(entry, exit, offsets);
+
+  // A night is paid in the fortnight it starts in: one typed into the previous fortnight leaves this submission.
+  const startDate = entry && exit && !timesInverted
+    ? resolutionDates(session, { resolvedStart: entry, resolvedEnd: exit, ...offsets }, crossMidnight).startDate
+    : null;
+  const startPeriod = startDate ? getSessionPeriod(startDate) : null;
+  const paidElsewhere = !!startPeriod && !periodsEqual(startPeriod, getSessionPeriod(session.date));
+  const paidElsewhereNote = paidElsewhere && startDate && startPeriod
+    ? `Esta jornada empezó el ${formatDate(startDate)} y le corresponde a ${periodLabel(startPeriod)}, por eso no se incluye en este envío. Verifique que se haya pagado en esa quincena.`
+    : null;
   const canConfirm = (!needsEntry || !!entry) && (!needsExit || !!exit) && !timesInverted;
 
   if (confirmed && !editing && !highlighted) {
@@ -525,6 +553,9 @@ function SessionCard({ session, confirmed, resolved, crossMidnight, highlighted,
           <span className="font-medium text-on-surface">{session.employeeName}</span>
           <span className="mx-2 text-on-surface-variant">·</span>
           <span className="text-on-surface-variant text-body-sm">{formatDate(session.date)}</span>
+          {paidElsewhereNote && (
+            <p className="text-body-sm text-on-surface-variant mt-1">{paidElsewhereNote}</p>
+          )}
         </div>
         <span className="text-success text-body-sm font-medium">Confirmado</span>
         <span className="text-primary text-label-sm">Editar</span>
@@ -615,6 +646,10 @@ function SessionCard({ session, confirmed, resolved, crossMidnight, highlighted,
             ? 'La jornada no puede durar más de 16 horas'
             : `La entrada debe ser antes de la salida${crossMidnight || swapped ? '' : ' (mismo día)'}`}
         </p>
+      )}
+
+      {paidElsewhereNote && (
+        <p className="text-body-sm text-on-surface-variant mb-2" role="note">{paidElsewhereNote}</p>
       )}
 
       <button
@@ -762,27 +797,11 @@ export default function VerificationScreen() {
             && !discardedSessionIds.has(session.sessionId);
         }).map(([id, resolved]) => {
           const session = sessionById.get(Number(id));
-          const date = session?.date ?? '';
           const matchedShift = availableShifts.find(s => s.id === session?.matchedShiftId);
           const isCrossMidnight = matchedShift?.crossMidnight ?? session?.crossMidnight ?? false;
-          let startDate = date;
-          let endDate = date;
-          if (resolved.startDayOffset !== undefined || resolved.endDayOffset !== undefined) {
-            startDate = shiftIsoDate(date, resolved.startDayOffset ?? 0);
-            endDate   = shiftIsoDate(date, resolved.endDayOffset ?? 0);
-          } else if (date) {
-            const overnight = isCrossMidnight && toMinutes(resolved.resolvedEnd) <= toMinutes(resolved.resolvedStart);
-            // Anchor on the recorded scan: a recorded night exit sits on the day after the shift started.
-            const exitWasRecorded = !!session?.flags.includes('MISSING_ENTRY') && !session.flags.includes('MISSING_EXIT');
-            const recordedExitDate = exitWasRecorded ? isoDateOf(session?.lastScan) : null;
-            if (recordedExitDate) {
-              endDate = recordedExitDate;
-              startDate = overnight ? shiftIsoDate(recordedExitDate, -1) : recordedExitDate;
-            } else {
-              startDate = isoDateOf(session?.effectiveStart) ?? date;
-              endDate = overnight ? shiftIsoDate(startDate, 1) : startDate;
-            }
-          }
+          const { startDate, endDate } = session
+            ? resolutionDates(session, resolved, isCrossMidnight)
+            : { startDate: '', endDate: '' };
           return {
             sessionId: Number(id),
             resolvedStart: `${startDate} ${resolved.resolvedStart}`,

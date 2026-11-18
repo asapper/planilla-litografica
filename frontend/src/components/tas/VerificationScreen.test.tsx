@@ -1512,6 +1512,60 @@ describe('SessionCard entry/exit swap', () => {
   });
 });
 
+describe('VerificationScreen night across the 15th/16th (TASK-97)', () => {
+  const Q2: TasPeriod = { anio: 2026, mes: 3, numeroDequincena: 2 };
+  const NOTE = /Esta jornada empezó el 15 mar 2026 y le corresponde a Marzo 2026 - Quincena 1, por eso no se incluye en este envío\. Verifique que se haya pagado en esa quincena\./;
+
+  beforeEach(() => {
+    useTasStore.getState().setAvailablePeriods([Q2]);
+    useTasStore.getState().setUploadToken('tok-1');
+    mockResolveVerification.mockResolvedValue(mockResult);
+  });
+
+  it('a swapped exit on the 16th with its entry on the 15th says it is paid in the first fortnight', async () => {
+    useTasStore.getState().setFlaggedSessions([makeSession({
+      date: '2026-03-16', flags: ['MISSING_EXIT', 'BEST_FIT_SHIFT'],
+      scans: ['2026-03-16T07:02:00'], effectiveStart: '2026-03-16T07:02:00', lastScan: '2026-03-16T07:02:00',
+    })]);
+    render(<VerificationScreen />);
+    fireEvent.click(screen.getByRole('button', { name: 'Intercambiar entrada/salida' }));
+    expect(screen.queryByText(NOTE)).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Entrada'), { target: { value: '19:14' } });
+
+    expect(screen.getByText(NOTE)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmar' }));
+    fireEvent.click(screen.getByRole('button', { name: /Ana López/ }));
+    expect(screen.getByText('Confirmado')).toBeInTheDocument();
+    expect(screen.getByText(NOTE)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /revisar/i }));
+    await waitFor(() => expect(mockResolveVerification).toHaveBeenCalledOnce());
+    expect(mockResolveVerification.mock.calls[0][1]).toContainEqual(expect.objectContaining({
+      resolvedStart: '2026-03-15 19:14', resolvedEnd: '2026-03-16 07:02' }));
+  });
+
+  it('a recorded night exit on the 16th with a typed entry before midnight says so too', () => {
+    useTasStore.getState().setFlaggedSessions([makeSession({
+      date: '2026-03-16', flags: ['MISSING_ENTRY', 'START_CUTOFF'], crossMidnight: true,
+      matchedShiftId: 'noche', matchedShiftName: 'Noche',
+      scans: ['2026-03-16T06:00:00'], lastScan: '2026-03-16T06:00:00',
+    })]);
+    render(<VerificationScreen />);
+    fireEvent.change(screen.getByLabelText('Entrada'), { target: { value: '22:00' } });
+    expect(screen.getByText(NOTE)).toBeInTheDocument();
+  });
+
+  it('a night that starts on the 16th stays in this fortnight without the note', () => {
+    useTasStore.getState().setFlaggedSessions([makeSession({
+      date: '2026-03-16', flags: ['MISSING_EXIT'], crossMidnight: true,
+      matchedShiftId: 'noche', matchedShiftName: 'Noche',
+      scans: ['2026-03-16T22:00:00'], effectiveStart: '2026-03-16T22:00:00', lastScan: '2026-03-16T22:00:00',
+    })]);
+    render(<VerificationScreen />);
+    fireEvent.change(screen.getByLabelText('Salida'), { target: { value: '06:00' } });
+    expect(screen.queryByText(/Esta jornada empezó/)).not.toBeInTheDocument();
+  });
+});
+
 describe('VerificationScreen same-day double made of single scans (TASK-98)', () => {
   const MORNING = makeSession({
     sessionId: 1, date: '2026-03-10', flags: ['SAME_DAY_DOUBLE', 'MISSING_EXIT'],
