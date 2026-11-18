@@ -15,9 +15,13 @@
 
 ; The PowerShell script kills the JVM, then polls (up to ~10 s) until it is gone,
 ; exiting 0 once no bundled java.exe remains and 1 if one is still running.
+; The install path reaches it through an environment variable and is compared as a
+; literal prefix: pasted into the script, a ' in the path (C:\Users\O'Brien) broke the
+; quoting, and [ or ] were read as -like wildcards, so the backend was never stopped.
 !macro KillBundledBackend
   DetailPrint "Stopping any running backend (bundled JRE)..."
-  nsExec::ExecToLog `powershell -NoProfile -NonInteractive -Command "$$f = { Get-CimInstance Win32_Process | Where-Object { $$_.Name -eq 'java.exe' -and $$_.ExecutablePath -like '$INSTDIR\*' } }; & $$f | ForEach-Object { Stop-Process -Id $$_.ProcessId -Force -ErrorAction SilentlyContinue }; for ($$i = 0; $$i -lt 20; $$i++) { if (-not (& $$f)) { exit 0 }; Start-Sleep -Milliseconds 500 }; exit 1"`
+  System::Call 'kernel32::SetEnvironmentVariable(t "PLANILLA_INSTDIR", t "$INSTDIR")i'
+  nsExec::ExecToLog `powershell -NoProfile -NonInteractive -Command "$$d = $$env:PLANILLA_INSTDIR.TrimEnd('\') + '\'; $$f = { Get-CimInstance Win32_Process | Where-Object { $$_.Name -eq 'java.exe' -and $$_.ExecutablePath -and $$_.ExecutablePath.StartsWith($$d, [System.StringComparison]::OrdinalIgnoreCase) } }; & $$f | ForEach-Object { Stop-Process -Id $$_.ProcessId -Force -ErrorAction SilentlyContinue }; for ($$i = 0; $$i -lt 20; $$i++) { if (-not (& $$f)) { exit 0 }; Start-Sleep -Milliseconds 500 }; exit 1"`
   Pop $0
   ${If} $0 == "0"
     DetailPrint "Backend stopped."
