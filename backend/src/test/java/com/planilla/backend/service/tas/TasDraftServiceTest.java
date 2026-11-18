@@ -66,7 +66,7 @@ class TasDraftServiceTest {
         return state;
     }
 
-    private TasUploadResult realPipelineResult(List<TasScanRecord> scans) {
+    private TasUploadResult fullPipelineResult(List<TasScanRecord> scans) {
         EmployeeRegistryService registry = mock(EmployeeRegistryService.class);
         HolidayService holidays = mock(HolidayService.class);
         ShiftConfigService shiftConfig = mock(ShiftConfigService.class);
@@ -103,12 +103,12 @@ class TasDraftServiceTest {
         byte[] csv = Files.readAllBytes(Paths.get("src/test/resources/fixtures/multi-employee-march.csv"));
         List<TasScanRecord> scans = new TasParserService()
                 .parse(new MockMultipartFile("file", "m.csv", "text/csv", csv)).scans;
-        TasUploadResult result = realPipelineResult(scans);
-        TasUploadState state = TasUploadState.from("tok-real", result, scans, Set.of());
+        TasUploadResult result = fullPipelineResult(scans);
+        TasUploadState state = TasUploadState.from("tok-full", result, scans, Set.of());
         state.setRevision(1);
         assertThat(state.getSessions()).isNotEmpty();
 
-        service.save("tok-real", state, ui("{\"tasView\":\"review\"}"), "marzo.csv", "review", "Marzo 2026 - Quincena 2");
+        service.save("tok-full", state, ui("{\"tasView\":\"review\"}"), "marzo.csv", "review", "Marzo 2026 - Quincena 2");
 
         TasDraftService.Draft draft = service.load().orElseThrow();
         assertThat(mapper.writeValueAsString(draft.state().getSessions()))
@@ -120,7 +120,7 @@ class TasDraftServiceTest {
         assertThat(draft.state().getReportStart()).isEqualTo(state.getReportStart());
         assertThat(draft.state().getReportEnd()).isEqualTo(state.getReportEnd());
         assertThat(draft.state().getRevision()).isEqualTo(1);
-        assertThat(draft.uploadToken()).isEqualTo("tok-real");
+        assertThat(draft.uploadToken()).isEqualTo("tok-full");
         assertThat(draft.fileName()).isEqualTo("marzo.csv");
         assertThat(draft.view()).isEqualTo("review");
         assertThat(draft.periodLabel()).isEqualTo("Marzo 2026 - Quincena 2");

@@ -149,13 +149,17 @@ class TasParserServiceTest {
     @Test
     void parse_sampleTasFile_multiEmployeeMarch() throws Exception {
         TasParserService.ParseResult result = service.parse(fixtureFile("multi-employee-march.csv"));
-        assertThat(result.scans).isNotEmpty();
+        assertThat(result.scans).hasSize(2018);
+        assertThat(result.warnings).isEmpty();
+        assertThat(result.scans.stream().map(TasScanRecord::getEmployeeId).distinct()).hasSize(60);
     }
 
     @Test
     void parse_sampleTasFile_multiEmployeeMarchApril() throws Exception {
         TasParserService.ParseResult result = service.parse(fixtureFile("multi-employee-march-april.csv"));
-        assertThat(result.scans).isNotEmpty();
+        assertThat(result.scans).hasSize(4028);
+        assertThat(result.warnings).isEmpty();
+        assertThat(result.scans.stream().map(TasScanRecord::getEmployeeId).distinct()).hasSize(62);
     }
 
     @Test
