@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Fixes
+- **The installer stops the running backend whatever the install path.** The install path was pasted into a quoted PowerShell script and matched with `-like`. A `'` in the path (a per-user install under `C:\Users\O'Brien`) broke the script, and `[` or `]` were read as wildcards, so a running backend kept the JRE files locked and the update failed. The path now reaches the script through an environment variable, and only the bundled `jre\bin\java.exe` is matched, by its full path. A drive-root install doesn't stop other Java programs on that drive. A missing path or an unreadable process list is reported as a failure instead of "Backend stopped."
+
 ## v1.3.0 — 2026-11-18
 
 Resume an interrupted session, a safe close, and fixes to how verification handles lone scans, typed-in nights and the 15th/16th cut.
