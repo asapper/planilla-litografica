@@ -677,4 +677,21 @@ class TasSmokeTest {
         assertThat(session.getFlags()).contains(TasFlag.MISSING_EXIT);
         assertThat(session.getWorkedHours()).isEqualTo(0);
     }
+
+    @Test
+    void test28_sameDayDoubleOfSingleScans_isTwoMissingExitsThatNeedTimes() throws Exception {
+        TasUploadResult result = processFile("28-same-day-double-single-scans.csv");
+
+        List<TasSession> day = result.getAllSessions().stream()
+                .filter(s -> s.getDate().equals(LocalDate.of(2026, 9, 29)))
+                .collect(Collectors.toList());
+        assertThat(day).hasSize(2);
+        assertThat(day).allSatisfy(s -> {
+            assertThat(s.getScans()).hasSize(1);
+            assertThat(s.getFlags()).contains(TasFlag.SAME_DAY_DOUBLE, TasFlag.MISSING_EXIT);
+            assertThat(s.isNeedsResolution()).isTrue();
+            assertThat(s.getWorkedMinutes()).isZero();
+        });
+        assertThat(goesToVerification(result)).isTrue();
+    }
 }

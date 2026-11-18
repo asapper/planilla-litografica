@@ -256,8 +256,16 @@ El sistema detectó dos sesiones de trabajo diferentes para el mismo empleado en
 
 **Qué hacer:**
 1. Revise ambas sesiones detectadas.
-2. La opción **"Mantener todas"** viene seleccionada y se aplica sola: no necesita hacer nada para continuar, y la tarjeta no cuenta como pendiente.
+2. La opción **"Mantener todas"** viene seleccionada y se aplica sola: no necesita hacer nada para continuar, y la tarjeta no cuenta como pendiente. La excepción: si a una sesión que se conserva le falta una marcación, hay que completar su hora (vea **Marcaciones sueltas** más abajo).
 3. Si una de las sesiones sobra, seleccione la que desea conservar. La tarjeta se cierra y muestra **"Confirmado"**; puede reabrirla con **"Editar"**.
+
+**Marcaciones sueltas.** Si cada sesión de la doble marcación tiene una sola marcación (por ejemplo 07:08 y 22:03), la tarjeta dice *"Cada marcación está sola: falta la otra marcación de cada jornada."* y la tarjeta cuenta como pendiente hasta que complete las horas:
+
+- **"Una sola jornada (07:08 – 22:03)"**: fue un solo día largo; se cuenta de la primera a la última marcación y la otra marcación se descarta. Solo aparece si las marcaciones están a 16 horas o menos.
+- **Una de las sesiones**: se conserva esa marcación y debajo aparece su tarjeta para escribir la hora que falta. La otra se descarta.
+- **"Mantener todas"**: aparecen las dos tarjetas y debe completar ambas.
+
+Las horas se envían junto con la elección al pulsar **"Revisar"**, en un solo paso.
 
 #### Jornada corta
 
@@ -276,12 +284,17 @@ Si la salida queda antes de la entrada en un turno de día, verá **"La hora de 
 
 **Etiqueta:** `Corte de período`
 
-La sesión de trabajo del empleado cruza el límite entre dos quincenas (por ejemplo, entrada el día 15 y salida el día 16). La aplicación asigna la sesión al período que contiene la mayor parte de las horas trabajadas.
+Un turno de noche toca el primer o el último día del archivo, así que puede faltar la otra mitad de la jornada (por ejemplo, entrada el día 15 y salida el día 16).
+
+**Una jornada de noche se paga en la quincena del día en que empezó**, nunca en las dos. Una noche del 15 al 16 se paga en la primera quincena:
+
+- Al procesar la **primera quincena**, la entrada del 15 aparece sin salida: escriba la hora de salida del 16 y la jornada se paga en esa quincena.
+- Al procesar la **segunda quincena**, la salida del 16 aparece sin entrada. Si escribe una entrada del día 15, la tarjeta muestra *"Esta jornada empezó el 15 … y le corresponde a … Quincena 1, por eso no se incluye en este envío. Verifique que se haya pagado en esa quincena."* La jornada no se vuelve a pagar en la segunda quincena.
+- Si el archivo de la primera quincena se exportó antes de que empezara esa noche, la entrada del 15 no estaba en él y la jornada no se pagó en ninguna quincena. Revise ese caso antes de enviar la segunda quincena.
 
 **Qué hacer:**
-1. Revise las horas de entrada y salida que muestra el sistema.
-2. Verifique que la asignación al período es correcta.
-3. Haga clic en **"Confirmar"**.
+1. Revise las horas de entrada y salida que muestra el sistema y complete la que falta.
+2. Haga clic en **"Confirmar"**.
 
 #### Turno estimado
 

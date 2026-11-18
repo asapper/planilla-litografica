@@ -51,6 +51,7 @@ public class TasController {
     private static final int MAX_TOKEN_LENGTH = 64;
     private static final int MAX_FILE_NAME_LENGTH = 255;
     private static final int MAX_PERIOD_LABEL_LENGTH = 64;
+    private static final long MAX_RESOLVED_SPAN_MINUTES = 16 * 60;
     private static final String DRAFT_OUTDATED_MESSAGE =
             "La sesión guardada es de otra versión de la aplicación y no se puede continuar.";
 
@@ -264,22 +265,29 @@ public class TasController {
 
             // Validate the whole batch before touching the state: a 400 halfway through
             // must leave the state and its revision exactly as they were.
+            // Double choices run before typed times: typing times clears a session's flags, which
+            // would take a kept half out of its double and keep the discarded half too.
+            List<Runnable> doubleOperations = new ArrayList<>();
             List<Runnable> operations = new ArrayList<>();
             Map<TasSession, LocalDateTime[]> plannedTimes = new LinkedHashMap<>();
+            Map<String, Object> doubleChoices = new HashMap<>();
             for (Object item : resolutions) {
                 if (!(item instanceof Map<?, ?> res)) {
                     return error(400, "INVALID_FIELD_FORMAT", "Cada resolución debe ser un objeto.");
                 }
-                ResponseEntity<Map<String, Object>> invalid =
-                        planResolution(res, flaggedBySessionId, allSessions, shifts, operations, plannedTimes);
+                ResponseEntity<Map<String, Object>> invalid = planResolution(res, flaggedBySessionId, allSessions,
+                        shifts, doubleOperations, operations, plannedTimes, doubleChoices);
                 if (invalid != null) return invalid;
             }
+            ResponseEntity<Map<String, Object>> discardedWithTimes = findDiscardedWithTimes(plannedTimes, doubleChoices, allSessions);
+            if (discardedWithTimes != null) return discardedWithTimes;
             ResponseEntity<Map<String, Object>> overlap = findOverlap(plannedTimes, allSessions);
             if (overlap != null) return overlap;
 
             // Once applying starts the state may be half-mutated even if a step throws: bump anyway
             // so a pending autosave carrying the old revision is refused instead of pairing it.
             try {
+                doubleOperations.forEach(Runnable::run);
                 operations.forEach(Runnable::run);
                 if (periodFilter != null) {
                     state.setResolvedPeriod(periodFilter);
@@ -302,7 +310,8 @@ public class TasController {
             resp.put("resolvedRows", state.getResolvedRows());
             resp.put("flaggedSessions", remainingFlagged);
             resp.put("usedFallbackHolidays", state.isUsedFallbackHolidays());
-            resp.put("availablePeriods", reportBuilder.computeAvailablePeriods(sessions));
+            LocalDate[] dataRange = fileDataRange(state);
+            resp.put("availablePeriods", reportBuilder.computeAvailablePeriods(sessions, dataRange[0], dataRange[1]));
             resp.put("availableShifts", mapAvailableShifts(shifts));
             resp.put("sessionSummaries", buildSessionSummaries(sessions, periodFilter));
             return ResponseEntity.ok(resp);
@@ -314,8 +323,10 @@ public class TasController {
             Map<Integer, TasSession> flaggedBySessionId,
             List<TasSession> sessions,
             List<Map<String, Object>> shifts,
+            List<Runnable> doubleOperations,
             List<Runnable> operations,
-            Map<TasSession, LocalDateTime[]> plannedTimes) {
+            Map<TasSession, LocalDateTime[]> plannedTimes,
+            Map<String, Object> doubleChoices) {
 
         Object employeeIdObj = res.get("employeeId");
         Object dateObj = res.get("date");
@@ -336,7 +347,8 @@ public class TasController {
             } catch (java.time.format.DateTimeParseException e) {
                 return error(400, "INVALID_TIME_FORMAT", "Formato de fecha inválido. Use yyyy-MM-dd.");
             }
-            operations.add(() -> applySameDayDoubleResolution(
+            doubleChoices.put(employeeId + "|" + resolutionDate, keepSessionIdObj);
+            doubleOperations.add(() -> applySameDayDoubleResolution(
                     sessions, employeeId, resolutionDate, keepSessionIdObj, shifts));
             return null;
         }
@@ -386,12 +398,45 @@ public class TasController {
                 return sessionError("INVALID_TIME_RANGE",
                         "La hora de salida debe ser posterior a la hora de entrada.", session.getSessionId());
             }
+            if (session.getDate() != null && (start.toLocalDate().isBefore(session.getDate().minusDays(1))
+                    || start.toLocalDate().isAfter(session.getDate().plusDays(1)))) {
+                return sessionError("INVALID_TIME_RANGE",
+                        "La entrada debe ser el mismo día de la jornada, el anterior o el siguiente.", session.getSessionId());
+            }
+            if (java.time.Duration.between(start, end).toMinutes() > MAX_RESOLVED_SPAN_MINUTES) {
+                return sessionError("INVALID_TIME_RANGE",
+                        "La jornada no puede durar más de 16 horas.", session.getSessionId());
+            }
             plannedTimes.put(session, new LocalDateTime[] {start, end});
             operations.add(() -> applyResolvedTimes(session, start, end, shifts));
         } else if (acceptedShiftId != null) {
             operations.add(() -> applyAcceptedShift(session, acceptedShiftId, shifts));
         }
         return null;
+    }
+
+    private static ResponseEntity<Map<String, Object>> findDiscardedWithTimes(
+            Map<TasSession, LocalDateTime[]> plannedTimes, Map<String, Object> doubleChoices,
+            List<TasSession> sessions) {
+        for (TasSession session : plannedTimes.keySet()) {
+            if (!inDouble(session)) continue;
+            Object keep = doubleChoices.get(session.getEmployeeId() + "|" + session.getDate());
+            // A kept id outside the group keeps them all (see applySameDayDoubleResolution).
+            boolean keptIsInGroup = keep instanceof Number kept && sessions.stream().anyMatch(other ->
+                    other.getSessionId() == kept.intValue() && inDouble(other)
+                            && Objects.equals(other.getEmployeeId(), session.getEmployeeId())
+                            && Objects.equals(other.getDate(), session.getDate()));
+            if (keptIsInGroup && ((Number) keep).intValue() != session.getSessionId()) {
+                return sessionError("DISCARDED_SESSION_WITH_TIMES",
+                        "Esta marcación se descartó en la doble marcación; no se le pueden asignar horas.",
+                        session.getSessionId());
+            }
+        }
+        return null;
+    }
+
+    private static boolean inDouble(TasSession session) {
+        return session.getFlags() != null && session.getFlags().contains(TasFlag.SAME_DAY_DOUBLE);
     }
 
     /**
@@ -438,12 +483,9 @@ public class TasController {
                 assignShift(session, bestFit);
             }
         }
-        // A night anchored on its recorded exit starts the day before: date it by its start like a
-        // complete night, but never across the 15th/16th, which would drop it from this submission.
-        if (session.getDate() != null
-                && TasPeriod.of(start.toLocalDate()).equals(TasPeriod.of(session.getDate()))) {
-            session.setDate(start.toLocalDate());
-        }
+        // A night is paid on the day it starts, also across the 15th/16th: a night from the 15th into
+        // the 16th belongs to the first fortnight, so the second one must not pay its exit half again.
+        session.setDate(start.toLocalDate());
         session.setEffectiveStart(start);
         session.setLastScan(end);
         session.setScans(List.of(start, end));
@@ -720,16 +762,9 @@ public class TasController {
                     .map(r -> new TasPeriod(r.getAnio(), r.getMes(), r.getNumeroDequincena()))
                     .collect(Collectors.toList());
 
-            // The file's own scans: session dates move when a night is dated by a typed-in entry, and
-            // scans of ignored inactive employees would stretch the range.
-            Set<String> ignored = state.getIgnoredEmployeeIds() != null ? state.getIgnoredEmployeeIds() : Set.of();
-            List<TasScanRecord> scans = state.getAllScans() != null ? state.getAllScans() : Collections.emptyList();
-            List<LocalDate> scanDates = scans.stream()
-                    .filter(scan -> scan.getTimestamp() != null && !ignored.contains(scan.getEmployeeId()))
-                    .map(scan -> scan.getTimestamp().toLocalDate())
-                    .collect(Collectors.toList());
-            LocalDate dataStart = scanDates.stream().min(Comparator.naturalOrder()).orElse(state.getReportStart());
-            LocalDate dataEnd = scanDates.stream().max(Comparator.naturalOrder()).orElse(state.getReportEnd());
+            LocalDate[] dataRange = fileDataRange(state);
+            LocalDate dataStart = dataRange[0];
+            LocalDate dataEnd = dataRange[1];
 
             incomplete = reportBuilder
                     .findIncompletePeriods(dataStart, dataEnd, periods)
@@ -1003,6 +1038,21 @@ public class TasController {
         }
 
         return result;
+    }
+
+    // The file's own scans: session dates move when a night is dated by a typed-in entry, and
+    // scans of ignored inactive employees would stretch the range.
+    private static LocalDate[] fileDataRange(TasUploadState state) {
+        Set<String> ignored = state.getIgnoredEmployeeIds() != null ? state.getIgnoredEmployeeIds() : Set.of();
+        List<TasScanRecord> scans = state.getAllScans() != null ? state.getAllScans() : Collections.emptyList();
+        List<LocalDate> scanDates = scans.stream()
+                .filter(scan -> scan.getTimestamp() != null && !ignored.contains(scan.getEmployeeId()))
+                .map(scan -> scan.getTimestamp().toLocalDate())
+                .collect(Collectors.toList());
+        return new LocalDate[] {
+            scanDates.stream().min(Comparator.naturalOrder()).orElse(state.getReportStart()),
+            scanDates.stream().max(Comparator.naturalOrder()).orElse(state.getReportEnd()),
+        };
     }
 
     private Map<String, Object> buildResponseBody(String token, TasUploadResult result, long stateRevision) {
