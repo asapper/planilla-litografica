@@ -40,7 +40,8 @@ class TasDraftShapeTest {
         String actual = String.join("\n", shapeOf(TasUploadState.class)) + "\n";
         String name = "tas-draft/backend-shape-v" + TasDraftService.SCHEMA_VERSION + ".txt";
         try (InputStream in = getClass().getClassLoader().getResourceAsStream(name)) {
-            if (in == null || !new String(in.readAllBytes(), StandardCharsets.UTF_8).equals(actual)) {
+            // A Windows checkout may turn the file's line endings into CRLF.
+            if (in == null || !new String(in.readAllBytes(), StandardCharsets.UTF_8).replace("\r\n", "\n").equals(actual)) {
                 Path written = Path.of("target", "backend-shape-actual.txt");
                 Files.writeString(written, actual);
                 fail("The saved draft's shape changed (actual shape in " + written.toAbsolutePath()

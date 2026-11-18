@@ -120,7 +120,8 @@ describe('saved draft shape', () => {
   it('matches DRAFT_UI_VERSION', () => {
     const actual = shapeOf(resolve(__dirname, 'tasDraft.ts'), 'TasSnapshot');
     const file = shapeFile(DRAFT_UI_VERSION);
-    const recorded = existsSync(file) ? readFileSync(file, 'utf8').trimEnd().split('\n') : [];
+    // A Windows checkout may turn the file's line endings into CRLF.
+    const recorded = existsSync(file) ? readFileSync(file, 'utf8').trimEnd().split(/\r?\n/) : [];
     const result = compareShapes(recorded, actual);
     if (result !== 'same') {
       const written = resolve(SHAPES_DIR, 'ui-shape-actual.txt');
