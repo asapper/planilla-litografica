@@ -1,14 +1,14 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import axios from 'axios';
 import { useTasStore, type ResolvedSessionEntry } from '../../tasStore';
 import { resolveVerification } from '../../tasApi';
 import type { TasResolution } from '../../tasApi';
 import { MONTH_NAMES_ES } from '../../dateNames';
-import type { TasSession, TasFlag, TasPeriod, ShiftOption } from '../../tasTypes';
+import type { TasSession, TasFlag, TasPeriod, ShiftOption, DoubleChoice } from '../../tasTypes';
 import { useToastStore } from '../../toastStore';
 import AlertMessage from '../ui/AlertMessage';
 import EmployeeGroup from './EmployeeGroup';
-import { buildEmployeeGroups } from './verificationGrouping';
+import { buildEmployeeGroups, keptSessions, needsTimes } from './verificationGrouping';
 
 const FLAG_LABELS: Record<TasFlag, string> = {
   MISSING_ENTRY:   'Falta entrada',
@@ -228,22 +228,59 @@ function ShiftMismatchCard({ session, availableShifts, acceptedShiftId, onChange
   );
 }
 
-interface SameDayDoubleGroupCardProps {
-  sessions: TasSession[];
-  choice: number | 'all';
-  resolved: boolean;
-  onChange: (keepSessionId: number | 'all') => void;
+interface MergedDay {
+  sessionId: number;
+  start: string;
+  end: string;
 }
 
-function SameDayDoubleGroupCard({ sessions, choice, resolved, onChange }: SameDayDoubleGroupCardProps) {
+// Two lone scans on one day (07:08 and 22:03) are usually one long day the grouper split, or an
+// entry whose exit was missed: offer them as one day from the first scan to the last.
+function mergeableDay(sessions: TasSession[]): MergedDay | null {
+  if (sessions.length !== 2 || !sessions.every(s => s.scans.length === 1 && needsTimes(s))) return null;
+  const [first, last] = [...sessions].sort((x, y) => x.scans[0].localeCompare(y.scans[0]));
+  const spanMinutes = (new Date(last.scans[0]).getTime() - new Date(first.scans[0]).getTime()) / 60_000;
+  if (spanMinutes <= 0 || spanMinutes > MAX_SWAPPED_SPAN_MINUTES) return null;
+  return { sessionId: first.sessionId, start: toHHMM(first.scans[0]), end: toHHMM(last.scans[0]) };
+}
+
+function mergedDay(
+  sessions: TasSession[], choice: DoubleChoice | undefined, resolvedSessions: Record<number, ResolvedSessionEntry>,
+): MergedDay | null {
+  const day = mergeableDay(sessions);
+  const times = day ? resolvedSessions[day.sessionId] : undefined;
+  return day && choice === day.sessionId && times?.resolvedStart === day.start && times?.resolvedEnd === day.end
+    ? day
+    : null;
+}
+
+interface SameDayDoubleGroupCardProps {
+  sessions: TasSession[];
+  choice: DoubleChoice;
+  decided: boolean;
+  resolvedSessions: Record<number, ResolvedSessionEntry>;
+  renderSessionCard: (session: TasSession) => ReactNode;
+  onChange: (keepSessionId: DoubleChoice) => void;
+  onMerge: (day: MergedDay) => void;
+}
+
+function SameDayDoubleGroupCard({
+  sessions, choice, decided, resolvedSessions, renderSessionCard, onChange, onMerge,
+}: SameDayDoubleGroupCardProps) {
   const first = sessions[0];
   const [editing, setEditing] = useState(false);
+  const mergeable = mergeableDay(sessions);
+  const merged = !!mergedDay(sessions, choice, resolvedSessions);
+  const needingTimes = merged ? [] : keptSessions(sessions, choice).filter(needsTimes);
+  const timesMissing = needingTimes.some(s => !resolvedSessions[s.sessionId]);
 
-  if (resolved && !editing) {
+  if (decided && !timesMissing && !editing) {
     const kept = choice === 'all' ? null : sessions.find(s => s.sessionId === choice);
-    const summary = kept
-      ? `${kept.matchedShiftName ?? '—'} (${toHHMM(kept.effectiveStart)}–${toHHMM(kept.lastScan)})`
-      : 'Mantener todas';
+    const summary = merged
+      ? `Una sola jornada (${mergeable?.start}–${mergeable?.end})`
+      : kept
+        ? `${kept.matchedShiftName ?? '—'} (${toHHMM(kept.effectiveStart)}–${toHHMM(kept.lastScan)})`
+        : 'Mantener todas';
     return (
       <button
         type="button"
@@ -264,6 +301,7 @@ function SameDayDoubleGroupCard({ sessions, choice, resolved, onChange }: SameDa
     );
   }
 
+  const radioName = `same-day-double-${first.employeeId}-${first.date}`;
   return (
     <div className="bg-surface-container-lowest rounded-shape-md border border-outline-variant p-4 shadow-sm">
       <div className="flex items-center gap-3 mb-2">
@@ -274,13 +312,25 @@ function SameDayDoubleGroupCard({ sessions, choice, resolved, onChange }: SameDa
         </span>
       </div>
 
+      {mergeable && (
+        <p className="text-body-sm text-on-surface-variant mb-2">
+          Cada marcación está sola: falta la otra marcación de cada jornada.
+        </p>
+      )}
+
       <div className="flex flex-col gap-2 mb-3">
+        {mergeable && (
+          <label className="flex items-center gap-2 text-body-sm text-on-surface cursor-pointer">
+            <input type="radio" name={radioName} checked={merged} onChange={() => onMerge(mergeable)} />
+            Una sola jornada ({mergeable.start} – {mergeable.end})
+          </label>
+        )}
         {sessions.map(session => (
           <label key={session.sessionId} className="flex items-center gap-2 text-body-sm text-on-surface cursor-pointer">
             <input
               type="radio"
-              name={`same-day-double-${first.employeeId}-${first.date}`}
-              checked={choice === session.sessionId}
+              name={radioName}
+              checked={choice === session.sessionId && !merged}
               onChange={() => onChange(session.sessionId)}
             />
             {session.matchedShiftName ?? '—'} ({toHHMM(session.effectiveStart)}–{toHHMM(session.lastScan)}) — marcaciones:{' '}
@@ -288,25 +338,24 @@ function SameDayDoubleGroupCard({ sessions, choice, resolved, onChange }: SameDa
           </label>
         ))}
         <label className="flex items-center gap-2 text-body-sm text-on-surface cursor-pointer">
-          <input
-            type="radio"
-            name={`same-day-double-${first.employeeId}-${first.date}`}
-            checked={choice === 'all'}
-            onChange={() => onChange('all')}
-          />
+          <input type="radio" name={radioName} checked={choice === 'all'} onChange={() => onChange('all')} />
           Mantener todas
         </label>
       </div>
 
-      {editing ? (
-        <button
-          type="button"
-          onClick={() => setEditing(false)}
-          className="m3-btn-filled"
-        >
+      {needingTimes.length > 0 && (
+        <div className="flex flex-col gap-3 mb-3">
+          {needingTimes.map(session => (
+            <div key={session.sessionId}>{renderSessionCard(session)}</div>
+          ))}
+        </div>
+      )}
+
+      {editing && !timesMissing ? (
+        <button type="button" onClick={() => setEditing(false)} className="m3-btn-filled">
           Listo
         </button>
-      ) : (
+      ) : needingTimes.length === 0 && (
         <p className="text-label-sm text-on-surface-variant">
           Esta opción se aplicará automáticamente si no realiza ningún cambio.
         </p>
@@ -671,7 +720,8 @@ export default function VerificationScreen() {
     sameDayDoubleGroups.set(key, group);
   }
 
-  const rawGroups = buildEmployeeGroups(regular, allShiftMismatchOnly, sameDayDoubleGroups, resolvedSessions);
+  const rawGroups = buildEmployeeGroups(
+    regular, allShiftMismatchOnly, sameDayDoubleGroups, resolvedSessions, sameDayDoubleResolutions);
 
   // Freeze the initial sort order so that resolving an employee's items doesn't
   // move their group to the bottom of the list mid-session. Reset when the
@@ -709,13 +759,43 @@ export default function VerificationScreen() {
     });
   };
 
+  const renderSessionCard = (session: TasSession) => {
+    const matchedShift = availableShifts.find(s => s.id === session.matchedShiftId);
+    return (
+      <SessionCard
+        key={session.sessionId}
+        session={session}
+        confirmed={!!resolvedSessions[session.sessionId]}
+        resolved={resolvedSessions[session.sessionId]}
+        crossMidnight={matchedShift?.crossMidnight ?? session.crossMidnight}
+        highlighted={highlightedSessionId === session.sessionId}
+        onConfirm={(resolvedStart, resolvedEnd, offsets) => {
+          setResolvedSession(session.sessionId, { resolvedStart, resolvedEnd, ...offsets });
+          if (highlightedSessionId === session.sessionId) setHighlightedSessionId(null);
+        }}
+      />
+    );
+  };
+
+  // Times typed for a half the user then discarded must not be sent: the backend refuses them.
+  const discardedSessionIds = new Set<number>();
+  for (const [groupKey, sessions] of sameDayDoubleGroups) {
+    const kept = keptSessions(sessions, sameDayDoubleResolutions[groupKey]);
+    for (const s of sessions) if (!kept.includes(s)) discardedSessionIds.add(s.sessionId);
+  }
+
   const handleSubmit = async () => {
     if (!uploadToken) return;
     setHighlightedSessionId(null);
     const sessionById = new Map(flaggedSessions.map(s => [s.sessionId, s]));
     try {
       const resolutions: TasResolution[] = [
-        ...Object.entries(resolvedSessions).map(([id, resolved]) => {
+        // Only this period's times: the others go with their own period's choices, when it is sent.
+        ...Object.entries(resolvedSessions).filter(([id]) => {
+          const session = sessionById.get(Number(id));
+          return !!session && periodsEqual(getSessionPeriod(session.date), selectedPeriod)
+            && !discardedSessionIds.has(session.sessionId);
+        }).map(([id, resolved]) => {
           const session = sessionById.get(Number(id));
           const matchedShift = availableShifts.find(s => s.id === session?.matchedShiftId);
           const isCrossMidnight = matchedShift?.crossMidnight ?? session?.crossMidnight ?? false;
@@ -844,23 +924,8 @@ export default function VerificationScreen() {
               >
                 {group.items.map(item => {
                   switch (item.type) {
-                    case 'session': {
-                      const matchedShift = availableShifts.find(s => s.id === item.session.matchedShiftId);
-                      return (
-                        <SessionCard
-                          key={item.session.sessionId}
-                          session={item.session}
-                          confirmed={!!resolvedSessions[item.session.sessionId]}
-                          resolved={resolvedSessions[item.session.sessionId]}
-                          crossMidnight={matchedShift?.crossMidnight ?? item.session.crossMidnight}
-                          highlighted={highlightedSessionId === item.session.sessionId}
-                          onConfirm={(resolvedStart, resolvedEnd, offsets) => {
-                            setResolvedSession(item.session.sessionId, { resolvedStart, resolvedEnd, ...offsets });
-                            if (highlightedSessionId === item.session.sessionId) setHighlightedSessionId(null);
-                          }}
-                        />
-                      );
-                    }
+                    case 'session':
+                      return renderSessionCard(item.session);
                     case 'shift_mismatch':
                       return (
                         <ShiftMismatchCard
@@ -877,8 +942,28 @@ export default function VerificationScreen() {
                           key={item.groupKey}
                           sessions={item.sessions}
                           choice={sameDayDoubleResolutions[item.groupKey] ?? 'all'}
-                          resolved={sameDayDoubleResolutions[item.groupKey] !== undefined}
-                          onChange={(keepSessionId) => setSameDayDoubleResolution(item.groupKey, keepSessionId)}
+                          decided={sameDayDoubleResolutions[item.groupKey] !== undefined}
+                          resolvedSessions={resolvedSessions}
+                          renderSessionCard={renderSessionCard}
+                          onChange={(keepSessionId) => {
+                            const merged = mergedDay(item.sessions, sameDayDoubleResolutions[item.groupKey], resolvedSessions);
+                            if (merged) clearResolvedSession(merged.sessionId);
+                            setSameDayDoubleResolution(item.groupKey, keepSessionId);
+                            const leavesTimesMissing = keptSessions(item.sessions, keepSessionId)
+                              .some(s => needsTimes(s) && (!resolvedSessions[s.sessionId] || s.sessionId === merged?.sessionId));
+                            // That choice reopens the group by default; drop a manual collapse so it doesn't close under the user.
+                            if (leavesTimesMissing) {
+                              setExpansionOverrides(prev => {
+                                const next = new Set(prev);
+                                next.delete(group.employeeId);
+                                return next;
+                              });
+                            }
+                          }}
+                          onMerge={(day) => {
+                            setSameDayDoubleResolution(item.groupKey, day.sessionId);
+                            setResolvedSession(day.sessionId, { resolvedStart: day.start, resolvedEnd: day.end });
+                          }}
                         />
                       );
                   }

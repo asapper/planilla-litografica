@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildEmployeeGroups } from './verificationGrouping';
+import { buildEmployeeGroups, keptSessions, needsTimes } from './verificationGrouping';
 import type { TasSession } from '../../tasTypes';
 import type { ResolvedSessionEntry } from '../../tasStore';
 
@@ -186,5 +186,31 @@ describe('buildEmployeeGroups', () => {
     expect(groups).toHaveLength(1);
     expect(groups[0].items.map(i => i.type)).toEqual(['session', 'same_day_double', 'shift_mismatch']);
     expect(groups[0].items.map(i => i.date)).toEqual(['2026-03-10', '2026-03-15', '2026-03-20']);
+  });
+});
+
+describe('doubles whose kept halves lack a scan', () => {
+  const a = makeSession({ sessionId: 1, flags: ['SAME_DAY_DOUBLE', 'MISSING_EXIT'] });
+  const b = makeSession({ sessionId: 2, flags: ['SAME_DAY_DOUBLE', 'MISSING_ENTRY'] });
+  const full = makeSession({ sessionId: 3, flags: ['SAME_DAY_DOUBLE'] });
+  const doubles = (sessions: TasSession[]) => new Map([['E1|2026-03-15', sessions]]);
+
+  it('needsTimes is true only for a missing entry or exit', () => {
+    expect([a, b, full].map(needsTimes)).toEqual([true, true, false]);
+  });
+
+  it('keptSessions keeps the chosen one, and all when the choice is all, missing or foreign', () => {
+    expect(keptSessions([a, b], 2)).toEqual([b]);
+    expect(keptSessions([a, b], 'all')).toEqual([a, b]);
+    expect(keptSessions([a, b], undefined)).toEqual([a, b]);
+    expect(keptSessions([a, b], 99)).toEqual([a, b]);
+  });
+
+  it('counts each kept half without its time as pending', () => {
+    expect(buildEmployeeGroups([], [], doubles([a, b]), noResolved)[0].pendingCount).toBe(2);
+    expect(buildEmployeeGroups([], [], doubles([a, b]), noResolved, { 'E1|2026-03-15': 1 })[0].pendingCount).toBe(1);
+    const typed = { 1: { resolvedStart: '07:08', resolvedEnd: '15:00' } };
+    expect(buildEmployeeGroups([], [], doubles([a, b]), typed, { 'E1|2026-03-15': 1 })[0].pendingCount).toBe(0);
+    expect(buildEmployeeGroups([], [], doubles([full, a]), noResolved, { 'E1|2026-03-15': 3 })[0].pendingCount).toBe(0);
   });
 });
