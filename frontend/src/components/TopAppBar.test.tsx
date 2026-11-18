@@ -117,6 +117,13 @@ describe('Nueva carga button', () => {
     expect(onNewUpload).not.toHaveBeenCalled();
   });
 
+  it('keeps the confirmation modal open when tasView changes to anything but submitting', () => {
+    const { rerender } = render(<TopAppBar currentView="tas" onViewChange={noop} tasView="review" onNewUpload={vi.fn()} onDiscardSession={onDiscardSession} />);
+    fireEvent.click(screen.getByRole('button', { name: /nueva carga/i }));
+    rerender(<TopAppBar currentView="tas" onViewChange={noop} tasView="verification" onNewUpload={vi.fn()} onDiscardSession={onDiscardSession} />);
+    expect(screen.getByText('Iniciar nueva carga')).toBeInTheDocument();
+  });
+
   it('discards the saved session when the confirmation is accepted', () => {
     const onNewUpload = vi.fn();
     render(<TopAppBar currentView="tas" onViewChange={noop} tasView="review" onNewUpload={onNewUpload} onDiscardSession={onDiscardSession} />);

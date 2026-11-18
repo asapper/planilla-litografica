@@ -74,7 +74,20 @@ public class TasReportBuilder {
             }
         }
 
-        Map<String, String> employeeNamesFromScans = buildEmployeeNamesMap(filteredSessions);
+        // A night dated by its entry on the 15th still has its exit on the 16th: its employee keeps a
+        // row in the second fortnight, so that fortnight's days not worked are still submitted.
+        List<TasSession> namedSessions = new ArrayList<>(filteredSessions);
+        if (periodFilter != null) {
+            for (TasSession session : sessions) {
+                if (filteredSessions.contains(session) || !hasScanIn(session, periodFilter)) continue;
+                hoursByEmployeePeriod
+                        .computeIfAbsent(session.getEmployeeId(), k -> new LinkedHashMap<>())
+                        .computeIfAbsent(periodFilter, k -> new double[2]);
+                namedSessions.add(session);
+            }
+        }
+
+        Map<String, String> employeeNamesFromScans = buildEmployeeNamesMap(namedSessions);
 
         Map<String, Boolean> accruesOvertimeFlags =
                 employeeRegistryService.getAccruesOvertimeFlags(hoursByEmployeePeriod.keySet());
@@ -131,6 +144,27 @@ public class TasReportBuilder {
                 .distinct()
                 .sorted(PERIOD_ORDER)
                 .collect(Collectors.toList());
+    }
+
+    /** Only periods the file's scans reach: a night moved to the 15th must not open the first fortnight. */
+    public List<TasPeriod> computeAvailablePeriods(List<TasSession> sessions, LocalDate dataStart, LocalDate dataEnd) {
+        Set<TasPeriod> periods = new HashSet<>(computeAvailablePeriods(sessions));
+        for (TasSession session : sessions) {
+            if (session.getScans() != null) session.getScans().forEach(t -> periods.add(TasPeriod.of(t.toLocalDate())));
+            if (session.getLastScan() != null) periods.add(TasPeriod.of(session.getLastScan().toLocalDate()));
+        }
+        return periods.stream()
+                .filter(p -> dataStart == null || dataEnd == null
+                        || (!periodStart(p).isAfter(dataEnd) && !periodEnd(p).isBefore(dataStart)))
+                .sorted(PERIOD_ORDER)
+                .collect(Collectors.toList());
+    }
+
+    private static boolean hasScanIn(TasSession session, TasPeriod period) {
+        List<java.time.LocalDateTime> scans = new ArrayList<>();
+        if (session.getScans() != null) scans.addAll(session.getScans());
+        if (session.getLastScan() != null) scans.add(session.getLastScan());
+        return scans.stream().anyMatch(t -> TasPeriod.of(t.toLocalDate()).equals(period));
     }
 
     /**

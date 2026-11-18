@@ -58,13 +58,13 @@ vi.mock('./components/EmptyState', () => ({
   ),
 }));
 vi.mock('./components/TopAppBar', () => ({
-  default: ({ tasView, currentView, onNewUpload, onDiscardSession, onViewChange }: {
+  default: function MockTopAppBar({ tasView, currentView, onNewUpload, onDiscardSession, onViewChange }: {
     tasView: string;
     currentView: string;
     onNewUpload: () => void;
     onDiscardSession: () => void;
     onViewChange: (v: string) => void;
-  }) => {
+  }) {
     const [showConfirm, setShowConfirm] = useState(false);
     return (
       <div data-testid="top-app-bar">
