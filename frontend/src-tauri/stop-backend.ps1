@@ -49,7 +49,7 @@ public static class PlanillaFileId {
     if (-not $target) { exit 0 }
     $ours = {
         @(Get-CimInstance Win32_Process -Filter "Name = 'java.exe'" |
-            Where-Object { $_.ExecutablePath -and [PlanillaFileId]::Of($_.ExecutablePath) -eq $target })
+            Where-Object { [string]::Equals($_.ExecutablePath, $java, [System.StringComparison]::OrdinalIgnoreCase) })
     }
     & $ours | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
     for ($i = 0; $i -lt 20; $i++) {
