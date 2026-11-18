@@ -28,14 +28,14 @@ Identifies the start of a new employee block.
 
 **Example:**
 ```
-Empleado,3,"DIEGUEZ EQUITE ,JOSE ARMANDO",3,,,,,,,,,,,,,,,,,,,,,,,,,,
+Empleado,128,"RAMIREZ SOTO ,TOMAS ANDRES",128,,,,,,,,,,,,,,,,,,,,,,,,,,
 ```
 
 **Fields extracted:**
 | Column Index | Value | Maps To |
 |---|---|---|
-| 1 | `3` | `codigo_empleado` |
-| 2 | `"DIEGUEZ EQUITE ,JOSE ARMANDO"` | Employee name (display only, not sent to DB) |
+| 1 | `128` | `codigo_empleado` |
+| 2 | `"RAMIREZ SOTO ,TOMAS ANDRES"` | Employee name (display only, not sent to DB) |
 
 ---
 

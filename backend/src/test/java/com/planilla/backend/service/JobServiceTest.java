@@ -873,4 +873,21 @@ class JobServiceTest {
         await().atMost(Duration.ofSeconds(2)).until(() -> "DONE".equals(service.getJobStatus(jobId).status()));
         verifyNoInteractions(draftService);
     }
+
+    @Test
+    void beginShutdown_isRefusedWhileASubmissionRuns() {
+        service.createJob(List.of(row("1")), newToken());
+
+        assertThat(service.beginShutdown()).isFalse();
+    }
+
+    @Test
+    void afterBeginShutdown_noNewSubmissionStarts() {
+        assertThat(service.beginShutdown()).isTrue();
+
+        assertThatThrownBy(() -> service.createJob(List.of(row("1")), newToken()))
+                .isInstanceOf(JobInProgressException.class)
+                .hasMessage("La aplicación se está cerrando.");
+        assertThat(service.isAnyJobActive()).isFalse();
+    }
 }

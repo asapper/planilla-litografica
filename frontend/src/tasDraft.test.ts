@@ -21,6 +21,7 @@ const {
   PERSISTED_KEYS,
   DRAFT_SAVE_DEBOUNCE_MS,
   DRAFT_SAVE_MAX_WAIT_MS,
+  saveDraftNow,
   DRAFT_UI_VERSION,
 } = await import('./tasDraft');
 
@@ -397,6 +398,45 @@ describe('autosave', () => {
     unsubscribe();
     useTasStore.getState().setNonWorkedDaysOverride('1', 2);
     await vi.runAllTimersAsync();
+    expect(mockSaveDraft).not.toHaveBeenCalled();
+  });
+});
+
+describe('saveDraftNow', () => {
+  it('sends a pending edit at once and resolves when the backend has it', async () => {
+    let resolveSave!: () => void;
+    mockSaveDraft.mockImplementationOnce(() => new Promise<void>(r => { resolveSave = r; }));
+    stop = startDraftAutosave(() => 'f.csv');
+    useTasStore.setState({ tasView: 'review', uploadToken: 'tok' });
+
+    let done = false;
+    const saving = saveDraftNow().then(() => { done = true; });
+    expect(mockSaveDraft).toHaveBeenCalledTimes(1);
+    await Promise.resolve();
+    expect(done).toBe(false);
+    resolveSave();
+    await saving;
+    expect(done).toBe(true);
+  });
+
+  it('waits for an in-flight save and the change queued behind it', async () => {
+    let resolveFirst!: () => void;
+    mockSaveDraft.mockImplementationOnce(() => new Promise<void>(r => { resolveFirst = r; }));
+    stop = startDraftAutosave(() => 'f.csv');
+    useTasStore.setState({ tasView: 'review', uploadToken: 'tok' });
+    await vi.advanceTimersByTimeAsync(DRAFT_SAVE_DEBOUNCE_MS);
+    useTasStore.getState().setNonWorkedDaysOverride('1', 7);
+
+    const saving = saveDraftNow();
+    resolveFirst();
+    await saving;
+    expect(mockSaveDraft).toHaveBeenCalledTimes(2);
+    expect(mockSaveDraft.mock.calls[1][0].ui.nonWorkedDaysOverrides).toEqual({ '1': 7 });
+  });
+
+  it('resolves without saving when nothing is pending', async () => {
+    stop = startDraftAutosave(() => 'f.csv');
+    await saveDraftNow();
     expect(mockSaveDraft).not.toHaveBeenCalled();
   });
 });

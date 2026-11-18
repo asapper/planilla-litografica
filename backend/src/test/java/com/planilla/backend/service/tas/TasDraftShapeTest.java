@@ -40,7 +40,7 @@ class TasDraftShapeTest {
         String actual = String.join("\n", shapeOf(TasUploadState.class)) + "\n";
         String name = "tas-draft/backend-shape-v" + TasDraftService.SCHEMA_VERSION + ".txt";
         try (InputStream in = getClass().getClassLoader().getResourceAsStream(name)) {
-            if (in == null || !new String(in.readAllBytes(), StandardCharsets.UTF_8).equals(actual)) {
+            if (in == null || !normalized(new String(in.readAllBytes(), StandardCharsets.UTF_8)).equals(normalized(actual))) {
                 Path written = Path.of("target", "backend-shape-actual.txt");
                 Files.writeString(written, actual);
                 fail("The saved draft's shape changed (actual shape in " + written.toAbsolutePath()
@@ -48,6 +48,18 @@ class TasDraftShapeTest {
                         + (TasDraftService.SCHEMA_VERSION + 1) + ".txt with the actual shape; keep the older files.");
             }
         }
+    }
+
+    // A Windows checkout may turn the file's line endings into CRLF.
+    static String normalized(String text) {
+        return text.replace("\r\n", "\n").strip();
+    }
+
+    @Test
+    void aWindowsCheckoutOfTheShapeFileStillMatches() {
+        assertThat(normalized("$: A\r\n$.b: B\r\n")).isEqualTo(normalized("$: A\n$.b: B\n"));
+        assertThat(normalized("$: A\n$.b: B")).isEqualTo(normalized("$: A\n$.b: B\n\n"));
+        assertThat(normalized("$: A\n$.b: B\n")).isNotEqualTo(normalized("$: A\n$.c: B\n"));
     }
 
     @Test
