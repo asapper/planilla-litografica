@@ -438,12 +438,9 @@ public class TasController {
                 assignShift(session, bestFit);
             }
         }
-        // A night anchored on its recorded exit starts the day before: date it by its start like a
-        // complete night, but never across the 15th/16th, which would drop it from this submission.
-        if (session.getDate() != null
-                && TasPeriod.of(start.toLocalDate()).equals(TasPeriod.of(session.getDate()))) {
-            session.setDate(start.toLocalDate());
-        }
+        // A night is paid on the day it starts, also across the 15th/16th: a night from the 15th into
+        // the 16th belongs to the first fortnight, so the second one must not pay its exit half again.
+        session.setDate(start.toLocalDate());
         session.setEffectiveStart(start);
         session.setLastScan(end);
         session.setScans(List.of(start, end));
