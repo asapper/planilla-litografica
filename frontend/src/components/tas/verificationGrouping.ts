@@ -1,4 +1,4 @@
-import type { TasSession } from '../../tasTypes';
+import type { DoubleChoice, TasSession } from '../../tasTypes';
 import type { ResolvedSessionEntry } from '../../tasStore';
 
 export type GroupItem =
@@ -12,8 +12,6 @@ export interface EmployeeGroupData {
   items: GroupItem[];
   pendingCount: number;
 }
-
-export type DoubleChoice = number | 'all';
 
 export function needsTimes(session: TasSession): boolean {
   return session.flags.includes('MISSING_ENTRY') || session.flags.includes('MISSING_EXIT');

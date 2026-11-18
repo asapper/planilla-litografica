@@ -256,7 +256,7 @@ El sistema detectó dos sesiones de trabajo diferentes para el mismo empleado en
 
 **Qué hacer:**
 1. Revise ambas sesiones detectadas.
-2. La opción **"Mantener todas"** viene seleccionada y se aplica sola: no necesita hacer nada para continuar, y la tarjeta no cuenta como pendiente.
+2. La opción **"Mantener todas"** viene seleccionada y se aplica sola: no necesita hacer nada para continuar, y la tarjeta no cuenta como pendiente. La excepción: si a una sesión que se conserva le falta una marcación, hay que completar su hora (vea **Marcaciones sueltas** más abajo).
 3. Si una de las sesiones sobra, seleccione la que desea conservar. La tarjeta se cierra y muestra **"Confirmado"**; puede reabrirla con **"Editar"**.
 
 **Marcaciones sueltas.** Si cada sesión de la doble marcación tiene una sola marcación (por ejemplo 07:08 y 22:03), la tarjeta dice *"Cada marcación está sola: falta la otra marcación de cada jornada."* y la tarjeta cuenta como pendiente hasta que complete las horas:

@@ -3039,4 +3039,21 @@ class TasControllerTest {
         assertThat(day.get(0).getFlags()).contains(TasFlag.SAME_DAY_DOUBLE);
         assertThat(tasController.stateStore.get("discard-tok").getRevision()).isEqualTo(revision);
     }
+
+    @Test
+    void resolve_aKeepIdOutsideTheDouble_keepsBothAndTakesBothTypedDays() throws Exception {
+        List<TasSession> day = seedSingleScanDouble("foreign-tok");
+
+        mvc.perform(post("/api/tas/resolve")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of("uploadToken", "foreign-tok", "resolutions", List.of(
+                        typedTimes(1, "2026-09-29 07:08", "2026-09-29 15:00"),
+                        typedTimes(2, "2026-09-29 22:03", "2026-09-30 06:00"),
+                        keep(999))))))
+           .andExpect(status().isOk())
+           .andExpect(jsonPath("$.flaggedSessions.length()").value(0));
+
+        assertThat(day.get(0).getWorkedMinutes()).isEqualTo(472);
+        assertThat(day.get(1).getWorkedMinutes()).isEqualTo(477);
+    }
 }

@@ -278,7 +278,7 @@ public class TasController {
                         shifts, doubleOperations, operations, plannedTimes, doubleChoices);
                 if (invalid != null) return invalid;
             }
-            ResponseEntity<Map<String, Object>> discardedWithTimes = findDiscardedWithTimes(plannedTimes, doubleChoices);
+            ResponseEntity<Map<String, Object>> discardedWithTimes = findDiscardedWithTimes(plannedTimes, doubleChoices, allSessions);
             if (discardedWithTimes != null) return discardedWithTimes;
             ResponseEntity<Map<String, Object>> overlap = findOverlap(plannedTimes, allSessions);
             if (overlap != null) return overlap;
@@ -405,17 +405,27 @@ public class TasController {
     }
 
     private static ResponseEntity<Map<String, Object>> findDiscardedWithTimes(
-            Map<TasSession, LocalDateTime[]> plannedTimes, Map<String, Object> doubleChoices) {
+            Map<TasSession, LocalDateTime[]> plannedTimes, Map<String, Object> doubleChoices,
+            List<TasSession> sessions) {
         for (TasSession session : plannedTimes.keySet()) {
-            if (session.getFlags() == null || !session.getFlags().contains(TasFlag.SAME_DAY_DOUBLE)) continue;
+            if (!inDouble(session)) continue;
             Object keep = doubleChoices.get(session.getEmployeeId() + "|" + session.getDate());
-            if (keep instanceof Number kept && kept.intValue() != session.getSessionId()) {
+            // A kept id outside the group keeps them all (see applySameDayDoubleResolution).
+            boolean keptIsInGroup = keep instanceof Number kept && sessions.stream().anyMatch(other ->
+                    other.getSessionId() == kept.intValue() && inDouble(other)
+                            && Objects.equals(other.getEmployeeId(), session.getEmployeeId())
+                            && Objects.equals(other.getDate(), session.getDate()));
+            if (keptIsInGroup && ((Number) keep).intValue() != session.getSessionId()) {
                 return sessionError("DISCARDED_SESSION_WITH_TIMES",
                         "Esta marcación se descartó en la doble marcación; no se le pueden asignar horas.",
                         session.getSessionId());
             }
         }
         return null;
+    }
+
+    private static boolean inDouble(TasSession session) {
+        return session.getFlags() != null && session.getFlags().contains(TasFlag.SAME_DAY_DOUBLE);
     }
 
     /**

@@ -95,6 +95,8 @@ export interface TasResolveResult {
   sessionSummaries?: Record<string, SessionSummary[]>
 }
 
+export type DoubleChoice = number | 'all'
+
 export type DraftView = 'inactiveReview' | 'verification' | 'review'
 
 export interface DraftSummary {

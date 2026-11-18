@@ -732,6 +732,18 @@ describe('VerificationScreen same-day double group', () => {
     expect(payload).toContainEqual({ employeeId: 'E1', date: '2026-03-15', keepSessionId: 'all' });
   });
 
+  it('changing the choice of a decided double while editing keeps the group open', () => {
+    useTasStore.getState().setSameDayDoubleResolution('E1|2026-03-15', 1);
+    render(<VerificationScreen />);
+    fireEvent.click(screen.getByRole('button', { name: /Ana López/ }));
+    fireEvent.click(screen.getByRole('button', { name: /editar ana lópez/i }));
+
+    fireEvent.click(screen.getAllByRole('radio')[1]);
+    expect(useTasStore.getState().sameDayDoubleResolutions['E1|2026-03-15']).toBe(2);
+    expect(screen.getAllByRole('radio')).toHaveLength(3);
+    expect(screen.getByRole('button', { name: /listo/i })).toBeInTheDocument();
+  });
+
   it('collapses to a Confirmado chip after a selection and re-opens via Editar/Listo', () => {
     render(<VerificationScreen />);
     fireEvent.click(screen.getAllByRole('radio')[0]); // resolve → group auto-collapses
@@ -1605,6 +1617,42 @@ describe('VerificationScreen same-day double made of single scans (TASK-98)', ()
     expect(payload).toContainEqual(expect.objectContaining({ sessionId: 1, resolvedEnd: '2026-03-10 15:00' }));
     expect(payload).toContainEqual(expect.objectContaining({
       sessionId: 2, resolvedStart: '2026-03-10 22:03', resolvedEnd: '2026-03-11 06:00' }));
+  });
+
+  it('changing the choice keeps the times already typed for a half', () => {
+    render(<VerificationScreen />);
+    const morningCard = timeCards()[0];
+    fireEvent.change(within(morningCard).getByLabelText('Salida'), { target: { value: '15:00' } });
+    fireEvent.click(within(morningCard).getByRole('button', { name: 'Confirmar' }));
+
+    fireEvent.click(screen.getByRole('radio', { name: /Mañana \(07:08–07:08\)/ }));
+    expect(useTasStore.getState().resolvedSessions[1]).toEqual({ resolvedStart: '07:08', resolvedEnd: '15:00' });
+    expect(screen.queryAllByText(/por resolver/)).toHaveLength(0);
+  });
+
+  it('a resumed session with the day merged shows it as one day, ready to send', () => {
+    useTasStore.getState().setSameDayDoubleResolution(KEY, 1);
+    useTasStore.getState().setResolvedSession(1, { resolvedStart: '07:08', resolvedEnd: '22:03' });
+    render(<VerificationScreen />);
+    expect(revisar()).not.toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: /Ana López/ }));
+    expect(screen.getByText('Una sola jornada (07:08–22:03)')).toBeInTheDocument();
+  });
+
+  it('times typed in another period are not sent with this one', async () => {
+    const Q2: TasPeriod = { anio: 2026, mes: 3, numeroDequincena: 2 };
+    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD, Q2]);
+    useTasStore.getState().setFlaggedSessions([MORNING, EVENING, makeSession({ sessionId: 9, date: '2026-03-20' })]);
+    render(<VerificationScreen />);
+    fireEvent.click(screen.getByRole('radio', { name: /una sola jornada/i }));
+    fireEvent.change(screen.getByLabelText(/periodo/i), { target: { value: '2026-3-2' } });
+    fireEvent.change(screen.getByLabelText('Entrada'), { target: { value: '07:00' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmar' }));
+
+    fireEvent.click(revisar());
+    await waitFor(() => expect(mockResolveVerification).toHaveBeenCalledOnce());
+    const [, payload] = mockResolveVerification.mock.calls[0];
+    expect(payload.map(r => ('sessionId' in r ? r.sessionId : r.employeeId))).toEqual([9]);
   });
 
   it('offers no single day when the scans are more than 16 hours apart', () => {

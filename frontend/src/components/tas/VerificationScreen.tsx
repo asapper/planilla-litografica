@@ -4,11 +4,11 @@ import { useTasStore, type ResolvedSessionEntry } from '../../tasStore';
 import { resolveVerification } from '../../tasApi';
 import type { TasResolution } from '../../tasApi';
 import { MONTH_NAMES_ES } from '../../dateNames';
-import type { TasSession, TasFlag, TasPeriod, ShiftOption } from '../../tasTypes';
+import type { TasSession, TasFlag, TasPeriod, ShiftOption, DoubleChoice } from '../../tasTypes';
 import { useToastStore } from '../../toastStore';
 import AlertMessage from '../ui/AlertMessage';
 import EmployeeGroup from './EmployeeGroup';
-import { buildEmployeeGroups, keptSessions, needsTimes, type DoubleChoice } from './verificationGrouping';
+import { buildEmployeeGroups, keptSessions, needsTimes } from './verificationGrouping';
 
 const FLAG_LABELS: Record<TasFlag, string> = {
   MISSING_ENTRY:   'Falta entrada',
@@ -223,6 +223,16 @@ function mergeableDay(sessions: TasSession[]): MergedDay | null {
   return { sessionId: first.sessionId, start: toHHMM(first.scans[0]), end: toHHMM(last.scans[0]) };
 }
 
+function mergedDay(
+  sessions: TasSession[], choice: DoubleChoice | undefined, resolvedSessions: Record<number, ResolvedSessionEntry>,
+): MergedDay | null {
+  const day = mergeableDay(sessions);
+  const times = day ? resolvedSessions[day.sessionId] : undefined;
+  return day && choice === day.sessionId && times?.resolvedStart === day.start && times?.resolvedEnd === day.end
+    ? day
+    : null;
+}
+
 interface SameDayDoubleGroupCardProps {
   sessions: TasSession[];
   choice: DoubleChoice;
@@ -239,16 +249,14 @@ function SameDayDoubleGroupCard({
   const first = sessions[0];
   const [editing, setEditing] = useState(false);
   const mergeable = mergeableDay(sessions);
-  const mergedTimes = mergeable ? resolvedSessions[mergeable.sessionId] : undefined;
-  const merged = !!mergeable && choice === mergeable.sessionId
-    && mergedTimes?.resolvedStart === mergeable.start && mergedTimes?.resolvedEnd === mergeable.end;
+  const merged = !!mergedDay(sessions, choice, resolvedSessions);
   const needingTimes = merged ? [] : keptSessions(sessions, choice).filter(needsTimes);
   const timesMissing = needingTimes.some(s => !resolvedSessions[s.sessionId]);
 
   if (decided && !timesMissing && !editing) {
     const kept = choice === 'all' ? null : sessions.find(s => s.sessionId === choice);
     const summary = merged
-      ? `Una sola jornada (${mergeable.start}–${mergeable.end})`
+      ? `Una sola jornada (${mergeable?.start}–${mergeable?.end})`
       : kept
         ? `${kept.matchedShiftName ?? '—'} (${toHHMM(kept.effectiveStart)}–${toHHMM(kept.lastScan)})`
         : 'Mantener todas';
@@ -747,7 +755,12 @@ export default function VerificationScreen() {
     const sessionById = new Map(flaggedSessions.map(s => [s.sessionId, s]));
     try {
       const resolutions: TasResolution[] = [
-        ...Object.entries(resolvedSessions).filter(([id]) => !discardedSessionIds.has(Number(id))).map(([id, resolved]) => {
+        // Only this period's times: the others go with their own period's choices, when it is sent.
+        ...Object.entries(resolvedSessions).filter(([id]) => {
+          const session = sessionById.get(Number(id));
+          return !!session && periodsEqual(getSessionPeriod(session.date), selectedPeriod)
+            && !discardedSessionIds.has(session.sessionId);
+        }).map(([id, resolved]) => {
           const session = sessionById.get(Number(id));
           const date = session?.date ?? '';
           const matchedShift = availableShifts.find(s => s.id === session?.matchedShiftId);
@@ -914,16 +927,19 @@ export default function VerificationScreen() {
                           resolvedSessions={resolvedSessions}
                           renderSessionCard={renderSessionCard}
                           onChange={(keepSessionId) => {
-                            const merged = mergeableDay(item.sessions);
+                            const merged = mergedDay(item.sessions, sameDayDoubleResolutions[item.groupKey], resolvedSessions);
                             if (merged) clearResolvedSession(merged.sessionId);
                             setSameDayDoubleResolution(item.groupKey, keepSessionId);
-                            // A choice that asks for times reopens the group by default; drop a manual
-                            // collapse so the group doesn't close under the user.
-                            setExpansionOverrides(prev => {
-                              const next = new Set(prev);
-                              next.delete(group.employeeId);
-                              return next;
-                            });
+                            const leavesTimesMissing = keptSessions(item.sessions, keepSessionId)
+                              .some(s => needsTimes(s) && (!resolvedSessions[s.sessionId] || s.sessionId === merged?.sessionId));
+                            // That choice reopens the group by default; drop a manual collapse so it doesn't close under the user.
+                            if (leavesTimesMissing) {
+                              setExpansionOverrides(prev => {
+                                const next = new Set(prev);
+                                next.delete(group.employeeId);
+                                return next;
+                              });
+                            }
                           }}
                           onMerge={(day) => {
                             setSameDayDoubleResolution(item.groupKey, day.sessionId);

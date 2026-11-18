@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { TasView, TasSession, InactiveEmployee, InactiveDecision, AbsentEmployee, ResolvedRow, TasPeriod, ShiftOption, SessionSummary } from './tasTypes';
+import type { TasView, TasSession, InactiveEmployee, InactiveDecision, AbsentEmployee, ResolvedRow, TasPeriod, ShiftOption, SessionSummary, DoubleChoice } from './tasTypes';
 
 export interface ResolvedSessionEntry {
   resolvedStart: string;
@@ -18,7 +18,7 @@ export interface TasStore {
   flaggedSessions: TasSession[];
   resolvedSessions: Record<number, ResolvedSessionEntry>;
   shiftAcceptances: Record<number, string>;
-  sameDayDoubleResolutions: Record<string, number | 'all'>;
+  sameDayDoubleResolutions: Record<string, DoubleChoice>;
   resolvedRowCount: number;
   resolvedRows: ResolvedRow[];
   availablePeriods: TasPeriod[];
@@ -55,7 +55,7 @@ export interface TasStore {
   clearResolvedSession: (id: number) => void;
   clearResolvedSessions: () => void;
   setShiftAcceptance: (sessionId: number, acceptedShiftId: string) => void;
-  setSameDayDoubleResolution: (groupKey: string, keepSessionId: number | 'all') => void;
+  setSameDayDoubleResolution: (groupKey: string, keepSessionId: DoubleChoice) => void;
   setResolvedRowCount: (count: number) => void;
   setResolvedRows: (rows: ResolvedRow[]) => void;
   availableShifts: ShiftOption[];
@@ -99,7 +99,7 @@ export const tasInitialState = {
   flaggedSessions: [],
   resolvedSessions: {},
   shiftAcceptances: {} as Record<number, string>,
-  sameDayDoubleResolutions: {} as Record<string, number | 'all'>,
+  sameDayDoubleResolutions: {} as Record<string, DoubleChoice>,
   resolvedRowCount: 0,
   resolvedRows: [] as ResolvedRow[],
   availableShifts: [] as ShiftOption[],
