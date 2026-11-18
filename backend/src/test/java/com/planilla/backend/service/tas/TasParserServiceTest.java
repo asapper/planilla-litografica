@@ -139,7 +139,7 @@ class TasParserServiceTest {
     }
 
     @Test
-    void parse_realTasFile_singleEmployee() throws Exception {
+    void parse_sampleTasFile_singleEmployee() throws Exception {
         TasParserService.ParseResult result = service.parse(fixtureFile("single-employee-report.csv"));
         assertThat(result.scans).hasSize(28);
         assertThat(result.warnings).isEmpty();
@@ -147,13 +147,13 @@ class TasParserServiceTest {
     }
 
     @Test
-    void parse_realTasFile_multiEmployeeMarch() throws Exception {
+    void parse_sampleTasFile_multiEmployeeMarch() throws Exception {
         TasParserService.ParseResult result = service.parse(fixtureFile("multi-employee-march.csv"));
         assertThat(result.scans).isNotEmpty();
     }
 
     @Test
-    void parse_realTasFile_multiEmployeeMarchApril() throws Exception {
+    void parse_sampleTasFile_multiEmployeeMarchApril() throws Exception {
         TasParserService.ParseResult result = service.parse(fixtureFile("multi-employee-march-april.csv"));
         assertThat(result.scans).isNotEmpty();
     }

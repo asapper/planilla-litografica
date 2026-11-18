@@ -99,7 +99,7 @@ class TasDraftServiceTest {
     }
 
     @Test
-    void roundTripsRealPipelineState() throws Exception {
+    void roundTripsFullPipelineState() throws Exception {
         byte[] csv = Files.readAllBytes(Paths.get("src/test/resources/fixtures/multi-employee-march.csv"));
         List<TasScanRecord> scans = new TasParserService()
                 .parse(new MockMultipartFile("file", "m.csv", "text/csv", csv)).scans;
