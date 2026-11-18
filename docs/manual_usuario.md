@@ -231,7 +231,9 @@ Cuando un día tiene **una sola marcación**, el sistema decide si fue entrada o
 3. La etiqueta cambia para reflejarlo (por ejemplo, de `Falta salida · Entrada 17:31` a `Falta entrada · Salida 17:31`).
 4. Ingrese la hora que falta y haga clic en **"Confirmar"**.
 
-Si la jornada cruza la medianoche (por ejemplo, entrada 22:00 y salida 06:00), el sistema coloca la hora que usted escribe en el día anterior o siguiente según corresponda. La jornada se cuenta en el día en que empezó, igual que cualquier turno de noche completo, salvo que eso la pase a la otra quincena (entrada el 15, salida el 16): en ese caso se queda en la quincena que está procesando. Las horas después de la medianoche de un domingo o feriado se pagan dobles, y las de antes no. Si la jornada resultante dura más de 16 horas, verá el mensaje **"La jornada no puede durar más de 16 horas"**: revise que la hora sea correcta.
+![Tarjeta "Falta salida" después de intercambiar: la marcación de las 16:58 pasó a Salida y se escribe la Entrada](screenshots/25-verification-swap.png)
+
+Si la jornada cruza la medianoche (por ejemplo, entrada 22:00 y salida 06:00), el sistema coloca la hora que usted escribe en el día anterior o siguiente según corresponda. La jornada se cuenta en el día en que empezó, igual que cualquier turno de noche completo, también si eso la pasa a la otra quincena (entrada el 15, salida el 16): vea [Corte de período](#corte-de-período). Las horas después de la medianoche de un domingo o feriado se pagan dobles, y las de antes no. Si la jornada resultante dura más de 16 horas, verá el mensaje **"La jornada no puede durar más de 16 horas"**: revise que la hora sea correcta.
 
 Si se equivocó, haga clic en **"Deshacer intercambio"** antes de confirmar. Si ya confirmó, abra de nuevo la fila con **"Editar"**; el intercambio se conserva y puede deshacerlo.
 
@@ -254,6 +256,8 @@ Las marcaciones del empleado coinciden con un turno diferente al que tiene asign
 
 El sistema detectó dos sesiones de trabajo diferentes para el mismo empleado en el mismo día. Esto puede ocurrir cuando un empleado marca salida y luego vuelve a marcar entrada el mismo día.
 
+![Tarjeta de doble marcación con una opción por sesión y "Mantener todas" seleccionada](screenshots/22-verification-double.png)
+
 **Qué hacer:**
 1. Revise ambas sesiones detectadas.
 2. La opción **"Mantener todas"** viene seleccionada y se aplica sola: no necesita hacer nada para continuar, y la tarjeta no cuenta como pendiente. La excepción: si a una sesión que se conserva le falta una marcación, hay que completar su hora (vea **Marcaciones sueltas** más abajo).
@@ -264,6 +268,8 @@ El sistema detectó dos sesiones de trabajo diferentes para el mismo empleado en
 - **"Una sola jornada (07:08 – 22:03)"**: fue un solo día largo; se cuenta de la primera a la última marcación y la otra marcación se descarta. Solo aparece si las marcaciones están a 16 horas o menos.
 - **Una de las sesiones**: se conserva esa marcación y debajo aparece su tarjeta para escribir la hora que falta. La otra se descarta.
 - **"Mantener todas"**: aparecen las dos tarjetas y debe completar ambas.
+
+![Doble marcación de marcaciones sueltas (07:08 y 22:03): se ofrece "Una sola jornada", "Mantener todas" viene seleccionada y debajo están las tarjetas para completar la hora que falta](screenshots/23-verification-double-single-scans.png)
 
 Las horas se envían junto con la elección al pulsar **"Revisar"**, en un solo paso.
 
@@ -278,6 +284,8 @@ El empleado salió significativamente antes de lo esperado según su turno asign
 2. Si la salida temprana es correcta, no haga nada.
 3. Si la hora de salida es incorrecta, corrija el campo **"Salida"** y haga clic en **"Registrar corrección"**. La tarjeta muestra **"Corrección registrada · Salida HH:MM"**; con **"Deshacer"** vuelve a la hora marcada.
 
+![Sección "Jornadas cortas" al final de la verificación](screenshots/24-verification-short-day.png)
+
 Si la salida queda antes de la entrada en un turno de día, verá **"La hora de salida debe ser posterior a la hora de entrada."** y el botón queda deshabilitado. En un turno de noche, una salida después de la medianoche es válida.
 
 #### Corte de período
@@ -290,6 +298,9 @@ Un turno de noche toca el primer o el último día del archivo, así que puede f
 
 - Al procesar la **primera quincena**, la entrada del 15 aparece sin salida: escriba la hora de salida del 16 y la jornada se paga en esa quincena.
 - Al procesar la **segunda quincena**, la salida del 16 aparece sin entrada. Si escribe una entrada del día 15, la tarjeta muestra *"Esta jornada empezó el 15 … y le corresponde a … Quincena 1, por eso no se incluye en este envío. Verifique que se haya pagado en esa quincena."* La jornada no se vuelve a pagar en la segunda quincena.
+
+![Salida del 16 con la entrada escrita el 15: la tarjeta indica que la jornada le corresponde a la primera quincena](screenshots/26-verification-previous-quincena.png)
+
 - Si el archivo de la primera quincena se exportó antes de que empezara esa noche, la entrada del 15 no estaba en él y la jornada no se pagó en ninguna quincena. Revise ese caso antes de enviar la segunda quincena.
 
 **Qué hacer:**
@@ -374,7 +385,11 @@ Si el archivo no tiene marcaciones de algunos días laborables de la quincena (p
 
 > Quincena incompleta (Octubre 2026 · Q1): el archivo no tiene marcaciones del 12 al 15 de octubre (4 días laborables). Esos días se contarán como no laborados para todos los empleados. Exporte de nuevo el reporte de TAS con la quincena completa.
 
+![Aviso amarillo de quincena incompleta en la revisión](screenshots/27-review-incomplete-quincena.png)
+
 Los domingos y feriados no se cuentan. Lo recomendado es **exportar de nuevo el reporte de TAS con la quincena completa** y volver a cargarlo. Si de todas formas presiona **"Enviar"**, la aplicación le pedirá confirmar con **"Enviar de todas formas"** antes de enviar. El botón "Enviar" queda deshabilitado unos instantes mientras la aplicación hace esta verificación.
+
+![Confirmación de quincena incompleta con "Cancelar" y "Enviar de todas formas"](screenshots/28-review-incomplete-confirm.png)
 
 ##### Editar campos en la tabla
 
@@ -471,13 +486,7 @@ La aplicación guarda su avance automáticamente mientras trabaja en los pasos d
 
 Si la aplicación se cierra, se reinicia el equipo o el servicio interno se detiene, al volver a abrirla verá una tarjeta **"Sesión sin terminar"** encima del área para cargar archivos:
 
-```
-┌ Sesión sin terminar ───────────────────────────────┐
-│ 1era quincena octubre 2026.csv                      │
-│ Paso: Verificación · Guardada hoy a las 14:20       │
-│                         [Descartar]   [Continuar]   │
-└─────────────────────────────────────────────────────┘
-```
+![Tarjeta "Sesión sin terminar" en la pantalla de inicio con Descartar y Continuar](screenshots/20-resume-draft.png)
 
 - **Continuar** lo lleva al mismo paso en el que estaba, con todas sus decisiones intactas. No necesita volver a cargar el archivo.
 - **Descartar** le pide confirmación (*"¿Descartar la sesión guardada? Se perderán las decisiones tomadas."*) y borra la sesión guardada.
@@ -491,6 +500,8 @@ Solo se guarda **la última sesión**. La sesión guardada se descarta cuando:
 **Envío parcial.** Si un envío terminó con algunos registros fallidos, la sesión se conserva para que pueda retomarla. La tarjeta muestra además la línea *"Envío parcial: algunos registros ya se enviaron y aparecerán como duplicados."* Al continuar, llegará a la revisión y los registros que ya se enviaron aparecerán marcados como duplicados, por lo que no se enviarán dos veces.
 
 **Sesión de otra versión.** Si la sesión se guardó antes de instalar una versión de la aplicación que cambió cómo se guardan las sesiones, la tarjeta muestra *"Esta sesión se guardó con otra versión de la aplicación y no se puede continuar. Descártela y vuelva a cargar el archivo."* y solo ofrece **Descartar**. Sus decisiones de esa sesión no se pueden recuperar; vuelva a cargar el mismo archivo para empezar de nuevo.
+
+![Sesión guardada con otra versión: aviso y solo el botón Descartar](screenshots/21-resume-draft-outdated.png)
 
 **Envío en curso.** Si abre la aplicación mientras un envío todavía se está procesando, la tarjeta muestra *"Envío en curso, espere a que termine."* y no ofrece **Continuar** ni **Descartar** hasta que el envío termine. Mientras tanto la aplicación tampoco acepta otro envío, aunque cargue de nuevo el archivo.
 
@@ -722,13 +733,17 @@ Para guardar los cambios, haga clic en **"Guardar cambios"**. Para revertirlos, 
 Sí. La aplicación detecta automáticamente los registros que ya fueron enviados previamente y los marca como "Duplicado". Los registros duplicados serán excluidos del envío — solo se enviarán los registros nuevos.
 
 **¿Qué pasa si cierro la aplicación durante el envío?**
-No cierre la aplicación durante el envío. Si lo hace por accidente, vuelva a abrir la aplicación y pulse **Continuar** en la tarjeta "Sesión sin terminar". Llegará a la revisión, donde los registros que ya se enviaron aparecerán como duplicados y no se volverán a enviar.
+No cierre la aplicación durante el envío. Si se cerró por accidente, vuelva a abrirla y mire la pantalla de inicio:
+
+- Si la tarjeta "Sesión sin terminar" dice *"Envío en curso, espere a que termine."*, el envío sigue en marcha. Espere: la tarjeta cambia sola cuando termina.
+- Si la tarjeta dice *"Envío parcial…"*, o aparece sin ningún aviso, pulse **Continuar**. Llegará a la revisión, donde los registros que ya llegaron a la base de datos aparecen como duplicados y no se vuelven a enviar.
+- Si no aparece la tarjeta, el envío terminó con todos los registros enviados.
 
 **¿Pierdo mi trabajo si la aplicación se cierra a mitad de la verificación?**
 No. El avance se guarda automáticamente. Al volver a abrir la aplicación, pulse **Continuar** en la tarjeta "Sesión sin terminar" (ver [Continuar una sesión sin terminar](#continuar-una-sesión-sin-terminar)).
 
 **¿Puedo editar las horas extras después de la verificación?**
-Sí. En la vista de lista y en la vista de detalle puede modificar las horas extras simples y dobles directamente. Los campos editados se resaltarán en amarillo para que sepa qué valores fueron ajustados manualmente.
+Sí. En la vista de lista y en la vista de detalle puede modificar las horas extras simples y dobles directamente. Los valores ajustados se distinguen: en la vista de lista con un borde azul y el valor original entre paréntesis (por ejemplo, "era 3"); en la vista de detalle, en amarillo.
 
 **¿Qué hago si el archivo abarca dos quincenas?**
 Cuando el archivo TAS contiene marcaciones de más de una quincena, la aplicación le mostrará un selector de período en la pantalla de verificación. Seleccione la quincena que desea procesar. Para procesar la otra quincena, deberá volver a cargar el archivo y seleccionar el otro período.

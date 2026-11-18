@@ -9,13 +9,38 @@ const MOCK_CSV = [
   'E001,García López María Elena,2026-06-03,06:02',
 ].join('\n');
 
-async function mockHealthEndpoints(page: Page) {
+async function mockHealthEndpoints(page: Page, incompletePeriods: unknown[] = []) {
   await page.route('**/api/health', route =>
     route.fulfill({ status: 200, contentType: 'application/json', body: '{}' }),
   );
   await page.route('**/api/db-health', route =>
     route.fulfill({ status: 200, contentType: 'application/json', body: '{}' }),
   );
+  // No saved session unless a test routes one, and the file covers the whole quincena.
+  await page.route('**/api/tas/draft', route => route.fulfill({ status: 204 }));
+  await page.route('**/api/tas/coverage/**', route =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ incompletePeriods }) }),
+  );
+}
+
+async function mockDraftSummary(page: Page, summary: Record<string, unknown>) {
+  await page.route('**/api/tas/draft', route =>
+    route.request().method() === 'GET'
+      ? route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(summary) })
+      : route.fulfill({ status: 204 }),
+  );
+}
+
+async function verificationWith(page: Page, sessions: unknown[]) {
+  await mockTasUpload(page, {
+    ...mock.UPLOAD_RESULT_WITH_FLAGS,
+    flaggedSessions: sessions as typeof mock.ALL_FLAGGED_SESSIONS,
+    availablePeriods: [{ anio: 2026, mes: 6, numeroDequincena: 1 }],
+  });
+  await waitForApp(page);
+  await uploadFile(page);
+  await page.waitForSelector('text=Verificación de marcaciones', { timeout: 10_000 });
+  await page.waitForTimeout(300);
 }
 
 async function mockConfigEndpoints(page: Page) {
@@ -108,7 +133,7 @@ async function uploadFile(page: Page) {
 
 async function setTasStoreState(page: Page, state: Record<string, unknown>) {
   await page.evaluate((s) => {
-    const store = (window as any).__ZUSTAND_TAS_STORE__;
+    const store = (window as unknown as Record<string, { setState: (s: unknown) => void } | undefined>).__ZUSTAND_TAS_STORE__;
     if (store) store.setState(s);
   }, state);
 }
@@ -153,7 +178,7 @@ test('03 - inactive employee review', async ({ page }) => {
 
 test('04 - verification: all flag types', async ({ page }) => {
   await mockHealthEndpoints(page);
-  await mockTasUpload(page, mock.UPLOAD_RESULT_WITH_FLAGS);
+  await mockTasUpload(page, { ...mock.UPLOAD_RESULT_WITH_FLAGS, availablePeriods: [{ anio: 2026, mes: 6, numeroDequincena: 1 }] });
   await mockTasResolve(page, mock.RESOLVE_RESULT_TO_REVIEW);
   await waitForApp(page);
   await uploadFile(page);
@@ -453,4 +478,127 @@ test('19 - backend error', async ({ page }) => {
   await page.goto('/');
   await page.waitForSelector('text=No se pudo conectar con el servicio', { timeout: 30_000 });
   await screenshot(page, '19-backend-error.png');
+});
+
+// ── 20-21. Resume an unfinished session ────────────────────────────
+
+const DRAFT_SUMMARY = {
+  fileName: 'Reporte TAS Junio 2026.csv', view: 'verification', periodLabel: 'Junio 2026 - Quincena 1',
+  savedAt: new Date().toISOString(), partialSubmit: false, resumable: true, uiVersion: 1, jobActive: false,
+};
+
+test('20 - resume an unfinished session', async ({ page }) => {
+  await mockHealthEndpoints(page);
+  await mockDraftSummary(page, DRAFT_SUMMARY);
+  await waitForApp(page);
+  await page.waitForSelector('text=Sesión sin terminar');
+  await screenshot(page, '20-resume-draft.png');
+});
+
+test('21 - resume: session from another version', async ({ page }) => {
+  await mockHealthEndpoints(page);
+  await mockDraftSummary(page, { ...DRAFT_SUMMARY, resumable: false, uiVersion: null });
+  await waitForApp(page);
+  await page.waitForSelector('text=no se puede continuar');
+  await screenshot(page, '21-resume-draft-outdated.png');
+});
+
+// ── 22-23. Doble marcación ─────────────────────────────────────────
+
+test('22 - verification: doble marcación', async ({ page }) => {
+  await mockHealthEndpoints(page);
+  await verificationWith(page, [mock.FLAGGED_SAME_DAY_DOUBLE_A, mock.FLAGGED_SAME_DAY_DOUBLE_B]);
+  await screenshot(page, '22-verification-double.png');
+});
+
+test('23 - verification: doble marcación of lone scans', async ({ page }) => {
+  await mockHealthEndpoints(page);
+  const base = { employeeId: 'E004', employeeName: 'López Castillo, Pedro José', date: '2026-06-09', workedMinutes: 0, workedHours: 0, needsResolution: true };
+  await verificationWith(page, [
+    { ...base, sessionId: 41, scans: ['2026-06-09T07:08:00'], effectiveStart: '2026-06-09T07:08:00', lastScan: '2026-06-09T07:08:00',
+      matchedShiftId: 'shift-1', matchedShiftName: 'Mañana', assignedShiftId: 'shift-1', assignedShiftName: 'Mañana',
+      flags: ['SAME_DAY_DOUBLE', 'MISSING_EXIT'] },
+    { ...base, sessionId: 42, scans: ['2026-06-09T22:03:00'], effectiveStart: '2026-06-09T22:03:00', lastScan: '2026-06-09T22:03:00',
+      matchedShiftId: 'shift-3', matchedShiftName: 'Noche', assignedShiftId: 'shift-1', assignedShiftName: 'Mañana', crossMidnight: true,
+      flags: ['BEST_FIT_SHIFT', 'SAME_DAY_DOUBLE', 'MISSING_EXIT'] },
+  ]);
+  await page.waitForSelector('text=Una sola jornada');
+  await screenshot(page, '23-verification-double-single-scans.png');
+});
+
+// ── 24. Jornada corta ──────────────────────────────────────────────
+
+test('24 - verification: jornada corta', async ({ page }) => {
+  await mockHealthEndpoints(page);
+  await verificationWith(page, [mock.FLAGGED_MISSING_EXIT, mock.FLAGGED_SHORT_DAY]);
+  await page.locator('text=Jornadas cortas').scrollIntoViewIfNeeded();
+  await screenshot(page, '24-verification-short-day.png');
+});
+
+// ── 25. Intercambiar entrada/salida ────────────────────────────────
+
+test('25 - verification: swap entry and exit', async ({ page }) => {
+  await mockHealthEndpoints(page);
+  await verificationWith(page, [{ ...mock.FLAGGED_MISSING_EXIT, scans: ['2026-06-04T16:58:00'], effectiveStart: '2026-06-04T16:58:00' }]);
+  await page.getByRole('button', { name: 'Intercambiar entrada/salida' }).click();
+  await page.getByLabel('Entrada').fill('07:00');
+  await screenshot(page, '25-verification-swap.png');
+});
+
+// ── 26. Night across the 15th/16th ─────────────────────────────────
+
+test('26 - verification: night that started in the previous quincena', async ({ page }) => {
+  await mockHealthEndpoints(page);
+  await mockTasUpload(page, {
+    ...mock.UPLOAD_RESULT_WITH_FLAGS,
+    flaggedSessions: [{
+      sessionId: 61, employeeId: 'E006', employeeName: 'Castañeda Vega, Roberto', date: '2026-06-16',
+      scans: ['2026-06-16T06:00:00'], effectiveStart: null, lastScan: '2026-06-16T06:00:00',
+      matchedShiftId: 'shift-3', matchedShiftName: 'Noche', assignedShiftId: 'shift-3', assignedShiftName: 'Noche',
+      crossMidnight: true, workedMinutes: 0, workedHours: 0, needsResolution: true, flags: ['MISSING_ENTRY', 'START_CUTOFF'],
+    }] as typeof mock.ALL_FLAGGED_SESSIONS,
+    availablePeriods: [{ anio: 2026, mes: 6, numeroDequincena: 2 }],
+  });
+  await waitForApp(page);
+  await uploadFile(page);
+  await page.waitForSelector('text=Verificación de marcaciones', { timeout: 10_000 });
+  await page.getByLabel('Entrada').fill('22:00');
+  await page.waitForSelector('text=Esta jornada empezó');
+  await screenshot(page, '26-verification-previous-quincena.png');
+});
+
+// ── 27-28. Quincena incompleta ─────────────────────────────────────
+
+const INCOMPLETE = [{
+  anio: 2026, mes: 6, numeroDequincena: 1, periodStart: '2026-06-01', periodEnd: '2026-06-15',
+  dataStart: '2026-06-01', dataEnd: '2026-06-11', missingWorkingDays: ['2026-06-12', '2026-06-13', '2026-06-15'],
+}];
+
+async function reviewWithIncompleteQuincena(page: Page) {
+  await mockHealthEndpoints(page, INCOMPLETE);
+  await mockCheckDuplicates(page);
+  await mockRecomputeTas(page);
+  await mockTasUpload(page, {
+    ...mock.UPLOAD_RESULT_WITH_FLAGS,
+    flaggedSessions: [],
+    // The three missing working days count as not worked for everyone, as the banner says.
+    resolvedRows: mock.RESOLVED_ROWS.map(r => ({ ...r, diasNoLaborados: r.diasNoLaborados + 3 })),
+    availablePeriods: [{ anio: 2026, mes: 6, numeroDequincena: 1 }],
+    absentActiveEmployees: [],
+  });
+  await waitForApp(page);
+  await uploadFile(page);
+  await page.waitForSelector('text=Quincena incompleta', { timeout: 10_000 });
+}
+
+test('27 - review: quincena incompleta banner', async ({ page }) => {
+  await reviewWithIncompleteQuincena(page);
+  await screenshot(page, '27-review-incomplete-quincena.png');
+});
+
+test('28 - review: quincena incompleta confirmation', async ({ page }) => {
+  await reviewWithIncompleteQuincena(page);
+  await page.locator('button:has-text("Enviar")').last().click();
+  await page.waitForSelector('text=Enviar de todas formas');
+  await screenshot(page, '28-review-incomplete-confirm.png');
 });

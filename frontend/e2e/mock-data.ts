@@ -127,12 +127,12 @@ export const FLAGGED_SHORT_DAY: TasSession = {
 
 export const FLAGGED_START_CUTOFF: TasSession = {
   sessionId: 7, employeeId: 'E006', employeeName: 'Castañeda Vega, Roberto',
-  date: '2026-06-01', scans: ['2026-06-01T06:00:00', '2026-06-01T14:00:00'],
-  matchedShiftId: 'shift-1', matchedShiftName: 'Mañana',
-  assignedShiftId: 'shift-1', assignedShiftName: 'Mañana',
-  effectiveStart: '2026-06-01T06:00:00', lastScan: '2026-06-01T14:00:00',
-  workedMinutes: 480, workedHours: 8, needsResolution: true,
-  flags: ['START_CUTOFF'],
+  date: '2026-06-01', scans: ['2026-06-01T06:00:00'],
+  matchedShiftId: 'shift-3', matchedShiftName: 'Noche',
+  assignedShiftId: 'shift-3', assignedShiftName: 'Noche', crossMidnight: true,
+  effectiveStart: null, lastScan: '2026-06-01T06:00:00',
+  workedMinutes: 0, workedHours: 0, needsResolution: true,
+  flags: ['MISSING_ENTRY', 'START_CUTOFF'],
 };
 
 export const FLAGGED_BEST_FIT: TasSession = {

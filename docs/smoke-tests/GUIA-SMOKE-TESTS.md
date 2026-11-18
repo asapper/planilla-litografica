@@ -813,7 +813,7 @@ Verifica que la media hora de overtime (30 min) produce `0.5` y no se trunca a e
 
 ## 28 — Doble marcación de marcaciones sueltas
 **Archivo:** `28-same-day-double-single-scans.csv`
-**Empleado:** Molina Mauro (ID 296)
+**Empleado:** Ramírez Tomás (ID 128)
 **Turno asignado:** Mañana (07:00–15:00)
 
 ### Flujo esperado
