@@ -563,11 +563,13 @@ pub fn run() {
                         25,
                         std::time::Duration::from_millis(200),
                     ) {
-                        // Couldn't kill it (e.g. an elevated/AV-held JVM). Reusing the
+                        // Another install's backend (left alone on purpose), or ours but
+                        // unkillable (e.g. an elevated/AV-held JVM). Reusing the
                         // stubborn backend is safe; spawning a second would crash on the
                         // H2 lock. We don't own it, so it won't be torn down on exit.
                         log::warn!(
-                            "backend on 127.0.0.1:{BACKEND_PORT} did not exit after termination; reusing it instead of spawning a duplicate"
+                            "backend on 127.0.0.1:{BACKEND_PORT} is still running: it is not this install's ({}) or could not be stopped; reusing it instead of spawning a duplicate",
+                            java_bin.display()
                         );
                         return Ok(());
                     }
@@ -1058,6 +1060,32 @@ mod tests {
                    garbage\n";
         assert_eq!(pids_running(ps, java), vec![101, 505]);
         assert!(pids_running("", java).is_empty());
+    }
+
+    #[test]
+    fn the_encoded_stop_script_decodes_back_to_the_script() {
+        let alphabet = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+        let encoded = powershell_encoded(STOP_BACKEND_SCRIPT);
+        let mut bytes = Vec::new();
+        for chunk in encoded.as_bytes().chunks(4) {
+            let n = chunk.iter().enumerate().fold(0u32, |n, (i, c)| {
+                let v = alphabet.iter().position(|a| a == c).unwrap_or(0) as u32;
+                n | (v << (18 - 6 * i))
+            });
+            let len = 3 - chunk.iter().filter(|c| **c == b'=').count();
+            bytes.extend_from_slice(&n.to_be_bytes()[1..1 + len]);
+        }
+        let units: Vec<u16> = bytes.chunks(2).map(|b| u16::from_le_bytes([b[0], b[1]])).collect();
+        assert_eq!(String::from_utf16(&units).unwrap(), STOP_BACKEND_SCRIPT);
+    }
+
+    #[test]
+    fn finds_this_java_under_a_path_with_spaces() {
+        let java = Path::new("/Applications/Cargador de Planilla.app/Contents/Resources/jre/bin/java");
+        let ps = "  7 /Applications/Cargador de Planilla.app/Contents/Resources/jre/bin/java -jar /Applications/Cargador de Planilla.app/Contents/Resources/backend.jar\n\
+                   8 /Applications/Cargador de Planilla Copy.app/Contents/Resources/jre/bin/java -jar backend.jar\n\
+                   9 /Applications/Cargador\n";
+        assert_eq!(pids_running(ps, java), vec![7]);
     }
 
     #[test]

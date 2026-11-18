@@ -25,15 +25,19 @@ function Start-Fake($exe) {
     $p
 }
 
+$script:lastOutput = ''
 function Stop-Backend($instdir, [switch]$Encoded) {
     $env:PLANILLA_INSTDIR = $instdir
+    # Stderr from the child is captured as data, not raised.
+    $ErrorActionPreference = 'Continue'
     try {
         if ($Encoded) {
             $code = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes([IO.File]::ReadAllText($script)))
-            & powershell -NoProfile -NonInteractive -EncodedCommand $code | Out-Host
+            $script:lastOutput = (& powershell -NoProfile -NonInteractive -EncodedCommand $code 2>&1) -join "`n"
         } else {
-            & powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $script | Out-Host
+            $script:lastOutput = (& powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $script 2>&1) -join "`n"
         }
+        if ($script:lastOutput) { Write-Host $script:lastOutput }
         $LASTEXITCODE
     } finally {
         Remove-Item Env:PLANILLA_INSTDIR -ErrorAction SilentlyContinue
@@ -98,8 +102,22 @@ public static class FakeJvm { public static void Main() { System.Threading.Threa
         Write-Host 'skip - 8.3 names are disabled on this volume'
     }
 
+    $savedTemp = $env:TEMP, $env:TMP
+    $env:TEMP = $env:TMP = Join-Path $root 'no-such-temp'
+    try {
+        $p = Start-Fake $ownJava
+        Check ((Stop-Backend $own) -eq 0) 'Add-Type blocked (no temp folder): exit 0'
+        Check ($script:lastOutput -match 'matching by path') '... reported as the path fallback'
+        Check (Gone $p) '... and our backend is stopped by path'
+        Check (-not $theirs.HasExited) "... and the other install's backend is not"
+        Check ((Stop-Backend $empty) -eq 0) '... and an install with no java.exe still exits 0'
+    } finally {
+        $env:TEMP, $env:TMP = $savedTemp
+    }
+
     $p = Start-Fake $ownJava
     Check ((Stop-Backend $own -Encoded) -eq 0) 'run as -EncodedCommand, the way the app runs it: exit 0'
+    Check ($script:lastOutput -notmatch 'CLIXML|matching by path') '... with no progress records or fallback in its output'
     Check (Gone $p) '... and our backend is stopped'
     Check (-not $theirs.HasExited) "the other install's backend survived every case"
 } finally {

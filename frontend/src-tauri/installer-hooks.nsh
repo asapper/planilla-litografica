@@ -13,6 +13,10 @@
 
 !include LogicLib.nsh
 
+; Captured here, while this file is being read: inside the macro body ${__FILEDIR__}
+; would expand where the macro is inserted, in Tauri's generated installer.nsi.
+!define PLANILLA_HOOK_DIR "${__FILEDIR__}"
+
 ; stop-backend.ps1 (shared with the app's startup check in lib.rs) stops the JVM whose
 ; executable is this install's jre\bin\java.exe, matched by file identity so short names,
 ; junctions and subst drives can't hide it. It exits 0 once none is running, 1 if one is
@@ -22,7 +26,7 @@
 !macro KillBundledBackend
   DetailPrint "Stopping any running backend (bundled JRE)..."
   InitPluginsDir
-  File "/oname=$PLUGINSDIR\stop-backend.ps1" "${__FILEDIR__}\stop-backend.ps1"
+  File "/oname=$PLUGINSDIR\stop-backend.ps1" "${PLANILLA_HOOK_DIR}\stop-backend.ps1"
   System::Call 'kernel32::SetEnvironmentVariable(t "PLANILLA_INSTDIR", t "$INSTDIR")i'
   nsExec::ExecToLog 'powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$PLUGINSDIR\stop-backend.ps1"'
   Pop $0
@@ -31,7 +35,7 @@
   ${ElseIf} $0 == "2"
     DetailPrint "WARNING: could not check for a running backend (the install path was not passed on). If the install fails on a locked file, close java.exe in Task Manager and run the installer again."
   ${ElseIf} $0 == "3"
-    DetailPrint "WARNING: could not check for a running backend (the check itself failed). If the install fails on a locked file, close java.exe in Task Manager and run the installer again."
+    DetailPrint "WARNING: could not check for a running backend (the process list could not be read). If the install fails on a locked file, close java.exe in Task Manager and run the installer again."
   ${ElseIf} $0 == "1"
     DetailPrint "WARNING: a bundled backend (java.exe) is still running (result: $0). If the install fails on a locked file, close it in Task Manager and run the installer again."
   ${Else}

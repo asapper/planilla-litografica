@@ -6,11 +6,16 @@
 # junction, a subst drive or a different case all name the same file, while another
 # install's java.exe is a different file even under an identical-looking path.
 #
+# Comparing file identities needs Add-Type (the C# compiler and a writable temp folder).
+# Where that is blocked, it falls back to comparing the full path text, as before.
+#
 # Exit codes: 0 no bundled backend is running (any was stopped), 1 one is still running
-# after ~10 s, 2 PLANILLA_INSTDIR is not set, 3 the check itself failed.
+# after ~10 s, 2 PLANILLA_INSTDIR is not set, 3 the process list could not be read.
 
 $ErrorActionPreference = 'Stop'
+$ProgressPreference = 'SilentlyContinue'
 if (-not $env:PLANILLA_INSTDIR) { exit 2 }
+$java = $env:PLANILLA_INSTDIR.TrimEnd('\') + '\jre\bin\java.exe'
 try {
     Add-Type -TypeDefinition @'
 using System;
@@ -44,12 +49,18 @@ public static class PlanillaFileId {
     }
 }
 '@
-    $java = $env:PLANILLA_INSTDIR.TrimEnd('\') + '\jre\bin\java.exe'
     $target = [PlanillaFileId]::Of($java)
     if (-not $target) { exit 0 }
+    $isOurs = { param($path) [PlanillaFileId]::Of($path) -eq $target }
+} catch {
+    Write-Output 'File identity unavailable; matching by path.'
+    if (-not (Test-Path -LiteralPath $java)) { exit 0 }
+    $isOurs = { param($path) [string]::Equals($path, $java, [System.StringComparison]::OrdinalIgnoreCase) }
+}
+try {
     $ours = {
         @(Get-CimInstance Win32_Process -Filter "Name = 'java.exe'" |
-            Where-Object { $_.ExecutablePath -and [PlanillaFileId]::Of($_.ExecutablePath) -eq $target })
+            Where-Object { $_.ExecutablePath -and (& $isOurs $_.ExecutablePath) })
     }
     & $ours | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
     for ($i = 0; $i -lt 20; $i++) {
