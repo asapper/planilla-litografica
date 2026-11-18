@@ -13,21 +13,24 @@
 
 !include LogicLib.nsh
 
-; The PowerShell script kills the JVM, then polls (up to ~10 s) until it is gone,
-; exiting 0 once no bundled java.exe remains and 1 if one is still running.
-; The install path reaches it through an environment variable and is compared as a
-; literal prefix: pasted into the script, a ' in the path (C:\Users\O'Brien) broke the
-; quoting, and [ or ] were read as -like wildcards, so the backend was never stopped.
+; The PowerShell script kills the JVM, then polls (up to ~10 s) until it is gone. It exits
+; 0 once no bundled java.exe remains, 1 if one is still running, 2 if it was not given the
+; install path and 3 if the process list could not be read.
+; The install path reaches it through an environment variable, and only the bundled
+; jre\bin\java.exe is matched, by its full path: pasted into the script, a ' in the path
+; (C:\Users\O'Brien) broke the quoting and [ or ] were read as -like wildcards, so the
+; backend was never stopped.
 !macro KillBundledBackend
   DetailPrint "Stopping any running backend (bundled JRE)..."
   System::Call 'kernel32::SetEnvironmentVariable(t "PLANILLA_INSTDIR", t "$INSTDIR")i'
-  nsExec::ExecToLog `powershell -NoProfile -NonInteractive -Command "$$d = $$env:PLANILLA_INSTDIR.TrimEnd('\') + '\'; $$f = { Get-CimInstance Win32_Process | Where-Object { $$_.Name -eq 'java.exe' -and $$_.ExecutablePath -and $$_.ExecutablePath.StartsWith($$d, [System.StringComparison]::OrdinalIgnoreCase) } }; & $$f | ForEach-Object { Stop-Process -Id $$_.ProcessId -Force -ErrorAction SilentlyContinue }; for ($$i = 0; $$i -lt 20; $$i++) { if (-not (& $$f)) { exit 0 }; Start-Sleep -Milliseconds 500 }; exit 1"`
+  nsExec::ExecToLog `powershell -NoProfile -NonInteractive -Command "if (-not $$env:PLANILLA_INSTDIR) { exit 2 }; $$java = $$env:PLANILLA_INSTDIR.TrimEnd('\') + '\jre\bin\java.exe'; $$f = { Get-CimInstance Win32_Process -ErrorAction Stop | Where-Object { $$_.Name -eq 'java.exe' -and [string]::Equals($$_.ExecutablePath, $$java, [System.StringComparison]::OrdinalIgnoreCase) } }; try { & $$f | ForEach-Object { Stop-Process -Id $$_.ProcessId -Force -ErrorAction SilentlyContinue }; for ($$i = 0; $$i -lt 20; $$i++) { if (-not (& $$f)) { exit 0 }; Start-Sleep -Milliseconds 500 }; exit 1 } catch { exit 3 }"`
   Pop $0
   ${If} $0 == "0"
     DetailPrint "Backend stopped."
   ${Else}
     DetailPrint "WARNING: a bundled backend (java.exe) is still running (result: $0). If the install fails on a locked file, close it in Task Manager and run the installer again."
   ${EndIf}
+  System::Call 'kernel32::SetEnvironmentVariable(t "PLANILLA_INSTDIR", p 0)i'
   Sleep 500
 !macroend
 
