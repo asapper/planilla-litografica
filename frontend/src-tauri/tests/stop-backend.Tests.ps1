@@ -102,17 +102,16 @@ public static class FakeJvm { public static void Main() { System.Threading.Threa
         Write-Host 'skip - 8.3 names are disabled on this volume'
     }
 
-    $savedTemp = $env:TEMP, $env:TMP
-    $env:TEMP = $env:TMP = Join-Path $root 'no-such-temp'
+    $env:PLANILLA_STOP_BY_PATH = '1'
     try {
         $p = Start-Fake $ownJava
-        Check ((Stop-Backend $own) -eq 0) 'Add-Type blocked (no temp folder): exit 0'
+        Check ((Stop-Backend $own) -eq 0) 'without file identity (Add-Type blocked): exit 0'
         Check ($script:lastOutput -match 'matching by path') '... reported as the path fallback'
         Check (Gone $p) '... and our backend is stopped by path'
         Check (-not $theirs.HasExited) "... and the other install's backend is not"
         Check ((Stop-Backend $empty) -eq 0) '... and an install with no java.exe still exits 0'
     } finally {
-        $env:TEMP, $env:TMP = $savedTemp
+        Remove-Item Env:PLANILLA_STOP_BY_PATH -ErrorAction SilentlyContinue
     }
 
     $p = Start-Fake $ownJava

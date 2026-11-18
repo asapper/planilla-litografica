@@ -17,6 +17,8 @@ $ProgressPreference = 'SilentlyContinue'
 if (-not $env:PLANILLA_INSTDIR) { exit 2 }
 $java = $env:PLANILLA_INSTDIR.TrimEnd('\') + '\jre\bin\java.exe'
 try {
+    # Set only by tests/stop-backend.Tests.ps1, to exercise the fallback.
+    if ($env:PLANILLA_STOP_BY_PATH) { throw 'path match requested' }
     Add-Type -TypeDefinition @'
 using System;
 using System.Runtime.InteropServices;
