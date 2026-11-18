@@ -1,0 +1,22 @@
+name: Windows scripts
+
+on:
+  pull_request:
+    paths:
+      - 'frontend/src-tauri/stop-backend.ps1'
+      - 'frontend/src-tauri/installer-hooks.nsh'
+      - 'frontend/src-tauri/tests/**'
+      - '.github/workflows/windows-scripts.yml'
+  workflow_dispatch:
+
+jobs:
+  stop-backend:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Windows PowerShell 5.1, the one the installer and the app run.
+      - name: stop-backend.ps1 against real processes
+        shell: powershell
+        run: ./frontend/src-tauri/tests/stop-backend.Tests.ps1

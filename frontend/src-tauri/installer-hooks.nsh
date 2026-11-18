@@ -13,25 +13,25 @@
 
 !include LogicLib.nsh
 
-; The PowerShell script kills the JVM, then polls (up to ~10 s) until it is gone. It exits
-; 0 once no bundled java.exe remains, 1 if one is still running, 2 if it was not given the
-; install path and 3 if the process list could not be read. nsExec gives "error" or "timeout"
-; when PowerShell itself did not run.
-; The install path reaches it through an environment variable, and only the bundled
-; jre\bin\java.exe is matched, by its full path: pasted into the script, a ' in the path
-; (C:\Users\O'Brien) broke the quoting and [ or ] were read as -like wildcards, so the
-; backend was never stopped.
+; stop-backend.ps1 (shared with the app's startup check in lib.rs) stops the JVM whose
+; executable is this install's jre\bin\java.exe, matched by file identity so short names,
+; junctions and subst drives can't hide it. It exits 0 once none is running, 1 if one is
+; still running after ~10 s, 2 if it was not given the install path and 3 if the check
+; failed. nsExec gives "error" or "timeout" when PowerShell itself did not run.
+; The install path reaches it through an environment variable, never as script text.
 !macro KillBundledBackend
   DetailPrint "Stopping any running backend (bundled JRE)..."
+  InitPluginsDir
+  File "/oname=$PLUGINSDIR\stop-backend.ps1" "${__FILEDIR__}\stop-backend.ps1"
   System::Call 'kernel32::SetEnvironmentVariable(t "PLANILLA_INSTDIR", t "$INSTDIR")i'
-  nsExec::ExecToLog `powershell -NoProfile -NonInteractive -Command "if (-not $$env:PLANILLA_INSTDIR) { exit 2 }; $$java = $$env:PLANILLA_INSTDIR.TrimEnd('\') + '\jre\bin\java.exe'; $$f = { Get-CimInstance Win32_Process -ErrorAction Stop | Where-Object { $$_.Name -eq 'java.exe' -and [string]::Equals($$_.ExecutablePath, $$java, [System.StringComparison]::OrdinalIgnoreCase) } }; try { & $$f | ForEach-Object { Stop-Process -Id $$_.ProcessId -Force -ErrorAction SilentlyContinue }; for ($$i = 0; $$i -lt 20; $$i++) { if (-not (& $$f)) { exit 0 }; Start-Sleep -Milliseconds 500 }; exit 1 } catch { exit 3 }"`
+  nsExec::ExecToLog 'powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$PLUGINSDIR\stop-backend.ps1"'
   Pop $0
   ${If} $0 == "0"
     DetailPrint "Backend stopped."
   ${ElseIf} $0 == "2"
     DetailPrint "WARNING: could not check for a running backend (the install path was not passed on). If the install fails on a locked file, close java.exe in Task Manager and run the installer again."
   ${ElseIf} $0 == "3"
-    DetailPrint "WARNING: could not check for a running backend (the process list could not be read). If the install fails on a locked file, close java.exe in Task Manager and run the installer again."
+    DetailPrint "WARNING: could not check for a running backend (the check itself failed). If the install fails on a locked file, close java.exe in Task Manager and run the installer again."
   ${ElseIf} $0 == "1"
     DetailPrint "WARNING: a bundled backend (java.exe) is still running (result: $0). If the install fails on a locked file, close it in Task Manager and run the installer again."
   ${Else}
