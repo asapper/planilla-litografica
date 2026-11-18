@@ -27,6 +27,10 @@
   Pop $0
   ${If} $0 == "0"
     DetailPrint "Backend stopped."
+  ${ElseIf} $0 == "2"
+    DetailPrint "WARNING: could not check for a running backend (the install path was not passed on). If the install fails on a locked file, close java.exe in Task Manager and run the installer again."
+  ${ElseIf} $0 == "3"
+    DetailPrint "WARNING: could not check for a running backend (the process list could not be read). If the install fails on a locked file, close java.exe in Task Manager and run the installer again."
   ${Else}
     DetailPrint "WARNING: a bundled backend (java.exe) is still running (result: $0). If the install fails on a locked file, close it in Task Manager and run the installer again."
   ${EndIf}
