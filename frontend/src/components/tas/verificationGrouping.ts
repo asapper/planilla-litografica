@@ -13,11 +13,24 @@ export interface EmployeeGroupData {
   pendingCount: number;
 }
 
+export type DoubleChoice = number | 'all';
+
+export function needsTimes(session: TasSession): boolean {
+  return session.flags.includes('MISSING_ENTRY') || session.flags.includes('MISSING_EXIT');
+}
+
+// A choice that names no session of the group keeps them all, as the backend does.
+export function keptSessions(sessions: TasSession[], choice: DoubleChoice | undefined): TasSession[] {
+  const kept = sessions.filter(s => s.sessionId === choice);
+  return kept.length > 0 ? kept : sessions;
+}
+
 export function buildEmployeeGroups(
   regular: TasSession[],
   shiftMismatchOnly: TasSession[],
   sameDayDoubleGroups: Map<string, TasSession[]>,
   resolvedSessions: Record<number, ResolvedSessionEntry>,
+  sameDayDoubleResolutions: Record<string, DoubleChoice> = {},
 ): EmployeeGroupData[] {
   const groups = new Map<string, EmployeeGroupData>();
 
@@ -45,6 +58,9 @@ export function buildEmployeeGroups(
     const first = sessions[0];
     const group = getGroup(first.employeeId, first.employeeName);
     group.items.push({ type: 'same_day_double', groupKey, sessions, date: first.date });
+    // The pre-selected choice counts as decided, but a kept half that lacks a scan still needs its time.
+    group.pendingCount += keptSessions(sessions, sameDayDoubleResolutions[groupKey])
+      .filter(s => needsTimes(s) && !resolvedSessions[s.sessionId]).length;
   }
 
   // Keep items in stable chronological order regardless of resolved state:

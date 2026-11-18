@@ -2935,4 +2935,108 @@ class TasControllerTest {
            // 13 working days from Jan 1 to 15 (two Sundays), both nights worked: Jan 6 and Jan 7.
            .andExpect(jsonPath("$.resolvedRows[0].diasNoLaborados").value(11));
     }
+
+    // ── TASK-98: a double made of single scans ───────────────────────────────
+
+    private List<TasSession> seedSingleScanDouble(String token) {
+        TasSession morning = new TasSession();
+        morning.setSessionId(1);
+        morning.setEmployeeId("296");
+        morning.setEmployeeName("Molina");
+        morning.setDate(java.time.LocalDate.of(2026, 9, 29));
+        morning.setEffectiveStart(java.time.LocalDateTime.of(2026, 9, 29, 7, 8));
+        morning.setLastScan(java.time.LocalDateTime.of(2026, 9, 29, 7, 8));
+        morning.setScans(new ArrayList<>(List.of(java.time.LocalDateTime.of(2026, 9, 29, 7, 8))));
+        morning.setMatchedShiftId("manana");
+        morning.setNeedsResolution(true);
+        morning.setFlags(new ArrayList<>(List.of(TasFlag.SAME_DAY_DOUBLE, TasFlag.MISSING_EXIT)));
+        TasSession evening = new TasSession();
+        evening.setSessionId(2);
+        evening.setEmployeeId("296");
+        evening.setEmployeeName("Molina");
+        evening.setDate(java.time.LocalDate.of(2026, 9, 29));
+        evening.setEffectiveStart(java.time.LocalDateTime.of(2026, 9, 29, 22, 3));
+        evening.setLastScan(java.time.LocalDateTime.of(2026, 9, 29, 22, 3));
+        evening.setScans(new ArrayList<>(List.of(java.time.LocalDateTime.of(2026, 9, 29, 22, 3))));
+        evening.setMatchedShiftId("noche");
+        evening.setNeedsResolution(true);
+        evening.setFlags(new ArrayList<>(List.of(TasFlag.BEST_FIT_SHIFT, TasFlag.SAME_DAY_DOUBLE, TasFlag.MISSING_EXIT)));
+        TasUploadState state = new TasUploadState();
+        state.setUploadToken(token);
+        state.setSessions(new ArrayList<>(List.of(morning, evening)));
+        tasController.stateStore.put(token, state);
+        when(shiftConfigService.getAllShifts()).thenReturn(List.of());
+        when(reportBuilder.build(any(), any(), any(), any(), any()))
+            .thenReturn(new TasReportBuilder.BuildResult(List.of()));
+        when(reportBuilder.computeAvailablePeriods(any())).thenReturn(List.of());
+        return List.of(morning, evening);
+    }
+
+    private static Map<String, Object> typedTimes(int sessionId, String start, String end) {
+        Map<String, Object> res = new LinkedHashMap<>();
+        res.put("sessionId", sessionId);
+        res.put("resolvedStart", start);
+        res.put("resolvedEnd", end);
+        return res;
+    }
+
+    private static Map<String, Object> keep(Object keepSessionId) {
+        Map<String, Object> res = new LinkedHashMap<>();
+        res.put("employeeId", "296");
+        res.put("date", "2026-09-29");
+        res.put("keepSessionId", keepSessionId);
+        return res;
+    }
+
+    @Test
+    void resolve_singleScanDoubleAsOneDay_keepsTheMergedDayAndDropsTheOtherScan() throws Exception {
+        List<TasSession> day = seedSingleScanDouble("single-tok");
+
+        mvc.perform(post("/api/tas/resolve")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of("uploadToken", "single-tok", "resolutions",
+                        List.of(typedTimes(1, "2026-09-29 07:08", "2026-09-29 22:03"), keep(1))))))
+           .andExpect(status().isOk())
+           .andExpect(jsonPath("$.flaggedSessions.length()").value(0));
+
+        assertThat(day.get(0).getWorkedMinutes()).isEqualTo(895);
+        assertThat(day.get(0).isNeedsResolution()).isFalse();
+        assertThat(day.get(1).getWorkedMinutes()).isZero();
+        assertThat(day.get(1).isNeedsResolution()).isFalse();
+    }
+
+    @Test
+    void resolve_singleScanDoubleKeptWhole_takesTheTypedTimesOfBothInOnePass() throws Exception {
+        List<TasSession> day = seedSingleScanDouble("both-tok");
+
+        mvc.perform(post("/api/tas/resolve")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of("uploadToken", "both-tok", "resolutions", List.of(
+                        typedTimes(1, "2026-09-29 07:08", "2026-09-29 15:00"),
+                        typedTimes(2, "2026-09-29 22:03", "2026-09-30 06:00"),
+                        keep("all"))))))
+           .andExpect(status().isOk())
+           .andExpect(jsonPath("$.flaggedSessions.length()").value(0));
+
+        assertThat(day.get(0).getWorkedMinutes()).isEqualTo(472);
+        assertThat(day.get(1).getWorkedMinutes()).isEqualTo(477);
+    }
+
+    @Test
+    void resolve_timesForTheDiscardedHalfOfADouble_areRefusedNamingIt() throws Exception {
+        List<TasSession> day = seedSingleScanDouble("discard-tok");
+        long revision = tasController.stateStore.get("discard-tok").getRevision();
+
+        mvc.perform(post("/api/tas/resolve")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of("uploadToken", "discard-tok", "resolutions",
+                        List.of(keep(1), typedTimes(2, "2026-09-29 22:03", "2026-09-30 06:00"))))))
+           .andExpect(status().isBadRequest())
+           .andExpect(jsonPath("$.code").value("DISCARDED_SESSION_WITH_TIMES"))
+           .andExpect(jsonPath("$.sessionId").value(2));
+
+        assertThat(day.get(1).isNeedsResolution()).isTrue();
+        assertThat(day.get(0).getFlags()).contains(TasFlag.SAME_DAY_DOUBLE);
+        assertThat(tasController.stateStore.get("discard-tok").getRevision()).isEqualTo(revision);
+    }
 }
