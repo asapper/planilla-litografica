@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
   clearLocalCopy, fileBytes, loadLocalCopy, localCopyFile, recoverableLocalCopy, saveLocalSnapshot,
-  setLocalCopySubmitted, startLocalCopy,
+  rememberSentDecisions, setLocalCopySubmitted, startLocalCopy,
 } from './localCopy';
 
 const META_KEY = 'planilla.tas.localCopy';
@@ -68,7 +68,7 @@ describe('local copy', () => {
     localStorage.setItem(META_KEY, JSON.stringify({ fileName: 3 }));
     expect(loadLocalCopy()).toBeNull();
     localStorage.setItem(META_KEY, JSON.stringify({ fileName: 'a', savedAt: 'x', snapshot: 'nope', dayKeys: 'no' }));
-    expect(loadLocalCopy()).toEqual({ fileName: 'a', fileBase64: 'eA==', savedAt: 'x', snapshot: null, dayKeys: {}, submitted: false });
+    expect(loadLocalCopy()).toEqual({ fileName: 'a', fileBase64: 'eA==', savedAt: 'x', snapshot: null, dayKeys: {}, sent: {}, submitted: false });
     localStorage.removeItem(FILE_KEY);
     expect(loadLocalCopy()).toBeNull();
   });
@@ -87,14 +87,36 @@ describe('local copy', () => {
     // Revisar rewrites the scans and drops resolved days: the identities from verification stand.
     saveLocalSnapshot({ tasView: 'review', flaggedSessions: [day(1, ['2026-10-03T07:02:00', '2026-10-03T15:00:00'])] });
     expect(loadLocalCopy()?.dayKeys).toEqual({ 1: 'E1|2026-10-03|2026-10-03T07:02:00' });
-    saveLocalSnapshot({ tasView: 'verification', flaggedSessions: [day(5, ['2026-10-03T08:00:00'])] });
-    expect(loadLocalCopy()?.dayKeys).toEqual({ 5: 'E1|2026-10-03|2026-10-03T08:00:00' });
+    // "Cambiar quincena" returns to verification with the post-Revisar list: known days keep their identity.
+    saveLocalSnapshot({ tasView: 'verification', flaggedSessions: [
+      day(1, ['2026-10-03T07:02:00', '2026-10-03T15:00:00']), day(5, ['2026-10-20T08:00:00'])] });
+    expect(loadLocalCopy()?.dayKeys).toEqual({
+      1: 'E1|2026-10-03|2026-10-03T07:02:00', 5: 'E1|2026-10-03|2026-10-20T08:00:00' });
+  });
+
+  it('records no identities before the inactive-employee step is done, since the days are renumbered after it', () => {
+    const day = (sessionId: number) => ({ sessionId, employeeId: 'E1', date: '2026-10-03', scans: ['2026-10-03T07:02:00'] });
+    startLocalCopy('oct.csv', BYTES, { tasView: 'inactiveReview', flaggedSessions: [day(1)] }, { 1: 'from-upload' });
+    expect(loadLocalCopy()?.dayKeys).toEqual({});
+    saveLocalSnapshot({ tasView: 'verification', flaggedSessions: [day(7)] });
+    expect(loadLocalCopy()?.dayKeys).toEqual({ 7: 'E1|2026-10-03|2026-10-03T07:02:00' });
+  });
+
+  it('keeps decisions sent with Revisar, newer ones winning', () => {
+    startLocalCopy('oct.csv', BYTES, { tasView: 'verification' });
+    rememberSentDecisions({ resolvedSessions: { 1: 'a', 2: 'b' } });
+    rememberSentDecisions({ resolvedSessions: { 2: 'c' }, cardInputs: { 3: 'd' } });
+    saveLocalSnapshot({ tasView: 'verification' });
+    expect(loadLocalCopy()?.sent).toEqual({ resolvedSessions: { 1: 'a', 2: 'c' }, cardInputs: { 3: 'd' } });
+    clearLocalCopy();
+    expect(() => rememberSentDecisions({ resolvedSessions: { 1: 'a' } })).not.toThrow();
+    expect(loadLocalCopy()).toBeNull();
   });
 
   it('a copy that starts after Revisar takes the days from the upload itself', () => {
     startLocalCopy('oct.csv', BYTES, { tasView: 'review', flaggedSessions: [] }, { 1: 'E1|2026-10-03|2026-10-03T07:02:00' });
     expect(loadLocalCopy()?.dayKeys).toEqual({ 1: 'E1|2026-10-03|2026-10-03T07:02:00' });
-    startLocalCopy('oct.csv', BYTES, { tasView: 'verification', flaggedSessions: [] }, { 1: 'ignored' });
+    startLocalCopy('oct.csv', BYTES, { tasView: 'inactiveReview', flaggedSessions: [] }, { 1: 'renumbered later' });
     expect(loadLocalCopy()?.dayKeys).toEqual({});
   });
 

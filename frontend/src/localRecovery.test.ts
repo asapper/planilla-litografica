@@ -28,8 +28,10 @@ function upload(flaggedSessions: TasSession[], extra: Partial<TasUploadResult> =
   } as TasUploadResult;
 }
 
-function copy(snapshot: Record<string, unknown>, dayKeys: Record<string, string> = {}): LocalCopy {
-  return { fileName: 'oct.csv', fileBase64: btoa('x'), savedAt: '2026-11-19T10:00:00Z', snapshot, dayKeys, submitted: false };
+function copy(
+  snapshot: Record<string, unknown>, dayKeys: Record<string, string> = {}, sent: LocalCopy['sent'] = {},
+): LocalCopy {
+  return { fileName: 'oct.csv', fileBase64: btoa('x'), savedAt: '2026-11-19T10:00:00Z', snapshot, dayKeys, sent, submitted: false };
 }
 
 const A = ['2026-10-03T07:02:00'];
@@ -134,6 +136,17 @@ describe('rebuildFromLocalCopy', () => {
       10: { resolvedStart: '07:02', resolvedEnd: '15:00' }, 20: { resolvedStart: '07:10', resolvedEnd: '15:00' } });
   });
 
+  it('re-applies decisions sent with an earlier Revisar, under the current ones', async () => {
+    mockUpload.mockResolvedValue(upload([day(10, 'E1', '2026-10-03', A), day(20, 'E1', '2026-10-04', B)]));
+    await rebuildFromLocalCopy(copy(
+      { tasView: 'verification', resolvedSessions: { 2: { resolvedStart: '07:10', resolvedEnd: '16:00' } } },
+      { 1: 'E1|2026-10-03|2026-10-03T07:02:00', 2: 'E1|2026-10-04|2026-10-04T07:10:00' },
+      { resolvedSessions: { 1: { resolvedStart: '07:02', resolvedEnd: '15:00' }, 2: { resolvedStart: '07:10', resolvedEnd: '15:00' } } },
+    ));
+    expect(useTasStore.getState().resolvedSessions).toEqual({
+      10: { resolvedStart: '07:02', resolvedEnd: '15:00' }, 20: { resolvedStart: '07:10', resolvedEnd: '16:00' } });
+  });
+
   it('counts a lost day once, whatever it held', async () => {
     mockUpload.mockResolvedValue(upload([]));
     const recovery = await rebuildFromLocalCopy(copy({
@@ -170,7 +183,7 @@ describe('rebuildFromLocalCopy', () => {
 
   it('works from a copy with no decisions saved yet', async () => {
     mockUpload.mockResolvedValue(upload([]));
-    const recovery = await rebuildFromLocalCopy({ ...copy({}), snapshot: null });
+    const recovery = await rebuildFromLocalCopy({ ...copy({}), snapshot: null, sent: undefined as never });
     expect(recovery).toEqual({ view: 'verification', dropped: 0, wasInReview: false });
     expect(useTasStore.getState().selectedPeriod).toEqual(Q1);
   });

@@ -6,6 +6,7 @@ import type { TasResolution } from '../../tasApi';
 import { MONTH_NAMES_ES } from '../../dateNames';
 import type { TasSession, TasFlag, TasPeriod, ShiftOption, DoubleChoice } from '../../tasTypes';
 import { useToastStore } from '../../toastStore';
+import { rememberSentDecisions } from '../../localCopy';
 import AlertMessage from '../ui/AlertMessage';
 import EmployeeGroup from './EmployeeGroup';
 import { buildEmployeeGroups, effectiveResolution, keptSessions, needsTimes, prefilledResolution } from './verificationGrouping';
@@ -858,6 +859,9 @@ export default function VerificationScreen() {
         s => s.needsResolution && periodsEqual(getSessionPeriod(s.date), selectedPeriod),
       );
       if (stillNeedsResolution) {
+        // The backend applied what was sent; the screen starts the new round empty, but the copy on
+        // this PC keeps it so a rebuild can apply it again.
+        rememberSentDecisions({ resolvedSessions: toSend, cardInputs, shiftAcceptances, sameDayDoubleResolutions });
         clearResolvedSessions();
         setFlaggedSessions(result.flaggedSessions);
         setUploadToken(result.uploadToken);

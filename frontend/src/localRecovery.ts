@@ -23,7 +23,13 @@ function samePeriod(a: TasPeriod, b: unknown): boolean {
 // Rebuilds a session from the copy kept on this PC: uploads the same file again, replays the
 // inactive-employee choices, and carries every decision over to the new session's days.
 export async function rebuildFromLocalCopy(copy: LocalCopy): Promise<Recovery> {
-  const saved = copy.snapshot ?? {};
+  // Decisions sent with an earlier "Revisar" and cleared from the screen since, under the current ones.
+  const current = copy.snapshot ?? {};
+  const sent = copy.sent ?? {};
+  const saved: Record<string, unknown> = { ...current };
+  for (const name of ['resolvedSessions', 'cardInputs', 'shiftAcceptances', 'sameDayDoubleResolutions']) {
+    saved[name] = { ...record(sent[name]), ...record(current[name]) };
+  }
   let result: TasUploadResult = await uploadTasFile(localCopyFile(copy));
 
   const decisions = record(saved.inactiveDecisions) as Record<string, InactiveDecision>;

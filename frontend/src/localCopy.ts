@@ -14,6 +14,9 @@ export interface LocalCopy {
   // "Revisar" rewrites a day's scans and drops resolved days from the list, so the identities are
   // kept from before it: a rebuild matches the decisions to the new session's days with them.
   dayKeys: Record<string, string>;
+  // Decisions already sent with "Revisar" that the screen then cleared for a second round of
+  // verification. A rebuild re-applies them under the current ones.
+  sent: Record<string, Record<string, unknown>>;
   // Set once the payroll submission starts: from then on the backend owns the session, and
   // rebuilding it from here could send it twice.
   submitted: boolean;
@@ -47,7 +50,10 @@ function readMeta(): Meta | null {
     if (typeof parsed.fileName !== 'string' || typeof parsed.savedAt !== 'string') return null;
     const snapshot = parsed.snapshot && typeof parsed.snapshot === 'object' ? parsed.snapshot : null;
     const dayKeys = parsed.dayKeys && typeof parsed.dayKeys === 'object' ? parsed.dayKeys : {};
-    return { fileName: parsed.fileName, savedAt: parsed.savedAt, snapshot, dayKeys, submitted: parsed.submitted === true };
+    const sent = parsed.sent && typeof parsed.sent === 'object' ? parsed.sent : {};
+    return {
+      fileName: parsed.fileName, savedAt: parsed.savedAt, snapshot, dayKeys, sent, submitted: parsed.submitted === true,
+    };
   } catch {
     return null;
   }
@@ -95,8 +101,14 @@ export function fileBytes(file: Blob): Promise<Uint8Array> {
   });
 }
 
-function isVerifying(snapshot: Record<string, unknown> | null): boolean {
-  return snapshot?.tasView === 'verification' || snapshot?.tasView === 'inactiveReview';
+// Identities are recorded in verification and never replaced afterwards: "Revisar" rewrites a day's
+// scans and drops resolved days, and "Cambiar quincena" returns to verification with that list, so
+// the first identity seen for a session id is the one that matches a fresh upload. Before the
+// inactive-employee step is done there is nothing to record: the backend renumbers the days after it.
+function nextDayKeys(snapshot: Record<string, unknown> | null, known: Record<string, string>): Record<string, string> {
+  if (snapshot?.tasView === 'inactiveReview') return {};
+  if (snapshot?.tasView === 'verification') return { ...dayKeysOf(snapshot), ...known };
+  return known;
 }
 
 // A new upload starts a new copy: the file now, the decisions as they are made. `uploadedDays` are the
@@ -115,17 +127,23 @@ export function startLocalCopy(
     return false;
   }
   return writeMeta({
-    fileName, savedAt: new Date().toISOString(), snapshot, submitted: false,
-    dayKeys: isVerifying(snapshot) ? dayKeysOf(snapshot) : uploadedDays,
+    fileName, savedAt: new Date().toISOString(), snapshot, submitted: false, sent: {},
+    dayKeys: nextDayKeys(snapshot, snapshot?.tasView === 'inactiveReview' ? {} : uploadedDays),
   });
 }
 
 export function saveLocalSnapshot(snapshot: Record<string, unknown>): boolean {
   const meta = readMeta();
   if (!meta) return false;
-  // Days are identified while they are still as uploaded; after "Revisar" the earlier keys stand.
-  const dayKeys = isVerifying(snapshot) ? dayKeysOf(snapshot) : meta.dayKeys;
-  return writeMeta({ ...meta, snapshot, dayKeys, savedAt: new Date().toISOString() });
+  return writeMeta({ ...meta, snapshot, dayKeys: nextDayKeys(snapshot, meta.dayKeys), savedAt: new Date().toISOString() });
+}
+
+export function rememberSentDecisions(decisions: Record<string, Record<string, unknown>>): void {
+  const meta = readMeta();
+  if (!meta) return;
+  const sent = { ...meta.sent };
+  for (const [name, values] of Object.entries(decisions)) sent[name] = { ...(sent[name] ?? {}), ...values };
+  writeMeta({ ...meta, sent });
 }
 
 export function setLocalCopySubmitted(submitted: boolean): void {

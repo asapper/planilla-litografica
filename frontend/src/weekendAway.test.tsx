@@ -20,6 +20,8 @@ vi.mock('./components/ConfigPage', () => ({ default: () => <div /> }));
 const backend = vi.hoisted(() => ({
   saved: null as null | { uploadToken: string; view: string; fileName: string | null; periodLabel: string | null; ui: Record<string, unknown> },
   uploads: 0,
+  twoPeriods: false,
+  flagged: [] as TasSession[],
   resolved: [] as unknown[][],
   submitted: [] as string[],
 }));
@@ -31,17 +33,26 @@ const day = (id: number, employeeId: string, employeeName: string, overrides: Pa
   assignedShiftId: 'm', assignedShiftName: 'Mañana', effectiveStart: null, lastScan: null, workedMinutes: 0, workedHours: 0,
   crossMidnight: false, needsResolution: true, flags: ['MISSING_EXIT'], ...overrides,
 });
+const Q2 = { anio: 2026, mes: 10, numeroDequincena: 2 };
 const uploadResult = (n: number): TasUploadResult => ({
   uploadToken: `tok-${n}`, stateRevision: 1, resolvedRows: [], inactiveEmployeesFound: [], absentActiveEmployees: [],
-  warnings: [], usedFallbackHolidays: false, availablePeriods: [PERIOD], availableShifts: [], sessionSummaries: {},
-  flaggedSessions: [
+  warnings: [], usedFallbackHolidays: false, availableShifts: [], sessionSummaries: {},
+  availablePeriods: backend.twoPeriods ? [PERIOD, Q2] : [PERIOD],
+  flaggedSessions: backend.twoPeriods ? [
+    day(n * 100 + 1, 'E1', 'Ana Ruiz', { scans: ['2026-10-03T07:02:00'], effectiveStart: '2026-10-03T07:02:00' }),
+    day(n * 100 + 3, 'E1', 'Ana Ruiz', { date: '2026-10-20', scans: ['2026-10-20T07:05:00'], effectiveStart: '2026-10-20T07:05:00' }),
+  ] : [
     day(n * 100 + 1, 'E1', 'Ana Ruiz', { scans: ['2026-10-03T07:02:00'], effectiveStart: '2026-10-03T07:02:00', flags: ['MISSING_EXIT'] }),
     day(n * 100 + 2, 'E2', 'Luis Mora', { flags: ['MISSING_ENTRY', 'MISSING_EXIT'] }),
   ],
 } as TasUploadResult);
 
 vi.mock('./tasApi', () => ({
-  uploadTasFile: vi.fn(async () => uploadResult(++backend.uploads)),
+  uploadTasFile: vi.fn(async () => {
+    const result = uploadResult(++backend.uploads);
+    backend.flagged = result.flaggedSessions;
+    return result;
+  }),
   saveDraft: vi.fn(async (body: { uploadToken: string; view: string; fileName: string | null; periodLabel: string | null; ui: Record<string, unknown> }) => {
     backend.saved = body;
   }),
@@ -52,11 +63,14 @@ vi.mock('./tasApi', () => ({
   }),
   resumeDraft: vi.fn(async () => ({ uploadToken: backend.saved!.uploadToken, ui: backend.saved!.ui })),
   deleteDraft: vi.fn(async () => { backend.saved = null; }),
-  resolveVerification: vi.fn(async (token: string, resolutions: unknown[]) => {
+  resolveVerification: vi.fn(async (token: string, resolutions: { sessionId?: number }[]) => {
     backend.resolved.push(resolutions);
+    // As the backend does: a resolved day leaves the flagged list.
+    const sent = new Set(resolutions.map(r => r.sessionId));
+    backend.flagged = backend.flagged.filter(s => !sent.has(s.sessionId));
     return {
-      uploadToken: token, stateRevision: 3, flaggedSessions: [], usedFallbackHolidays: false, availableShifts: [],
-      availablePeriods: [PERIOD], sessionSummaries: {},
+      uploadToken: token, stateRevision: 3, flaggedSessions: backend.flagged, usedFallbackHolidays: false, availableShifts: [],
+      availablePeriods: backend.twoPeriods ? [PERIOD, Q2] : [PERIOD], sessionSummaries: {},
       resolvedRows: [
         { codigoEmpleado: 'E1', nombreEmpleado: 'Ana Ruiz', diasNoLaborados: 0, horasExtrasSimples: 0, horasExtrasDobles: 0, mes: 10, anio: 2026, numeroDequincena: 1, diasTurnoEstimado: 0, accruesOvertime: true },
         { codigoEmpleado: 'E2', nombreEmpleado: 'Luis Mora', diasNoLaborados: 0, horasExtrasSimples: 0, horasExtrasDobles: 0, mes: 10, anio: 2026, numeroDequincena: 1, diasTurnoEstimado: 0, accruesOvertime: true },
@@ -129,6 +143,8 @@ beforeEach(() => {
   localStorage.clear();
   backend.saved = null;
   backend.uploads = 0;
+  backend.twoPeriods = false;
+  backend.flagged = [];
   backend.resolved = [];
   backend.submitted = [];
   useTasStore.getState().resetTas();
@@ -200,5 +216,38 @@ describe('walking away for the weekend', () => {
     await waitFor(() => expect(enviar).not.toBeDisabled(), SAVE_WAIT);
     fireEvent.click(enviar);
     await waitFor(() => expect(backend.submitted).toEqual(['tok-2']));
+  }, 20_000);
+
+  it('a two-fortnight file: Revisar Q1, Cambiar quincena, fill Q2, walk away, backend lost: both come back', async () => {
+    backend.twoPeriods = true;
+    const { container, unmount } = render(<App />);
+    const input = await waitFor(() => {
+      const el = container.querySelector('input[type="file"]');
+      expect(el).not.toBeNull();
+      return el as HTMLInputElement;
+    });
+    fireEvent.change(input, { target: { files: [csv()] } });
+    await screen.findByText('Verificación de marcaciones');
+    fireEvent.change(within(card('Ana Ruiz')).getByLabelText('Salida'), { target: { value: '15:30' } });
+    fireEvent.click(screen.getByRole('button', { name: /revisar/i }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Cambiar quincena' }));
+    await screen.findByText('Verificación de marcaciones');
+    fireEvent.change(screen.getByLabelText('Periodo'), { target: { value: '2026-10-2' } });
+    fireEvent.change(within(card('Ana Ruiz')).getByLabelText('Salida'), { target: { value: '16:00' } });
+    await waitFor(() => expect(JSON.stringify(backend.saved?.ui.cardInputs)).toContain('16:00'), SAVE_WAIT);
+
+    unmount();
+    useTasStore.getState().resetTas();
+    backend.saved = null;
+
+    render(<App />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Continuar' }));
+    await screen.findByText('Verificación de marcaciones');
+    expect(useToastStore.getState().toasts.map(t => t.variant)).toEqual(['success']);
+    expect(useTasStore.getState().resolvedSessions).toEqual({
+      201: { resolvedStart: '07:02', resolvedEnd: '15:30' },
+      203: { resolvedStart: '07:05', resolvedEnd: '16:00' },
+    });
+    expect(useTasStore.getState().selectedPeriod).toEqual(Q2);
   }, 20_000);
 });

@@ -141,7 +141,11 @@ export default function App() {
       void bytesRead.then(bytes => {
         const state = useTasStore.getState();
         if (bytes && state.uploadToken === result.uploadToken) {
-          startLocalCopy(file.name, bytes, localSnapshotOf(state), dayKeysOf({ flaggedSessions: result.flaggedSessions }));
+          // The upload's own days are valid only if no inactive-employee step renumbers them.
+          const uploadedDays = result.inactiveEmployeesFound.length === 0
+            ? dayKeysOf({ tasView: 'verification', flaggedSessions: result.flaggedSessions })
+            : {};
+          startLocalCopy(file.name, bytes, localSnapshotOf(state), uploadedDays);
         }
       });
     } catch (err: unknown) {
