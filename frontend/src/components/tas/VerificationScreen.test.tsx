@@ -4,6 +4,7 @@ import VerificationScreen from './VerificationScreen';
 import { useTasStore } from '../../tasStore';
 import { useToastStore } from '../../toastStore';
 import * as tasApi from '../../tasApi';
+import * as configApi from '../../configApi';
 import { loadLocalCopy, startLocalCopy } from '../../localCopy';
 import type { TasSession, TasResolveResult, TasPeriod } from '../../tasTypes';
 
@@ -1472,6 +1473,31 @@ describe('SessionCard entry/exit swap', () => {
 
     expect(screen.getByText('La jornada no puede durar más de 16 horas')).toBeInTheDocument();
     expect(screen.getByRole('status')).not.toHaveTextContent('✓ Completo');
+  });
+
+  it('allows a longer day when the configured session span is longer, and says so', async () => {
+    const config = vi.spyOn(configApi, 'getGeneralConfig').mockResolvedValue(
+      { maxSessionSpanMinutes: 23 * 60 + 30 } as Awaited<ReturnType<typeof configApi.getGeneralConfig>>);
+    renderWith(singleScan('MISSING_ENTRY', '22:00'));
+    await waitFor(() => expect(config).toHaveBeenCalled());
+    fireEvent.click(swapButton());
+    fireEvent.change(exitInput(), { target: { value: '21:00' } });
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('✓ Completo'));
+
+    fireEvent.change(exitInput(), { target: { value: '21:45' } });
+    expect(screen.getByText('La jornada no puede durar más de 23:30 horas')).toBeInTheDocument();
+    config.mockRestore();
+  });
+
+  it('keeps 16 hours when the configured span is shorter', async () => {
+    const config = vi.spyOn(configApi, 'getGeneralConfig').mockResolvedValue(
+      { maxSessionSpanMinutes: 14 * 60 } as Awaited<ReturnType<typeof configApi.getGeneralConfig>>);
+    renderWith(singleScan('MISSING_ENTRY', '22:00'));
+    await waitFor(() => expect(config).toHaveBeenCalled());
+    fireEvent.click(swapButton());
+    fireEvent.change(exitInput(), { target: { value: '21:00' } });
+    expect(screen.getByText('La jornada no puede durar más de 16 horas')).toBeInTheDocument();
+    config.mockRestore();
   });
 
   it('undoes the swap and restores the original layout', () => {
