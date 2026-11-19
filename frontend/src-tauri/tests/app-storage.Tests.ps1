@@ -51,15 +51,11 @@ function Stop-Leftovers {
     Start-Sleep -Seconds 2
 }
 
-# The app passes its own WebView2 arguments, which override the environment variable; the WebView2
-# policy for one executable overrides them instead. Set on this build agent only, never shipped.
-$policy = 'HKCU:\Software\Policies\Microsoft\Edge\WebView2\AdditionalBrowserArguments'
-
+# The installer under test is a build with tauri.storage-test.conf.json, whose only difference is the
+# WebView2 debugging port (the app's own WebView2 arguments override the environment variable and the
+# WebView2 policies). The installer that is shipped has no debugging port.
 function Start-App {
-    $exe = App-Exe
-    New-Item -Path $policy -Force | Out-Null
-    New-ItemProperty -Path $policy -Name (Split-Path $exe -Leaf) -Value '--remote-debugging-port=9222' -PropertyType String -Force | Out-Null
-    $p = Start-Process -FilePath $exe -PassThru
+    $p = Start-Process -FilePath (App-Exe) -PassThru
     $deadline = (Get-Date).AddSeconds(90)
     while ((Get-Date) -lt $deadline) {
         if (Test-NetConnection -ComputerName 127.0.0.1 -Port 9222 -InformationLevel Quiet -WarningAction SilentlyContinue) { return $p }
@@ -123,5 +119,4 @@ try {
     Close-App $app
 } finally {
     Stop-Leftovers
-    Remove-Item -Path $policy -Recurse -Force -ErrorAction SilentlyContinue
 }

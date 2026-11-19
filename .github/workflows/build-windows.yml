@@ -81,7 +81,20 @@ jobs:
         working-directory: frontend
         run: npx tauri build --bundles nsis
 
-      # The copy of a session kept on the PC must survive a restart, a crash and an upgrade install.
+      # The shipped installer is set aside before the storage test builds its own variant.
+      - name: Keep the release installer
+        shell: powershell
+        run: |
+          New-Item -ItemType Directory -Force release-installer | Out-Null
+          Copy-Item frontend/src-tauri/target/release/bundle/nsis/*.exe release-installer/
+
+      # The copy of a session kept on the PC (the app's WebView2 storage) must survive a restart, a
+      # crash and an upgrade install. Tested on a build that differs only by a WebView2 debugging
+      # port, which the test needs to reach the app's storage and the shipped installer must not have.
+      - name: Build the storage-test variant
+        working-directory: frontend
+        run: npx tauri build --bundles nsis --config src-tauri/tauri.storage-test.conf.json
+
       - name: Test the app's own storage across restart, crash and reinstall
         shell: powershell
         run: ./frontend/src-tauri/tests/app-storage.Tests.ps1
@@ -91,7 +104,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: windows-installer
-          path: frontend/src-tauri/target/release/bundle/nsis/*.exe
+          path: release-installer/*.exe
           if-no-files-found: error
 
       # ── Create GitHub Release (only on tag push) ─────────────
@@ -101,5 +114,5 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           $tag = "${{ github.ref_name }}"
-          $exe = Get-ChildItem -Path frontend/src-tauri/target/release/bundle/nsis/*.exe | Select-Object -First 1
+          $exe = Get-ChildItem -Path release-installer/*.exe | Select-Object -First 1
           gh release create $tag $exe.FullName --title "$tag — Cargador de Planilla" --generate-notes
