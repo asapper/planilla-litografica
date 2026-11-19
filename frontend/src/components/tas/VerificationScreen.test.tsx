@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, fireEvent, waitFor, within, cleanup } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within, cleanup, act } from '@testing-library/react';
 import VerificationScreen from './VerificationScreen';
 import { useTasStore } from '../../tasStore';
 import { useToastStore } from '../../toastStore';
@@ -1500,6 +1500,8 @@ describe('SessionCard entry/exit swap', () => {
     arrange();
     renderWith(singleScan('MISSING_ENTRY', '22:00'));
     await waitFor(() => expect(mockGetGeneralConfig).toHaveBeenCalled());
+    // Let the answer, or the rejection, settle before asserting.
+    await act(async () => { await Promise.resolve(); });
     fireEvent.click(swapButton());
     fireEvent.change(exitInput(), { target: { value: '21:00' } });
     expect(screen.getByText('La jornada no puede durar más de 16 horas')).toBeInTheDocument();
