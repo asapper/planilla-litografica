@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within, cleanup } from '@testing-library/react';
 import VerificationScreen from './VerificationScreen';
 import { useTasStore } from '../../tasStore';
 import { useToastStore } from '../../toastStore';
@@ -133,7 +133,7 @@ describe('VerificationScreen rendering', () => {
   });
 
   it('renders unrelated flag labels unchanged', () => {
-    useTasStore.getState().setFlaggedSessions([makeSession({ flags: ['SHIFT_MISMATCH'], effectiveStart: '08:00:00', lastScan: '17:00:00' })]);
+    useTasStore.getState().setFlaggedSessions([makeSession({ flags: ['SHIFT_MISMATCH'], effectiveStart: '08:00:00', lastScan: '17:00:00', scans: ['08:00:00', '17:00:00'] })]);
     useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
     render(<VerificationScreen />);
     fireEvent.click(screen.getByRole('button', { name: /Ana López/ }));
@@ -165,31 +165,76 @@ describe('VerificationScreen rendering', () => {
 });
 
 describe('VerificationScreen time inputs', () => {
-  it('disables Confirmar when required entry is empty', () => {
+  it('has no button to confirm or save: a card says what is missing', () => {
     useTasStore.getState().setFlaggedSessions([makeSession({ flags: ['MISSING_ENTRY'], effectiveStart: null })]);
     useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
     render(<VerificationScreen />);
-    const confirm = screen.getByRole('button', { name: /confirmar/i });
-    expect(confirm).toBeDisabled();
+    expect(screen.queryByRole('button', { name: /confirmar|guardar|registrar/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('Falta completar la hora');
   });
 
-  it('enables Confirmar when required fields are filled', () => {
+  it('stores a typed time at once and counts the card as complete', () => {
     useTasStore.getState().setFlaggedSessions([makeSession({ flags: ['MISSING_ENTRY'], effectiveStart: null, lastScan: '17:00:00' })]);
     useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
     render(<VerificationScreen />);
-    const entryInput = screen.getByLabelText('Entrada');
-    fireEvent.change(entryInput, { target: { value: '08:00' } });
-    const confirm = screen.getByRole('button', { name: /confirmar/i });
-    expect(confirm).not.toBeDisabled();
+    fireEvent.change(screen.getByLabelText('Entrada'), { target: { value: '08:00' } });
+    expect(useTasStore.getState().cardInputs[1]).toEqual({ entry: '08:00', exit: '17:00', swapped: false });
+    expect(useTasStore.getState().resolvedSessions[1]).toEqual({ resolvedStart: '08:00', resolvedEnd: '17:00' });
+    expect(screen.getByRole('status')).toHaveTextContent('✓ Completo');
+    expect(screen.queryByText(/por resolver/)).not.toBeInTheDocument();
   });
 
-  it('collapses the employee group once its only session is confirmed', () => {
-    useTasStore.getState().setFlaggedSessions([makeSession({ effectiveStart: '08:00:00', lastScan: '17:00:00' })]);
+  it('stores a half-typed card without counting it as complete', () => {
+    useTasStore.getState().setFlaggedSessions([makeSession({ flags: ['MISSING_ENTRY', 'MISSING_EXIT'], effectiveStart: null, lastScan: null })]);
     useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
     render(<VerificationScreen />);
-    fireEvent.click(screen.getByRole('button', { name: /confirmar/i }));
-    expect(screen.getByText('✓ Resuelto')).toBeInTheDocument();
-    expect(screen.queryByText('Confirmado')).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Entrada'), { target: { value: '08:00' } });
+    expect(useTasStore.getState().cardInputs[1]).toEqual({ entry: '08:00', exit: '', swapped: false });
+    expect(useTasStore.getState().resolvedSessions[1]).toBeUndefined();
+    expect(screen.getAllByText(/1 por resolver/).length).toBeGreaterThan(0);
+  });
+
+  it('clearing a time takes back a complete card', () => {
+    useTasStore.getState().setFlaggedSessions([makeSession({ flags: ['MISSING_ENTRY'], effectiveStart: null, lastScan: '17:00:00' })]);
+    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
+    render(<VerificationScreen />);
+    fireEvent.change(screen.getByLabelText('Entrada'), { target: { value: '08:00' } });
+    fireEvent.change(screen.getByLabelText('Entrada'), { target: { value: '' } });
+    expect(useTasStore.getState().resolvedSessions[1]).toBeUndefined();
+    expect(screen.getByRole('button', { name: /revisar/i })).toBeDisabled();
+  });
+
+  it('keeps the group and card open while the user types, even once complete', () => {
+    useTasStore.getState().setFlaggedSessions([makeSession({ flags: ['MISSING_ENTRY'], effectiveStart: null, lastScan: '17:00:00' })]);
+    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
+    render(<VerificationScreen />);
+    fireEvent.change(screen.getByLabelText('Entrada'), { target: { value: '08:00' } });
+    fireEvent.change(screen.getByLabelText('Entrada'), { target: { value: '08:15' } });
+    expect(screen.getByLabelText('Entrada')).toHaveValue('08:15');
+    expect(useTasStore.getState().resolvedSessions[1].resolvedStart).toBe('08:15');
+  });
+
+  it('restores what was typed, half-filled included, after a remount (a resumed session)', () => {
+    useTasStore.getState().setFlaggedSessions([makeSession({ flags: ['MISSING_ENTRY', 'MISSING_EXIT'], effectiveStart: null, lastScan: null })]);
+    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
+    const { unmount } = render(<VerificationScreen />);
+    fireEvent.change(screen.getByLabelText('Salida'), { target: { value: '16:30' } });
+    unmount();
+    render(<VerificationScreen />);
+    expect(screen.getByLabelText('Salida')).toHaveValue('16:30');
+    expect(screen.getByLabelText('Entrada')).toHaveValue('');
+  });
+
+  it('a card that opens with both times from its scans counts as checked and folds', () => {
+    useTasStore.getState().setFlaggedSessions([makeSession({
+      flags: ['MISSING_ENTRY'], scans: ['2026-03-15T10:40:00', '2026-03-15T17:00:00'],
+      effectiveStart: '2026-03-15T10:40:00', lastScan: '2026-03-15T17:00:00' })]);
+    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
+    render(<VerificationScreen />);
+    expect(screen.queryByText(/por resolver/)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /revisar/i })).not.toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: /Ana López/ }));
+    expect(screen.getByText('Completo')).toBeInTheDocument();
   });
 
   it('shows hours preview when both fields are filled', () => {
@@ -238,12 +283,12 @@ describe('VerificationScreen submit', () => {
 
   it('calls resolveVerification then advances to review without auto-submitting', async () => {
     useTasStore.getState().setUploadToken('tok-1');
-    useTasStore.getState().setFlaggedSessions([makeSession({ effectiveStart: '08:00:00', lastScan: '17:00:00' })]);
+    useTasStore.getState().setFlaggedSessions([makeSession({ lastScan: '17:00:00' })]);
     useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
     mockResolveVerification.mockResolvedValue(mockResult);
 
     render(<VerificationScreen />);
-    fireEvent.click(screen.getByRole('button', { name: /confirmar/i }));
+    fireEvent.change(screen.getByLabelText('Entrada'), { target: { value: '08:00' } });
     fireEvent.click(screen.getByRole('button', { name: /revisar/i }));
 
     await waitFor(() => {
@@ -259,13 +304,13 @@ describe('VerificationScreen submit', () => {
   it('sends full datetime (date + time) for resolved session entries', async () => {
     useTasStore.getState().setUploadToken('tok-1');
     useTasStore.getState().setFlaggedSessions([
-      makeSession({ sessionId: 1, date: '2026-03-15', effectiveStart: '2026-03-15T08:00:00', lastScan: '2026-03-15T17:00:00' }),
+      makeSession({ sessionId: 1, date: '2026-03-15', lastScan: '2026-03-15T17:00:00' }),
     ]);
     useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
     mockResolveVerification.mockResolvedValue(mockResult);
 
     render(<VerificationScreen />);
-    fireEvent.click(screen.getByRole('button', { name: /confirmar/i }));
+    fireEvent.change(screen.getByLabelText('Entrada'), { target: { value: '08:00' } });
     fireEvent.click(screen.getByRole('button', { name: /revisar/i }));
 
     await waitFor(() => expect(mockResolveVerification).toHaveBeenCalledOnce());
@@ -289,7 +334,6 @@ describe('VerificationScreen submit', () => {
 
     render(<VerificationScreen />);
     fireEvent.change(screen.getByLabelText('Salida'), { target: { value: '07:04' } });
-    fireEvent.click(screen.getByRole('button', { name: /confirmar/i }));
     fireEvent.click(screen.getByRole('button', { name: /revisar/i }));
 
     await waitFor(() => expect(mockResolveVerification).toHaveBeenCalledOnce());
@@ -311,7 +355,6 @@ describe('VerificationScreen submit', () => {
 
     render(<VerificationScreen />);
     fireEvent.change(screen.getByLabelText('Entrada'), { target: { value: '19:00' } });
-    fireEvent.click(screen.getByRole('button', { name: /confirmar/i }));
     fireEvent.click(screen.getByRole('button', { name: /revisar/i }));
 
     await waitFor(() => expect(mockResolveVerification).toHaveBeenCalledOnce());
@@ -334,7 +377,6 @@ describe('VerificationScreen submit', () => {
     render(<VerificationScreen />);
     fireEvent.change(screen.getByLabelText('Entrada'), { target: { value: '20:30' } });
     fireEvent.change(screen.getByLabelText('Salida'), { target: { value: '07:00' } });
-    fireEvent.click(screen.getByRole('button', { name: /confirmar/i }));
     fireEvent.click(screen.getByRole('button', { name: /revisar/i }));
 
     await waitFor(() => expect(mockResolveVerification).toHaveBeenCalledOnce());
@@ -356,7 +398,6 @@ describe('VerificationScreen submit', () => {
 
     render(<VerificationScreen />);
     fireEvent.change(screen.getByLabelText('Salida'), { target: { value: '19:10' } });
-    fireEvent.click(screen.getByRole('button', { name: /confirmar/i }));
     fireEvent.click(screen.getByRole('button', { name: /revisar/i }));
 
     await waitFor(() => expect(mockResolveVerification).toHaveBeenCalledOnce());
@@ -378,7 +419,6 @@ describe('VerificationScreen submit', () => {
 
     render(<VerificationScreen />);
     fireEvent.change(screen.getByLabelText('Salida'), { target: { value: '23:00' } });
-    fireEvent.click(screen.getByRole('button', { name: /confirmar/i }));
     fireEvent.click(screen.getByRole('button', { name: /revisar/i }));
 
     await waitFor(() => expect(mockResolveVerification).toHaveBeenCalledOnce());
@@ -388,7 +428,7 @@ describe('VerificationScreen submit', () => {
 
   it('clears resolvedSessions and stays in verification when resolve returns more flagged sessions', async () => {
     useTasStore.getState().setUploadToken('tok-1');
-    useTasStore.getState().setFlaggedSessions([makeSession({ effectiveStart: '08:00:00', lastScan: '17:00:00' })]);
+    useTasStore.getState().setFlaggedSessions([makeSession({ lastScan: '17:00:00' })]);
     useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
     const secondRoundResult = {
       ...mockResult,
@@ -399,13 +439,14 @@ describe('VerificationScreen submit', () => {
     mockResolveVerification.mockResolvedValue(secondRoundResult);
 
     render(<VerificationScreen />);
-    fireEvent.click(screen.getByRole('button', { name: /confirmar/i }));
+    fireEvent.change(screen.getByLabelText('Entrada'), { target: { value: '08:00' } });
     fireEvent.click(screen.getByRole('button', { name: /revisar/i }));
 
     await waitFor(() => {
       expect(useTasStore.getState().flaggedSessions[0].sessionId).toBe(2);
     });
     expect(useTasStore.getState().resolvedSessions).toEqual({});
+    expect(useTasStore.getState().cardInputs).toEqual({});
     expect(useTasStore.getState().stateRevision).toBe(9);
     expect(useTasStore.getState().tasView).not.toBe('review');
     expect(mockSubmitTas).not.toHaveBeenCalled();
@@ -481,13 +522,13 @@ describe('VerificationScreen period selector', () => {
   it('passes the selected period to resolveVerification on submit', async () => {
     useTasStore.getState().setUploadToken('tok-1');
     useTasStore.getState().setFlaggedSessions([
-      makeSession({ sessionId: 1, date: '2026-03-10', effectiveStart: '08:00:00', lastScan: '17:00:00' }),
+      makeSession({ sessionId: 1, date: '2026-03-10', lastScan: '17:00:00' }),
     ]);
     useTasStore.getState().setAvailablePeriods([p1]);
     mockResolveVerification.mockResolvedValue(mockResult);
 
     render(<VerificationScreen />);
-    fireEvent.click(screen.getByRole('button', { name: /confirmar/i }));
+    fireEvent.change(screen.getByLabelText('Entrada'), { target: { value: '08:00' } });
     fireEvent.click(screen.getByRole('button', { name: /revisar/i }));
 
     await waitFor(() => {
@@ -554,22 +595,12 @@ describe('VerificationScreen shift mismatch card', () => {
     expect(useTasStore.getState().shiftAcceptances[1]).toBeUndefined();
   });
 
-  it('clicking "Elegir otro turno" reveals a shift select with Aplicar/Cancelar', () => {
+  it('clicking "Elegir otro turno" reveals a shift select with no Aplicar/Cancelar buttons', () => {
     render(<VerificationScreen />);
     fireEvent.click(screen.getByRole('button', { name: /Ana López/ }));
     fireEvent.click(screen.getByRole('button', { name: /elegir otro turno/i }));
-    expect(screen.getByRole('combobox')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /aplicar/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /cancelar/i })).toBeInTheDocument();
-  });
-
-  it('Cancelar collapses the dropdown without changing the displayed shift', () => {
-    render(<VerificationScreen />);
-    fireEvent.click(screen.getByRole('button', { name: /Ana López/ }));
-    fireEvent.click(screen.getByRole('button', { name: /elegir otro turno/i }));
-    fireEvent.click(screen.getByRole('button', { name: /cancelar/i }));
-    expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
-    expect(screen.getByText(/se aplicará Tarde/)).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Turno' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /aplicar|cancelar/i })).not.toBeInTheDocument();
   });
 
   it('includes the matched shift as acceptedShiftId in resolveVerification payload on submit by default', async () => {
@@ -587,7 +618,7 @@ describe('VerificationScreen shift mismatch card', () => {
     expect(payload[0]).toEqual({ sessionId: 1, acceptedShiftId: 'tarde' });
   });
 
-  it('Aplicar updates the confirmation message and records the chosen shift', () => {
+  it('picking a shift records it at once and updates the message', () => {
     useTasStore.getState().setFlaggedSessions([mismatchSession()]);
     useTasStore.getState().setAvailableShifts([
       { id: 'tarde', name: 'Tarde', startTime: '15:00', endTime: '23:00' },
@@ -597,7 +628,6 @@ describe('VerificationScreen shift mismatch card', () => {
     fireEvent.click(screen.getByRole('button', { name: /Ana López/ }));
     fireEvent.click(screen.getByRole('button', { name: /elegir otro turno/i }));
     fireEvent.change(screen.getByRole('combobox'), { target: { value: 'manana' } });
-    fireEvent.click(screen.getByRole('button', { name: /aplicar/i }));
     expect(screen.getByText(/se aplicará Manana/)).toBeInTheDocument();
 
     expect(useTasStore.getState().shiftAcceptances[1]).toBe('manana');
@@ -741,24 +771,25 @@ describe('VerificationScreen same-day double group', () => {
     fireEvent.click(screen.getAllByRole('radio')[1]);
     expect(useTasStore.getState().sameDayDoubleResolutions['E1|2026-03-15']).toBe(2);
     expect(screen.getAllByRole('radio')).toHaveLength(3);
-    expect(screen.getByRole('button', { name: /listo/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /listo/i })).not.toBeInTheDocument();
   });
 
-  it('collapses to a Confirmado chip after a selection and re-opens via Editar/Listo', () => {
+  it('a choice is stored as it is picked and the card stays open', () => {
     render(<VerificationScreen />);
-    fireEvent.click(screen.getAllByRole('radio')[0]); // resolve → group auto-collapses
+    fireEvent.click(screen.getAllByRole('radio')[0]);
+    expect(useTasStore.getState().sameDayDoubleResolutions['E1|2026-03-15']).toBe(1);
+    expect(screen.getAllByRole('radio')).toHaveLength(3);
+    expect(screen.getByRole('button', { name: /Ana López/ })).toHaveAttribute('aria-expanded', 'true');
+  });
 
-    // expand the group to reach the confirmed card
+  it('a double already decided when the screen opens is folded as Completo and opens with Editar', () => {
+    useTasStore.getState().setSameDayDoubleResolution('E1|2026-03-15', 1);
+    render(<VerificationScreen />);
     fireEvent.click(screen.getByRole('button', { name: /Ana López/ }));
     expect(screen.queryByRole('radio')).not.toBeInTheDocument();
-    expect(screen.getByText('Confirmado')).toBeInTheDocument();
-
-    // re-open the card, change nothing, close with Listo
+    expect(screen.getByText('Completo')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /editar ana lópez/i }));
     expect(screen.getAllByRole('radio')).toHaveLength(3);
-    fireEvent.click(screen.getByRole('button', { name: /listo/i }));
-    expect(screen.queryByRole('radio')).not.toBeInTheDocument();
-    expect(screen.getByText('Confirmado')).toBeInTheDocument();
   });
 
   it('includes employeeId/date/keepSessionId in resolveVerification payload on submit', async () => {
@@ -796,16 +827,16 @@ describe('VerificationScreen employee grouping', () => {
     useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
     render(<VerificationScreen />);
     expect(screen.getByRole('button', { name: /Ana López/ })).toHaveAttribute('aria-expanded', 'true');
-    expect(screen.getByRole('button', { name: /confirmar/i })).toBeInTheDocument();
+    expect(screen.getByLabelText('Entrada')).toBeInTheDocument();
   });
 
-  it('collapses a group once its only session is confirmed', () => {
+  it('a group whose cards are all complete when it opens starts folded', () => {
     useTasStore.getState().setFlaggedSessions([
-      makeSession({ sessionId: 1, employeeId: 'E1', employeeName: 'Ana López', effectiveStart: '08:00:00', lastScan: '17:00:00' }),
+      makeSession({ sessionId: 1, employeeId: 'E1', employeeName: 'Ana López', effectiveStart: '08:00:00', lastScan: '17:00:00', scans: ['08:00:00', '17:00:00'] }),
     ]);
+    useTasStore.getState().setResolvedSession(1, { resolvedStart: '08:00', resolvedEnd: '17:00' });
     useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
     render(<VerificationScreen />);
-    fireEvent.click(screen.getByRole('button', { name: /confirmar/i }));
     const groupHeader = screen.getByRole('button', { name: /Ana López/ });
     expect(groupHeader).toHaveAttribute('aria-expanded', 'false');
     expect(screen.getByText(/Resuelto/)).toBeInTheDocument();
@@ -813,41 +844,37 @@ describe('VerificationScreen employee grouping', () => {
 
   it('clicking a collapsed resolved group header expands it again', () => {
     useTasStore.getState().setFlaggedSessions([
-      makeSession({ sessionId: 1, employeeId: 'E1', employeeName: 'Ana López', effectiveStart: '08:00:00', lastScan: '17:00:00' }),
+      makeSession({ sessionId: 1, employeeId: 'E1', employeeName: 'Ana López', effectiveStart: '08:00:00', lastScan: '17:00:00', scans: ['08:00:00', '17:00:00'] }),
     ]);
+    useTasStore.getState().setResolvedSession(1, { resolvedStart: '08:00', resolvedEnd: '17:00' });
     useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
     render(<VerificationScreen />);
-    fireEvent.click(screen.getByRole('button', { name: /confirmar/i }));
     const groupHeader = screen.getByRole('button', { name: /Ana López/ });
     expect(groupHeader).toHaveAttribute('aria-expanded', 'false');
     fireEvent.click(groupHeader);
     expect(groupHeader).toHaveAttribute('aria-expanded', 'true');
-    expect(screen.getByText('Confirmado')).toBeInTheDocument();
+    expect(screen.getByText('Completo')).toBeInTheDocument();
   });
 
-  it('re-opens a confirmed session for editing, prefilled, and collapses again on re-confirm', () => {
+  it('re-opens a complete card prefilled, and an edit is stored while it stays open', () => {
     useTasStore.getState().setFlaggedSessions([
-      makeSession({ sessionId: 1, employeeId: 'E1', employeeName: 'Ana López', effectiveStart: '08:00:00', lastScan: '17:00:00' }),
+      makeSession({ sessionId: 1, employeeId: 'E1', employeeName: 'Ana López', effectiveStart: '08:00:00', lastScan: '17:00:00', scans: ['08:00:00', '17:00:00'] }),
     ]);
+    useTasStore.getState().setResolvedSession(1, { resolvedStart: '08:00', resolvedEnd: '17:00' });
     useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
     render(<VerificationScreen />);
-
-    fireEvent.click(screen.getByRole('button', { name: /confirmar/i }));
-    // group auto-collapses once resolved; expand it to reach the confirmed chip
     fireEvent.click(screen.getByRole('button', { name: /Ana López/ }));
 
     fireEvent.click(screen.getByRole('button', { name: /editar ana lópez/i }));
-    // form re-appears prefilled with the confirmed exit time
     expect((screen.getByLabelText('Salida') as HTMLInputElement).value).toBe('17:00');
-
-    fireEvent.click(screen.getByRole('button', { name: /confirmar/i }));
-    expect(screen.queryByLabelText('Salida')).not.toBeInTheDocument();
-    expect(screen.getByText('Confirmado')).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Entrada'), { target: { value: '07:30' } });
+    expect(useTasStore.getState().resolvedSessions[1]).toEqual({ resolvedStart: '07:30', resolvedEnd: '17:00' });
+    expect(screen.getByLabelText('Entrada')).toHaveValue('07:30');
   });
 
   it('keeps a resolved group in its original position instead of sinking it to the bottom', () => {
     useTasStore.getState().setFlaggedSessions([
-      makeSession({ sessionId: 1, employeeId: 'E1', employeeName: 'Ana López', effectiveStart: '08:00:00', lastScan: '17:00:00' }),
+      makeSession({ sessionId: 1, employeeId: 'E1', employeeName: 'Ana López', lastScan: '17:00:00' }),
       makeSession({ sessionId: 2, employeeId: 'E2', employeeName: 'Luis Soto' }),
     ]);
     useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
@@ -858,14 +885,14 @@ describe('VerificationScreen employee grouping', () => {
     expect(headers[0]).toHaveTextContent('Ana López');
     expect(headers[1]).toHaveTextContent('Luis Soto');
 
-    // Confirm Ana's session — her pendingCount drops to 0
-    fireEvent.click(screen.getAllByRole('button', { name: /confirmar/i })[0]);
+    // Complete Ana's session: her pendingCount drops to 0
+    fireEvent.change(screen.getAllByLabelText('Entrada')[0], { target: { value: '08:00' } });
 
-    // Ana's group should still appear first (collapsed in-place), not sink behind Luis
+    // Ana's group stays first and stays open: it does not sink or fold under the user
     headers = screen.getAllByRole('button', { name: /Ana López|Luis Soto/ });
     expect(headers[0]).toHaveTextContent('Ana López');
     expect(headers[1]).toHaveTextContent('Luis Soto');
-    expect(headers[0]).toHaveAttribute('aria-expanded', 'false');
+    expect(headers[0]).toHaveAttribute('aria-expanded', 'true');
   });
 
   it('resets group order when switching periods so each period starts with its own initial sort', () => {
@@ -986,14 +1013,14 @@ describe('SHORT_DAY sessions', () => {
     expect(exitInput).not.toHaveAttribute('readOnly');
   });
 
-  it('Registrar corrección button appears only when exit is changed', () => {
+  it('has no Registrar corrección button: a changed exit is stored as it is typed', () => {
     useTasStore.getState().setFlaggedSessions([makeShortDaySession()]);
     useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
     render(<VerificationScreen />);
-    expect(screen.queryByRole('button', { name: 'Registrar corrección' })).not.toBeInTheDocument();
-
     fireEvent.change(screen.getByLabelText('Salida'), { target: { value: '13:00' } });
-    expect(screen.getByRole('button', { name: 'Registrar corrección' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /registrar/i })).not.toBeInTheDocument();
+    expect(useTasStore.getState().resolvedSessions[99]).toEqual({ resolvedStart: '07:00', resolvedEnd: '13:00' });
+    expect(useTasStore.getState().cardInputs[99]).toEqual({ entry: '07:00', exit: '13:00', swapped: false });
   });
 
   it('does not show Jornadas cortas section when there are no SHORT_DAY sessions', () => {
@@ -1005,51 +1032,40 @@ describe('SHORT_DAY sessions', () => {
     expect(screen.queryByText('Jornadas cortas')).not.toBeInTheDocument();
   });
 
-  it('clicking Registrar corrección saves the override to the store', () => {
+  it('shows the saved correction and Deshacer removes it', () => {
     useTasStore.getState().setFlaggedSessions([makeShortDaySession()]);
     useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
     render(<VerificationScreen />);
 
     fireEvent.change(screen.getByLabelText('Salida'), { target: { value: '13:00' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Registrar corrección' }));
-
-    const resolved = useTasStore.getState().resolvedSessions[99];
-    expect(resolved).toEqual({ resolvedStart: '07:00', resolvedEnd: '13:00' });
-  });
-
-  it('shows the registered correction and Deshacer removes it', () => {
-    useTasStore.getState().setFlaggedSessions([makeShortDaySession()]);
-    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
-    render(<VerificationScreen />);
-
-    fireEvent.change(screen.getByLabelText('Salida'), { target: { value: '13:00' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Registrar corrección' }));
-    expect(screen.getByText('Corrección registrada · Salida 13:00')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Registrar corrección' })).not.toBeInTheDocument();
+    expect(screen.getByText('Corrección guardada · Salida 13:00')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Deshacer' }));
     expect(useTasStore.getState().resolvedSessions[99]).toBeUndefined();
+    expect(useTasStore.getState().cardInputs[99]).toBeUndefined();
     expect(screen.getByLabelText('Salida')).toHaveValue('11:00');
-    expect(screen.queryByText(/Corrección registrada/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Corrección guardada/)).not.toBeInTheDocument();
   });
 
-  it('warns that an edit after registering is not sent until registered again', () => {
+  it('a later edit replaces the saved correction at once', () => {
     useTasStore.getState().setFlaggedSessions([makeShortDaySession()]);
     useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
     useTasStore.getState().setResolvedSession(99, { resolvedStart: '07:00', resolvedEnd: '13:00' });
     render(<VerificationScreen />);
 
     fireEvent.change(screen.getByLabelText('Salida'), { target: { value: '14:00' } });
-    expect(screen.getByText('Cambio sin registrar: se enviará la salida registrada 13:00.')).toBeInTheDocument();
+    expect(useTasStore.getState().resolvedSessions[99].resolvedEnd).toBe('14:00');
+    expect(screen.getByText('Corrección guardada · Salida 14:00')).toBeInTheDocument();
   });
 
-  it('warns that an unregistered edit is not applied', () => {
+  it('setting the exit back to the recorded one drops the correction', () => {
     useTasStore.getState().setFlaggedSessions([makeShortDaySession()]);
     useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
     render(<VerificationScreen />);
-
-    fireEvent.change(screen.getByLabelText('Salida'), { target: { value: '14:00' } });
-    expect(screen.getByText(/Cambio sin registrar: haga clic en "Registrar corrección"/)).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Salida'), { target: { value: '13:00' } });
+    fireEvent.change(screen.getByLabelText('Salida'), { target: { value: '11:00' } });
+    expect(useTasStore.getState().resolvedSessions[99]).toBeUndefined();
+    expect(useTasStore.getState().cardInputs[99]).toBeUndefined();
   });
 
   it('a resumed correction is shown as registered', () => {
@@ -1058,7 +1074,7 @@ describe('SHORT_DAY sessions', () => {
     useTasStore.getState().setResolvedSession(99, { resolvedStart: '07:00', resolvedEnd: '14:30' });
     render(<VerificationScreen />);
     expect(screen.getByLabelText('Salida')).toHaveValue('14:30');
-    expect(screen.getByText('Corrección registrada · Salida 14:30')).toBeInTheDocument();
+    expect(screen.getByText('Corrección guardada · Salida 14:30')).toBeInTheDocument();
   });
 
   it('an exit before the entry on a day shift is refused before Revisar', () => {
@@ -1068,7 +1084,9 @@ describe('SHORT_DAY sessions', () => {
 
     fireEvent.change(screen.getByLabelText('Salida'), { target: { value: '06:00' } });
     expect(screen.getByRole('alert')).toHaveTextContent('La hora de salida debe ser posterior a la hora de entrada.');
-    expect(screen.getByRole('button', { name: 'Registrar corrección' })).toBeDisabled();
+    expect(screen.getByRole('alert')).toHaveTextContent('se enviará la salida marcada 11:00');
+    expect(useTasStore.getState().resolvedSessions[99]).toBeUndefined();
+    expect(useTasStore.getState().cardInputs[99].exit).toBe('06:00');
   });
 
   it('an exit after midnight is accepted on a night shift', () => {
@@ -1084,7 +1102,7 @@ describe('SHORT_DAY sessions', () => {
 
     fireEvent.change(screen.getByLabelText('Salida'), { target: { value: '05:30' } });
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Registrar corrección' })).not.toBeDisabled();
+    expect(useTasStore.getState().resolvedSessions[99]).toEqual({ resolvedStart: '22:00', resolvedEnd: '05:30' });
   });
 
   it('submits a registered correction with the right calendar days', async () => {
@@ -1103,7 +1121,7 @@ describe('SHORT_DAY sessions', () => {
 });
 
 describe('SessionCard time validation', () => {
-  it('disables Confirmar when exit time is before entry time', () => {
+  it('does not complete the card when exit time is before entry time', () => {
     useTasStore.getState().setFlaggedSessions([
       makeSession({ flags: ['MISSING_ENTRY', 'MISSING_EXIT'], effectiveStart: null, lastScan: null }),
     ]);
@@ -1113,10 +1131,10 @@ describe('SessionCard time validation', () => {
     const exitInput = screen.getByLabelText('Salida');
     fireEvent.change(entryInput, { target: { value: '19:00' } });
     fireEvent.change(exitInput, { target: { value: '05:00' } });
-    expect(screen.getByRole('button', { name: /confirmar/i })).toBeDisabled();
+    expect(screen.getByRole('status')).not.toHaveTextContent('✓ Completo');
   });
 
-  it('disables Confirmar when exit time equals entry time', () => {
+  it('does not complete the card when exit time equals entry time', () => {
     useTasStore.getState().setFlaggedSessions([
       makeSession({ flags: ['MISSING_ENTRY', 'MISSING_EXIT'], effectiveStart: null, lastScan: null }),
     ]);
@@ -1126,7 +1144,7 @@ describe('SessionCard time validation', () => {
     const exitInput = screen.getByLabelText('Salida');
     fireEvent.change(entryInput, { target: { value: '08:00' } });
     fireEvent.change(exitInput, { target: { value: '08:00' } });
-    expect(screen.getByRole('button', { name: /confirmar/i })).toBeDisabled();
+    expect(screen.getByRole('status')).not.toHaveTextContent('✓ Completo');
   });
 
   it('shows inline hint when times are inverted', () => {
@@ -1154,7 +1172,7 @@ describe('SessionCard time validation', () => {
     const exitInput = screen.getByLabelText('Salida');
     fireEvent.change(exitInput, { target: { value: '07:00' } });
     expect(screen.queryByText(/La entrada debe ser antes de la salida/)).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /confirmar/i })).not.toBeDisabled();
+    expect(screen.getByRole('status')).toHaveTextContent('✓ Completo');
   });
 
   it('does not show inline hint when times are valid', () => {
@@ -1170,7 +1188,7 @@ describe('SessionCard time validation', () => {
     expect(screen.queryByText(/La entrada debe ser antes de la salida/)).not.toBeInTheDocument();
   });
 
-  it('enables Confirmar when entry < exit with both fields filled', () => {
+  it('completes the card when entry < exit with both fields filled', () => {
     useTasStore.getState().setFlaggedSessions([
       makeSession({ flags: ['MISSING_ENTRY', 'MISSING_EXIT'], effectiveStart: null, lastScan: null }),
     ]);
@@ -1180,7 +1198,7 @@ describe('SessionCard time validation', () => {
     const exitInput = screen.getByLabelText('Salida');
     fireEvent.change(entryInput, { target: { value: '08:00' } });
     fireEvent.change(exitInput, { target: { value: '17:00' } });
-    expect(screen.getByRole('button', { name: /confirmar/i })).not.toBeDisabled();
+    expect(screen.getByRole('status')).toHaveTextContent('✓ Completo');
   });
 
   it('updates state via onInput event for time fields', () => {
@@ -1191,7 +1209,7 @@ describe('SessionCard time validation', () => {
     render(<VerificationScreen />);
     const entryInput = screen.getByLabelText('Entrada');
     fireEvent.input(entryInput, { target: { value: '08:00' } });
-    expect(screen.getByRole('button', { name: /confirmar/i })).not.toBeDisabled();
+    expect(screen.getByRole('status')).toHaveTextContent('✓ Completo');
   });
 });
 
@@ -1199,13 +1217,12 @@ describe('VerificationScreen error display', () => {
   it('shows error toast from a failed resolve call', async () => {
     useTasStore.getState().setUploadToken('tok-1');
     useTasStore.getState().setFlaggedSessions([
-      makeSession({ sessionId: 1, effectiveStart: '08:00:00', lastScan: '17:00:00' }),
+      makeSession({ sessionId: 1, effectiveStart: '08:00:00', lastScan: '17:00:00', scans: ['08:00:00', '17:00:00'] }),
     ]);
     useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
     mockResolveVerification.mockRejectedValue(new Error('network error'));
 
     render(<VerificationScreen />);
-    fireEvent.click(screen.getByRole('button', { name: /confirmar/i }));
     fireEvent.click(screen.getByRole('button', { name: /revisar/i }));
 
     await waitFor(() => {
@@ -1222,7 +1239,7 @@ describe('VerificationScreen error display', () => {
   it('names the session the backend rejected, reopens its card and highlights it', async () => {
     useTasStore.getState().setUploadToken('tok-1');
     useTasStore.getState().setFlaggedSessions([
-      makeSession({ sessionId: 7, employeeName: 'Ana López', date: '2026-03-12', effectiveStart: '08:00:00', lastScan: '17:00:00' }),
+      makeSession({ sessionId: 7, employeeName: 'Ana López', date: '2026-03-12', effectiveStart: '08:00:00', lastScan: '17:00:00', scans: ['08:00:00', '17:00:00'] }),
     ]);
     useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
     mockResolveVerification.mockRejectedValue(rejectedWith(400, {
@@ -1232,21 +1249,18 @@ describe('VerificationScreen error display', () => {
     }));
 
     render(<VerificationScreen />);
-    fireEvent.click(screen.getByRole('button', { name: /confirmar/i }));
-    expect(useTasStore.getState().resolvedSessions[7]).toBeDefined();
     fireEvent.click(screen.getByRole('button', { name: /revisar/i }));
 
     await waitFor(() => expect(useToastStore.getState().toasts).toHaveLength(1));
     const toast = useToastStore.getState().toasts[0].message;
     expect(toast).toContain('La hora de salida debe ser posterior a la hora de entrada.');
     expect(toast).toContain('Ana López');
-    expect(useTasStore.getState().resolvedSessions[7]).toBeDefined();
-    const card = screen.getByRole('button', { name: /confirmar/i }).closest('div.rounded-shape-md');
+    const card = screen.getByRole('status').closest('div.rounded-shape-md');
     expect(card).toHaveClass('ring-error');
     expect(screen.getByLabelText('Salida')).toHaveValue('17:00');
 
-    fireEvent.click(screen.getByRole('button', { name: /confirmar/i }));
-    expect(screen.queryByRole('button', { name: /confirmar/i })).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Salida'), { target: { value: '17:30' } });
+    expect(useTasStore.getState().resolvedSessions[7]).toEqual({ resolvedStart: '08:00', resolvedEnd: '17:30' });
     expect(document.querySelector('.ring-error')).toBeNull();
   });
 
@@ -1277,8 +1291,8 @@ describe('VerificationScreen error display', () => {
     const otherPeriod: TasPeriod = { anio: 2026, mes: 3, numeroDequincena: 2 };
     useTasStore.getState().setUploadToken('tok-1');
     useTasStore.getState().setFlaggedSessions([
-      makeSession({ sessionId: 1, date: '2026-03-05', effectiveStart: '08:00:00', lastScan: '17:00:00' }),
-      makeSession({ sessionId: 2, employeeId: 'E2', employeeName: 'Luis Soto', date: '2026-03-20', effectiveStart: '08:00:00', lastScan: '17:00:00' }),
+      makeSession({ sessionId: 1, date: '2026-03-05', effectiveStart: '08:00:00', lastScan: '17:00:00', scans: ['08:00:00', '17:00:00'] }),
+      makeSession({ sessionId: 2, employeeId: 'E2', employeeName: 'Luis Soto', date: '2026-03-20', effectiveStart: '08:00:00', lastScan: '17:00:00', scans: ['08:00:00', '17:00:00'] }),
     ]);
     useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD, otherPeriod]);
     useTasStore.getState().setResolvedSession(1, { resolvedStart: '08:00', resolvedEnd: '17:00' });
@@ -1289,7 +1303,7 @@ describe('VerificationScreen error display', () => {
     fireEvent.click(screen.getByRole('button', { name: /revisar/i }));
 
     await waitFor(() => expect(useTasStore.getState().selectedPeriod).toEqual(otherPeriod));
-    const card = screen.getByRole('button', { name: /confirmar/i }).closest('div.rounded-shape-md');
+    const card = screen.getByRole('status').closest('div.rounded-shape-md');
     expect(card).toHaveClass('ring-error');
     expect(card).toHaveTextContent('Luis Soto');
   });
@@ -1297,7 +1311,7 @@ describe('VerificationScreen error display', () => {
   it('shows the backend message when the error is not tied to a session', async () => {
     useTasStore.getState().setUploadToken('tok-1');
     useTasStore.getState().setFlaggedSessions([
-      makeSession({ sessionId: 1, effectiveStart: '08:00:00', lastScan: '17:00:00' }),
+      makeSession({ sessionId: 1, effectiveStart: '08:00:00', lastScan: '17:00:00', scans: ['08:00:00', '17:00:00'] }),
     ]);
     useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
     mockResolveVerification.mockRejectedValue(rejectedWith(409, {
@@ -1305,24 +1319,21 @@ describe('VerificationScreen error display', () => {
     }));
 
     render(<VerificationScreen />);
-    fireEvent.click(screen.getByRole('button', { name: /confirmar/i }));
     fireEvent.click(screen.getByRole('button', { name: /revisar/i }));
 
     await waitFor(() => expect(useToastStore.getState().toasts).toHaveLength(1));
     expect(useToastStore.getState().toasts[0].message).toBe('La sesión cambió en otra ventana.');
-    expect(useTasStore.getState().resolvedSessions[1]).toBeDefined();
+    expect(screen.getByRole('button', { name: /revisar/i })).not.toBeDisabled();
   });
 });
 
 describe('VerificationScreen completion state', () => {
   it('shows green banner and enables green Revisar button when all sessions are confirmed', () => {
     useTasStore.getState().setFlaggedSessions([
-      makeSession({ sessionId: 1, effectiveStart: '08:00:00', lastScan: '17:00:00' }),
+      makeSession({ sessionId: 1, effectiveStart: '08:00:00', lastScan: '17:00:00', scans: ['08:00:00', '17:00:00'] }),
     ]);
     useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
     render(<VerificationScreen />);
-
-    fireEvent.click(screen.getByRole('button', { name: /confirmar/i }));
 
     expect(screen.getByText(/Todos los grupos están resueltos/)).toBeInTheDocument();
     const enviar = screen.getByRole('button', { name: /revisar/i });
@@ -1396,10 +1407,9 @@ describe('SessionCard entry/exit swap', () => {
     expect(exitInput().value).toBe('');
     expect(exitInput()).not.toHaveAttribute('readonly');
     expect(screen.getByText('Falta salida · Entrada 07:02')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Confirmar' })).toBeDisabled();
+    expect(screen.getByRole('status')).not.toHaveTextContent('✓ Completo');
 
     fireEvent.change(exitInput(), { target: { value: '15:00' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Confirmar' }));
 
     expect(useTasStore.getState().resolvedSessions[1]).toEqual(
       { resolvedStart: '07:02', resolvedEnd: '15:00', startDayOffset: 0, endDayOffset: 0 });
@@ -1419,7 +1429,6 @@ describe('SessionCard entry/exit swap', () => {
     expect(screen.getByText('Falta entrada · Salida 16:58')).toBeInTheDocument();
 
     fireEvent.change(entryInput(), { target: { value: '07:00' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Confirmar' }));
 
     expect(await submittedResolution()).toEqual(
       { sessionId: 1, resolvedStart: '2026-03-15 07:00', resolvedEnd: '2026-03-15 16:58' });
@@ -1431,7 +1440,6 @@ describe('SessionCard entry/exit swap', () => {
     fireEvent.change(exitInput(), { target: { value: '06:00' } });
 
     expect(screen.getByText(/Horas calculadas: 8\.0h/)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Confirmar' }));
 
     expect(await submittedResolution()).toEqual(
       { sessionId: 1, resolvedStart: '2026-03-15 22:00', resolvedEnd: '2026-03-16 06:00' });
@@ -1441,7 +1449,6 @@ describe('SessionCard entry/exit swap', () => {
     renderWith(singleScan('MISSING_EXIT', '07:02', { crossMidnight: false }));
     fireEvent.click(swapButton());
     fireEvent.change(entryInput(), { target: { value: '19:00' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Confirmar' }));
 
     expect(await submittedResolution()).toEqual(
       { sessionId: 1, resolvedStart: '2026-03-14 19:00', resolvedEnd: '2026-03-15 07:02' });
@@ -1453,7 +1460,7 @@ describe('SessionCard entry/exit swap', () => {
     fireEvent.change(exitInput(), { target: { value: '21:00' } });
 
     expect(screen.getByText('La jornada no puede durar más de 16 horas')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Confirmar' })).toBeDisabled();
+    expect(screen.getByRole('status')).not.toHaveTextContent('✓ Completo');
   });
 
   it('undoes the swap and restores the original layout', () => {
@@ -1470,7 +1477,6 @@ describe('SessionCard entry/exit swap', () => {
   it('keeps the original submit dates when nothing was swapped', async () => {
     renderWith(singleScan('MISSING_ENTRY', '15:10'));
     fireEvent.change(entryInput(), { target: { value: '07:00' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Confirmar' }));
 
     expect(useTasStore.getState().resolvedSessions[1]).toEqual({ resolvedStart: '07:00', resolvedEnd: '15:10' });
     expect(await submittedResolution()).toEqual(
@@ -1481,7 +1487,9 @@ describe('SessionCard entry/exit swap', () => {
     renderWith(singleScan('MISSING_ENTRY', '07:02'));
     fireEvent.click(swapButton());
     fireEvent.change(exitInput(), { target: { value: '15:00' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Confirmar' }));
+    // Back on another day: the screen opens again from the saved session.
+    cleanup();
+    render(<VerificationScreen />);
     fireEvent.click(screen.getByRole('button', { name: /Ana López/ }));
 
     fireEvent.click(screen.getByRole('button', { name: /Editar Ana López/ }));
@@ -1533,9 +1541,11 @@ describe('VerificationScreen night across the 15th/16th (TASK-97)', () => {
     fireEvent.change(screen.getByLabelText('Entrada'), { target: { value: '19:14' } });
 
     expect(screen.getByText(NOTE)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Confirmar' }));
+    // Reopened later, the folded card still says so.
+    cleanup();
+    render(<VerificationScreen />);
     fireEvent.click(screen.getByRole('button', { name: /Ana López/ }));
-    expect(screen.getByText('Confirmado')).toBeInTheDocument();
+    expect(screen.getByText('Completo')).toBeInTheDocument();
     expect(screen.getByText(NOTE)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /revisar/i }));
     await waitFor(() => expect(mockResolveVerification).toHaveBeenCalledOnce());
@@ -1587,7 +1597,7 @@ describe('VerificationScreen same-day double made of single scans (TASK-98)', ()
   });
 
   const revisar = () => screen.getByRole('button', { name: /revisar/i });
-  const timeCards = () => screen.getAllByRole('button', { name: 'Confirmar' }).map(b => b.parentElement as HTMLElement);
+  const timeCards = () => screen.getAllByRole('status').map(st => st.closest('div.rounded-shape-md') as HTMLElement);
 
   it('says the scans are alone, offers one day from the first to the last scan, and blocks Revisar', () => {
     render(<VerificationScreen />);
@@ -1614,12 +1624,14 @@ describe('VerificationScreen same-day double made of single scans (TASK-98)', ()
     expect(payload.some(r => 'sessionId' in r && r.sessionId === 2)).toBe(false);
   });
 
-  it('collapses to "Una sola jornada" once merged', () => {
+  it('opens folded as "Una sola jornada" once merged', () => {
     render(<VerificationScreen />);
     fireEvent.click(screen.getByRole('radio', { name: /una sola jornada/i }));
+    cleanup();
+    render(<VerificationScreen />);
     fireEvent.click(screen.getByRole('button', { name: /Ana López/ }));
     expect(screen.getByText('Una sola jornada (07:08–22:03)')).toBeInTheDocument();
-    expect(screen.getByText('Confirmado')).toBeInTheDocument();
+    expect(screen.getByText('Completo')).toBeInTheDocument();
   });
 
   it('keeping one scan asks only for its exit and never sends the discarded one', async () => {
@@ -1631,7 +1643,6 @@ describe('VerificationScreen same-day double made of single scans (TASK-98)', ()
     expect(screen.getAllByText('1 por resolver').length).toBeGreaterThan(0);
     const card = timeCards()[0];
     fireEvent.change(within(card).getByLabelText('Salida'), { target: { value: '15:00' } });
-    fireEvent.click(within(card).getByRole('button', { name: 'Confirmar' }));
     expect(revisar()).not.toBeDisabled();
 
     fireEvent.click(revisar());
@@ -1645,8 +1656,6 @@ describe('VerificationScreen same-day double made of single scans (TASK-98)', ()
   it('leaving "Una sola jornada" for a single scan clears the merged times so its exit is asked', () => {
     render(<VerificationScreen />);
     fireEvent.click(screen.getByRole('radio', { name: /una sola jornada/i }));
-    fireEvent.click(screen.getByRole('button', { name: /Ana López/ }));
-    fireEvent.click(screen.getByRole('button', { name: /editar ana lópez/i }));
     fireEvent.click(screen.getByRole('radio', { name: /Mañana \(07:08–07:08\)/ }));
 
     expect(useTasStore.getState().resolvedSessions[1]).toBeUndefined();
@@ -1658,11 +1667,9 @@ describe('VerificationScreen same-day double made of single scans (TASK-98)', ()
     render(<VerificationScreen />);
     const morningCard = timeCards()[0];
     fireEvent.change(within(morningCard).getByLabelText('Salida'), { target: { value: '15:00' } });
-    fireEvent.click(within(morningCard).getByRole('button', { name: 'Confirmar' }));
-    // The confirmed morning card collapses, so the evening card is the only one left open.
-    const eveningCard = timeCards()[0];
+    // Both cards stay open while they are filled in.
+    const eveningCard = timeCards()[1];
     fireEvent.change(within(eveningCard).getByLabelText('Salida'), { target: { value: '06:00' } });
-    fireEvent.click(within(eveningCard).getByRole('button', { name: 'Confirmar' }));
 
     fireEvent.click(revisar());
     await waitFor(() => expect(mockResolveVerification).toHaveBeenCalledOnce());
@@ -1677,7 +1684,6 @@ describe('VerificationScreen same-day double made of single scans (TASK-98)', ()
     render(<VerificationScreen />);
     const morningCard = timeCards()[0];
     fireEvent.change(within(morningCard).getByLabelText('Salida'), { target: { value: '15:00' } });
-    fireEvent.click(within(morningCard).getByRole('button', { name: 'Confirmar' }));
 
     fireEvent.click(screen.getByRole('radio', { name: /Mañana \(07:08–07:08\)/ }));
     expect(useTasStore.getState().resolvedSessions[1]).toEqual({ resolvedStart: '07:08', resolvedEnd: '15:00' });
@@ -1696,12 +1702,11 @@ describe('VerificationScreen same-day double made of single scans (TASK-98)', ()
   it('times typed in another period are not sent with this one', async () => {
     const Q2: TasPeriod = { anio: 2026, mes: 3, numeroDequincena: 2 };
     useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD, Q2]);
-    useTasStore.getState().setFlaggedSessions([MORNING, EVENING, makeSession({ sessionId: 9, date: '2026-03-20' })]);
+    useTasStore.getState().setFlaggedSessions([MORNING, EVENING, makeSession({ sessionId: 9, date: '2026-03-20', lastScan: '2026-03-20T15:00:00' })]);
     render(<VerificationScreen />);
     fireEvent.click(screen.getByRole('radio', { name: /una sola jornada/i }));
     fireEvent.change(screen.getByLabelText(/periodo/i), { target: { value: '2026-3-2' } });
     fireEvent.change(screen.getByLabelText('Entrada'), { target: { value: '07:00' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Confirmar' }));
 
     fireEvent.click(revisar());
     await waitFor(() => expect(mockResolveVerification).toHaveBeenCalledOnce());
@@ -1726,7 +1731,7 @@ describe('VerificationScreen same-day double made of single scans (TASK-98)', ()
     ]);
     render(<VerificationScreen />);
     expect(screen.queryByRole('radio', { name: /una sola jornada/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Confirmar' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
     expect(revisar()).not.toBeDisabled();
   });
 });

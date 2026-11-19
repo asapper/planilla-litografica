@@ -4,6 +4,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, waitFor, act, fireEvent } from '@testing-library/react';
 import { useTasStore } from './tasStore';
 import { useToastStore } from './toastStore';
+import { DRAFT_UI_VERSION } from './tasDraft';
 
 const mockCheckHealth = vi.hoisted(() => vi.fn());
 const mockCheckDbHealth = vi.hoisted(() => vi.fn());
@@ -566,7 +567,7 @@ describe('resume an interrupted session', () => {
     savedAt: '2026-11-16T20:20:00Z',
     partialSubmit: false,
     resumable: true,
-    uiVersion: 1,
+    uiVersion: DRAFT_UI_VERSION,
     jobActive: false,
   };
   const period = { anio: 2026, mes: 10, numeroDequincena: 2 };
@@ -591,7 +592,7 @@ describe('resume an interrupted session', () => {
     mockResumeDraft.mockResolvedValue({
       uploadToken: 'tok-d',
       ui: {
-        uiVersion: 1,
+        uiVersion: DRAFT_UI_VERSION,
         tasView: 'review',
         uploadToken: 'tok-d',
         stateRevision: 3,
@@ -630,7 +631,7 @@ describe('resume an interrupted session', () => {
   });
 
   it.each([
-    ['another', 2],
+    ['another', DRAFT_UI_VERSION + 1],
     ['no', undefined],
   ])('keeps the card as not resumable when the resumed snapshot has %s UI version', async (_, uiVersion) => {
     mockGetDraftSummary.mockResolvedValue(summary);
@@ -662,7 +663,7 @@ describe('resume an interrupted session', () => {
 
   it('treats a snapshot with an unknown step as a failed resume', async () => {
     mockGetDraftSummary.mockResolvedValue(summary);
-    mockResumeDraft.mockResolvedValue({ uploadToken: 'tok-d', ui: { uiVersion: 1, tasView: 'polling' } });
+    mockResumeDraft.mockResolvedValue({ uploadToken: 'tok-d', ui: { uiVersion: DRAFT_UI_VERSION, tasView: 'polling' } });
     render(<App />);
 
     fireEvent.click(await screen.findByRole('button', { name: 'Continuar' }));

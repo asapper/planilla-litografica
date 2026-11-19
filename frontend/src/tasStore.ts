@@ -10,6 +10,13 @@ export interface ResolvedSessionEntry {
   endDayOffset?: 0 | 1;
 }
 
+// What a verification card shows, saved as it is typed so a half-filled card survives a restart.
+export interface CardInput {
+  entry: string;
+  exit: string;
+  swapped: boolean;
+}
+
 export interface TasStore {
   tasView: TasView;
   uploadToken: string | null;
@@ -17,6 +24,7 @@ export interface TasStore {
   processingMessage: string;
   flaggedSessions: TasSession[];
   resolvedSessions: Record<number, ResolvedSessionEntry>;
+  cardInputs: Record<number, CardInput>;
   shiftAcceptances: Record<number, string>;
   sameDayDoubleResolutions: Record<string, DoubleChoice>;
   resolvedRowCount: number;
@@ -52,6 +60,8 @@ export interface TasStore {
   setProcessingMessage: (msg: string) => void;
   setFlaggedSessions: (sessions: TasSession[]) => void;
   setResolvedSession: (id: number, entry: ResolvedSessionEntry) => void;
+  setCardInput: (id: number, input: CardInput) => void;
+  clearCardInput: (id: number) => void;
   clearResolvedSession: (id: number) => void;
   clearResolvedSessions: () => void;
   setShiftAcceptance: (sessionId: number, acceptedShiftId: string) => void;
@@ -98,6 +108,7 @@ export const tasInitialState = {
   processingMessage: '',
   flaggedSessions: [],
   resolvedSessions: {},
+  cardInputs: {} as Record<number, CardInput>,
   shiftAcceptances: {} as Record<number, string>,
   sameDayDoubleResolutions: {} as Record<string, DoubleChoice>,
   resolvedRowCount: 0,
@@ -143,7 +154,12 @@ export const useTasStore = create<TasStore>(set => ({
     const { [id]: _, ...rest } = s.resolvedSessions;
     return { resolvedSessions: rest };
   }),
-  clearResolvedSessions: () => set({ resolvedSessions: {}, shiftAcceptances: {}, sameDayDoubleResolutions: {} }),
+  setCardInput: (id, input) => set(s => ({ cardInputs: { ...s.cardInputs, [id]: input } })),
+  clearCardInput: (id) => set(s => {
+    const { [id]: _, ...rest } = s.cardInputs;
+    return { cardInputs: rest };
+  }),
+  clearResolvedSessions: () => set({ resolvedSessions: {}, cardInputs: {}, shiftAcceptances: {}, sameDayDoubleResolutions: {} }),
   setShiftAcceptance: (sessionId, acceptedShiftId) => set(s => ({
     shiftAcceptances: { ...s.shiftAcceptances, [sessionId]: acceptedShiftId },
   })),

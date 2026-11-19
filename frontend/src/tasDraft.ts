@@ -15,7 +15,7 @@ export const DRAFT_SAVE_RECOVERED_MESSAGE = 'El avance se guardó nuevamente.';
 
 // Bump when the saved shape of TasSnapshot changes (draftShape.test.ts fails until you do):
 // a draft from another version is then offered only to discard, never resumed half-filled.
-export const DRAFT_UI_VERSION = 1;
+export const DRAFT_UI_VERSION = 2;
 
 const SAVABLE_VIEWS: ReadonlySet<TasView> = new Set<TasView>(['inactiveReview', 'verification', 'review']);
 
@@ -24,6 +24,7 @@ export const PERSISTED_KEYS = [
   'uploadToken',
   'stateRevision',
   'resolvedSessions',
+  'cardInputs',
   'shiftAcceptances',
   'sameDayDoubleResolutions',
   'selectedPeriod',
