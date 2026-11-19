@@ -2,6 +2,7 @@ import axios from 'axios';
 import { useTasStore, tasInitialState, type TasStore } from './tasStore';
 import { saveDraft, deleteDraft } from './tasApi';
 import { useToastStore } from './toastStore';
+import { clearLocalCopy, saveLocalSnapshot, setLocalCopySubmitted } from './localCopy';
 import { MONTH_NAMES_ES } from './dateNames';
 import type { DraftSummary, DraftView, TasPeriod, TasView } from './tasTypes';
 
@@ -15,7 +16,7 @@ export const DRAFT_SAVE_RECOVERED_MESSAGE = 'El avance se guardó nuevamente.';
 
 // Bump when the saved shape of TasSnapshot changes (draftShape.test.ts fails until you do):
 // a draft from another version is then offered only to discard, never resumed half-filled.
-export const DRAFT_UI_VERSION = 1;
+export const DRAFT_UI_VERSION = 2;
 
 const SAVABLE_VIEWS: ReadonlySet<TasView> = new Set<TasView>(['inactiveReview', 'verification', 'review']);
 
@@ -24,6 +25,7 @@ export const PERSISTED_KEYS = [
   'uploadToken',
   'stateRevision',
   'resolvedSessions',
+  'cardInputs',
   'shiftAcceptances',
   'sameDayDoubleResolutions',
   'selectedPeriod',
@@ -88,6 +90,15 @@ function warnStale(localRevision: number, serverRevision: unknown) {
   } else {
     console.warn('Guardado de la sesión rechazado: el servidor ya no tiene esta sesión.');
   }
+}
+
+// What the copy on this PC keeps for a session in progress, or null outside one.
+export function localSnapshotOf(state: TasStore): Record<string, unknown> | null {
+  return isSavable(state) ? { ...toSnapshot(state), uiVersion: DRAFT_UI_VERSION } : null;
+}
+
+function isSubmission(view: TasView): boolean {
+  return view === 'submitting' || view === 'polling';
 }
 
 function isSavable(state: TasStore): boolean {
@@ -155,6 +166,13 @@ function retryLater(failed: TasStore) {
   timer = setTimeout(() => flush(), DRAFT_SAVE_RETRY_MS);
 }
 
+// The copy on this PC needs no network: it is written as soon as a save is due, even while an
+// earlier backend save is still in flight, and is what is left if the backend fails.
+function writeLocal(state: TasStore) {
+  const snapshot = localSnapshotOf(state);
+  if (snapshot) saveLocalSnapshot(snapshot);
+}
+
 function send(state: TasStore): Promise<void> {
   return saveDraft({
     uploadToken: state.uploadToken as string,
@@ -185,20 +203,24 @@ function saveBeforeClose() {
   }
   clearTimer();
   const state = useTasStore.getState();
-  if (isSavable(state)) void send(state);
+  if (isSavable(state)) {
+    writeLocal(state);
+    void send(state);
+  }
 }
 
 function flush(explicitState?: TasStore) {
   clearTimer();
   if (suspended) return;
+  const current = useTasStore.getState();
+  const state = explicitState
+    ?? (retryState && !isSavable(current) && current.tasView !== 'idle' ? retryState : current);
+  writeLocal(state);
   if (inflight) {
     queued = true;
     if (explicitState) queuedState = explicitState;
     return;
   }
-  const current = useTasStore.getState();
-  const state = explicitState
-    ?? (retryState && !isSavable(current) && current.tasView !== 'idle' ? retryState : current);
   retryState = null;
   if (!isSavable(state)) {
     endFailureRun();
@@ -230,6 +252,14 @@ export function startDraftAutosave(fileNameGetter: () => string): () => void {
   endFailureRun();
   const unsubscribe = useTasStore.subscribe((state, prev) => {
     if (suspended) return;
+    if (isSubmission(state.tasView) && !isSubmission(prev.tasView)) {
+      // Pending edits go out first; after that the backend owns the session.
+      if (timer !== null && isSavable(prev)) flush(prev);
+      setLocalCopySubmitted(true);
+      return;
+    }
+    // The submit request failed before any job started: the session is back in the user's hands.
+    if (prev.tasView === 'submitting' && state.tasView === 'review') setLocalCopySubmitted(false);
     if (isSavable(state)) {
       if (!persistedChanged(state, prev)) return;
       schedule();
@@ -242,7 +272,11 @@ export function startDraftAutosave(fileNameGetter: () => string): () => void {
       return;
     }
     clearTimer();
-    if (state.tasView === 'idle') endFailureRun();
+    if (state.tasView === 'idle') {
+      endFailureRun();
+      // Leaving a session ends its local copy; a failed upload or recovery (from processing) keeps it.
+      if (prev.tasView !== 'idle' && prev.tasView !== 'processing') clearLocalCopy();
+    }
   });
   window.addEventListener('pagehide', saveBeforeClose);
   return () => {
@@ -257,6 +291,7 @@ export function startDraftAutosave(fileNameGetter: () => string): () => void {
 export async function discardDraftSession(): Promise<void> {
   suspended = true;
   endFailureRun();
+  clearLocalCopy();
   clearTimer();
   queued = false;
   queuedState = null;
