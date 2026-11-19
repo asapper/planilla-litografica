@@ -156,20 +156,22 @@ describe('rebuildFromLocalCopy', () => {
       cardInputs: { 0: { entry: '07:02', exit: '15:00', swapped: false } },
       sent: undefined,
     });
-    mockUpload.mockResolvedValue(upload([day(0, 'E1', '2026-10-03', A), day(1, 'E2', '2026-10-04', B)]));
+    // The first rebuild numbers them the other way round: B is day 0, A is day 1.
+    mockUpload.mockResolvedValue(upload([day(0, 'E2', '2026-10-04', B), day(1, 'E1', '2026-10-03', A)]));
     await rebuildFromLocalCopy(loadLocalCopy()!);
+    expect(useTasStore.getState().cardInputs).toEqual({ 1: { entry: '07:02', exit: '15:00', swapped: false } });
 
-    // After the rebuild the user fills in B, then everything is lost again.
-    useTasStore.getState().setCardInput(1, { entry: '07:10', exit: '16:00', swapped: false });
+    // The user fills in B (now day 0), then everything is lost again.
+    useTasStore.getState().setCardInput(0, { entry: '07:10', exit: '16:00', swapped: false });
     saveLocalSnapshot(localSnapshotOf(useTasStore.getState())!);
 
-    // This time an employee is gone from the file before them, so the ids shift: B is day 0.
-    mockUpload.mockResolvedValue(upload([day(0, 'E2', '2026-10-04', B), day(1, 'E1', '2026-10-03', A)]));
+    // The second rebuild numbers them as the very first upload did.
+    mockUpload.mockResolvedValue(upload([day(0, 'E1', '2026-10-03', A), day(1, 'E2', '2026-10-04', B)]));
     const recovery = await rebuildFromLocalCopy(loadLocalCopy()!);
     expect(recovery.dropped).toBe(0);
     expect(useTasStore.getState().cardInputs).toEqual({
-      1: { entry: '07:02', exit: '15:00', swapped: false },
-      0: { entry: '07:10', exit: '16:00', swapped: false },
+      0: { entry: '07:02', exit: '15:00', swapped: false },
+      1: { entry: '07:10', exit: '16:00', swapped: false },
     });
     expect(loadLocalCopy()?.sent).toEqual({});
   });
