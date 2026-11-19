@@ -26,7 +26,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * The user uploads a file, works through verification, walks away for as long as they like (the
+ * The user uploads a file, works through verification, walks away for as long as they like (a weekend) (the
  * backend may even restart), then clicks "Revisar". Version 1.2.2 dropped the upload 30 minutes
  * after it was made, so "Revisar" failed and the work was lost. Runs the real controller, draft
  * store and pipeline; only time is moved forward.
@@ -83,17 +83,28 @@ class TasIdleSessionTest {
                 .content(mapper.writeValueAsString(Map.of("uploadToken", token, "resolutions", List.of()))));
     }
 
+    private JsonNode revisarBody(String token) throws Exception {
+        return mapper.readTree(revisar(token).andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+    }
+
     @Test
-    void revisarWorksAfterADayAwayAndARestart() throws Exception {
+    void revisarWorksAfterAWeekendAwayAndARestart() throws Exception {
         JsonNode uploaded = upload();
         String token = uploaded.get("uploadToken").asText();
-        saveDraftLikeTheApp(token, uploaded.get("stateRevision").asLong());
+        JsonNode before = revisarBody(token);
+        long revision = before.get("stateRevision").asLong();
+        assertThat(before.get("resolvedRows").size()).as("the fixture yields rows").isGreaterThan(0);
+        saveDraftLikeTheApp(token, revision);
 
-        walkAway(token, Duration.ofDays(1));
+        walkAway(token, Duration.ofDays(3));
         assertThat(tasController.stateStore).as("the saved session is never evicted").containsKey(token);
 
         restartBackend();
-        revisar(token).andExpect(status().isOk()).andExpect(jsonPath("$.uploadToken").value(token));
+        JsonNode after = revisarBody(token);
+        assertThat(after.get("stateRevision").asLong()).isEqualTo(revision + 1);
+        for (String field : List.of("uploadToken", "resolvedRows", "flaggedSessions", "availablePeriods", "sessionSummaries")) {
+            assertThat(after.get(field)).as(field + " comes back from the saved draft").isEqualTo(before.get(field));
+        }
     }
 
     @Test
@@ -103,6 +114,6 @@ class TasIdleSessionTest {
         walkAway(token, Duration.ofHours(1));
         assertThat(tasController.stateStore).doesNotContainKey(token);
 
-        revisar(token).andExpect(status().is4xxClientError());
+        revisar(token).andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("INVALID_TOKEN"));
     }
 }

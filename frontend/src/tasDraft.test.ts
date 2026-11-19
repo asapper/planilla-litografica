@@ -390,6 +390,81 @@ describe('autosave', () => {
     warn.mockRestore();
   });
 
+  it('a save in flight when autosave stops does not start a retry loop', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    let rejectFirst!: (e: Error) => void;
+    mockSaveDraft.mockImplementationOnce(() => new Promise<void>((_, r) => { rejectFirst = r; }));
+    stop = startDraftAutosave(() => 'f.csv');
+    useTasStore.setState({ tasView: 'review', uploadToken: 'tok' });
+    await vi.advanceTimersByTimeAsync(DRAFT_SAVE_DEBOUNCE_MS);
+    expect(mockSaveDraft).toHaveBeenCalledTimes(1);
+    stop();
+    stop = null;
+    rejectFirst(new Error('network'));
+    await vi.advanceTimersByTimeAsync(10 * DRAFT_SAVE_RETRY_MS);
+    expect(mockSaveDraft).toHaveBeenCalledTimes(1);
+    warn.mockRestore();
+  });
+
+  it('leaving review for submitting mid-failure keeps retrying the review state until it is saved', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    mockSaveDraft.mockRejectedValueOnce(new Error('network')).mockRejectedValueOnce(new Error('network'));
+    stop = startDraftAutosave(() => 'f.csv');
+    useTasStore.setState({ tasView: 'review', uploadToken: 'tok' });
+    useTasStore.getState().setNonWorkedDaysOverride('1', 3);
+    await vi.advanceTimersByTimeAsync(DRAFT_SAVE_DEBOUNCE_MS);
+    expect(mockSaveDraft).toHaveBeenCalledTimes(1);
+
+    useTasStore.setState({ tasView: 'submitting' });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(mockSaveDraft).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(DRAFT_SAVE_RETRY_MS);
+    expect(mockSaveDraft).toHaveBeenCalledTimes(3);
+    for (const [body] of mockSaveDraft.mock.calls) {
+      expect(body.view).toBe('review');
+      expect(body.ui.nonWorkedDaysOverrides).toEqual({ '1': 3 });
+    }
+    expect(toasts().map(([v]) => v)).toEqual(['warning', 'success']);
+    await vi.advanceTimersByTimeAsync(10 * DRAFT_SAVE_RETRY_MS);
+    expect(mockSaveDraft).toHaveBeenCalledTimes(3);
+    warn.mockRestore();
+  });
+
+  it('going back to idle mid-failure drops the retry and ends the failure run quietly', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    mockSaveDraft.mockRejectedValueOnce(new Error('network'));
+    stop = startDraftAutosave(() => 'f.csv');
+    useTasStore.setState({ tasView: 'review', uploadToken: 'tok' });
+    await vi.advanceTimersByTimeAsync(DRAFT_SAVE_DEBOUNCE_MS);
+    useTasStore.getState().resetTas();
+    await vi.advanceTimersByTimeAsync(10 * DRAFT_SAVE_RETRY_MS);
+    expect(mockSaveDraft).toHaveBeenCalledTimes(1);
+
+    useTasStore.setState({ tasView: 'review', uploadToken: 'tok2' });
+    await vi.advanceTimersByTimeAsync(DRAFT_SAVE_DEBOUNCE_MS);
+    expect(mockSaveDraft).toHaveBeenCalledTimes(2);
+    expect(toasts().map(([v]) => v)).toEqual(['warning']);
+    warn.mockRestore();
+  });
+
+  it('a stale revision after a failure ends the run: no retry and no false recovery notice later', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    mockSaveDraft.mockRejectedValueOnce(new Error('network'))
+      .mockRejectedValueOnce(stale({ code: 'DRAFT_STALE', currentRevision: 9 }));
+    stop = startDraftAutosave(() => 'f.csv');
+    useTasStore.setState({ tasView: 'review', uploadToken: 'tok', stateRevision: 4 });
+    await vi.advanceTimersByTimeAsync(DRAFT_SAVE_DEBOUNCE_MS + DRAFT_SAVE_RETRY_MS);
+    expect(mockSaveDraft).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(10 * DRAFT_SAVE_RETRY_MS);
+    expect(mockSaveDraft).toHaveBeenCalledTimes(2);
+
+    useTasStore.setState({ stateRevision: 9 });
+    await vi.advanceTimersByTimeAsync(DRAFT_SAVE_DEBOUNCE_MS);
+    expect(mockSaveDraft).toHaveBeenCalledTimes(3);
+    expect(toasts().map(([v]) => v)).toEqual(['warning']);
+    warn.mockRestore();
+  });
+
   it('a stale revision is not shown to the user and not retried', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     mockSaveDraft.mockRejectedValue(stale({ code: 'DRAFT_STALE', currentRevision: 9 }));

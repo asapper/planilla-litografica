@@ -106,6 +106,10 @@ let queued = false;
 let queuedState: TasStore | null = null;
 let suspended = false;
 let failing = false;
+let active = false;
+// The state whose save failed, kept so a retry can still send it after the view moved on
+// (review -> submitting). An edit replaces it; going back to idle drops it.
+let retryState: TasStore | null = null;
 
 function clearTimer() {
   if (timer !== null) {
@@ -138,8 +142,16 @@ function reportSaved() {
   useToastStore.getState().showToast(DRAFT_SAVE_RECOVERED_MESSAGE, 'success');
 }
 
-function retryLater() {
-  if (timer !== null || suspended) return;
+// Retries stop without a save (stale revision, discard, stop, back to idle): end the run quietly,
+// so a later good save does not announce a recovery that never happened.
+function endFailureRun() {
+  failing = false;
+  retryState = null;
+}
+
+function retryLater(failed: TasStore) {
+  if (timer !== null || suspended || !active) return;
+  retryState = failed;
   timer = setTimeout(() => flush(), DRAFT_SAVE_RETRY_MS);
 }
 
@@ -154,11 +166,12 @@ function send(state: TasStore): Promise<void> {
   }).then(reportSaved, err => {
     if (axios.isAxiosError(err) && err.response?.status === 409) {
       warnStale(state.stateRevision, err.response.data?.currentRevision);
+      endFailureRun();
       return;
     }
     console.warn('No se pudo guardar la sesión en curso.', err);
     reportFailure();
-    retryLater();
+    retryLater(state);
   });
 }
 
@@ -183,8 +196,14 @@ function flush(explicitState?: TasStore) {
     if (explicitState) queuedState = explicitState;
     return;
   }
-  const state = explicitState ?? useTasStore.getState();
-  if (!isSavable(state)) return;
+  const current = useTasStore.getState();
+  const state = explicitState
+    ?? (retryState && !isSavable(current) && current.tasView !== 'idle' ? retryState : current);
+  retryState = null;
+  if (!isSavable(state)) {
+    endFailureRun();
+    return;
+  }
   inflight = send(state)
     .finally(() => {
       inflight = null;
@@ -197,15 +216,18 @@ function flush(explicitState?: TasStore) {
     });
 }
 
-// The app is closing: send what is pending and wait until the backend has it.
-export async function saveDraftNow(): Promise<void> {
+// The app is closing: send what is pending and wait until the backend has it. False when the
+// last save failed, so closing now would lose work.
+export async function saveDraftNow(): Promise<boolean> {
   if (timer !== null && !suspended) flush();
   while (inflight) await inflight;
+  return !failing;
 }
 
 export function startDraftAutosave(fileNameGetter: () => string): () => void {
   getFileName = fileNameGetter;
-  failing = false;
+  active = true;
+  endFailureRun();
   const unsubscribe = useTasStore.subscribe((state, prev) => {
     if (suspended) return;
     if (isSavable(state)) {
@@ -220,18 +242,21 @@ export function startDraftAutosave(fileNameGetter: () => string): () => void {
       return;
     }
     clearTimer();
+    if (state.tasView === 'idle') endFailureRun();
   });
   window.addEventListener('pagehide', saveBeforeClose);
   return () => {
+    active = false;
     unsubscribe();
     window.removeEventListener('pagehide', saveBeforeClose);
     clearTimer();
+    endFailureRun();
   };
 }
 
 export async function discardDraftSession(): Promise<void> {
   suspended = true;
-  failing = false;
+  endFailureRun();
   clearTimer();
   queued = false;
   queuedState = null;
