@@ -81,6 +81,11 @@ jobs:
         working-directory: frontend
         run: npx tauri build --bundles nsis
 
+      # The copy of a session kept on the PC must survive a restart, a crash and an upgrade install.
+      - name: Test the app's own storage across restart, crash and reinstall
+        shell: powershell
+        run: ./frontend/src-tauri/tests/app-storage.Tests.ps1
+
       # ── Upload artifact (always) ─────────────────────────────
       - name: Upload installer artifact
         uses: actions/upload-artifact@v4
