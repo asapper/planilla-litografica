@@ -68,12 +68,10 @@ export default function ReviewDetailView({ onBack }: ReviewDetailViewProps) {
   const row = navigableRows[currentIndex];
   const sessions: SessionSummary[] = row ? (sessionSummaries[row.codigoEmpleado] ?? []) : [];
 
-  const sessionDates = sessions.map(s => s.date).join(',');
+  const scanKeys = row ? sessions.map(s => `${row.codigoEmpleado}-${s.date}`).join('|') : '';
   useEffect(() => {
-    if (row && sessions.length > 0) {
-      setAllScansExpanded(sessions.map(s => `${row.codigoEmpleado}-${s.date}`));
-    }
-  }, [selectedEmployee, sessionDates]);
+    if (scanKeys) setAllScansExpanded(scanKeys.split('|'));
+  }, [scanKeys, setAllScansExpanded]);
 
   if (!row) return null;
 

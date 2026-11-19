@@ -76,7 +76,13 @@ function Start-App {
     $p = Start-Process -FilePath (App-Exe) -PassThru
     $deadline = (Get-Date).AddSeconds(90)
     while ((Get-Date) -lt $deadline) {
-        if (Port-Open) { return $p }
+        if (Port-Open) {
+            # Proves App-WebViews finds the app's processes, so its "none left" after a kill means something.
+            $found = (App-WebViews).Count
+            if ($found -eq 0) { Show-Diagnostics }
+            Check ($found -gt 0) "the app's WebView2 processes are found by their user-data folder ($found)"
+            return $p
+        }
         if ($p.HasExited) { Show-Diagnostics; throw "The app exited at start (code $($p.ExitCode))." }
         Start-Sleep -Seconds 1
     }
@@ -92,7 +98,9 @@ function Storage($action, $value) {
     try {
         $out = & node e2e/webview-storage.mjs $action $value 2>&1
         if ($LASTEXITCODE -ne 0) { throw "webview-storage.mjs $action failed: $out" }
-        return ($out | Select-Object -Last 1).ToString().Trim()
+        $stdout = @($out | Where-Object { $_ -isnot [System.Management.Automation.ErrorRecord] })
+        if ($stdout.Count -eq 0) { throw "webview-storage.mjs $action printed nothing on stdout: $out" }
+        return $stdout[-1].ToString().Trim()
     } finally { Pop-Location }
 }
 
