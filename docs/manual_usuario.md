@@ -204,7 +204,8 @@ El sistema encontró una o más marcaciones de salida para ese día, pero no enc
 **Qué hacer:**
 1. Revise las marcaciones originales (las pastillas azules debajo de la etiqueta) para entender el contexto.
 2. Ingrese la hora de entrada correcta en el campo **"Entrada"** (el campo muestra `--:-- --` cuando está vacío).
-3. Haga clic en **"Confirmar"**.
+
+No hay botón para confirmar ni para guardar: lo que escribe se guarda en el momento. Cuando la tarjeta tiene sus dos horas y son válidas, muestra **"✓ Completo"** y deja de contar como pendiente. Si deja una hora a medias, también queda guardada y la encontrará igual al volver.
 
 **¿La hora mostrada como salida es en realidad la entrada?** Cuando un día tiene una sola marcación, el sistema adivina si fue entrada o salida según el turno. Si se equivocó, haga clic en **"Intercambiar entrada/salida"**: la hora registrada pasa al campo **"Entrada"** y usted ingresa la **"Salida"**. Vea [Intercambiar entrada y salida](#intercambiar-entrada-y-salida).
 
@@ -216,8 +217,7 @@ El sistema encontró una marcación de entrada pero no encontró la marcación d
 
 **Qué hacer:**
 1. Revise las marcaciones originales para entender el contexto.
-2. Ingrese la hora de salida correcta en el campo **"Salida"**.
-3. Haga clic en **"Confirmar"**.
+2. Ingrese la hora de salida correcta en el campo **"Salida"**. Se guarda al escribirla.
 
 **¿La hora mostrada como entrada es en realidad la salida?** Es común en marcaciones de la tarde (por ejemplo, 16:58 o 17:30) de empleados del turno de mañana que olvidaron marcar al entrar. Haga clic en **"Intercambiar entrada/salida"**: la hora registrada pasa al campo **"Salida"** y usted ingresa la **"Entrada"**. Vea [Intercambiar entrada y salida](#intercambiar-entrada-y-salida).
 
@@ -229,15 +229,15 @@ Cuando un día tiene **una sola marcación**, el sistema decide si fue entrada o
 1. En la tarjeta **"Falta entrada"** o **"Falta salida"**, haga clic en **"Intercambiar entrada/salida"**.
 2. La hora registrada se mueve al otro campo, que queda bloqueado, y el campo vacío queda listo para escribir.
 3. La etiqueta cambia para reflejarlo (por ejemplo, de `Falta salida · Entrada 17:31` a `Falta entrada · Salida 17:31`).
-4. Ingrese la hora que falta y haga clic en **"Confirmar"**.
+4. Ingrese la hora que falta. Se guarda al escribirla.
 
 ![Tarjeta "Falta salida" después de intercambiar: la marcación de las 16:58 pasó a Salida y se escribe la Entrada](screenshots/25-verification-swap.png)
 
 Si la jornada cruza la medianoche (por ejemplo, entrada 22:00 y salida 06:00), el sistema coloca la hora que usted escribe en el día anterior o siguiente según corresponda. La jornada se cuenta en el día en que empezó, igual que cualquier turno de noche completo, también si eso la pasa a la otra quincena (entrada el 15, salida el 16): vea [Corte de período](#corte-de-período). Las horas después de la medianoche de un domingo o feriado se pagan dobles, y las de antes no. Si la jornada resultante dura más de 16 horas, verá el mensaje **"La jornada no puede durar más de 16 horas"**: revise que la hora sea correcta.
 
-Si se equivocó, haga clic en **"Deshacer intercambio"** antes de confirmar. Si ya confirmó, abra de nuevo la fila con **"Editar"**; el intercambio se conserva y puede deshacerlo.
+Si se equivocó, haga clic en **"Deshacer intercambio"**. Si la tarjeta ya está cerrada como **"Completo"**, ábrala con **"Editar"**; el intercambio se conserva y puede deshacerlo.
 
-**El turno se ajusta solo:** al confirmar, el sistema vuelve a asignar el turno según la hora de **entrada** que quedó (por ejemplo, una entrada a las 07:00 se cuenta como turno de **Mañana**). Así las horas extra se calculan contra la duración correcta del turno.
+**El turno se ajusta solo:** al pulsar **"Revisar"**, el sistema vuelve a asignar el turno según la hora de **entrada** que quedó (por ejemplo, una entrada a las 07:00 se cuenta como turno de **Mañana**). Así las horas extra se calculan contra la duración correcta del turno.
 
 #### Cambio de turno
 
@@ -247,8 +247,7 @@ Las marcaciones del empleado coinciden con un turno diferente al que tiene asign
 
 **Qué hacer:**
 1. Revise qué turno detectó el sistema y compárelo con el turno asignado.
-2. Seleccione el turno correcto que desea aplicar para ese día.
-3. Haga clic en **"Confirmar"**.
+2. El turno detectado se aplica solo si no hace nada. Para usar otro, haga clic en **"Elegir otro turno"** y selecciónelo en la lista: se aplica en el momento.
 
 #### Doble marcación
 
@@ -261,7 +260,7 @@ El sistema detectó dos sesiones de trabajo diferentes para el mismo empleado en
 **Qué hacer:**
 1. Revise ambas sesiones detectadas.
 2. La opción **"Mantener todas"** viene seleccionada y se aplica sola: no necesita hacer nada para continuar, y la tarjeta no cuenta como pendiente. La excepción: si a una sesión que se conserva le falta una marcación, hay que completar su hora (vea **Marcaciones sueltas** más abajo).
-3. Si una de las sesiones sobra, seleccione la que desea conservar. La tarjeta se cierra y muestra **"Confirmado"**; puede reabrirla con **"Editar"**.
+3. Si una de las sesiones sobra, seleccione la que desea conservar. La elección se guarda en el momento. La próxima vez que abra la verificación, la tarjeta aparece cerrada como **"Completo"**; puede reabrirla con **"Editar"**.
 
 **Marcaciones sueltas.** Si cada sesión de la doble marcación tiene una sola marcación (por ejemplo 07:08 y 22:03), la tarjeta dice *"Cada marcación está sola: falta la otra marcación de cada jornada."* y la tarjeta cuenta como pendiente hasta que complete las horas:
 
@@ -282,11 +281,11 @@ El empleado salió significativamente antes de lo esperado según su turno asign
 **Qué hacer:**
 1. Revise las horas de entrada y salida detectadas.
 2. Si la salida temprana es correcta, no haga nada.
-3. Si la hora de salida es incorrecta, corrija el campo **"Salida"** y haga clic en **"Registrar corrección"**. La tarjeta muestra **"Corrección registrada · Salida HH:MM"**; con **"Deshacer"** vuelve a la hora marcada.
+3. Si la hora de salida es incorrecta, corrija el campo **"Salida"**. La corrección se guarda al escribirla y la tarjeta muestra **"Corrección guardada · Salida HH:MM"**; con **"Deshacer"** vuelve a la hora marcada.
 
 ![Sección "Jornadas cortas" al final de la verificación](screenshots/24-verification-short-day.png)
 
-Si la salida queda antes de la entrada en un turno de día, verá **"La hora de salida debe ser posterior a la hora de entrada."** y el botón queda deshabilitado. En un turno de noche, una salida después de la medianoche es válida.
+Si la salida queda antes de la entrada en un turno de día, verá **"La hora de salida debe ser posterior a la hora de entrada. Mientras tanto se enviará la salida marcada HH:MM."** En un turno de noche, una salida después de la medianoche es válida.
 
 #### Corte de período
 
@@ -305,7 +304,8 @@ Un turno de noche toca el primer o el último día del archivo, así que puede f
 
 **Qué hacer:**
 1. Revise las horas de entrada y salida que muestra el sistema y complete la que falta.
-2. Haga clic en **"Confirmar"**.
+
+Si la tarjeta ya tiene las dos horas, tomadas de las marcaciones, cuenta como revisada tal como está: aparece cerrada como **"Completo"** y no bloquea **"Revisar"**. Ábrala con **"Editar"** si quiere corregirla. Lo mismo vale para cualquier tarjeta que abra con dos marcaciones y sus horas en orden, por ejemplo una **"Falta entrada"** cuya primera marcación fue muy tarde.
 
 #### Turno estimado
 
@@ -317,9 +317,7 @@ Las marcaciones del empleado no coincidieron con la ventana de detección de nin
 
 **Qué hacer:**
 1. Revise el turno asignado automáticamente y las horas de entrada/salida.
-2. Si el turno asignado es correcto, confirme.
-3. Si desea cambiar el turno, seleccione el correcto antes de confirmar.
-4. Haga clic en **"Confirmar"**.
+2. Complete la hora que falta, si la tarjeta la pide. Todo se guarda al escribirlo.
 
 #### Selector de período
 
@@ -482,7 +480,11 @@ La barra inferior muestra cuántos registros se enviarán y cuántos serán excl
 
 ### Continuar una sesión sin terminar
 
-La aplicación guarda su avance automáticamente mientras trabaja en los pasos de **empleados inactivos**, **verificación** y **revisión**. No hay un botón de "Guardar": cada decisión que toma (entradas y salidas corregidas, turnos aceptados, dobles marcaciones resueltas, horas extras y días no laborados ajustados, el período seleccionado) se guarda unos instantes después.
+La aplicación guarda su avance automáticamente mientras trabaja en los pasos de **empleados inactivos**, **verificación** y **revisión**. No hay botones de "Guardar" ni de "Confirmar": cada cosa que escribe o elige (horas completas o a medias, intercambios, turnos, dobles marcaciones, correcciones de jornadas cortas, horas extras y días no laborados ajustados, el período seleccionado) se guarda en el momento. Puede dejar la aplicación abierta o cerrarla el tiempo que quiera, por ejemplo durante un fin de semana, y retomar donde la dejó.
+
+El avance se guarda en **dos lugares** de esta computadora: en la base de datos de la aplicación y en una copia aparte que guarda la propia ventana, junto con el archivo que cargó. Si la primera falta o no se puede leer, la aplicación reconstruye la sesión desde la copia aparte: vuelve a leer el mismo archivo y aplica todas sus decisiones. Verá *"Se recuperó la sesión guardada en este equipo."* Si estaba en la revisión, vuelve a la verificación con todo completo: pulse **"Revisar"** para ver los totales. Si algún día cambió (por ejemplo, porque se modificaron los turnos), un aviso indica cuántas decisiones no se pudieron recuperar.
+
+Si el guardado falla, verá *"No se pudo guardar el avance. Se reintentará automáticamente; mientras tanto, no cierre la aplicación."* La aplicación lo reintenta sola cada 15 segundos y avisa cuando vuelve a guardar. Si intenta cerrarla mientras el guardado falla, la primera vez no se cierra y le explica que, si vuelve a cerrarla en los próximos 30 segundos, se cerrará sin guardar.
 
 Si la aplicación se cierra, se reinicia el equipo o el servicio interno se detiene, al volver a abrirla verá una tarjeta **"Sesión sin terminar"** encima del área para cargar archivos:
 
@@ -499,13 +501,13 @@ Solo se guarda **la última sesión**. La sesión guardada se descarta cuando:
 
 **Envío parcial.** Si un envío terminó con algunos registros fallidos, la sesión se conserva para que pueda retomarla. La tarjeta muestra además la línea *"Envío parcial: algunos registros ya se enviaron y aparecerán como duplicados."* Al continuar, llegará a la revisión y los registros que ya se enviaron aparecerán marcados como duplicados, por lo que no se enviarán dos veces.
 
-**Sesión de otra versión.** Si la sesión se guardó antes de instalar una versión de la aplicación que cambió cómo se guardan las sesiones, la tarjeta muestra *"Esta sesión se guardó con otra versión de la aplicación y no se puede continuar. Descártela y vuelva a cargar el archivo."* y solo ofrece **Descartar**. Sus decisiones de esa sesión no se pueden recuperar; vuelva a cargar el mismo archivo para empezar de nuevo.
+**Sesión de otra versión.** Si instala una versión nueva de la aplicación con una sesión sin terminar, al continuar se reconstruye desde la copia aparte (ver arriba), con sus decisiones. Solo si esa copia no existe (por ejemplo, una sesión de la versión 1.3.2 o anterior), la tarjeta muestra *"Esta sesión se guardó con otra versión de la aplicación y no se puede continuar. Descártela y vuelva a cargar el archivo."* y solo ofrece **Descartar**.
 
 ![Sesión guardada con otra versión: aviso y solo el botón Descartar](screenshots/21-resume-draft-outdated.png)
 
 **Envío en curso.** Si abre la aplicación mientras un envío todavía se está procesando, la tarjeta muestra *"Envío en curso, espere a que termine."* y no ofrece **Continuar** ni **Descartar** hasta que el envío termine. Mientras tanto la aplicación tampoco acepta otro envío, aunque cargue de nuevo el archivo.
 
-> **Nota:** La sesión se guarda solo en esta computadora. Los cambios hechos en el último segundo antes de un cierre forzado podrían no quedar guardados.
+> **Nota:** La sesión se guarda solo en esta computadora. Lo escrito en el último medio segundo antes de un corte de luz podría no quedar guardado.
 
 ---
 

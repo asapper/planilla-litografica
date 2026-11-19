@@ -2,10 +2,16 @@
 
 ## Unreleased
 
+### Features
+- **Everything in verification is saved as it is typed; there are no save or confirm buttons.** A time on a "Falta entrada/salida" card, a swap, a short-day correction, a shift picked under "Cambio de turno" and a double-scan choice all go into the saved session the moment they change, half-typed times included, so a card left half-filled comes back the same after a restart. "Confirmar", "Registrar corrección", "Aplicar"/"Cancelar" and "Listo" are gone. A card with both times valid shows "✓ Completo" and stops counting as pending. A card or group that is open stays open while it is filled in instead of folding shut. A card that opens with two scans and its times in order (a night at the file's edge, a late first scan) counts as checked as it is and stays available to correct. The saved session's format changed (version 2): a 1.3.2 session can't be resumed by this version.
+- **A second copy of the session on this PC.** On every save, before any network call, the app also keeps the uploaded file and every decision in its own storage. When the backend's saved session is missing, unreadable or from another version, or the backend can't be asked, the start screen offers this copy; "Continuar" uploads the same file again, replays the inactive-employee choices and carries every decision over to the new session's days. A session that had reached the review comes back to verification, complete, one "Revisar" away. Decisions whose day changed (different shifts or employees) are counted in a warning. The copy is marked once a submission starts, so it can never send a payroll twice, and dropped when the session ends.
+
 ### Fixes
+- **A failed final save refuses the first close.** Closing while saving fails is refused once with "No se pudo guardar el avance. Si vuelve a cerrar la aplicación en los próximos 30 segundos, se cerrará sin guardar." A second close within 30 s goes ahead.
 - **A failed autosave is no longer silent.** If the session can't be saved (the backend is unreachable, the disk is full), a warning says so and asks not to close the app, the save is retried every 15 s on its own (also when the user has walked away and makes no further edit), and a notice confirms when saving works again. Before, the failure only went to the developer console, and work left idle could be lost without warning.
 
 ### Tests
+- **The weekend away, on the real screens.** A new test loads a file through the start screen, types into two cards (one only half), drops everything in memory as a restart does, comes back, finishes, presses "Revisar" and then "Enviar", once with the backend's saved session and once with it lost so the copy on this PC carries it. Removing the saved card inputs fails both; removing the local copy fails the second.
 - **Walking away is covered end to end.** A new test runs the real app: upload, save the draft as the app does, a day idle, an eviction pass and a backend restart, then "Revisar" must still work. A second case shows an unsaved session is dropped, and planting 1.2.2's eviction rule fails the first. 1.2.2 dropped every upload 30 minutes after it was made, which lost a reviewed session in production.
 
 ## v1.3.2 — 2026-11-18
