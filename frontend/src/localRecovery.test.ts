@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { useTasStore } from './tasStore';
 import type { TasSession, TasUploadResult } from './tasTypes';
-import type { LocalCopy } from './localCopy';
+import { loadLocalCopy, saveLocalSnapshot, startLocalCopy, type LocalCopy } from './localCopy';
+import { localSnapshotOf } from './tasDraft';
 
 const mockUpload = vi.hoisted(() => vi.fn());
 const mockInactiveReview = vi.hoisted(() => vi.fn());
@@ -145,6 +146,32 @@ describe('rebuildFromLocalCopy', () => {
     ));
     expect(useTasStore.getState().resolvedSessions).toEqual({
       10: { resolvedStart: '07:02', resolvedEnd: '15:00' }, 20: { resolvedStart: '07:10', resolvedEnd: '16:00' } });
+  });
+
+  it('a second rebuild, with the backend numbering the days differently, keeps every decision on its day', async () => {
+    localStorage.clear();
+    // First session: A is day 0, B is day 1 (the backend numbers from 0 on every upload).
+    startLocalCopy('oct.csv', new Uint8Array([1]), {
+      tasView: 'verification', flaggedSessions: [day(0, 'E1', '2026-10-03', A), day(1, 'E2', '2026-10-04', B)],
+      cardInputs: { 0: { entry: '07:02', exit: '15:00', swapped: false } },
+      sent: undefined,
+    });
+    mockUpload.mockResolvedValue(upload([day(0, 'E1', '2026-10-03', A), day(1, 'E2', '2026-10-04', B)]));
+    await rebuildFromLocalCopy(loadLocalCopy()!);
+
+    // After the rebuild the user fills in B, then everything is lost again.
+    useTasStore.getState().setCardInput(1, { entry: '07:10', exit: '16:00', swapped: false });
+    saveLocalSnapshot(localSnapshotOf(useTasStore.getState())!);
+
+    // This time an employee is gone from the file before them, so the ids shift: B is day 0.
+    mockUpload.mockResolvedValue(upload([day(0, 'E2', '2026-10-04', B), day(1, 'E1', '2026-10-03', A)]));
+    const recovery = await rebuildFromLocalCopy(loadLocalCopy()!);
+    expect(recovery.dropped).toBe(0);
+    expect(useTasStore.getState().cardInputs).toEqual({
+      1: { entry: '07:02', exit: '15:00', swapped: false },
+      0: { entry: '07:10', exit: '16:00', swapped: false },
+    });
+    expect(loadLocalCopy()?.sent).toEqual({});
   });
 
   it('counts a lost day once, whatever it held', async () => {

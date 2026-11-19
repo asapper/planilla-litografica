@@ -1,7 +1,8 @@
 import { submitInactiveReview, uploadTasFile } from './tasApi';
 import { tasInitialState, useTasStore, type CardInput, type ResolvedSessionEntry } from './tasStore';
 import type { DoubleChoice, InactiveDecision, TasPeriod, TasSession, TasUploadResult, TasView } from './tasTypes';
-import { dayKey, dayKeysOf, localCopyFile, type LocalCopy } from './localCopy';
+import { dayKey, dayKeysOf, localCopyFile, rebaseLocalCopy, type LocalCopy } from './localCopy';
+import { localSnapshotOf } from './tasDraft';
 
 export interface Recovery {
   view: TasView;
@@ -105,5 +106,7 @@ export async function rebuildFromLocalCopy(copy: LocalCopy): Promise<Recovery> {
     fallbackBannerDismissed: saved.fallbackBannerDismissed === true,
   });
 
+  const rebuilt = localSnapshotOf(useTasStore.getState());
+  if (rebuilt) rebaseLocalCopy(rebuilt);
   return { view, dropped: lost.size, wasInReview: savedView === 'review' };
 }

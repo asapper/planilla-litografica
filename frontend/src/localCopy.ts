@@ -138,6 +138,18 @@ export function saveLocalSnapshot(snapshot: Record<string, unknown>): boolean {
   return writeMeta({ ...meta, snapshot, dayKeys: nextDayKeys(snapshot, meta.dayKeys), savedAt: new Date().toISOString() });
 }
 
+// After a rebuild the copy describes the new session: its days are numbered afresh, and the sent
+// decisions are already folded into the current ones. Old identities kept under reused ids would
+// otherwise put a decision on another day in a later rebuild.
+export function rebaseLocalCopy(snapshot: Record<string, unknown>): boolean {
+  const meta = readMeta();
+  if (!meta) return false;
+  return writeMeta({
+    ...meta, snapshot, sent: {}, submitted: false, savedAt: new Date().toISOString(),
+    dayKeys: snapshot.tasView === 'verification' ? dayKeysOf(snapshot) : {},
+  });
+}
+
 export function rememberSentDecisions(decisions: Record<string, Record<string, unknown>>): void {
   const meta = readMeta();
   if (!meta) return;
