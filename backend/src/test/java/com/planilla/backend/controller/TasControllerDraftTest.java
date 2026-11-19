@@ -51,6 +51,7 @@ class TasControllerDraftTest {
     @MockBean ShiftConfigService      shiftConfigService;
     @MockBean DatabaseService         databaseService;
     @MockBean TasDraftService         draftService;
+    @MockBean AppConfigService appConfigService;
 
     private final ExecutorService pool = Executors.newCachedThreadPool();
 

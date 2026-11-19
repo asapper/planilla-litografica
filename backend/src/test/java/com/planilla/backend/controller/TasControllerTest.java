@@ -47,6 +47,7 @@ class TasControllerTest {
     @MockBean ShiftConfigService      shiftConfigService;
     @MockBean DatabaseService         databaseService;
     @MockBean TasDraftService         draftService;
+    @MockBean AppConfigService appConfigService;
 
     @AfterEach
     void clearStateStore() { tasController.stateStore.clear(); }
@@ -2204,7 +2205,6 @@ class TasControllerTest {
         when(shiftConfigService.getAllShifts()).thenReturn(List.of());
         when(reportBuilder.build(any(), any(), any(), any(), any()))
             .thenReturn(new TasReportBuilder.BuildResult(List.of()));
-        when(reportBuilder.computeAvailablePeriods(any())).thenReturn(List.of());
 
         Map<String, Object> res = new java.util.LinkedHashMap<>();
         res.put("sessionId", 42);
@@ -2279,7 +2279,6 @@ class TasControllerTest {
         when(shiftConfigService.getAllShifts()).thenReturn(List.of());
         when(reportBuilder.build(any(), any(), any(), any(), any()))
             .thenReturn(new TasReportBuilder.BuildResult(List.of()));
-        when(reportBuilder.computeAvailablePeriods(any())).thenReturn(List.of());
 
         Map<String, Object> res = new java.util.LinkedHashMap<>();
         res.put("sessionId", 43);
@@ -2330,7 +2329,6 @@ class TasControllerTest {
         when(shiftConfigService.getAllShifts()).thenReturn(List.of());
         when(reportBuilder.build(any(), any(), any(), any(), any()))
             .thenReturn(new TasReportBuilder.BuildResult(List.of()));
-        when(reportBuilder.computeAvailablePeriods(any())).thenReturn(List.of());
 
         Map<String, Object> res = new java.util.LinkedHashMap<>();
         res.put("sessionId", 50);
@@ -2383,7 +2381,6 @@ class TasControllerTest {
         when(shiftConfigService.getAllShifts()).thenReturn(List.of());
         when(reportBuilder.build(any(), any(), any(), any(), any()))
             .thenReturn(new TasReportBuilder.BuildResult(List.of()));
-        when(reportBuilder.computeAvailablePeriods(any())).thenReturn(List.of());
 
         Map<String, Object> res = new java.util.LinkedHashMap<>();
         res.put("employeeId", "100");
@@ -2735,7 +2732,6 @@ class TasControllerTest {
                 shift("noche", "Noche", "22:00", "06:00", true)));
         when(reportBuilder.build(any(), any(), any(), any(), any()))
                 .thenReturn(new TasReportBuilder.BuildResult(List.of()));
-        when(reportBuilder.computeAvailablePeriods(any())).thenReturn(List.of());
         return s;
     }
 
@@ -3087,6 +3083,30 @@ class TasControllerTest {
            .andExpect(jsonPath("$.message").value("La jornada no puede durar más de 16 horas."));
     }
 
+    @Test
+    void resolve_theDayLimitFollowsALongerConfiguredSessionSpan() throws Exception {
+        when(appConfigService.getMaxSessionSpanMinutes()).thenReturn(18 * 60 + 30);
+        seedNightState("span-tok", "2026-01-16", TasFlag.MISSING_EXIT);
+        Map<String, Object> tooLong = new LinkedHashMap<>();
+        tooLong.put("sessionId", 70);
+        tooLong.put("resolvedStart", "2026-01-16 07:00");
+        tooLong.put("resolvedEnd", "2026-01-17 02:00");
+
+        mvc.perform(post("/api/tas/resolve")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of("uploadToken", "span-tok", "resolutions", List.of(tooLong)))))
+           .andExpect(status().isBadRequest())
+           .andExpect(jsonPath("$.message").value("La jornada no puede durar más de 18:30 horas."));
+        assertThat(tasController.resolvedSpanLimitMinutes()).isEqualTo(18 * 60 + 30);
+    }
+
+    @Test
+    void resolve_aShorterConfiguredSpanKeepsTheSixteenHourLimit() {
+        when(appConfigService.getMaxSessionSpanMinutes()).thenReturn(14 * 60);
+        assertThat(tasController.resolvedSpanLimitMinutes()).isEqualTo(16 * 60);
+        assertThat(TasController.formatHours(16 * 60)).isEqualTo("16 horas");
+    }
+
     // ── TASK-98: a double made of single scans ───────────────────────────────
 
     private List<TasSession> seedSingleScanDouble(String token) {
@@ -3119,7 +3139,6 @@ class TasControllerTest {
         when(shiftConfigService.getAllShifts()).thenReturn(List.of());
         when(reportBuilder.build(any(), any(), any(), any(), any()))
             .thenReturn(new TasReportBuilder.BuildResult(List.of()));
-        when(reportBuilder.computeAvailablePeriods(any())).thenReturn(List.of());
         return List.of(morning, evening);
     }
 

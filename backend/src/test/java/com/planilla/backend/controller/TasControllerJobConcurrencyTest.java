@@ -42,7 +42,8 @@ class TasControllerJobConcurrencyTest {
         ReflectionTestUtils.setField(jobService, "maxRetries", 3);
         controller = new TasController(mock(TasParserService.class), mock(TasUploadService.class),
                 mock(TasReportBuilder.class), mock(EmployeeRegistryService.class), jobService,
-                mock(ShiftConfigService.class), mock(TasHoursCalculator.class), databaseService, draftService);
+                mock(ShiftConfigService.class), mock(TasHoursCalculator.class), databaseService, draftService,
+                mock(AppConfigService.class));
 
         EmployeeRow row = new EmployeeRow();
         row.setCodigoEmpleado("100");
