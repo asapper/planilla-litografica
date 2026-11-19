@@ -98,6 +98,9 @@ export default function App() {
 
   const handleTasFile = async (file: File) => {
     setTasFileName(file.name);
+    // A new upload replaces the session: its copy on this PC starts empty, never paired with old decisions.
+    clearLocalCopy();
+    setLocalCopy(null);
     resetTas();
     setCurrentView('tas');
     setTasView('processing');
@@ -222,8 +225,12 @@ export default function App() {
       applySnapshot({ ...ui, uploadToken });
       setCurrentView('tas');
     } catch (err) {
-      if (fallback) return handleContinueLocal(fallback);
-      if (axios.isAxiosError(err) && err.response?.data?.code === 'DRAFT_OUTDATED') {
+      const outdated = axios.isAxiosError(err) && err.response?.data?.code === 'DRAFT_OUTDATED';
+      // Only a session the backend no longer has, or cannot read, is rebuilt; a passing error must not
+      // replace a good saved session with a rebuild.
+      const gone = axios.isAxiosError(err) && err.response?.status === 404;
+      if (fallback && (outdated || gone)) return handleContinueLocal(fallback);
+      if (outdated) {
         setDraftSummary(prev => (prev ? { ...prev, resumable: false } : prev));
         return;
       }

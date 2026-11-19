@@ -1,7 +1,7 @@
 import { submitInactiveReview, uploadTasFile } from './tasApi';
 import { tasInitialState, useTasStore, type CardInput, type ResolvedSessionEntry } from './tasStore';
 import type { DoubleChoice, InactiveDecision, TasPeriod, TasSession, TasUploadResult, TasView } from './tasTypes';
-import { localCopyFile, type LocalCopy } from './localCopy';
+import { dayKey, dayKeysOf, localCopyFile, type LocalCopy } from './localCopy';
 
 export interface Recovery {
   view: TasView;
@@ -13,11 +13,6 @@ export interface Recovery {
 
 function record(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
-}
-
-// The backend numbers sessions afresh on every upload; a day is the same day by employee, date and scans.
-function dayKey(session: TasSession): string {
-  return `${session.employeeId}|${session.date}|${session.scans.join(',')}`;
 }
 
 function samePeriod(a: TasPeriod, b: unknown): boolean {
@@ -33,27 +28,33 @@ export async function rebuildFromLocalCopy(copy: LocalCopy): Promise<Recovery> {
 
   const decisions = record(saved.inactiveDecisions) as Record<string, InactiveDecision>;
   const savedView = saved.tasView;
-  if (result.inactiveEmployeesFound.length > 0 && savedView !== 'inactiveReview') {
+  // Replayed only when every inactive employee was already reviewed; one that became inactive since
+  // has to be looked at, so the session stops on that step with the earlier choices filled in.
+  const reviewedBefore = new Set((Array.isArray(saved.inactiveEmployees) ? saved.inactiveEmployees : [])
+    .map(e => record(e).employeeId));
+  const allReviewed = result.inactiveEmployeesFound.every(e => reviewedBefore.has(e.employeeId));
+  if (result.inactiveEmployeesFound.length > 0 && savedView !== 'inactiveReview' && allReviewed) {
     const reactivate = result.inactiveEmployeesFound.filter(e => decisions[e.employeeId] === 'reactivate').map(e => e.employeeId);
     const ignore = result.inactiveEmployeesFound.filter(e => decisions[e.employeeId] !== 'reactivate').map(e => e.employeeId);
     result = await submitInactiveReview(result.uploadToken, reactivate, ignore);
   }
 
-  const newIdByDay = new Map(result.flaggedSessions.map(s => [dayKey(s), s.sessionId]));
+  // The backend numbers sessions afresh on every upload; a day is the same day by employee, date and
+  // scans, as they were in verification (kept in the copy, since "Revisar" rewrites them).
+  const newIdByDay = new Map(result.flaggedSessions.map((s: TasSession) => [dayKey(s), s.sessionId]));
+  const savedKeys = { ...dayKeysOf(saved), ...copy.dayKeys };
   const idMap = new Map<number, number>();
-  const savedSessions = Array.isArray(saved.flaggedSessions) ? (saved.flaggedSessions as TasSession[]) : [];
-  for (const session of savedSessions) {
-    if (!session || typeof session.sessionId !== 'number' || !Array.isArray(session.scans)) continue;
-    const id = newIdByDay.get(dayKey(session));
-    if (id !== undefined) idMap.set(session.sessionId, id);
+  for (const [oldId, key] of Object.entries(savedKeys)) {
+    const id = newIdByDay.get(key);
+    if (id !== undefined) idMap.set(Number(oldId), id);
   }
 
-  let dropped = 0;
+  const lost = new Set<string>();
   const remap = <T>(values: unknown): Record<number, T> => {
     const out: Record<number, T> = {};
     for (const [oldId, value] of Object.entries(record(values))) {
       const id = idMap.get(Number(oldId));
-      if (id === undefined) dropped += 1;
+      if (id === undefined) lost.add(`day ${oldId}`);
       else out[id] = value as T;
     }
     return out;
@@ -62,7 +63,7 @@ export async function rebuildFromLocalCopy(copy: LocalCopy): Promise<Recovery> {
   for (const [groupKey, choice] of Object.entries(record(saved.sameDayDoubleResolutions))) {
     if (choice === 'all') sameDayDoubleResolutions[groupKey] = 'all';
     else if (typeof choice === 'number' && idMap.has(choice)) sameDayDoubleResolutions[groupKey] = idMap.get(choice)!;
-    else dropped += 1;
+    else lost.add(`double ${groupKey}`);
   }
 
   const periods = result.availablePeriods ?? [];
@@ -98,5 +99,5 @@ export async function rebuildFromLocalCopy(copy: LocalCopy): Promise<Recovery> {
     fallbackBannerDismissed: saved.fallbackBannerDismissed === true,
   });
 
-  return { view, dropped, wasInReview: savedView === 'review' };
+  return { view, dropped: lost.size, wasInReview: savedView === 'review' };
 }

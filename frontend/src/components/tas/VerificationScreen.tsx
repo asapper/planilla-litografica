@@ -8,7 +8,7 @@ import type { TasSession, TasFlag, TasPeriod, ShiftOption, DoubleChoice } from '
 import { useToastStore } from '../../toastStore';
 import AlertMessage from '../ui/AlertMessage';
 import EmployeeGroup from './EmployeeGroup';
-import { buildEmployeeGroups, effectiveResolution, keptSessions, needsTimes } from './verificationGrouping';
+import { buildEmployeeGroups, effectiveResolution, keptSessions, needsTimes, prefilledResolution } from './verificationGrouping';
 
 const FLAG_LABELS: Record<TasFlag, string> = {
   MISSING_ENTRY:   'Falta entrada',
@@ -245,19 +245,20 @@ interface SameDayDoubleGroupCardProps {
   choice: DoubleChoice;
   decided: boolean;
   resolvedSessions: Record<number, ResolvedSessionEntry>;
+  cardInputs: Record<number, CardInput>;
   renderSessionCard: (session: TasSession) => ReactNode;
   onChange: (keepSessionId: DoubleChoice) => void;
   onMerge: (day: MergedDay) => void;
 }
 
 function SameDayDoubleGroupCard({
-  sessions, choice, decided, resolvedSessions, renderSessionCard, onChange, onMerge,
+  sessions, choice, decided, resolvedSessions, cardInputs, renderSessionCard, onChange, onMerge,
 }: SameDayDoubleGroupCardProps) {
   const first = sessions[0];
   const mergeable = mergeableDay(sessions);
   const merged = !!mergedDay(sessions, choice, resolvedSessions);
   const needingTimes = merged ? [] : keptSessions(sessions, choice).filter(needsTimes);
-  const timesMissing = needingTimes.some(s => !resolvedSessions[s.sessionId]);
+  const timesMissing = needingTimes.some(s => !effectiveResolution(s, resolvedSessions, cardInputs));
   // Folded when it opens already settled; once opened here it stays open while it is edited.
   const [open, setOpen] = useState(!(decided && !timesMissing));
 
@@ -364,6 +365,7 @@ function ShortDayCard({ session, crossMidnight, input, registered, highlighted, 
   const exit = input?.exit ?? registered?.resolvedEnd ?? originalExit;
   const ref = useHighlightScroll(highlighted);
   const inverted = !!entry && !!exit && calcHours(entry, exit, crossMidnight) === '—';
+  const unfinished = !!input && !registered;
 
   const setExit = (value: string) => {
     const valid = !!value && value !== originalExit && calcHours(entry, value, crossMidnight) !== '—';
@@ -417,8 +419,19 @@ function ShortDayCard({ session, crossMidnight, input, registered, highlighted, 
 
       {inverted && (
         <p role="alert" className="text-error text-body-sm mb-3">
-          La hora de salida debe ser posterior a la hora de entrada. Mientras tanto se enviará la salida marcada {originalExit}.
+          La hora de salida debe ser posterior a la hora de entrada.
         </p>
+      )}
+
+      {unfinished && (
+        <div className="flex items-center gap-3">
+          <span className="text-error text-body-sm">
+            Corrija la salida, o use Deshacer para dejar la marcada ({originalExit}).
+          </span>
+          <button type="button" onClick={onUndo} className="m3-btn-text">
+            Deshacer
+          </button>
+        </div>
       )}
 
       {registered && (
@@ -742,7 +755,10 @@ export default function VerificationScreen() {
     : rawGroups;
 
   const totalToResolve = needsResolutionSessions.length;
-  const pendingCount   = employeeGroups.reduce((sum, g) => sum + g.pendingCount, 0);
+  // A short-day exit changed to something invalid is neither the recorded one nor a correction yet.
+  const shortDaysUnfinished = shortDaySessions.filter(
+    s => cardInputs[s.sessionId] && !resolvedSessions[s.sessionId]).length;
+  const pendingCount   = employeeGroups.reduce((sum, g) => sum + g.pendingCount, 0) + shortDaysUnfinished;
   const allConfirmed   = pendingCount === 0;
 
   const openedKey = (employeeId: string) => `${currentPeriodKey}|${employeeId}`;
@@ -762,15 +778,20 @@ export default function VerificationScreen() {
     setUserExpansion(prev => ({ ...prev, [group.employeeId]: !expanded }));
   };
 
+  // A day may end after midnight when its shift does, or when its own scans already do: the card and
+  // the submission must agree, or a complete card would be sent with its exit on the wrong day.
+  const crossesMidnight = (session: TasSession): boolean =>
+    (availableShifts.find(s => s.id === session.matchedShiftId)?.crossMidnight ?? session.crossMidnight)
+    || prefilledResolution(session)?.endDayOffset === 1;
+
   const renderSessionCard = (session: TasSession) => {
-    const matchedShift = availableShifts.find(s => s.id === session.matchedShiftId);
     return (
       <SessionCard
         key={session.sessionId}
         session={session}
         input={cardInputs[session.sessionId]}
         resolved={effectiveResolution(session, resolvedSessions, cardInputs)}
-        crossMidnight={matchedShift?.crossMidnight ?? session.crossMidnight}
+        crossMidnight={crossesMidnight(session)}
         highlighted={highlightedSessionId === session.sessionId}
         onInput={(input, resolution) => {
           setCardInput(session.sessionId, input);
@@ -799,7 +820,9 @@ export default function VerificationScreen() {
     try {
       // Cards nobody touched that open complete (a night at the file's edge with both scans) go as they are.
       const toSend: Record<number, ResolvedSessionEntry> = { ...resolvedSessions };
-      for (const session of regular) {
+      const keptHalves = [...sameDayDoubleGroups.entries()].flatMap(([groupKey, sessions]) =>
+        keptSessions(sessions, sameDayDoubleResolutions[groupKey]).filter(needsTimes));
+      for (const session of [...regular, ...keptHalves]) {
         const resolution = effectiveResolution(session, resolvedSessions, cardInputs);
         if (resolution && !toSend[session.sessionId]) toSend[session.sessionId] = resolution;
       }
@@ -811,8 +834,7 @@ export default function VerificationScreen() {
             && !discardedSessionIds.has(session.sessionId);
         }).map(([id, resolved]) => {
           const session = sessionById.get(Number(id));
-          const matchedShift = availableShifts.find(s => s.id === session?.matchedShiftId);
-          const isCrossMidnight = matchedShift?.crossMidnight ?? session?.crossMidnight ?? false;
+          const isCrossMidnight = session ? crossesMidnight(session) : false;
           const { startDate, endDate } = session
             ? resolutionDates(session, resolved, isCrossMidnight)
             : { startDate: '', endDate: '' };
@@ -949,6 +971,7 @@ export default function VerificationScreen() {
                           choice={sameDayDoubleResolutions[item.groupKey] ?? 'all'}
                           decided={sameDayDoubleResolutions[item.groupKey] !== undefined}
                           resolvedSessions={resolvedSessions}
+                          cardInputs={cardInputs}
                           renderSessionCard={renderSessionCard}
                           onChange={(keepSessionId) => {
                             const merged = mergedDay(item.sessions, sameDayDoubleResolutions[item.groupKey], resolvedSessions);
@@ -958,7 +981,8 @@ export default function VerificationScreen() {
                             }
                             setSameDayDoubleResolution(item.groupKey, keepSessionId);
                             const leavesTimesMissing = keptSessions(item.sessions, keepSessionId)
-                              .some(s => needsTimes(s) && (!resolvedSessions[s.sessionId] || s.sessionId === merged?.sessionId));
+                              .some(s => needsTimes(s)
+                                && (!effectiveResolution(s, resolvedSessions, cardInputs) || s.sessionId === merged?.sessionId));
                             // That choice reopens the group by default; drop a manual collapse so it doesn't close under the user.
                             if (leavesTimesMissing) forgetUserExpansion(group.employeeId);
                           }}
@@ -984,7 +1008,7 @@ export default function VerificationScreen() {
                 <ShortDayCard
                   key={session.sessionId}
                   session={session}
-                  crossMidnight={availableShifts.find(s => s.id === session.matchedShiftId)?.crossMidnight ?? session.crossMidnight}
+                  crossMidnight={crossesMidnight(session)}
                   input={cardInputs[session.sessionId]}
                   registered={resolvedSessions[session.sessionId]}
                   highlighted={highlightedSessionId === session.sessionId}

@@ -673,6 +673,32 @@ describe('the copy on this PC', () => {
     expect(loadLocalCopy()).toBeNull();
   });
 
+  it('is written at once even while a slow backend save is still in flight', async () => {
+    let finishFirst!: () => void;
+    mockSaveDraft.mockImplementationOnce(() => new Promise<void>(r => { finishFirst = r; }));
+    startLocalCopy('oct.csv', FILE);
+    stop = startDraftAutosave(() => 'oct.csv');
+    useTasStore.setState({ tasView: 'verification', uploadToken: 'tok' });
+    await vi.advanceTimersByTimeAsync(DRAFT_SAVE_DEBOUNCE_MS);
+    useTasStore.getState().setCardInput(7, { entry: '07:02', exit: '15:30', swapped: false });
+    await vi.advanceTimersByTimeAsync(DRAFT_SAVE_DEBOUNCE_MS);
+    expect(mockSaveDraft).toHaveBeenCalledTimes(1);
+    expect(recoverableLocalCopy()?.snapshot?.cardInputs).toEqual({ 7: { entry: '07:02', exit: '15:30', swapped: false } });
+    finishFirst();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(mockSaveDraft).toHaveBeenCalledTimes(2);
+  });
+
+  it('a submit that fails before any job starts puts the copy back in play', () => {
+    startLocalCopy('oct.csv', FILE, { tasView: 'review' });
+    stop = startDraftAutosave(() => 'oct.csv');
+    useTasStore.setState({ tasView: 'review', uploadToken: 'tok' });
+    useTasStore.setState({ tasView: 'submitting' });
+    expect(recoverableLocalCopy()).toBeNull();
+    useTasStore.setState({ tasView: 'review' });
+    expect(recoverableLocalCopy()).not.toBeNull();
+  });
+
   it('is dropped by a discard', async () => {
     startLocalCopy('oct.csv', FILE, { tasView: 'verification' });
     await discardDraftSession();

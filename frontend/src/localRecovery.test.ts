@@ -28,8 +28,8 @@ function upload(flaggedSessions: TasSession[], extra: Partial<TasUploadResult> =
   } as TasUploadResult;
 }
 
-function copy(snapshot: Record<string, unknown>): LocalCopy {
-  return { fileName: 'oct.csv', fileBase64: btoa('x'), savedAt: '2026-11-19T10:00:00Z', snapshot, submitted: false };
+function copy(snapshot: Record<string, unknown>, dayKeys: Record<string, string> = {}): LocalCopy {
+  return { fileName: 'oct.csv', fileBase64: btoa('x'), savedAt: '2026-11-19T10:00:00Z', snapshot, dayKeys, submitted: false };
 }
 
 const A = ['2026-10-03T07:02:00'];
@@ -96,6 +96,7 @@ describe('rebuildFromLocalCopy', () => {
     mockInactiveReview.mockResolvedValue(upload([day(10, 'E1', '2026-10-03', A)], { uploadToken: 'tok-b' }));
     const recovery = await rebuildFromLocalCopy(copy({
       tasView: 'verification',
+      inactiveEmployees: [{ employeeId: 'E8' }, { employeeId: 'E9' }],
       inactiveDecisions: { E8: 'reactivate' },
       flaggedSessions: [day(1, 'E1', '2026-10-03', A)],
       cardInputs: { 1: { entry: '07:02', exit: '', swapped: false } },
@@ -104,6 +105,43 @@ describe('rebuildFromLocalCopy', () => {
     expect(recovery.view).toBe('verification');
     expect(useTasStore.getState().uploadToken).toBe('tok-b');
     expect(useTasStore.getState().cardInputs).toEqual({ 10: { entry: '07:02', exit: '', swapped: false } });
+  });
+
+  it('an employee who became inactive since stops the rebuild on that step, earlier choices filled in', async () => {
+    mockUpload.mockResolvedValue(upload([], {
+      inactiveEmployeesFound: [{ employeeId: 'E8' }, { employeeId: 'E7' }] as TasUploadResult['inactiveEmployeesFound'],
+    }));
+    const recovery = await rebuildFromLocalCopy(copy({
+      tasView: 'review', inactiveEmployees: [{ employeeId: 'E8' }], inactiveDecisions: { E8: 'reactivate' },
+    }));
+    expect(mockInactiveReview).not.toHaveBeenCalled();
+    expect(recovery.view).toBe('inactiveReview');
+    expect(useTasStore.getState().inactiveDecisions).toEqual({ E8: 'reactivate' });
+  });
+
+  it('after Revisar, matches decisions by the days as they were in verification', async () => {
+    // What "Revisar" left in the snapshot: day 1's scans rewritten to the typed times, day 2 resolved away.
+    const revised = { ...day(1, 'E1', '2026-10-03', A), scans: ['2026-10-03T07:02:00', '2026-10-03T15:00:00'], flags: [] };
+    mockUpload.mockResolvedValue(upload([day(10, 'E1', '2026-10-03', A), day(20, 'E1', '2026-10-04', B)]));
+    const recovery = await rebuildFromLocalCopy(copy({
+      tasView: 'review',
+      flaggedSessions: [revised],
+      resolvedSessions: { 1: { resolvedStart: '07:02', resolvedEnd: '15:00' }, 2: { resolvedStart: '07:10', resolvedEnd: '15:00' } },
+      cardInputs: { 1: { entry: '07:02', exit: '15:00', swapped: false }, 2: { entry: '07:10', exit: '15:00', swapped: false } },
+    }, { 1: 'E1|2026-10-03|2026-10-03T07:02:00', 2: 'E1|2026-10-04|2026-10-04T07:10:00' }));
+    expect(recovery).toEqual({ view: 'verification', dropped: 0, wasInReview: true });
+    expect(useTasStore.getState().resolvedSessions).toEqual({
+      10: { resolvedStart: '07:02', resolvedEnd: '15:00' }, 20: { resolvedStart: '07:10', resolvedEnd: '15:00' } });
+  });
+
+  it('counts a lost day once, whatever it held', async () => {
+    mockUpload.mockResolvedValue(upload([]));
+    const recovery = await rebuildFromLocalCopy(copy({
+      tasView: 'verification', flaggedSessions: [day(1, 'E1', '2026-10-03', A)],
+      resolvedSessions: { 1: { resolvedStart: '07:02', resolvedEnd: '15:00' } },
+      cardInputs: { 1: { entry: '07:02', exit: '15:00', swapped: false } },
+    }));
+    expect(recovery.dropped).toBe(1);
   });
 
   it('a session saved during the inactive-employee step reopens on it with its choices', async () => {

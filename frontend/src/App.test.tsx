@@ -806,6 +806,14 @@ describe('rebuild from the copy on this PC', () => {
     inactiveEmployeesFound: [], absentActiveEmployees: [], usedFallbackHolidays: false, availablePeriods: [] };
   const toasts = () => useToastStore.getState().toasts.map(t => [t.variant, t.message]);
 
+  it('a new upload drops the previous copy before anything else', async () => {
+    keepCopy();
+    mockUploadTasFile.mockReturnValue(new Promise(() => {}));
+    render(<App />);
+    fireEvent.click(await screen.findByRole('button', { name: /cargar tas/i }));
+    await waitFor(() => expect(loadLocalCopy()).toBeNull());
+  });
+
   it('an upload keeps a copy of the file on this PC', async () => {
     render(<App />);
     fireEvent.click(await screen.findByRole('button', { name: /cargar tas/i }));
@@ -850,11 +858,26 @@ describe('rebuild from the copy on this PC', () => {
     await waitFor(() => expect(toasts()).toEqual([['success', LOCAL_RECOVERED_REVIEW_MESSAGE]]));
   });
 
-  it('takes over when resuming the backend session fails', async () => {
+  const resumable = { fileName: 'oct.csv', view: 'verification', periodLabel: null,
+    savedAt: '2026-11-19T10:00:00Z', partialSubmit: false, resumable: true, uiVersion: DRAFT_UI_VERSION, jobActive: false };
+  const httpError = (status: number) => new axios.AxiosError(String(status), undefined, undefined, undefined,
+    { status, data: {} } as never);
+
+  it('a passing error resuming the backend session does not replace it with a rebuild', async () => {
     keepCopy();
-    mockGetDraftSummary.mockResolvedValue({ fileName: 'oct.csv', view: 'verification', periodLabel: null,
-      savedAt: '2026-11-19T10:00:00Z', partialSubmit: false, resumable: true, uiVersion: DRAFT_UI_VERSION, jobActive: false });
-    mockResumeDraft.mockRejectedValue(new Error('404'));
+    mockGetDraftSummary.mockResolvedValue(resumable);
+    mockResumeDraft.mockRejectedValue(httpError(500));
+    render(<App />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Continuar' }));
+    await waitFor(() => expect(toasts()).toEqual([['error', 'No se pudo recuperar la sesión anterior.']]));
+    expect(mockUploadTasFile).not.toHaveBeenCalled();
+    expect(loadLocalCopy()).not.toBeNull();
+  });
+
+  it('takes over when the backend no longer has the session', async () => {
+    keepCopy();
+    mockGetDraftSummary.mockResolvedValue(resumable);
+    mockResumeDraft.mockRejectedValue(httpError(404));
     mockUploadTasFile.mockResolvedValue(rebuilt);
     render(<App />);
     fireEvent.click(await screen.findByRole('button', { name: 'Continuar' }));

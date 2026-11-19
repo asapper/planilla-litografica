@@ -2,7 +2,7 @@ import axios from 'axios';
 import { useTasStore, tasInitialState, type TasStore } from './tasStore';
 import { saveDraft, deleteDraft } from './tasApi';
 import { useToastStore } from './toastStore';
-import { clearLocalCopy, markLocalCopySubmitted, saveLocalSnapshot } from './localCopy';
+import { clearLocalCopy, saveLocalSnapshot, setLocalCopySubmitted } from './localCopy';
 import { MONTH_NAMES_ES } from './dateNames';
 import type { DraftSummary, DraftView, TasPeriod, TasView } from './tasTypes';
 
@@ -166,9 +166,14 @@ function retryLater(failed: TasStore) {
   timer = setTimeout(() => flush(), DRAFT_SAVE_RETRY_MS);
 }
 
+// The copy on this PC needs no network: it is written as soon as a save is due, even while an
+// earlier backend save is still in flight, and is what is left if the backend fails.
+function writeLocal(state: TasStore) {
+  const snapshot = localSnapshotOf(state);
+  if (snapshot) saveLocalSnapshot(snapshot);
+}
+
 function send(state: TasStore): Promise<void> {
-  // The copy on this PC is written first and needs no network: it is what is left if the backend fails.
-  saveLocalSnapshot(localSnapshotOf(state) ?? {});
   return saveDraft({
     uploadToken: state.uploadToken as string,
     stateRevision: state.stateRevision,
@@ -198,20 +203,24 @@ function saveBeforeClose() {
   }
   clearTimer();
   const state = useTasStore.getState();
-  if (isSavable(state)) void send(state);
+  if (isSavable(state)) {
+    writeLocal(state);
+    void send(state);
+  }
 }
 
 function flush(explicitState?: TasStore) {
   clearTimer();
   if (suspended) return;
+  const current = useTasStore.getState();
+  const state = explicitState
+    ?? (retryState && !isSavable(current) && current.tasView !== 'idle' ? retryState : current);
+  writeLocal(state);
   if (inflight) {
     queued = true;
     if (explicitState) queuedState = explicitState;
     return;
   }
-  const current = useTasStore.getState();
-  const state = explicitState
-    ?? (retryState && !isSavable(current) && current.tasView !== 'idle' ? retryState : current);
   retryState = null;
   if (!isSavable(state)) {
     endFailureRun();
@@ -246,9 +255,11 @@ export function startDraftAutosave(fileNameGetter: () => string): () => void {
     if (isSubmission(state.tasView) && !isSubmission(prev.tasView)) {
       // Pending edits go out first; after that the backend owns the session.
       if (timer !== null && isSavable(prev)) flush(prev);
-      markLocalCopySubmitted();
+      setLocalCopySubmitted(true);
       return;
     }
+    // The submit request failed before any job started: the session is back in the user's hands.
+    if (prev.tasView === 'submitting' && state.tasView === 'review') setLocalCopySubmitted(false);
     if (isSavable(state)) {
       if (!persistedChanged(state, prev)) return;
       schedule();

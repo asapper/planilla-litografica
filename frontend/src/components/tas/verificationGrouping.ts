@@ -21,16 +21,31 @@ function hhmm(timestamp: string): string {
   return (timestamp.includes('T') ? timestamp.split('T')[1] : timestamp).slice(0, 5);
 }
 
+function isoDay(timestamp: string): string | null {
+  return /^\d{4}-\d{2}-\d{2}T/.test(timestamp) ? timestamp.slice(0, 10) : null;
+}
+
+function dayOffset(from: string, to: string): number {
+  return Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000);
+}
+
 // A card that opens with both times from real scans, in order, counts as checked as it is (a night at
-// the file's edge, a late first scan): it stays on screen to correct, but asks for nothing. A lone
-// scan, or times out of order, still needs a person.
+// the file's edge, a late first scan): it stays on screen to correct, but asks for nothing. The times
+// keep the scans' own calendar days, whatever shift was matched. A lone scan, or times out of order,
+// still needs a person.
 export function prefilledResolution(session: TasSession): ResolvedSessionEntry | null {
-  if (session.scans.length < 2 || !session.effectiveStart || !session.lastScan) return null;
-  const resolvedStart = hhmm(session.effectiveStart);
-  const resolvedEnd = hhmm(session.lastScan);
-  const minutes = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
-  if (minutes(resolvedEnd) <= minutes(resolvedStart) && !session.crossMidnight) return null;
-  return { resolvedStart, resolvedEnd };
+  const { effectiveStart: start, lastScan: end } = session;
+  if (session.scans.length < 2 || !start || !end) return null;
+  const startDay = isoDay(start);
+  const endDay = isoDay(end);
+  if (!startDay || !endDay || Date.parse(end) <= Date.parse(start)) return null;
+  const startDayOffset = dayOffset(session.date, startDay);
+  const endDayOffset = dayOffset(session.date, endDay);
+  if ((startDayOffset !== 0 && startDayOffset !== -1) || (endDayOffset !== 0 && endDayOffset !== 1)) return null;
+  return {
+    resolvedStart: hhmm(start), resolvedEnd: hhmm(end),
+    startDayOffset: startDayOffset as -1 | 0, endDayOffset: endDayOffset as 0 | 1,
+  };
 }
 
 // What will be sent for a card: what was entered, else the prefilled times of a card nobody touched.
@@ -86,7 +101,7 @@ export function buildEmployeeGroups(
     group.items.push({ type: 'same_day_double', groupKey, sessions, date: first.date });
     // The pre-selected choice counts as decided, but a kept half that lacks a scan still needs its time.
     group.pendingCount += keptSessions(sessions, sameDayDoubleResolutions[groupKey])
-      .filter(s => needsTimes(s) && !resolvedSessions[s.sessionId]).length;
+      .filter(s => needsTimes(s) && !effectiveResolution(s, resolvedSessions, cardInputs)).length;
   }
 
   // Keep items in stable chronological order regardless of resolved state, so a card

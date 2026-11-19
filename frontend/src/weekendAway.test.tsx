@@ -160,4 +160,45 @@ describe('walking away for the weekend', () => {
     await finishAndSend([201, 202]);
     expect(backend.submitted).toEqual(['tok-2']);
   }, 20_000);
+
+  it('walks away after Revisar; with the backend session lost, the copy brings every decision back', async () => {
+    const { container, unmount } = render(<App />);
+    const input = await waitFor(() => {
+      const el = container.querySelector('input[type="file"]');
+      expect(el).not.toBeNull();
+      return el as HTMLInputElement;
+    });
+    fireEvent.change(input, { target: { files: [csv()] } });
+    await screen.findByText('Verificación de marcaciones');
+    fireEvent.change(within(card('Ana Ruiz')).getByLabelText('Salida'), { target: { value: '15:30' } });
+    fireEvent.change(within(card('Luis Mora')).getByLabelText('Entrada'), { target: { value: '08:00' } });
+    fireEvent.change(within(card('Luis Mora')).getByLabelText('Salida'), { target: { value: '16:00' } });
+    fireEvent.click(screen.getByRole('button', { name: /revisar/i }));
+    await screen.findByRole('button', { name: 'Enviar' });
+    // "Revisar" answered with the resolved days gone from the flagged list, as the backend does.
+    await waitFor(() => expect(backend.saved?.view).toBe('review'), SAVE_WAIT);
+
+    unmount();
+    useTasStore.getState().resetTas();
+    backend.saved = null;
+    backend.resolved = [];
+
+    render(<App />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Continuar' }));
+    await screen.findByText('Verificación de marcaciones');
+    expect(backend.uploads).toBe(2);
+    expect(useToastStore.getState().toasts.map(t => t.variant)).toEqual(['success']);
+    expect(screen.queryByText(/por resolver/)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /revisar/i }));
+    await waitFor(() => expect(backend.resolved).toHaveLength(1));
+    expect(backend.resolved[0]).toEqual(expect.arrayContaining([
+      { sessionId: 201, resolvedStart: '2026-10-03 07:02', resolvedEnd: '2026-10-03 15:30' },
+      { sessionId: 202, resolvedStart: '2026-10-03 08:00', resolvedEnd: '2026-10-03 16:00' },
+    ]));
+    const enviar = await screen.findByRole('button', { name: 'Enviar' });
+    await waitFor(() => expect(enviar).not.toBeDisabled(), SAVE_WAIT);
+    fireEvent.click(enviar);
+    await waitFor(() => expect(backend.submitted).toEqual(['tok-2']));
+  }, 20_000);
 });

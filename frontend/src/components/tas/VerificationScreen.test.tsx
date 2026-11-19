@@ -133,7 +133,7 @@ describe('VerificationScreen rendering', () => {
   });
 
   it('renders unrelated flag labels unchanged', () => {
-    useTasStore.getState().setFlaggedSessions([makeSession({ flags: ['SHIFT_MISMATCH'], effectiveStart: '08:00:00', lastScan: '17:00:00', scans: ['08:00:00', '17:00:00'] })]);
+    useTasStore.getState().setFlaggedSessions([makeSession({ flags: ['SHIFT_MISMATCH'], effectiveStart: '2026-03-15T08:00:00', lastScan: '2026-03-15T17:00:00', scans: ['2026-03-15T08:00:00', '2026-03-15T17:00:00'] })]);
     useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
     render(<VerificationScreen />);
     fireEvent.click(screen.getByRole('button', { name: /Ana López/ }));
@@ -832,7 +832,7 @@ describe('VerificationScreen employee grouping', () => {
 
   it('a group whose cards are all complete when it opens starts folded', () => {
     useTasStore.getState().setFlaggedSessions([
-      makeSession({ sessionId: 1, employeeId: 'E1', employeeName: 'Ana López', effectiveStart: '08:00:00', lastScan: '17:00:00', scans: ['08:00:00', '17:00:00'] }),
+      makeSession({ sessionId: 1, employeeId: 'E1', employeeName: 'Ana López', effectiveStart: '2026-03-15T08:00:00', lastScan: '2026-03-15T17:00:00', scans: ['2026-03-15T08:00:00', '2026-03-15T17:00:00'] }),
     ]);
     useTasStore.getState().setResolvedSession(1, { resolvedStart: '08:00', resolvedEnd: '17:00' });
     useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
@@ -844,7 +844,7 @@ describe('VerificationScreen employee grouping', () => {
 
   it('clicking a collapsed resolved group header expands it again', () => {
     useTasStore.getState().setFlaggedSessions([
-      makeSession({ sessionId: 1, employeeId: 'E1', employeeName: 'Ana López', effectiveStart: '08:00:00', lastScan: '17:00:00', scans: ['08:00:00', '17:00:00'] }),
+      makeSession({ sessionId: 1, employeeId: 'E1', employeeName: 'Ana López', effectiveStart: '2026-03-15T08:00:00', lastScan: '2026-03-15T17:00:00', scans: ['2026-03-15T08:00:00', '2026-03-15T17:00:00'] }),
     ]);
     useTasStore.getState().setResolvedSession(1, { resolvedStart: '08:00', resolvedEnd: '17:00' });
     useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
@@ -858,7 +858,7 @@ describe('VerificationScreen employee grouping', () => {
 
   it('re-opens a complete card prefilled, and an edit is stored while it stays open', () => {
     useTasStore.getState().setFlaggedSessions([
-      makeSession({ sessionId: 1, employeeId: 'E1', employeeName: 'Ana López', effectiveStart: '08:00:00', lastScan: '17:00:00', scans: ['08:00:00', '17:00:00'] }),
+      makeSession({ sessionId: 1, employeeId: 'E1', employeeName: 'Ana López', effectiveStart: '2026-03-15T08:00:00', lastScan: '2026-03-15T17:00:00', scans: ['2026-03-15T08:00:00', '2026-03-15T17:00:00'] }),
     ]);
     useTasStore.getState().setResolvedSession(1, { resolvedStart: '08:00', resolvedEnd: '17:00' });
     useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
@@ -1084,9 +1084,14 @@ describe('SHORT_DAY sessions', () => {
 
     fireEvent.change(screen.getByLabelText('Salida'), { target: { value: '06:00' } });
     expect(screen.getByRole('alert')).toHaveTextContent('La hora de salida debe ser posterior a la hora de entrada.');
-    expect(screen.getByRole('alert')).toHaveTextContent('se enviará la salida marcada 11:00');
     expect(useTasStore.getState().resolvedSessions[99]).toBeUndefined();
     expect(useTasStore.getState().cardInputs[99].exit).toBe('06:00');
+    // Neither the recorded exit nor a correction: it blocks Revisar until fixed or undone.
+    expect(screen.getAllByText('1 por resolver').length).toBeGreaterThan(0);
+    expect(screen.getByRole('button', { name: /revisar/i })).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Deshacer' }));
+    expect(screen.queryByText(/por resolver/)).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Salida')).toHaveValue('11:00');
   });
 
   it('an exit after midnight is accepted on a night shift', () => {
@@ -1217,7 +1222,7 @@ describe('VerificationScreen error display', () => {
   it('shows error toast from a failed resolve call', async () => {
     useTasStore.getState().setUploadToken('tok-1');
     useTasStore.getState().setFlaggedSessions([
-      makeSession({ sessionId: 1, effectiveStart: '08:00:00', lastScan: '17:00:00', scans: ['08:00:00', '17:00:00'] }),
+      makeSession({ sessionId: 1, effectiveStart: '2026-03-15T08:00:00', lastScan: '2026-03-15T17:00:00', scans: ['2026-03-15T08:00:00', '2026-03-15T17:00:00'] }),
     ]);
     useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
     mockResolveVerification.mockRejectedValue(new Error('network error'));
@@ -1239,7 +1244,7 @@ describe('VerificationScreen error display', () => {
   it('names the session the backend rejected, reopens its card and highlights it', async () => {
     useTasStore.getState().setUploadToken('tok-1');
     useTasStore.getState().setFlaggedSessions([
-      makeSession({ sessionId: 7, employeeName: 'Ana López', date: '2026-03-12', effectiveStart: '08:00:00', lastScan: '17:00:00', scans: ['08:00:00', '17:00:00'] }),
+      makeSession({ sessionId: 7, employeeName: 'Ana López', date: '2026-03-12', effectiveStart: '2026-03-12T08:00:00', lastScan: '2026-03-12T17:00:00', scans: ['2026-03-12T08:00:00', '2026-03-12T17:00:00'] }),
     ]);
     useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
     mockResolveVerification.mockRejectedValue(rejectedWith(400, {
@@ -1291,8 +1296,8 @@ describe('VerificationScreen error display', () => {
     const otherPeriod: TasPeriod = { anio: 2026, mes: 3, numeroDequincena: 2 };
     useTasStore.getState().setUploadToken('tok-1');
     useTasStore.getState().setFlaggedSessions([
-      makeSession({ sessionId: 1, date: '2026-03-05', effectiveStart: '08:00:00', lastScan: '17:00:00', scans: ['08:00:00', '17:00:00'] }),
-      makeSession({ sessionId: 2, employeeId: 'E2', employeeName: 'Luis Soto', date: '2026-03-20', effectiveStart: '08:00:00', lastScan: '17:00:00', scans: ['08:00:00', '17:00:00'] }),
+      makeSession({ sessionId: 1, date: '2026-03-05', effectiveStart: '2026-03-05T08:00:00', lastScan: '2026-03-05T17:00:00', scans: ['2026-03-05T08:00:00', '2026-03-05T17:00:00'] }),
+      makeSession({ sessionId: 2, employeeId: 'E2', employeeName: 'Luis Soto', date: '2026-03-20', effectiveStart: '2026-03-20T08:00:00', lastScan: '2026-03-20T17:00:00', scans: ['2026-03-20T08:00:00', '2026-03-20T17:00:00'] }),
     ]);
     useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD, otherPeriod]);
     useTasStore.getState().setResolvedSession(1, { resolvedStart: '08:00', resolvedEnd: '17:00' });
@@ -1311,7 +1316,7 @@ describe('VerificationScreen error display', () => {
   it('shows the backend message when the error is not tied to a session', async () => {
     useTasStore.getState().setUploadToken('tok-1');
     useTasStore.getState().setFlaggedSessions([
-      makeSession({ sessionId: 1, effectiveStart: '08:00:00', lastScan: '17:00:00', scans: ['08:00:00', '17:00:00'] }),
+      makeSession({ sessionId: 1, effectiveStart: '2026-03-15T08:00:00', lastScan: '2026-03-15T17:00:00', scans: ['2026-03-15T08:00:00', '2026-03-15T17:00:00'] }),
     ]);
     useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
     mockResolveVerification.mockRejectedValue(rejectedWith(409, {
@@ -1330,7 +1335,7 @@ describe('VerificationScreen error display', () => {
 describe('VerificationScreen completion state', () => {
   it('shows green banner and enables green Revisar button when all sessions are confirmed', () => {
     useTasStore.getState().setFlaggedSessions([
-      makeSession({ sessionId: 1, effectiveStart: '08:00:00', lastScan: '17:00:00', scans: ['08:00:00', '17:00:00'] }),
+      makeSession({ sessionId: 1, effectiveStart: '2026-03-15T08:00:00', lastScan: '2026-03-15T17:00:00', scans: ['2026-03-15T08:00:00', '2026-03-15T17:00:00'] }),
     ]);
     useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
     render(<VerificationScreen />);
@@ -1735,3 +1740,76 @@ describe('VerificationScreen same-day double made of single scans (TASK-98)', ()
     expect(revisar()).not.toBeDisabled();
   });
 });
+
+describe('cards that open complete (Alex #127 review)', () => {
+  beforeEach(() => {
+    useTasStore.getState().setUploadToken('tok-1');
+    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
+    mockResolveVerification.mockResolvedValue(mockResult);
+  });
+
+  it('a late first scan crossing midnight on a day shift is sent on its real days', async () => {
+    useTasStore.getState().setAvailableShifts([{ id: 'S1', name: 'Turno Mañana', startTime: '07:00', endTime: '15:00', crossMidnight: false }]);
+    useTasStore.getState().setFlaggedSessions([makeSession({
+      flags: ['MISSING_ENTRY'], date: '2026-03-10', matchedShiftId: 'S1', crossMidnight: false,
+      scans: ['2026-03-10T18:00:00', '2026-03-11T02:00:00'],
+      effectiveStart: '2026-03-10T18:00:00', lastScan: '2026-03-11T02:00:00',
+    })]);
+    render(<VerificationScreen />);
+    expect(screen.queryByText(/por resolver/)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Ana López/ }));
+    fireEvent.click(screen.getByRole('button', { name: /editar ana lópez/i }));
+    expect(screen.queryByText(/La entrada debe ser antes de la salida/)).not.toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('✓ Completo');
+
+    fireEvent.click(screen.getByRole('button', { name: /revisar/i }));
+    await waitFor(() => expect(mockResolveVerification).toHaveBeenCalledOnce());
+    expect(mockResolveVerification.mock.calls[0][1]).toContainEqual(
+      { sessionId: 1, resolvedStart: '2026-03-10 18:00', resolvedEnd: '2026-03-11 02:00' });
+  });
+
+  it('scans out of order, or more than a day apart, are not taken as checked', () => {
+    useTasStore.getState().setFlaggedSessions([
+      makeSession({ sessionId: 1, flags: ['MISSING_ENTRY'], scans: ['2026-03-15T17:00:00', '2026-03-15T08:00:00'],
+        effectiveStart: '2026-03-15T17:00:00', lastScan: '2026-03-15T08:00:00' }),
+      makeSession({ sessionId: 2, employeeId: 'E2', employeeName: 'Luis', flags: ['MISSING_ENTRY'],
+        scans: ['2026-03-13T08:00:00', '2026-03-15T08:00:00'], effectiveStart: '2026-03-13T08:00:00', lastScan: '2026-03-15T08:00:00' }),
+    ]);
+    render(<VerificationScreen />);
+    expect(screen.getAllByText(/2 por resolver/).length).toBeGreaterThan(0);
+  });
+
+  it('a kept half of a double that opens complete does not block Revisar and is sent', async () => {
+    const half = (sessionId: number, scans: string[]) => makeSession({
+      sessionId, date: '2026-03-10', flags: ['SAME_DAY_DOUBLE', 'MISSING_ENTRY'], scans,
+      effectiveStart: scans[0], lastScan: scans[scans.length - 1],
+    });
+    useTasStore.getState().setFlaggedSessions([
+      half(1, ['2026-03-10T10:30:00', '2026-03-10T15:00:00']),
+      half(2, ['2026-03-10T19:00:00', '2026-03-10T23:00:00']),
+    ]);
+    useTasStore.getState().setSameDayDoubleResolution('E1|2026-03-10', 1);
+    render(<VerificationScreen />);
+    expect(screen.queryByText(/por resolver/)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /revisar/i }));
+    await waitFor(() => expect(mockResolveVerification).toHaveBeenCalledOnce());
+    const payload = mockResolveVerification.mock.calls[0][1];
+    expect(payload).toContainEqual({ sessionId: 1, resolvedStart: '2026-03-10 10:30', resolvedEnd: '2026-03-10 15:00' });
+    expect(payload.some(r => 'sessionId' in r && r.sessionId === 2 && 'resolvedStart' in r)).toBe(false);
+  });
+
+  it('an edited card that opened complete stops counting as checked while it is incomplete', () => {
+    useTasStore.getState().setFlaggedSessions([makeSession({
+      flags: ['MISSING_ENTRY'], effectiveStart: '2026-03-15T10:40:00', lastScan: '2026-03-15T17:00:00',
+      scans: ['2026-03-15T10:40:00', '2026-03-15T17:00:00'] })]);
+    render(<VerificationScreen />);
+    fireEvent.click(screen.getByRole('button', { name: /Ana López/ }));
+    fireEvent.click(screen.getByRole('button', { name: /editar ana lópez/i }));
+    fireEvent.change(screen.getByLabelText('Entrada'), { target: { value: '' } });
+    expect(screen.getByRole('button', { name: /revisar/i })).toBeDisabled();
+    fireEvent.change(screen.getByLabelText('Entrada'), { target: { value: '08:00' } });
+    expect(useTasStore.getState().resolvedSessions[1]).toEqual({ resolvedStart: '08:00', resolvedEnd: '17:00' });
+    expect(screen.getByRole('button', { name: /revisar/i })).not.toBeDisabled();
+  });
+});
+

@@ -2,41 +2,77 @@
 // the uploaded file and every decision. If the backend's saved session is ever missing or
 // unreadable (a database fault, a version change), the session is rebuilt from this copy.
 
-const KEY = 'planilla.tas.localCopy';
+const FILE_KEY = 'planilla.tas.localCopy.file';
+const META_KEY = 'planilla.tas.localCopy';
 
 export interface LocalCopy {
   fileName: string;
   fileBase64: string;
   savedAt: string;
   snapshot: Record<string, unknown> | null;
+  // Each flagged day's identity (employee|date|scans) by session id, as it was in verification.
+  // "Revisar" rewrites a day's scans and drops resolved days from the list, so the identities are
+  // kept from before it: a rebuild matches the decisions to the new session's days with them.
+  dayKeys: Record<string, string>;
   // Set once the payroll submission starts: from then on the backend owns the session, and
   // rebuilding it from here could send it twice.
   submitted: boolean;
 }
 
-function read(): LocalCopy | null {
+type Meta = Omit<LocalCopy, 'fileBase64'>;
+
+interface DayLike { sessionId?: unknown; employeeId?: unknown; date?: unknown; scans?: unknown }
+
+export function dayKey(session: { employeeId: string; date: string; scans: string[] }): string {
+  return `${session.employeeId}|${session.date}|${session.scans.join(',')}`;
+}
+
+export function dayKeysOf(snapshot: Record<string, unknown> | null): Record<string, string> {
+  const keys: Record<string, string> = {};
+  const sessions = Array.isArray(snapshot?.flaggedSessions) ? (snapshot.flaggedSessions as DayLike[]) : [];
+  for (const s of sessions) {
+    if (s && typeof s.sessionId === 'number' && typeof s.employeeId === 'string' && typeof s.date === 'string'
+      && Array.isArray(s.scans)) {
+      keys[s.sessionId] = dayKey({ employeeId: s.employeeId, date: s.date, scans: s.scans as string[] });
+    }
+  }
+  return keys;
+}
+
+function readMeta(): Meta | null {
   try {
-    const raw = localStorage.getItem(KEY);
+    const raw = localStorage.getItem(META_KEY);
     if (!raw) return null;
-    const parsed = JSON.parse(raw) as Partial<LocalCopy>;
-    if (typeof parsed.fileName !== 'string' || typeof parsed.fileBase64 !== 'string'
-      || typeof parsed.savedAt !== 'string') return null;
+    const parsed = JSON.parse(raw) as Partial<Meta>;
+    if (typeof parsed.fileName !== 'string' || typeof parsed.savedAt !== 'string') return null;
     const snapshot = parsed.snapshot && typeof parsed.snapshot === 'object' ? parsed.snapshot : null;
-    return {
-      fileName: parsed.fileName, fileBase64: parsed.fileBase64, savedAt: parsed.savedAt, snapshot,
-      submitted: parsed.submitted === true,
-    };
+    const dayKeys = parsed.dayKeys && typeof parsed.dayKeys === 'object' ? parsed.dayKeys : {};
+    return { fileName: parsed.fileName, savedAt: parsed.savedAt, snapshot, dayKeys, submitted: parsed.submitted === true };
   } catch {
     return null;
   }
 }
 
-function write(copy: LocalCopy): boolean {
+function read(): LocalCopy | null {
+  const meta = readMeta();
+  if (!meta) return null;
   try {
-    localStorage.setItem(KEY, JSON.stringify(copy));
+    const fileBase64 = localStorage.getItem(FILE_KEY);
+    return fileBase64 === null ? null : { ...meta, fileBase64 };
+  } catch {
+    return null;
+  }
+}
+
+// A copy that could not be written in full is removed rather than left stale: an older snapshot
+// offered as "the saved session" would bring back decisions the user has since changed.
+function writeMeta(meta: Meta): boolean {
+  try {
+    localStorage.setItem(META_KEY, JSON.stringify(meta));
     return true;
   } catch (err) {
     console.warn('No se pudo guardar la copia local de la sesión.', err);
+    clearLocalCopy();
     return false;
   }
 }
@@ -59,20 +95,37 @@ export function fileBytes(file: Blob): Promise<Uint8Array> {
   });
 }
 
+function isVerifying(snapshot: Record<string, unknown> | null): boolean {
+  return snapshot?.tasView === 'verification' || snapshot?.tasView === 'inactiveReview';
+}
+
 // A new upload starts a new copy: the file now, the decisions as they are made.
 export function startLocalCopy(fileName: string, bytes: Uint8Array, snapshot: Record<string, unknown> | null = null): boolean {
-  return write({ fileName, fileBase64: toBase64(bytes), savedAt: new Date().toISOString(), snapshot, submitted: false });
+  clearLocalCopy();
+  try {
+    localStorage.setItem(FILE_KEY, toBase64(bytes));
+  } catch (err) {
+    console.warn('No se pudo guardar la copia local del archivo.', err);
+    clearLocalCopy();
+    return false;
+  }
+  return writeMeta({
+    fileName, savedAt: new Date().toISOString(), snapshot, submitted: false,
+    dayKeys: isVerifying(snapshot) ? dayKeysOf(snapshot) : {},
+  });
 }
 
 export function saveLocalSnapshot(snapshot: Record<string, unknown>): boolean {
-  const copy = read();
-  if (!copy) return false;
-  return write({ ...copy, snapshot, savedAt: new Date().toISOString() });
+  const meta = readMeta();
+  if (!meta) return false;
+  // Days are identified while they are still as uploaded; after "Revisar" the earlier keys stand.
+  const dayKeys = isVerifying(snapshot) ? dayKeysOf(snapshot) : meta.dayKeys;
+  return writeMeta({ ...meta, snapshot, dayKeys, savedAt: new Date().toISOString() });
 }
 
-export function markLocalCopySubmitted(): void {
-  const copy = read();
-  if (copy && !copy.submitted) write({ ...copy, submitted: true });
+export function setLocalCopySubmitted(submitted: boolean): void {
+  const meta = readMeta();
+  if (meta && meta.submitted !== submitted) writeMeta({ ...meta, submitted });
 }
 
 // A copy worth offering: decisions were saved and the submission never started.
@@ -87,7 +140,8 @@ export function loadLocalCopy(): LocalCopy | null {
 
 export function clearLocalCopy(): void {
   try {
-    localStorage.removeItem(KEY);
+    localStorage.removeItem(META_KEY);
+    localStorage.removeItem(FILE_KEY);
   } catch {
     // Nothing to clear when storage is unavailable.
   }
