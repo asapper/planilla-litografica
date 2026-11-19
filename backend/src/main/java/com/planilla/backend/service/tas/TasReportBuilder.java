@@ -138,7 +138,7 @@ public class TasReportBuilder {
         return new BuildResult(rows);
     }
 
-    public List<TasPeriod> computeAvailablePeriods(List<TasSession> sessions) {
+    private static List<TasPeriod> periodsOf(List<TasSession> sessions) {
         return sessions.stream()
                 .map(s -> TasPeriod.of(s.getDate()))
                 .distinct()
@@ -148,7 +148,7 @@ public class TasReportBuilder {
 
     /** Only periods the file's scans reach: a night moved to the 15th must not open the first fortnight. */
     public List<TasPeriod> computeAvailablePeriods(List<TasSession> sessions, LocalDate dataStart, LocalDate dataEnd) {
-        Set<TasPeriod> periods = new HashSet<>(computeAvailablePeriods(sessions));
+        Set<TasPeriod> periods = new HashSet<>(periodsOf(sessions));
         for (TasSession session : sessions) {
             if (session.getScans() != null) session.getScans().forEach(t -> periods.add(TasPeriod.of(t.toLocalDate())));
             if (session.getLastScan() != null) periods.add(TasPeriod.of(session.getLastScan().toLocalDate()));
