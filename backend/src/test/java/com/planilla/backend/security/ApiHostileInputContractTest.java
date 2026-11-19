@@ -17,7 +17,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -109,9 +109,9 @@ class ApiHostileInputContractTest {
     @Autowired TasDraftService draftService;
     @Autowired @Qualifier("requestMappingHandlerMapping") RequestMappingHandlerMapping handlerMapping;
 
-    @MockBean DatabaseService databaseService;
-    @MockBean(name = "postgresJdbcTemplate") JdbcTemplate postgresJdbcTemplate;
-    @MockBean ApplicationExiter exiter;
+    @MockitoBean DatabaseService databaseService;
+    @MockitoBean(name = "postgresJdbcTemplate") JdbcTemplate postgresJdbcTemplate;
+    @MockitoBean ApplicationExiter exiter;
 
     private final String victimToken = UUID.randomUUID().toString();
 

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { useTasStore } from './tasStore';
 import { useToastStore } from './toastStore';
 
@@ -11,7 +11,7 @@ vi.mock('./tasDraft', () => ({ saveDraftNow: mockSaveDraftNow }));
 
 const {
   onAppCloseRequested, prepareToClose, APP_CLOSE_EVENT, APP_CLOSE_BLOCKED_EVENT, CLOSE_BLOCKED_MESSAGE,
-  CLOSE_UNSAVED_MESSAGE, CLOSE_ANYWAY_WINDOW_MS,
+  CLOSE_UNSAVED_MESSAGE, CLOSE_ANYWAY_WINDOW_MS, CLOSE_SAVE_TIMEOUT_MS,
 } =
   await import('./appClose');
 
@@ -149,6 +149,37 @@ describe('prepareToClose', () => {
       mockSaveDraftNow.mockResolvedValue(true);
       now += 2 * CLOSE_ANYWAY_WINDOW_MS;
       await expect(prepareToClose()).resolves.toBe(true);
+    });
+  });
+
+  describe('when the final save hangs', () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+      vi.spyOn(Date, 'now').mockImplementation(() => Date.parse('2026-11-20T10:00:00Z'));
+      useTasStore.setState({ tasView: 'verification' });
+    });
+    afterEach(() => vi.useRealTimers());
+
+    it('answers the shell before its 2 s wait runs out, so the hung save still refuses the close', async () => {
+      expect(CLOSE_SAVE_TIMEOUT_MS).toBeLessThan(2_000);
+      mockSaveDraftNow.mockReturnValue(new Promise<boolean>(() => {}));
+      let answer: boolean | undefined;
+      void prepareToClose().then(v => { answer = v; });
+
+      await vi.advanceTimersByTimeAsync(CLOSE_SAVE_TIMEOUT_MS - 1);
+      expect(answer).toBeUndefined();
+      await vi.advanceTimersByTimeAsync(1);
+      expect(answer).toBe(false);
+      expect(useToastStore.getState().toasts.map(t => t.message)).toEqual([CLOSE_UNSAVED_MESSAGE]);
+    });
+
+    it('uses the save that lands in time and leaves no timer behind', async () => {
+      mockSaveDraftNow.mockReturnValue(new Promise<boolean>(r => setTimeout(() => r(true), CLOSE_SAVE_TIMEOUT_MS - 100)));
+      const answer = prepareToClose();
+      await vi.advanceTimersByTimeAsync(CLOSE_SAVE_TIMEOUT_MS - 100);
+      await expect(answer).resolves.toBe(true);
+      expect(vi.getTimerCount()).toBe(0);
+      expect(useToastStore.getState().toasts).toEqual([]);
     });
   });
 });

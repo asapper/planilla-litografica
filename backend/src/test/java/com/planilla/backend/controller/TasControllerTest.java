@@ -18,7 +18,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
@@ -38,16 +38,16 @@ class TasControllerTest {
     @Autowired ObjectMapper mapper;
     @Autowired TasController tasController;
 
-    @MockBean TasParserService        parserService;
-    @MockBean TasUploadService        uploadService;
-    @MockBean TasHoursCalculator      hoursCalculator;
-    @MockBean TasReportBuilder        reportBuilder;
-    @MockBean EmployeeRegistryService registryService;
-    @MockBean JobService              jobService;
-    @MockBean ShiftConfigService      shiftConfigService;
-    @MockBean DatabaseService         databaseService;
-    @MockBean TasDraftService         draftService;
-    @MockBean AppConfigService appConfigService;
+    @MockitoBean TasParserService        parserService;
+    @MockitoBean TasUploadService        uploadService;
+    @MockitoBean TasHoursCalculator      hoursCalculator;
+    @MockitoBean TasReportBuilder        reportBuilder;
+    @MockitoBean EmployeeRegistryService registryService;
+    @MockitoBean JobService              jobService;
+    @MockitoBean ShiftConfigService      shiftConfigService;
+    @MockitoBean DatabaseService         databaseService;
+    @MockitoBean TasDraftService         draftService;
+    @MockitoBean AppConfigService appConfigService;
 
     @AfterEach
     void clearStateStore() { tasController.stateStore.clear(); }

@@ -10,6 +10,17 @@ export const CLOSE_BLOCKED_MESSAGE = 'Hay un envío en curso. Espere a que termi
 export const CLOSE_UNSAVED_MESSAGE =
   'No se pudo guardar el avance. Si vuelve a cerrar la aplicación en los próximos 30 segundos, se cerrará sin guardar.';
 export const CLOSE_ANYWAY_WINDOW_MS = 30_000;
+// The shell closes anyway when the frontend hasn't answered within FRONTEND_SAVE_WAIT (2 s, lib.rs), so
+// a save that hangs must count as failed before then, or the app closes without the refusal.
+export const CLOSE_SAVE_TIMEOUT_MS = 1_500;
+
+function saveWithinCloseWait(): Promise<boolean> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<boolean>(resolve => {
+    timer = setTimeout(() => resolve(false), CLOSE_SAVE_TIMEOUT_MS);
+  });
+  return Promise.race([saveDraftNow(), timeout]).finally(() => clearTimeout(timer));
+}
 
 // After a refused close, a second close within the window goes ahead: the user was told what is lost.
 let closeAnywayUntil = 0;
@@ -26,7 +37,7 @@ export async function prepareToClose(): Promise<boolean> {
     showCloseBlocked();
     return false;
   }
-  if (await saveDraftNow() || Date.now() < closeAnywayUntil) return true;
+  if (await saveWithinCloseWait() || Date.now() < closeAnywayUntil) return true;
   closeAnywayUntil = Date.now() + CLOSE_ANYWAY_WINDOW_MS;
   useToastStore.getState().showToast(CLOSE_UNSAVED_MESSAGE, 'error');
   return false;

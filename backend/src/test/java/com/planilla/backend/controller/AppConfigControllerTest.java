@@ -5,7 +5,7 @@ import com.planilla.backend.service.tas.AppConfigService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -28,7 +28,7 @@ class AppConfigControllerTest {
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper mapper;
 
-    @MockBean AppConfigService appConfigService;
+    @MockitoBean AppConfigService appConfigService;
 
     @Test
     void get_returns200WithBreakAllowanceMinutes() throws Exception {

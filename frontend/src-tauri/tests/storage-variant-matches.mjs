@@ -20,8 +20,12 @@ const variant = read('tauri.storage-test.conf.json');
 const sorted = w => JSON.stringify(Object.fromEntries(Object.entries(w).sort(([a], [b]) => a.localeCompare(b))));
 const strip = ({ additionalBrowserArgs: _args, ...rest }) => rest;
 
-if (shipped.some(w => 'additionalBrowserArgs' in w)) {
-  fail('tauri.conf.json sets additionalBrowserArgs: update the variant and this check to match it.');
+// wry appends its own arguments for these settings only when additionalBrowserArgs is unset, so the
+// variant would silently run without them.
+const REPLACED_BY_ARGS = ['additionalBrowserArgs', 'proxyUrl', 'autoplay'];
+const conflicting = REPLACED_BY_ARGS.filter(key => shipped.some(w => key in w));
+if (conflicting.length > 0) {
+  fail(`tauri.conf.json sets ${conflicting.join(', ')}: the variant's additionalBrowserArgs would drop what wry adds for it. Update the variant and this check.`);
 }
 if (shipped.length !== variant.length || shipped.some((w, i) => sorted(w) !== sorted(strip(variant[i])))) {
   fail(
