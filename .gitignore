@@ -56,3 +56,6 @@ backlog/*
 
 # ── Incident artifacts (may contain production DB copies / payroll data) ─────
 error_logs/
+
+# Production logs and data copied from client PCs. Never commit.
+error_logs/

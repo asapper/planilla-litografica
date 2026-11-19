@@ -1,11 +1,17 @@
 import axios from 'axios';
 import { useTasStore, tasInitialState, type TasStore } from './tasStore';
 import { saveDraft, deleteDraft } from './tasApi';
+import { useToastStore } from './toastStore';
 import { MONTH_NAMES_ES } from './dateNames';
 import type { DraftSummary, DraftView, TasPeriod, TasView } from './tasTypes';
 
 export const DRAFT_SAVE_DEBOUNCE_MS = 500;
 export const DRAFT_SAVE_MAX_WAIT_MS = 3000;
+// A failed save is retried on its own: the user may have walked away and make no further edit.
+export const DRAFT_SAVE_RETRY_MS = 15_000;
+export const DRAFT_SAVE_FAILED_MESSAGE =
+  'No se pudo guardar el avance. Se reintentará automáticamente; mientras tanto, no cierre la aplicación.';
+export const DRAFT_SAVE_RECOVERED_MESSAGE = 'El avance se guardó nuevamente.';
 
 // Bump when the saved shape of TasSnapshot changes (draftShape.test.ts fails until you do):
 // a draft from another version is then offered only to discard, never resumed half-filled.
@@ -99,6 +105,7 @@ let inflight: Promise<void> | null = null;
 let queued = false;
 let queuedState: TasStore | null = null;
 let suspended = false;
+let failing = false;
 
 function clearTimer() {
   if (timer !== null) {
@@ -118,6 +125,24 @@ function schedule() {
   timer = setTimeout(() => flush(), Math.max(0, Math.min(DRAFT_SAVE_DEBOUNCE_MS, untilMaxWait)));
 }
 
+// One warning per run of failures, and one notice once saving works again.
+function reportFailure() {
+  if (failing) return;
+  failing = true;
+  useToastStore.getState().showToast(DRAFT_SAVE_FAILED_MESSAGE, 'warning');
+}
+
+function reportSaved() {
+  if (!failing) return;
+  failing = false;
+  useToastStore.getState().showToast(DRAFT_SAVE_RECOVERED_MESSAGE, 'success');
+}
+
+function retryLater() {
+  if (timer !== null || suspended) return;
+  timer = setTimeout(() => flush(), DRAFT_SAVE_RETRY_MS);
+}
+
 function send(state: TasStore): Promise<void> {
   return saveDraft({
     uploadToken: state.uploadToken as string,
@@ -126,12 +151,14 @@ function send(state: TasStore): Promise<void> {
     view: state.tasView as DraftView,
     periodLabel: formatPeriodLabel(state.selectedPeriod),
     ui: { ...toSnapshot(state), uiVersion: DRAFT_UI_VERSION },
-  }).catch(err => {
+  }).then(reportSaved, err => {
     if (axios.isAxiosError(err) && err.response?.status === 409) {
       warnStale(state.stateRevision, err.response.data?.currentRevision);
       return;
     }
     console.warn('No se pudo guardar la sesión en curso.', err);
+    reportFailure();
+    retryLater();
   });
 }
 
@@ -178,6 +205,7 @@ export async function saveDraftNow(): Promise<void> {
 
 export function startDraftAutosave(fileNameGetter: () => string): () => void {
   getFileName = fileNameGetter;
+  failing = false;
   const unsubscribe = useTasStore.subscribe((state, prev) => {
     if (suspended) return;
     if (isSavable(state)) {
@@ -203,6 +231,7 @@ export function startDraftAutosave(fileNameGetter: () => string): () => void {
 
 export async function discardDraftSession(): Promise<void> {
   suspended = true;
+  failing = false;
   clearTimer();
   queued = false;
   queuedState = null;
