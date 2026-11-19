@@ -4,6 +4,7 @@ import VerificationScreen from './VerificationScreen';
 import { useTasStore } from '../../tasStore';
 import { useToastStore } from '../../toastStore';
 import * as tasApi from '../../tasApi';
+import { loadLocalCopy, startLocalCopy } from '../../localCopy';
 import type { TasSession, TasResolveResult, TasPeriod } from '../../tasTypes';
 
 const DEFAULT_PERIOD: TasPeriod = { anio: 2026, mes: 3, numeroDequincena: 1 };
@@ -427,6 +428,8 @@ describe('VerificationScreen submit', () => {
   });
 
   it('clears resolvedSessions and stays in verification when resolve returns more flagged sessions', async () => {
+    localStorage.clear();
+    startLocalCopy('oct.csv', new Uint8Array([1]), { tasView: 'verification' });
     useTasStore.getState().setUploadToken('tok-1');
     useTasStore.getState().setFlaggedSessions([makeSession({ lastScan: '17:00:00' })]);
     useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
@@ -447,6 +450,9 @@ describe('VerificationScreen submit', () => {
     });
     expect(useTasStore.getState().resolvedSessions).toEqual({});
     expect(useTasStore.getState().cardInputs).toEqual({});
+    // The copy on this PC keeps what was sent, so a rebuild can apply it again.
+    expect(loadLocalCopy()?.sent.resolvedSessions).toEqual({ 1: { resolvedStart: '08:00', resolvedEnd: '17:00' } });
+    expect(loadLocalCopy()?.sent.cardInputs).toEqual({ 1: { entry: '08:00', exit: '17:00', swapped: false } });
     expect(useTasStore.getState().stateRevision).toBe(9);
     expect(useTasStore.getState().tasView).not.toBe('review');
     expect(mockSubmitTas).not.toHaveBeenCalled();
