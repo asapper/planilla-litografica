@@ -4,14 +4,19 @@ import VerificationScreen from './VerificationScreen';
 import { useTasStore } from '../../tasStore';
 import { useToastStore } from '../../toastStore';
 import * as tasApi from '../../tasApi';
+import * as configApi from '../../configApi';
 import { loadLocalCopy, startLocalCopy } from '../../localCopy';
 import type { TasSession, TasResolveResult, TasPeriod } from '../../tasTypes';
 
 const DEFAULT_PERIOD: TasPeriod = { anio: 2026, mes: 3, numeroDequincena: 1 };
 
 vi.mock('../../tasApi');
+vi.mock('../../configApi');
 
 const mockResolveVerification = vi.mocked(tasApi.resolveVerification);
+const mockGetGeneralConfig = vi.mocked(configApi.getGeneralConfig);
+type GeneralConfig = Awaited<ReturnType<typeof configApi.getGeneralConfig>>;
+const configWithSpan = (maxSessionSpanMinutes: number) => ({ maxSessionSpanMinutes }) as GeneralConfig;
 const mockSubmitTas = vi.mocked(tasApi.submitTas);
 
 function makeSession(overrides: Partial<TasSession> = {}): TasSession {
@@ -52,6 +57,8 @@ beforeEach(() => {
   useTasStore.getState().resetTas();
   useToastStore.setState({ toasts: [] });
   vi.clearAllMocks();
+  // Unanswered unless a test needs the configured span: the screen keeps its 16 h default.
+  mockGetGeneralConfig.mockReturnValue(new Promise(() => {}));
 });
 
 describe('toHHMM via flagLabel rendering', () => {
@@ -1474,6 +1481,30 @@ describe('SessionCard entry/exit swap', () => {
     expect(screen.getByRole('status')).not.toHaveTextContent('✓ Completo');
   });
 
+  it('allows a longer day when the configured session span is longer, and says so', async () => {
+    mockGetGeneralConfig.mockResolvedValue(configWithSpan(23 * 60 + 30));
+    renderWith(singleScan('MISSING_ENTRY', '22:00'));
+    await waitFor(() => expect(mockGetGeneralConfig).toHaveBeenCalled());
+    fireEvent.click(swapButton());
+    fireEvent.change(exitInput(), { target: { value: '21:00' } });
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('✓ Completo'));
+
+    fireEvent.change(exitInput(), { target: { value: '21:45' } });
+    expect(screen.getByText('La jornada no puede durar más de 23:30 horas')).toBeInTheDocument();
+  });
+
+  it.each([
+    ['is shorter', () => mockGetGeneralConfig.mockResolvedValue(configWithSpan(14 * 60))],
+    ['cannot be read', () => mockGetGeneralConfig.mockRejectedValue(new Error('down'))],
+  ])('keeps 16 hours when the configured span %s', async (_, arrange) => {
+    arrange();
+    renderWith(singleScan('MISSING_ENTRY', '22:00'));
+    await waitFor(() => expect(mockGetGeneralConfig).toHaveBeenCalled());
+    fireEvent.click(swapButton());
+    fireEvent.change(exitInput(), { target: { value: '21:00' } });
+    expect(screen.getByText('La jornada no puede durar más de 16 horas')).toBeInTheDocument();
+  });
+
   it('undoes the swap and restores the original layout', () => {
     renderWith(singleScan('MISSING_ENTRY', '07:02'));
     fireEvent.click(swapButton());
@@ -1723,6 +1754,16 @@ describe('VerificationScreen same-day double made of single scans (TASK-98)', ()
     await waitFor(() => expect(mockResolveVerification).toHaveBeenCalledOnce());
     const [, payload] = mockResolveVerification.mock.calls[0];
     expect(payload.map(r => ('sessionId' in r ? r.sessionId : r.employeeId))).toEqual([9]);
+  });
+
+  it('offers a single day more than 16 hours long when the configured span allows it', async () => {
+    mockGetGeneralConfig.mockResolvedValue(configWithSpan(20 * 60));
+    useTasStore.getState().setFlaggedSessions([
+      { ...MORNING, scans: ['2026-03-10T05:00:00'], effectiveStart: '2026-03-10T05:00:00', lastScan: '2026-03-10T05:00:00' },
+      { ...EVENING, scans: ['2026-03-10T23:30:00'], effectiveStart: '2026-03-10T23:30:00', lastScan: '2026-03-10T23:30:00' },
+    ]);
+    render(<VerificationScreen />);
+    expect(await screen.findByRole('radio', { name: 'Una sola jornada (05:00 – 23:30)' })).toBeInTheDocument();
   });
 
   it('offers no single day when the scans are more than 16 hours apart', () => {

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import axios from 'axios';
 import { useTasStore, type CardInput, type ResolvedSessionEntry } from '../../tasStore';
 import { resolveVerification } from '../../tasApi';
@@ -6,6 +6,7 @@ import type { TasResolution } from '../../tasApi';
 import { MONTH_NAMES_ES } from '../../dateNames';
 import type { TasSession, TasFlag, TasPeriod, ShiftOption, DoubleChoice } from '../../tasTypes';
 import { useToastStore } from '../../toastStore';
+import { getGeneralConfig } from '../../configApi';
 import { rememberSentDecisions } from '../../localCopy';
 import AlertMessage from '../ui/AlertMessage';
 import EmployeeGroup from './EmployeeGroup';
@@ -55,7 +56,16 @@ function toHHMM(timeStr: string | null): string {
   return timePart.slice(0, 5);
 }
 
-const MAX_SWAPPED_SPAN_MINUTES = 16 * 60;
+// A typed day may last 16 hours, or the configured session span if that is longer; the backend
+// applies the same rule.
+const MIN_DAY_SPAN_LIMIT_MINUTES = 16 * 60;
+const DaySpanLimit = createContext(MIN_DAY_SPAN_LIMIT_MINUTES);
+
+function formatSpanHours(minutes: number): string {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return m === 0 ? `${h} horas` : `${h}:${String(m).padStart(2, '0')} horas`;
+}
 
 function toMinutes(hhmm: string): number {
   const [h, m] = hhmm.split(':').map(Number);
@@ -223,18 +233,19 @@ interface MergedDay {
 
 // Two lone scans on one day (07:08 and 22:03) are usually one long day the grouper split, or an
 // entry whose exit was missed: offer them as one day from the first scan to the last.
-function mergeableDay(sessions: TasSession[]): MergedDay | null {
+function mergeableDay(sessions: TasSession[], spanLimit: number): MergedDay | null {
   if (sessions.length !== 2 || !sessions.every(s => s.scans.length === 1 && needsTimes(s))) return null;
   const [first, last] = [...sessions].sort((x, y) => x.scans[0].localeCompare(y.scans[0]));
   const spanMinutes = (new Date(last.scans[0]).getTime() - new Date(first.scans[0]).getTime()) / 60_000;
-  if (spanMinutes <= 0 || spanMinutes > MAX_SWAPPED_SPAN_MINUTES) return null;
+  if (spanMinutes <= 0 || spanMinutes > spanLimit) return null;
   return { sessionId: first.sessionId, start: toHHMM(first.scans[0]), end: toHHMM(last.scans[0]) };
 }
 
 function mergedDay(
   sessions: TasSession[], choice: DoubleChoice | undefined, resolvedSessions: Record<number, ResolvedSessionEntry>,
+  spanLimit: number,
 ): MergedDay | null {
-  const day = mergeableDay(sessions);
+  const day = mergeableDay(sessions, spanLimit);
   const times = day ? resolvedSessions[day.sessionId] : undefined;
   return day && choice === day.sessionId && times?.resolvedStart === day.start && times?.resolvedEnd === day.end
     ? day
@@ -256,8 +267,9 @@ function SameDayDoubleGroupCard({
   sessions, choice, decided, resolvedSessions, cardInputs, renderSessionCard, onChange, onMerge,
 }: SameDayDoubleGroupCardProps) {
   const first = sessions[0];
-  const mergeable = mergeableDay(sessions);
-  const merged = !!mergedDay(sessions, choice, resolvedSessions);
+  const spanLimit = useContext(DaySpanLimit);
+  const mergeable = mergeableDay(sessions, spanLimit);
+  const merged = !!mergedDay(sessions, choice, resolvedSessions, spanLimit);
   const needingTimes = merged ? [] : keptSessions(sessions, choice).filter(needsTimes);
   const timesMissing = needingTimes.some(s => !effectiveResolution(s, resolvedSessions, cardInputs));
   // Folded when it opens already settled; once opened here it stays open while it is edited.
@@ -471,7 +483,7 @@ function swapInfo(session: TasSession) {
   return { originallyNeedsEntry, originallyNeedsExit, recordedTime, canSwap };
 }
 
-function evaluateCard(session: TasSession, crossMidnight: boolean, input: CardInput): CardView {
+function evaluateCard(session: TasSession, crossMidnight: boolean, input: CardInput, spanLimit: number): CardView {
   const { entry, exit, swapped } = input;
   const { originallyNeedsEntry, originallyNeedsExit, canSwap } = swapInfo(session);
   const needsEntry = swapped ? originallyNeedsExit : originallyNeedsEntry;
@@ -481,7 +493,7 @@ function evaluateCard(session: TasSession, crossMidnight: boolean, input: CardIn
   // A swapped day is anchored on the recorded scan's real date, so it may cross
   // midnight whatever the (possibly misread) matched shift says, up to a sane span.
   const overnight = swapped && !!entry && !!exit && toMinutes(exit) <= toMinutes(entry);
-  const swappedSpanTooLong = overnight && toMinutes(exit) + 1440 - toMinutes(entry) > MAX_SWAPPED_SPAN_MINUTES;
+  const swappedSpanTooLong = overnight && toMinutes(exit) + 1440 - toMinutes(entry) > spanLimit;
   const hoursPreview = swappedSpanTooLong ? '—' : calcHours(entry, exit, swapped || crossMidnight);
   const timesInverted = !!entry && !!exit && hoursPreview === '—';
   const offsets: Pick<ResolvedSessionEntry, 'startDayOffset' | 'endDayOffset'> | undefined = swapped
@@ -518,10 +530,11 @@ function SessionCard({ session, input, resolved, crossMidnight, highlighted, onI
   };
   // A card that is already complete opens folded; once opened here it stays open while it is edited.
   const [open, setOpen] = useState(!resolved);
-  const view = evaluateCard(session, crossMidnight, current);
+  const spanLimit = useContext(DaySpanLimit);
+  const view = evaluateCard(session, crossMidnight, current, spanLimit);
   const { entry, exit, swapped } = current;
 
-  const update = (next: CardInput) => onInput(next, evaluateCard(session, crossMidnight, next).resolution);
+  const update = (next: CardInput) => onInput(next, evaluateCard(session, crossMidnight, next, spanLimit).resolution);
 
   const swap = () => {
     const next = !swapped;
@@ -649,7 +662,7 @@ function SessionCard({ session, input, resolved, crossMidnight, highlighted, onI
       {view.timesInverted && (
         <p className="text-body-sm text-error mb-2">
           {view.swappedSpanTooLong
-            ? 'La jornada no puede durar más de 16 horas'
+            ? `La jornada no puede durar más de ${formatSpanHours(spanLimit)}`
             : `La entrada debe ser antes de la salida${crossMidnight || swapped ? '' : ' (mismo día)'}`}
         </p>
       )}
@@ -696,6 +709,18 @@ export default function VerificationScreen() {
   const scrollRef = useRef<HTMLDivElement>(null);
   useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTop = 0; }, []);
 
+  const [spanLimit, setSpanLimit] = useState(MIN_DAY_SPAN_LIMIT_MINUTES);
+  useEffect(() => {
+    let cancelled = false;
+    Promise.resolve(getGeneralConfig())
+      .then(config => {
+        const configured = config?.maxSessionSpanMinutes;
+        if (!cancelled && typeof configured === 'number') setSpanLimit(Math.max(MIN_DAY_SPAN_LIMIT_MINUTES, configured));
+      })
+      .catch(() => undefined);
+    return () => { cancelled = true; };
+  }, []);
+
   // A group the user opened or closed stays that way. Otherwise it opens while it has something
   // to do, and stays open after that: it never folds shut under someone who is typing in it.
   const [userExpansion, setUserExpansion] = useState<Record<string, boolean>>({});
@@ -735,25 +760,20 @@ export default function VerificationScreen() {
   // Freeze the initial sort order so that resolving an employee's items doesn't
   // move their group to the bottom of the list mid-session. Reset when the
   // selected period changes so each period gets its own clean initial order.
-  const groupOrderRef = useRef<string[]>([]);
-  const activePeriodRef = useRef<string | null>(null);
+  // Kept in state and adjusted during render (no ref read while rendering): new employees are
+  // appended, existing ones never move.
   const currentPeriodKey = selectedPeriod ? periodKey(selectedPeriod) : null;
-  if (activePeriodRef.current !== currentPeriodKey) {
-    activePeriodRef.current = currentPeriodKey;
-    groupOrderRef.current = [];
+  const [groupOrder, setGroupOrder] = useState<{ period: string | null; ids: string[] }>({ period: currentPeriodKey, ids: [] });
+  let orderIds = groupOrder.period === currentPeriodKey ? groupOrder.ids : [];
+  const knownIds = new Set(orderIds);
+  const addedIds = rawGroups.map(g => g.employeeId).filter(id => !knownIds.has(id));
+  if (groupOrder.period !== currentPeriodKey || addedIds.length > 0) {
+    orderIds = [...orderIds, ...addedIds];
+    setGroupOrder({ period: currentPeriodKey, ids: orderIds });
   }
-  if (groupOrderRef.current.length === 0 && rawGroups.length > 0) {
-    groupOrderRef.current = rawGroups.map(g => g.employeeId);
-  } else {
-    const known = new Set(groupOrderRef.current);
-    const added = rawGroups.map(g => g.employeeId).filter(id => !known.has(id));
-    if (added.length > 0) groupOrderRef.current = [...groupOrderRef.current, ...added];
-  }
-  const employeeGroups = groupOrderRef.current.length > 0
-    ? groupOrderRef.current
-        .map(id => rawGroups.find(g => g.employeeId === id))
-        .filter((g): g is (typeof rawGroups)[number] => g !== undefined)
-    : rawGroups;
+  const employeeGroups = orderIds
+    .map(id => rawGroups.find(g => g.employeeId === id))
+    .filter((g): g is (typeof rawGroups)[number] => g !== undefined);
 
   const totalToResolve = needsResolutionSessions.length;
   // A short-day exit changed to something invalid is neither the recorded one nor a correction yet.
@@ -899,6 +919,7 @@ export default function VerificationScreen() {
   };
 
   return (
+    <DaySpanLimit.Provider value={spanLimit}>
     <div className="fixed inset-0 flex flex-col bg-surface-container-lowest" style={{ paddingTop: 64 }}>
       <div ref={scrollRef} className="flex-1 overflow-auto px-6 py-6">
         <h2 className="text-headline-sm font-medium text-on-surface mb-4">
@@ -978,7 +999,7 @@ export default function VerificationScreen() {
                           cardInputs={cardInputs}
                           renderSessionCard={renderSessionCard}
                           onChange={(keepSessionId) => {
-                            const merged = mergedDay(item.sessions, sameDayDoubleResolutions[item.groupKey], resolvedSessions);
+                            const merged = mergedDay(item.sessions, sameDayDoubleResolutions[item.groupKey], resolvedSessions, spanLimit);
                             if (merged) {
                               clearResolvedSession(merged.sessionId);
                               clearCardInput(merged.sessionId);
@@ -1058,5 +1079,6 @@ export default function VerificationScreen() {
         </button>
       </div>
     </div>
+    </DaySpanLimit.Provider>
   );
 }

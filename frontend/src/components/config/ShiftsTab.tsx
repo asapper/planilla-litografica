@@ -205,11 +205,20 @@ export default function ShiftsTab() {
   const [localShifts, setLocalShifts] = useState<Shift[]>(shiftsData ?? []);
   const [deleteErrors, setDeleteErrors] = useState<Record<string, string>>({});
 
+  // Saved data replaces the rows on screen unless they hold unsaved edits: a delete or an add saved
+  // while another row is being edited must not throw that edit away, nor save it.
   const [seenShiftsData, setSeenShiftsData] = useState(shiftsData);
   if (seenShiftsData !== shiftsData) {
     setSeenShiftsData(shiftsData);
-    if (shiftsData) setLocalShifts(shiftsData);
+    if (shiftsData && !shiftsDirty) setLocalShifts(shiftsData);
   }
+
+  // A freshly opened tab has no unsaved edits, whatever a previous visit left in the store: leaving
+  // Configuración drops the rows on screen, and a stale flag would block the refetch below.
+  useEffect(() => {
+    setShiftsDirty(false);
+    return () => setShiftsDirty(false);
+  }, [setShiftsDirty]);
 
   useEffect(() => {
     setShiftsLoading(true);
@@ -250,8 +259,8 @@ export default function ShiftsTab() {
           })
         )
       );
-      setShiftsData(updated);
       setShiftsDirty(false);
+      setShiftsData(updated);
       showToast('Cambios guardados');
     } catch {
       setShiftsError('No se pudieron guardar los cambios.');
@@ -268,9 +277,9 @@ export default function ShiftsTab() {
   const handleDelete = async (id: string) => {
     try {
       await deleteShift(id);
-      const newData = localShifts.filter(s => s.id !== id);
-      setLocalShifts(newData);
-      setShiftsData(newData);
+      setLocalShifts(prev => prev.filter(s => s.id !== id));
+      // Read after the await: another delete or add may have changed the saved list meanwhile.
+      setShiftsData((useConfigStore.getState().shifts.data ?? []).filter(s => s.id !== id));
       setDeleteErrors(prev => {
         const next = { ...prev };
         delete next[id];
@@ -294,9 +303,8 @@ export default function ShiftsTab() {
     const crossMidnight = isCrossMidnight(startTime, endTime);
     try {
       const created = await createShift({ name, startTime, endTime, crossMidnight, detectionBeforeMinutes, detectionAfterMinutes });
-      const newData = [...localShifts, created];
-      setLocalShifts(newData);
-      setShiftsData(newData);
+      setLocalShifts(prev => [...prev, created]);
+      setShiftsData([...(useConfigStore.getState().shifts.data ?? []), created]);
     } catch {
       setShiftsError('No se pudo agregar el turno.');
     }

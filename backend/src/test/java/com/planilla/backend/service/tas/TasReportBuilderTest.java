@@ -312,7 +312,7 @@ class TasReportBuilderTest {
             resolvedSession("100", LocalDate.of(2026, 5, 5), 480, 0)
         );
 
-        List<TasPeriod> periods = builder.computeAvailablePeriods(sessions);
+        List<TasPeriod> periods = builder.computeAvailablePeriods(sessions, null, null);
 
         assertThat(periods).containsExactly(
             new TasPeriod(2026, 4, 2),

@@ -44,6 +44,7 @@ public class TasController {
     private final TasHoursCalculator      hoursCalculator;
     private final DatabaseService         databaseService;
     private final TasDraftService         draftService;
+    private final AppConfigService        appConfigService;
 
     final ConcurrentHashMap<String, TasUploadState> stateStore = new ConcurrentHashMap<>();
 
@@ -51,7 +52,9 @@ public class TasController {
     private static final int MAX_TOKEN_LENGTH = 64;
     private static final int MAX_FILE_NAME_LENGTH = 255;
     private static final int MAX_PERIOD_LABEL_LENGTH = 64;
-    private static final long MAX_RESOLVED_SPAN_MINUTES = 16 * 60;
+    // A typed day may last 16 hours, or as long as the configured session span if that is longer: the
+    // grouper builds days up to that span, so a typed one must be allowed as long.
+    static final int MIN_RESOLVED_SPAN_LIMIT_MINUTES = 16 * 60;
     private static final String DRAFT_OUTDATED_MESSAGE =
             "La sesión guardada es de otra versión de la aplicación y no se puede continuar.";
 
@@ -64,7 +67,8 @@ public class TasController {
             ShiftConfigService shiftConfigService,
             TasHoursCalculator hoursCalculator,
             DatabaseService databaseService,
-            TasDraftService draftService) {
+            TasDraftService draftService,
+            AppConfigService appConfigService) {
         this.parserService      = parserService;
         this.uploadService      = uploadService;
         this.reportBuilder      = reportBuilder;
@@ -74,6 +78,16 @@ public class TasController {
         this.hoursCalculator    = hoursCalculator;
         this.databaseService    = databaseService;
         this.draftService       = draftService;
+        this.appConfigService   = appConfigService;
+    }
+
+    static String formatHours(int minutes) {
+        int h = minutes / 60, m = minutes % 60;
+        return m == 0 ? h + " horas" : String.format("%d:%02d horas", h, m);
+    }
+
+    int resolvedSpanLimitMinutes() {
+        return Math.max(MIN_RESOLVED_SPAN_LIMIT_MINUTES, appConfigService.getMaxSessionSpanMinutes());
     }
 
     @Scheduled(fixedRate = 600_000)   // runs every 10 minutes
@@ -403,9 +417,10 @@ public class TasController {
                 return sessionError("INVALID_TIME_RANGE",
                         "La entrada debe ser el mismo día de la jornada, el anterior o el siguiente.", session.getSessionId());
             }
-            if (java.time.Duration.between(start, end).toMinutes() > MAX_RESOLVED_SPAN_MINUTES) {
+            int spanLimit = resolvedSpanLimitMinutes();
+            if (java.time.Duration.between(start, end).toMinutes() > spanLimit) {
                 return sessionError("INVALID_TIME_RANGE",
-                        "La jornada no puede durar más de 16 horas.", session.getSessionId());
+                        "La jornada no puede durar más de " + formatHours(spanLimit) + ".", session.getSessionId());
             }
             plannedTimes.put(session, new LocalDateTime[] {start, end});
             operations.add(() -> applyResolvedTimes(session, start, end, shifts));
@@ -1073,8 +1088,9 @@ public class TasController {
         body.put("absentActiveEmployees", result.getAbsentActiveEmployees() != null
                 ? result.getAbsentActiveEmployees()
                 : Collections.emptyList());
+        // At upload every day is still on its own date in the file, so no bounds are needed.
         body.put("availablePeriods", reportBuilder.computeAvailablePeriods(
-                result.getAllSessions() != null ? result.getAllSessions() : Collections.emptyList()));
+                result.getAllSessions() != null ? result.getAllSessions() : Collections.emptyList(), null, null));
         body.put("availableShifts", mapAvailableShifts(shiftConfigService.getAllShifts()));
         body.put("sessionSummaries", buildSessionSummaries(
                 result.getAllSessions() != null ? result.getAllSessions() : Collections.emptyList(), null));

@@ -265,6 +265,91 @@ describe('ShiftsTab delete', () => {
   });
 });
 
+describe('ShiftsTab unsaved edits around a delete or an add', () => {
+  const shift2 = { ...shift1, id: 'noche', name: 'Nocturno', startTime: '22:00', endTime: '06:00', crossMidnight: true };
+
+  it('editing one row, deleting another, then Descartar drops the edit', async () => {
+    mockGetShifts.mockResolvedValue([shift1, shift2]);
+    mockDeleteShift.mockResolvedValue(undefined);
+    render(<ShiftsTab />);
+    await waitFor(() => screen.getByDisplayValue('Diurno'));
+
+    fireEvent.change(screen.getByDisplayValue('Diurno'), { target: { value: 'Diurno editado' } });
+    fireEvent.click(screen.getAllByRole('button', { name: /eliminar turno/i })[1]);
+    await waitFor(() => expect(screen.queryByDisplayValue('Nocturno')).not.toBeInTheDocument());
+    expect(screen.getByDisplayValue('Diurno editado')).toBeInTheDocument();
+    expect(useConfigStore.getState().shifts.data).toEqual([shift1]);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Descartar' }));
+    expect(screen.getByDisplayValue('Diurno')).toBeInTheDocument();
+    expect(screen.queryByDisplayValue('Diurno editado')).not.toBeInTheDocument();
+  });
+
+  it('adding a shift while a row is edited keeps the edit unsaved', async () => {
+    const created = { ...shift1, id: 'tarde', name: 'Tarde', startTime: '14:00', endTime: '22:00' };
+    mockCreateShift.mockResolvedValue(created);
+    render(<ShiftsTab />);
+    await waitFor(() => screen.getByDisplayValue('Diurno'));
+
+    fireEvent.change(screen.getByDisplayValue('Diurno'), { target: { value: 'Diurno editado' } });
+    fireEvent.change(screen.getByLabelText(/nombre del nuevo turno/i), { target: { value: 'Tarde' } });
+    fireEvent.change(screen.getByLabelText(/hora de inicio del nuevo turno/i), { target: { value: '14:00' } });
+    fireEvent.change(screen.getByLabelText(/hora de fin del nuevo turno/i), { target: { value: '22:00' } });
+    fireEvent.click(screen.getByRole('button', { name: /\+ agregar turno/i }));
+    await waitFor(() => expect(screen.getByDisplayValue('Tarde')).toBeInTheDocument());
+    expect(screen.getByDisplayValue('Diurno editado')).toBeInTheDocument();
+    expect(useConfigStore.getState().shifts.data).toEqual([shift1, created]);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Descartar' }));
+    expect(screen.getByDisplayValue('Diurno')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('Tarde')).toBeInTheDocument();
+  });
+
+  it('a dirty flag left by an earlier visit does not block fresh data on return', async () => {
+    useConfigStore.setState(st => ({ shifts: { ...st.shifts, data: [shift1], dirty: true } }));
+    mockGetShifts.mockResolvedValue([{ ...shift1, name: 'Diurno nuevo' }]);
+    render(<ShiftsTab />);
+    await waitFor(() => expect(screen.getByDisplayValue('Diurno nuevo')).toBeInTheDocument());
+    expect(useConfigStore.getState().shifts.dirty).toBe(false);
+  });
+
+  it('leaving the tab clears the dirty flag', async () => {
+    const { unmount } = render(<ShiftsTab />);
+    await waitFor(() => screen.getByDisplayValue('Diurno'));
+    fireEvent.change(screen.getByDisplayValue('Diurno'), { target: { value: 'Diurno editado' } });
+    expect(useConfigStore.getState().shifts.dirty).toBe(true);
+    unmount();
+    expect(useConfigStore.getState().shifts.dirty).toBe(false);
+  });
+
+  it('two deletes that overlap both stay deleted', async () => {
+    const shift3 = { ...shift1, id: 'tarde', name: 'Tarde' };
+    mockGetShifts.mockResolvedValue([shift1, shift2, shift3]);
+    let finishFirst!: () => void;
+    mockDeleteShift.mockImplementationOnce(() => new Promise<void>(r => { finishFirst = r; }))
+      .mockResolvedValueOnce(undefined);
+    render(<ShiftsTab />);
+    await waitFor(() => screen.getByDisplayValue('Tarde'));
+    const buttons = screen.getAllByRole('button', { name: /eliminar turno/i });
+    fireEvent.click(buttons[1]);
+    fireEvent.click(buttons[2]);
+    await waitFor(() => expect(screen.queryByDisplayValue('Tarde')).not.toBeInTheDocument());
+    finishFirst();
+    await waitFor(() => expect(screen.queryByDisplayValue('Nocturno')).not.toBeInTheDocument());
+    expect(useConfigStore.getState().shifts.data).toEqual([shift1]);
+  });
+
+  it('with no unsaved edits, a delete simply removes the row', async () => {
+    mockGetShifts.mockResolvedValue([shift1, shift2]);
+    mockDeleteShift.mockResolvedValue(undefined);
+    render(<ShiftsTab />);
+    await waitFor(() => screen.getByDisplayValue('Nocturno'));
+    fireEvent.click(screen.getAllByRole('button', { name: /eliminar turno/i })[1]);
+    await waitFor(() => expect(screen.queryByDisplayValue('Nocturno')).not.toBeInTheDocument());
+    expect(screen.getByDisplayValue('Diurno')).toBeInTheDocument();
+  });
+});
+
 // -----------------------------------------------------------------
 // Add new shift
 // -----------------------------------------------------------------
