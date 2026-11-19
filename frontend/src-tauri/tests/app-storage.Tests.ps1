@@ -4,10 +4,24 @@
 # Installs the installer just built, drives the app through the WebView2 debugging port and throws
 # on the first failure. Runs on the Windows build agent after the NSIS build.
 
+param([string]$InstallerPath = '')
 $ErrorActionPreference = 'Stop'
 $repo = (Resolve-Path (Join-Path $PSScriptRoot '..\..\..')).Path
-$installer = Get-ChildItem (Join-Path $repo 'frontend\src-tauri\target\release\bundle\nsis\*.exe') | Select-Object -First 1
+$installer = if ($InstallerPath) { Get-Item -LiteralPath $InstallerPath } else {
+    Get-ChildItem (Join-Path $repo 'frontend\src-tauri\target\release\bundle\nsis\*.exe') | Select-Object -First 1
+}
 if (-not $installer) { throw 'No NSIS installer found: build the app first.' }
+
+function Show-Diagnostics {
+    Write-Host '--- diagnostics'
+    Get-CimInstance Win32_Process | Where-Object { $_.Name -match 'planilla|cargador|msedgewebview2|java' } |
+        ForEach-Object {
+            $cmd = ("$($_.CommandLine)" -replace '\s+', ' ')
+            Write-Host ("{0} {1} {2}" -f $_.ProcessId, $_.Name, $cmd.Substring(0, [Math]::Min(400, $cmd.Length)))
+        }
+    netstat -ano | Select-String 'LISTENING' | Select-String '127.0.0.1|0.0.0.0' | ForEach-Object { Write-Host $_ }
+    Write-Host '---'
+}
 
 function Check($ok, $what) {
     if (-not $ok) { throw "FAIL: $what" }
@@ -39,12 +53,13 @@ function Stop-Leftovers {
 function Start-App {
     $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = '--remote-debugging-port=9222'
     $p = Start-Process -FilePath (App-Exe) -PassThru
-    for ($i = 0; $i -lt 90; $i++) {
-        try {
-            Invoke-WebRequest -Uri 'http://127.0.0.1:9222/json/version' -UseBasicParsing -TimeoutSec 2 | Out-Null
-            return $p
-        } catch { Start-Sleep -Seconds 1 }
+    $deadline = (Get-Date).AddSeconds(90)
+    while ((Get-Date) -lt $deadline) {
+        if (Test-NetConnection -ComputerName 127.0.0.1 -Port 9222 -InformationLevel Quiet -WarningAction SilentlyContinue) { return $p }
+        if ($p.HasExited) { Show-Diagnostics; throw "The app exited at start (code $($p.ExitCode))." }
+        Start-Sleep -Seconds 1
     }
+    Show-Diagnostics
     throw 'The app did not open its WebView2 debugging port within 90 s.'
 }
 

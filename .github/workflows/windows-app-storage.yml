@@ -1,0 +1,43 @@
+name: Windows app storage
+
+# The copy of a session kept on the PC (the app's WebView2 storage) must survive a restart, a crash
+# and an upgrade install. Runs against a published installer, so it needs no build; the release
+# build runs the same test against the installer it just built.
+on:
+  pull_request:
+    paths:
+      - 'frontend/src-tauri/tests/app-storage.Tests.ps1'
+      - 'frontend/e2e/webview-storage.mjs'
+      - '.github/workflows/windows-app-storage.yml'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag whose installer to test
+        default: v1.3.2
+
+jobs:
+  app-storage:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Playwright (only the client is needed)
+        working-directory: frontend
+        run: npm ci --ignore-scripts
+
+      - name: Download the installer
+        shell: powershell
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag || 'v1.3.2' }}
+        run: gh release download $env:TAG --repo ${{ github.repository }} --pattern '*.exe' --dir installer
+
+      - name: Storage across restart, crash and reinstall
+        shell: powershell
+        run: ./frontend/src-tauri/tests/app-storage.Tests.ps1 -InstallerPath (Get-ChildItem installer\*.exe | Select-Object -First 1).FullName
