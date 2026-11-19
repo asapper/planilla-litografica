@@ -5,6 +5,8 @@ import { render, screen, waitFor, act, fireEvent } from '@testing-library/react'
 import { useTasStore } from './tasStore';
 import { useToastStore } from './toastStore';
 import { DRAFT_UI_VERSION } from './tasDraft';
+import { loadLocalCopy, startLocalCopy } from './localCopy';
+import type { TasSession } from './tasTypes';
 
 const mockCheckHealth = vi.hoisted(() => vi.fn());
 const mockCheckDbHealth = vi.hoisted(() => vi.fn());
@@ -26,6 +28,7 @@ const mockGetDraftSummary = vi.hoisted(() => vi.fn());
 const mockResumeDraft = vi.hoisted(() => vi.fn());
 const mockDeleteDraft = vi.hoisted(() => vi.fn());
 const mockSaveDraft = vi.hoisted(() => vi.fn());
+const mockSubmitInactiveReview = vi.hoisted(() => vi.fn());
 
 vi.mock('./tasApi', () => ({
   uploadTasFile: mockUploadTasFile,
@@ -33,6 +36,7 @@ vi.mock('./tasApi', () => ({
   resumeDraft: mockResumeDraft,
   deleteDraft: mockDeleteDraft,
   saveDraft: mockSaveDraft,
+  submitInactiveReview: mockSubmitInactiveReview,
 }));
 
 vi.mock('./components/EmptyState', () => ({
@@ -102,9 +106,12 @@ vi.mock('./components/ErrorBoundary', () => ({
   default: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
-const { default: App } = await import('./App');
+const {
+  default: App, LOCAL_RECOVERED_MESSAGE, LOCAL_RECOVERED_REVIEW_MESSAGE, LOCAL_RECOVERY_FAILED_MESSAGE,
+} = await import('./App');
 
 beforeEach(() => {
+  localStorage.clear();
   useTasStore.getState().resetTas();
   useToastStore.setState({ toasts: [] });
   mockGetDraftSummary.mockReset().mockResolvedValue(null);
@@ -114,7 +121,7 @@ beforeEach(() => {
   mockCheckHealth.mockResolvedValue(undefined);
   mockCheckDbHealth.mockResolvedValue(true);
   mockGetBackendStatus.mockResolvedValue(null);
-  mockUploadTasFile.mockResolvedValue({
+  mockUploadTasFile.mockReset().mockResolvedValue({
     uploadToken: 'token-1',
     flaggedSessions: [],
     resolvedRows: [],
@@ -783,3 +790,127 @@ describe('resume an interrupted session', () => {
     expect(mockDeleteDraft).not.toHaveBeenCalled();
   });
 });
+
+describe('rebuild from the copy on this PC', () => {
+  const SCANS = ['2026-10-03T07:02:00'];
+  const day = (sessionId: number): TasSession => ({
+    sessionId, employeeId: 'E1', employeeName: 'Ana', date: '2026-10-03', scans: SCANS, matchedShiftId: 'm',
+    matchedShiftName: 'Mañana', assignedShiftId: 'm', assignedShiftName: 'Mañana', effectiveStart: SCANS[0],
+    lastScan: null, workedMinutes: 0, workedHours: 0, crossMidnight: false, needsResolution: true, flags: ['MISSING_EXIT'],
+  });
+  const keepCopy = (snapshot: Record<string, unknown> = {}) => startLocalCopy('oct.csv', new Uint8Array([0x6f, 0x6b]), {
+    tasView: 'verification', flaggedSessions: [day(1)], cardInputs: { 1: { entry: '07:02', exit: '15:', swapped: false } },
+    ...snapshot,
+  });
+  const rebuilt = { uploadToken: 'tok-r', stateRevision: 1, flaggedSessions: [day(10)], resolvedRows: [],
+    inactiveEmployeesFound: [], absentActiveEmployees: [], usedFallbackHolidays: false, availablePeriods: [] };
+  const toasts = () => useToastStore.getState().toasts.map(t => [t.variant, t.message]);
+
+  it('an upload keeps a copy of the file on this PC', async () => {
+    render(<App />);
+    fireEvent.click(await screen.findByRole('button', { name: /cargar tas/i }));
+    await waitFor(() => expect(loadLocalCopy()?.fileName).toBe('scans.csv'));
+    expect(atob(loadLocalCopy()!.fileBase64)).toBe('x');
+  });
+
+  it('is offered when the backend has no saved session, and Continuar rebuilds it with its decisions', async () => {
+    keepCopy();
+    mockUploadTasFile.mockResolvedValue(rebuilt);
+    render(<App />);
+    expect(await screen.findByTestId('draft-card')).toHaveTextContent('oct.csv');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Continuar' }));
+
+    await waitFor(() => expect(useTasStore.getState().tasView).toBe('verification'));
+    expect(mockUploadTasFile.mock.calls[0][0].name).toBe('oct.csv');
+    expect(useTasStore.getState().cardInputs).toEqual({ 10: { entry: '07:02', exit: '15:', swapped: false } });
+    expect(toasts()).toEqual([['success', LOCAL_RECOVERED_MESSAGE]]);
+  });
+
+  it('is offered when the backend cannot even be asked (its database is down)', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    keepCopy();
+    mockGetDraftSummary.mockRejectedValue(new Error('down'));
+    render(<App />);
+    expect(await screen.findByTestId('draft-card')).toHaveTextContent('oct.csv');
+    warn.mockRestore();
+  });
+
+  it('replaces a backend session from another version, which could only be discarded', async () => {
+    keepCopy({ tasView: 'review' });
+    mockGetDraftSummary.mockResolvedValue({ fileName: 'old.csv', view: 'review', periodLabel: null, savedAt: '2026-11-19T10:00:00Z',
+      partialSubmit: false, resumable: false, uiVersion: 1, jobActive: false });
+    mockUploadTasFile.mockResolvedValue(rebuilt);
+    render(<App />);
+    const card = await screen.findByTestId('draft-card');
+    expect(card).toHaveTextContent('oct.csv');
+    expect(card).not.toHaveTextContent('Otra versión');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Continuar' }));
+    await waitFor(() => expect(toasts()).toEqual([['success', LOCAL_RECOVERED_REVIEW_MESSAGE]]));
+  });
+
+  it('takes over when resuming the backend session fails', async () => {
+    keepCopy();
+    mockGetDraftSummary.mockResolvedValue({ fileName: 'oct.csv', view: 'verification', periodLabel: null,
+      savedAt: '2026-11-19T10:00:00Z', partialSubmit: false, resumable: true, uiVersion: DRAFT_UI_VERSION, jobActive: false });
+    mockResumeDraft.mockRejectedValue(new Error('404'));
+    mockUploadTasFile.mockResolvedValue(rebuilt);
+    render(<App />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Continuar' }));
+    await waitFor(() => expect(useTasStore.getState().uploadToken).toBe('tok-r'));
+    expect(toasts()).toEqual([['success', LOCAL_RECOVERED_MESSAGE]]);
+  });
+
+  it('takes over when the resumed backend session is from another version', async () => {
+    keepCopy();
+    mockGetDraftSummary.mockResolvedValue({ fileName: 'oct.csv', view: 'verification', periodLabel: null,
+      savedAt: '2026-11-19T10:00:00Z', partialSubmit: false, resumable: true, uiVersion: DRAFT_UI_VERSION, jobActive: false });
+    mockResumeDraft.mockResolvedValue({ uploadToken: 'tok-d', ui: { uiVersion: DRAFT_UI_VERSION + 1, tasView: 'verification' } });
+    mockUploadTasFile.mockResolvedValue(rebuilt);
+    render(<App />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Continuar' }));
+    await waitFor(() => expect(useTasStore.getState().uploadToken).toBe('tok-r'));
+  });
+
+  it('a resumable backend session is used first', async () => {
+    keepCopy();
+    mockGetDraftSummary.mockResolvedValue({ fileName: 'oct.csv', view: 'verification', periodLabel: null,
+      savedAt: '2026-11-19T10:00:00Z', partialSubmit: false, resumable: true, uiVersion: DRAFT_UI_VERSION, jobActive: false });
+    mockResumeDraft.mockResolvedValue({ uploadToken: 'tok-d', ui: { uiVersion: DRAFT_UI_VERSION, tasView: 'verification', stateRevision: 2 } });
+    render(<App />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Continuar' }));
+    await waitFor(() => expect(useTasStore.getState().uploadToken).toBe('tok-d'));
+    expect(mockUploadTasFile).not.toHaveBeenCalled();
+  });
+
+  it('says which decisions could not be carried over', async () => {
+    keepCopy({ resolvedSessions: { 1: { resolvedStart: '07:02', resolvedEnd: '15:00' }, 2: { resolvedStart: '07:00', resolvedEnd: '15:00' } } });
+    mockUploadTasFile.mockResolvedValue(rebuilt);
+    render(<App />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Continuar' }));
+    await waitFor(() => expect(toasts()).toHaveLength(2));
+    expect(toasts()[1]).toEqual(['warning', '1 decisión no se pudo recuperar porque esos días cambiaron. Revíselos.']);
+  });
+
+  it('a failed rebuild says so and keeps the copy for another try', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    keepCopy();
+    mockUploadTasFile.mockRejectedValue(new Error('down'));
+    render(<App />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Continuar' }));
+    await waitFor(() => expect(toasts()).toEqual([['error', LOCAL_RECOVERY_FAILED_MESSAGE]]));
+    expect(useTasStore.getState().tasView).toBe('idle');
+    expect(loadLocalCopy()).not.toBeNull();
+    warn.mockRestore();
+  });
+
+  it('Descartar drops the copy too', async () => {
+    keepCopy();
+    render(<App />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Descartar' }));
+    await waitFor(() => expect(loadLocalCopy()).toBeNull());
+    expect(screen.queryByTestId('draft-card')).not.toBeInTheDocument();
+  });
+});
+

@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { AxiosError, AxiosHeaders } from 'axios';
 import { useTasStore } from './tasStore';
 import { useToastStore } from './toastStore';
+import { loadLocalCopy, recoverableLocalCopy, startLocalCopy } from './localCopy';
 import type { TasSession } from './tasTypes';
 
 const mockSaveDraft = vi.hoisted(() => vi.fn());
@@ -80,6 +81,7 @@ beforeEach(() => {
   mockDeleteDraft.mockReset().mockResolvedValue(undefined);
   useTasStore.getState().resetTas();
   useToastStore.setState({ toasts: [] });
+  localStorage.clear();
 });
 
 afterEach(() => {
@@ -627,3 +629,54 @@ describe('discardDraftSession', () => {
     warn.mockRestore();
   });
 });
+
+describe('the copy on this PC', () => {
+  const FILE = new Uint8Array([0x61, 0x62]);
+
+  it('is written on every save, even when the backend save fails', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    mockSaveDraft.mockRejectedValue(new Error('network'));
+    startLocalCopy('oct.csv', FILE);
+    stop = startDraftAutosave(() => 'oct.csv');
+    useTasStore.setState({ tasView: 'verification', uploadToken: 'tok' });
+    useTasStore.getState().setCardInput(7, { entry: '07:02', exit: '', swapped: false });
+    await vi.advanceTimersByTimeAsync(DRAFT_SAVE_DEBOUNCE_MS);
+    const snapshot = recoverableLocalCopy()?.snapshot;
+    expect(snapshot?.cardInputs).toEqual({ 7: { entry: '07:02', exit: '', swapped: false } });
+    expect(snapshot?.uiVersion).toBe(DRAFT_UI_VERSION);
+    warn.mockRestore();
+  });
+
+  it('starting a submission sends pending edits, then hands the session to the backend', async () => {
+    startLocalCopy('oct.csv', FILE);
+    stop = startDraftAutosave(() => 'oct.csv');
+    useTasStore.setState({ tasView: 'review', uploadToken: 'tok' });
+    useTasStore.getState().setNonWorkedDaysOverride('1', 2);
+    useTasStore.setState({ tasView: 'submitting' });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(mockSaveDraft).toHaveBeenCalledTimes(1);
+    expect(mockSaveDraft.mock.calls[0][0].view).toBe('review');
+    expect(loadLocalCopy()?.submitted).toBe(true);
+    expect(recoverableLocalCopy()).toBeNull();
+  });
+
+  it('is dropped when the session ends, kept when an upload or recovery fails', async () => {
+    startLocalCopy('oct.csv', FILE, { tasView: 'verification' });
+    stop = startDraftAutosave(() => 'oct.csv');
+    useTasStore.setState({ fallbackBannerDismissed: true });
+    useTasStore.setState({ tasView: 'processing' });
+    useTasStore.setState({ tasView: 'idle' });
+    expect(loadLocalCopy()).not.toBeNull();
+
+    useTasStore.setState({ tasView: 'verification', uploadToken: 'tok' });
+    useTasStore.getState().resetTas();
+    expect(loadLocalCopy()).toBeNull();
+  });
+
+  it('is dropped by a discard', async () => {
+    startLocalCopy('oct.csv', FILE, { tasView: 'verification' });
+    await discardDraftSession();
+    expect(loadLocalCopy()).toBeNull();
+  });
+});
+
