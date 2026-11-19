@@ -99,8 +99,13 @@ function isVerifying(snapshot: Record<string, unknown> | null): boolean {
   return snapshot?.tasView === 'verification' || snapshot?.tasView === 'inactiveReview';
 }
 
-// A new upload starts a new copy: the file now, the decisions as they are made.
-export function startLocalCopy(fileName: string, bytes: Uint8Array, snapshot: Record<string, unknown> | null = null): boolean {
+// A new upload starts a new copy: the file now, the decisions as they are made. `uploadedDays` are the
+// identities from the upload itself, used when the copy starts after the user has already moved on
+// (the file is read alongside the upload and can finish late).
+export function startLocalCopy(
+  fileName: string, bytes: Uint8Array, snapshot: Record<string, unknown> | null = null,
+  uploadedDays: Record<string, string> = {},
+): boolean {
   clearLocalCopy();
   try {
     localStorage.setItem(FILE_KEY, toBase64(bytes));
@@ -111,7 +116,7 @@ export function startLocalCopy(fileName: string, bytes: Uint8Array, snapshot: Re
   }
   return writeMeta({
     fileName, savedAt: new Date().toISOString(), snapshot, submitted: false,
-    dayKeys: isVerifying(snapshot) ? dayKeysOf(snapshot) : {},
+    dayKeys: isVerifying(snapshot) ? dayKeysOf(snapshot) : uploadedDays,
   });
 }
 

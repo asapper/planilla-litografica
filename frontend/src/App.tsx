@@ -8,7 +8,7 @@ import {
   applySnapshot, canResume, discardDraftSession, formatPeriodLabel, isDraftView, localSnapshotOf, startDraftAutosave,
   DRAFT_UI_VERSION,
 } from './tasDraft';
-import { clearLocalCopy, fileBytes, recoverableLocalCopy, startLocalCopy, type LocalCopy } from './localCopy';
+import { clearLocalCopy, dayKeysOf, fileBytes, recoverableLocalCopy, startLocalCopy, type LocalCopy } from './localCopy';
 import { rebuildFromLocalCopy } from './localRecovery';
 import { onAppCloseRequested, prepareToClose } from './appClose';
 import { useTasStore } from './tasStore';
@@ -140,7 +140,9 @@ export default function App() {
       }
       void bytesRead.then(bytes => {
         const state = useTasStore.getState();
-        if (bytes && state.uploadToken === result.uploadToken) startLocalCopy(file.name, bytes, localSnapshotOf(state));
+        if (bytes && state.uploadToken === result.uploadToken) {
+          startLocalCopy(file.name, bytes, localSnapshotOf(state), dayKeysOf({ flaggedSessions: result.flaggedSessions }));
+        }
       });
     } catch (err: unknown) {
       clearInterval(stageTimer);

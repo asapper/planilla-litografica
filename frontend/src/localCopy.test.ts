@@ -91,6 +91,13 @@ describe('local copy', () => {
     expect(loadLocalCopy()?.dayKeys).toEqual({ 5: 'E1|2026-10-03|2026-10-03T08:00:00' });
   });
 
+  it('a copy that starts after Revisar takes the days from the upload itself', () => {
+    startLocalCopy('oct.csv', BYTES, { tasView: 'review', flaggedSessions: [] }, { 1: 'E1|2026-10-03|2026-10-03T07:02:00' });
+    expect(loadLocalCopy()?.dayKeys).toEqual({ 1: 'E1|2026-10-03|2026-10-03T07:02:00' });
+    startLocalCopy('oct.csv', BYTES, { tasView: 'verification', flaggedSessions: [] }, { 1: 'ignored' });
+    expect(loadLocalCopy()?.dayKeys).toEqual({});
+  });
+
   it('a failed submission puts the copy back in play', () => {
     startLocalCopy('oct.csv', BYTES, { tasView: 'review' });
     setLocalCopySubmitted(true);
