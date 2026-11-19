@@ -16,6 +16,7 @@ vi.mock('./backendStatus', async (importOriginal) => ({
 }));
 vi.mock('./components/TopAppBar', () => ({ default: () => <div /> }));
 vi.mock('./components/ConfigPage', () => ({ default: () => <div /> }));
+vi.mock('./configApi', () => ({ getGeneralConfig: vi.fn(() => new Promise(() => {})) }));
 
 const backend = vi.hoisted(() => ({
   saved: null as null | { uploadToken: string; view: string; fileName: string | null; periodLabel: string | null; ui: Record<string, unknown> },

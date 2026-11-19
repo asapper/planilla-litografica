@@ -305,6 +305,40 @@ describe('ShiftsTab unsaved edits around a delete or an add', () => {
     expect(screen.getByDisplayValue('Tarde')).toBeInTheDocument();
   });
 
+  it('a dirty flag left by an earlier visit does not block fresh data on return', async () => {
+    useConfigStore.setState(st => ({ shifts: { ...st.shifts, data: [shift1], dirty: true } }));
+    mockGetShifts.mockResolvedValue([{ ...shift1, name: 'Diurno nuevo' }]);
+    render(<ShiftsTab />);
+    await waitFor(() => expect(screen.getByDisplayValue('Diurno nuevo')).toBeInTheDocument());
+    expect(useConfigStore.getState().shifts.dirty).toBe(false);
+  });
+
+  it('leaving the tab clears the dirty flag', async () => {
+    const { unmount } = render(<ShiftsTab />);
+    await waitFor(() => screen.getByDisplayValue('Diurno'));
+    fireEvent.change(screen.getByDisplayValue('Diurno'), { target: { value: 'Diurno editado' } });
+    expect(useConfigStore.getState().shifts.dirty).toBe(true);
+    unmount();
+    expect(useConfigStore.getState().shifts.dirty).toBe(false);
+  });
+
+  it('two deletes that overlap both stay deleted', async () => {
+    const shift3 = { ...shift1, id: 'tarde', name: 'Tarde' };
+    mockGetShifts.mockResolvedValue([shift1, shift2, shift3]);
+    let finishFirst!: () => void;
+    mockDeleteShift.mockImplementationOnce(() => new Promise<void>(r => { finishFirst = r; }))
+      .mockResolvedValueOnce(undefined);
+    render(<ShiftsTab />);
+    await waitFor(() => screen.getByDisplayValue('Tarde'));
+    const buttons = screen.getAllByRole('button', { name: /eliminar turno/i });
+    fireEvent.click(buttons[1]);
+    fireEvent.click(buttons[2]);
+    await waitFor(() => expect(screen.queryByDisplayValue('Tarde')).not.toBeInTheDocument());
+    finishFirst();
+    await waitFor(() => expect(screen.queryByDisplayValue('Nocturno')).not.toBeInTheDocument());
+    expect(useConfigStore.getState().shifts.data).toEqual([shift1]);
+  });
+
   it('with no unsaved edits, a delete simply removes the row', async () => {
     mockGetShifts.mockResolvedValue([shift1, shift2]);
     mockDeleteShift.mockResolvedValue(undefined);
