@@ -9,7 +9,10 @@ vi.mock('@tauri-apps/api/event', () => ({ listen: mockListen }));
 vi.mock('@tauri-apps/api/core', () => ({ invoke: mockInvoke }));
 vi.mock('./tasDraft', () => ({ saveDraftNow: mockSaveDraftNow }));
 
-const { onAppCloseRequested, prepareToClose, APP_CLOSE_EVENT, APP_CLOSE_BLOCKED_EVENT, CLOSE_BLOCKED_MESSAGE } =
+const {
+  onAppCloseRequested, prepareToClose, APP_CLOSE_EVENT, APP_CLOSE_BLOCKED_EVENT, CLOSE_BLOCKED_MESSAGE,
+  CLOSE_UNSAVED_MESSAGE, CLOSE_ANYWAY_WINDOW_MS,
+} =
   await import('./appClose');
 
 const flushPromises = () => new Promise(r => setTimeout(r, 0));
@@ -24,7 +27,7 @@ beforeEach(() => {
   handlers = {};
   unlistens = [];
   mockInvoke.mockResolvedValue(undefined);
-  mockSaveDraftNow.mockResolvedValue(undefined);
+  mockSaveDraftNow.mockResolvedValue(true);
   mockListen.mockImplementation(async (event: string, h: (e?: { payload: number }) => Promise<void>) => {
     handlers[event] = h;
     const un = vi.fn();
@@ -109,5 +112,43 @@ describe('prepareToClose', () => {
     await expect(prepareToClose()).resolves.toBe(false);
     expect(mockSaveDraftNow).not.toHaveBeenCalled();
     expect(useToastStore.getState().toasts[0].message).toBe(CLOSE_BLOCKED_MESSAGE);
+  });
+
+  describe('when the last save failed', () => {
+    let now = Date.parse('2026-11-19T10:00:00Z');
+    beforeEach(() => {
+      // Each case starts well past any close-anyway window an earlier case opened.
+      now += 10 * CLOSE_ANYWAY_WINDOW_MS;
+      vi.spyOn(Date, 'now').mockImplementation(() => now);
+      mockSaveDraftNow.mockResolvedValue(false);
+      useTasStore.setState({ tasView: 'verification' });
+    });
+
+    it('refuses the first close and says a second one closes without saving', async () => {
+      await expect(prepareToClose()).resolves.toBe(false);
+      expect(useToastStore.getState().toasts.map(t => [t.variant, t.message]))
+        .toEqual([['error', CLOSE_UNSAVED_MESSAGE]]);
+    });
+
+    it('lets a second close within the window go ahead', async () => {
+      await prepareToClose();
+      now += CLOSE_ANYWAY_WINDOW_MS - 1;
+      await expect(prepareToClose()).resolves.toBe(true);
+      expect(mockSaveDraftNow).toHaveBeenCalledTimes(2);
+    });
+
+    it('refuses again once the window has passed', async () => {
+      await prepareToClose();
+      now += CLOSE_ANYWAY_WINDOW_MS;
+      await expect(prepareToClose()).resolves.toBe(false);
+      expect(useToastStore.getState().toasts).toHaveLength(2);
+    });
+
+    it('closes at once when the save works again', async () => {
+      await prepareToClose();
+      mockSaveDraftNow.mockResolvedValue(true);
+      now += 2 * CLOSE_ANYWAY_WINDOW_MS;
+      await expect(prepareToClose()).resolves.toBe(true);
+    });
   });
 });

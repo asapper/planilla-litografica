@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { AxiosError, AxiosHeaders } from 'axios';
 import { useTasStore } from './tasStore';
+import { useToastStore } from './toastStore';
 import type { TasSession } from './tasTypes';
 
 const mockSaveDraft = vi.hoisted(() => vi.fn());
@@ -23,6 +24,9 @@ const {
   DRAFT_SAVE_MAX_WAIT_MS,
   saveDraftNow,
   DRAFT_UI_VERSION,
+  DRAFT_SAVE_RETRY_MS,
+  DRAFT_SAVE_FAILED_MESSAGE,
+  DRAFT_SAVE_RECOVERED_MESSAGE,
 } = await import('./tasDraft');
 
 const session: TasSession = {
@@ -75,6 +79,7 @@ beforeEach(() => {
   mockSaveDraft.mockReset().mockResolvedValue(undefined);
   mockDeleteDraft.mockReset().mockResolvedValue(undefined);
   useTasStore.getState().resetTas();
+  useToastStore.setState({ toasts: [] });
 });
 
 afterEach(() => {
@@ -341,17 +346,161 @@ describe('autosave', () => {
     warn.mockRestore();
   });
 
-  it('warns on other failures and retries on the next change', async () => {
+  const toasts = () => useToastStore.getState().toasts.map(t => [t.variant, t.message]);
+
+  it('on another failure warns the user once and retries by itself, with no further edit', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    mockSaveDraft.mockRejectedValue(new Error('network'));
+    stop = startDraftAutosave(() => 'f.csv');
+    useTasStore.setState({ tasView: 'review', uploadToken: 'tok' });
+    await vi.advanceTimersByTimeAsync(DRAFT_SAVE_RETRY_MS - 1);
+    expect(mockSaveDraft).toHaveBeenCalledTimes(1);
+    expect(toasts()).toEqual([['warning', DRAFT_SAVE_FAILED_MESSAGE]]);
+
+    await vi.advanceTimersByTimeAsync(2 * DRAFT_SAVE_RETRY_MS);
+    expect(mockSaveDraft).toHaveBeenCalledTimes(3);
+    expect(toasts()).toHaveLength(1);
+
+    mockSaveDraft.mockResolvedValue(undefined);
+    await vi.advanceTimersByTimeAsync(DRAFT_SAVE_RETRY_MS);
+    expect(mockSaveDraft).toHaveBeenCalledTimes(4);
+    expect(toasts()).toEqual([['warning', DRAFT_SAVE_FAILED_MESSAGE], ['success', DRAFT_SAVE_RECOVERED_MESSAGE]]);
+
+    await vi.advanceTimersByTimeAsync(10 * DRAFT_SAVE_RETRY_MS);
+    expect(mockSaveDraft).toHaveBeenCalledTimes(4);
+    warn.mockRestore();
+  });
+
+  it('an edit during a failure run saves at once instead of waiting for the retry', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     mockSaveDraft.mockRejectedValueOnce(new Error('network'));
     stop = startDraftAutosave(() => 'f.csv');
     useTasStore.setState({ tasView: 'review', uploadToken: 'tok' });
-    await vi.runAllTimersAsync();
-    expect(warn).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(DRAFT_SAVE_DEBOUNCE_MS);
+    expect(mockSaveDraft).toHaveBeenCalledTimes(1);
 
     useTasStore.getState().setNonWorkedDaysOverride('1', 2);
-    await vi.runAllTimersAsync();
+    await vi.advanceTimersByTimeAsync(DRAFT_SAVE_DEBOUNCE_MS);
     expect(mockSaveDraft).toHaveBeenCalledTimes(2);
+    expect(mockSaveDraft.mock.calls[1][0].ui.nonWorkedDaysOverrides).toEqual({ '1': 2 });
+    expect(toasts().map(([v]) => v)).toEqual(['warning', 'success']);
+
+    await vi.advanceTimersByTimeAsync(10 * DRAFT_SAVE_RETRY_MS);
+    expect(mockSaveDraft).toHaveBeenCalledTimes(2);
+    warn.mockRestore();
+  });
+
+  it('a save in flight when autosave stops does not start a retry loop', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    let rejectFirst!: (e: Error) => void;
+    mockSaveDraft.mockImplementationOnce(() => new Promise<void>((_, r) => { rejectFirst = r; }));
+    stop = startDraftAutosave(() => 'f.csv');
+    useTasStore.setState({ tasView: 'review', uploadToken: 'tok' });
+    await vi.advanceTimersByTimeAsync(DRAFT_SAVE_DEBOUNCE_MS);
+    expect(mockSaveDraft).toHaveBeenCalledTimes(1);
+    stop();
+    stop = null;
+    rejectFirst(new Error('network'));
+    await vi.advanceTimersByTimeAsync(10 * DRAFT_SAVE_RETRY_MS);
+    expect(mockSaveDraft).toHaveBeenCalledTimes(1);
+    warn.mockRestore();
+  });
+
+  it('leaving review for submitting mid-failure keeps retrying the review state until it is saved', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    mockSaveDraft.mockRejectedValueOnce(new Error('network')).mockRejectedValueOnce(new Error('network'));
+    stop = startDraftAutosave(() => 'f.csv');
+    useTasStore.setState({ tasView: 'review', uploadToken: 'tok' });
+    useTasStore.getState().setNonWorkedDaysOverride('1', 3);
+    await vi.advanceTimersByTimeAsync(DRAFT_SAVE_DEBOUNCE_MS);
+    expect(mockSaveDraft).toHaveBeenCalledTimes(1);
+
+    useTasStore.setState({ tasView: 'submitting' });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(mockSaveDraft).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(DRAFT_SAVE_RETRY_MS);
+    expect(mockSaveDraft).toHaveBeenCalledTimes(3);
+    for (const [body] of mockSaveDraft.mock.calls) {
+      expect(body.view).toBe('review');
+      expect(body.ui.nonWorkedDaysOverrides).toEqual({ '1': 3 });
+    }
+    expect(toasts().map(([v]) => v)).toEqual(['warning', 'success']);
+    await vi.advanceTimersByTimeAsync(10 * DRAFT_SAVE_RETRY_MS);
+    expect(mockSaveDraft).toHaveBeenCalledTimes(3);
+    warn.mockRestore();
+  });
+
+  it('going back to idle mid-failure drops the retry and ends the failure run quietly', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    mockSaveDraft.mockRejectedValueOnce(new Error('network'));
+    stop = startDraftAutosave(() => 'f.csv');
+    useTasStore.setState({ tasView: 'review', uploadToken: 'tok' });
+    await vi.advanceTimersByTimeAsync(DRAFT_SAVE_DEBOUNCE_MS);
+    useTasStore.getState().resetTas();
+    await vi.advanceTimersByTimeAsync(10 * DRAFT_SAVE_RETRY_MS);
+    expect(mockSaveDraft).toHaveBeenCalledTimes(1);
+
+    useTasStore.setState({ tasView: 'review', uploadToken: 'tok2' });
+    await vi.advanceTimersByTimeAsync(DRAFT_SAVE_DEBOUNCE_MS);
+    expect(mockSaveDraft).toHaveBeenCalledTimes(2);
+    expect(toasts().map(([v]) => v)).toEqual(['warning']);
+    warn.mockRestore();
+  });
+
+  it('a stale revision after a failure ends the run: no retry and no false recovery notice later', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    mockSaveDraft.mockRejectedValueOnce(new Error('network'))
+      .mockRejectedValueOnce(stale({ code: 'DRAFT_STALE', currentRevision: 9 }));
+    stop = startDraftAutosave(() => 'f.csv');
+    useTasStore.setState({ tasView: 'review', uploadToken: 'tok', stateRevision: 4 });
+    await vi.advanceTimersByTimeAsync(DRAFT_SAVE_DEBOUNCE_MS + DRAFT_SAVE_RETRY_MS);
+    expect(mockSaveDraft).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(10 * DRAFT_SAVE_RETRY_MS);
+    expect(mockSaveDraft).toHaveBeenCalledTimes(2);
+
+    useTasStore.setState({ stateRevision: 9 });
+    await vi.advanceTimersByTimeAsync(DRAFT_SAVE_DEBOUNCE_MS);
+    expect(mockSaveDraft).toHaveBeenCalledTimes(3);
+    expect(toasts().map(([v]) => v)).toEqual(['warning']);
+    warn.mockRestore();
+  });
+
+  it('a stale revision is not shown to the user and not retried', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    mockSaveDraft.mockRejectedValue(stale({ code: 'DRAFT_STALE', currentRevision: 9 }));
+    stop = startDraftAutosave(() => 'f.csv');
+    useTasStore.setState({ tasView: 'review', uploadToken: 'tok', stateRevision: 4 });
+    await vi.advanceTimersByTimeAsync(10 * DRAFT_SAVE_RETRY_MS);
+    expect(mockSaveDraft).toHaveBeenCalledTimes(1);
+    expect(toasts()).toEqual([]);
+    warn.mockRestore();
+  });
+
+  it('stopping autosave cancels a pending retry', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    mockSaveDraft.mockRejectedValue(new Error('network'));
+    stop = startDraftAutosave(() => 'f.csv');
+    useTasStore.setState({ tasView: 'review', uploadToken: 'tok' });
+    await vi.advanceTimersByTimeAsync(DRAFT_SAVE_DEBOUNCE_MS);
+    stop();
+    stop = null;
+    await vi.advanceTimersByTimeAsync(10 * DRAFT_SAVE_RETRY_MS);
+    expect(mockSaveDraft).toHaveBeenCalledTimes(1);
+    warn.mockRestore();
+  });
+
+  it('a discard ends the failure run: the next session warns again', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    mockSaveDraft.mockRejectedValueOnce(new Error('network'));
+    stop = startDraftAutosave(() => 'f.csv');
+    useTasStore.setState({ tasView: 'review', uploadToken: 'tok' });
+    await vi.advanceTimersByTimeAsync(DRAFT_SAVE_DEBOUNCE_MS);
+    await discardDraftSession();
+
+    mockSaveDraft.mockRejectedValueOnce(new Error('network'));
+    useTasStore.setState({ tasView: 'review', uploadToken: 'tok2' });
+    await vi.advanceTimersByTimeAsync(DRAFT_SAVE_DEBOUNCE_MS);
+    expect(toasts().filter(([v]) => v === 'warning')).toHaveLength(2);
     warn.mockRestore();
   });
 

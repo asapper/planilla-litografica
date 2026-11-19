@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Fixes
+- **A failed autosave is no longer silent.** If the session can't be saved (the backend is unreachable, the disk is full), a warning says so and asks not to close the app, the save is retried every 15 s on its own (also when the user has walked away and makes no further edit), and a notice confirms when saving works again. Before, the failure only went to the developer console, and work left idle could be lost without warning.
+
+### Tests
+- **Walking away is covered end to end.** A new test runs the real app: upload, save the draft as the app does, a day idle, an eviction pass and a backend restart, then "Revisar" must still work. A second case shows an unsaved session is dropped, and planting 1.2.2's eviction rule fails the first. 1.2.2 dropped every upload 30 minutes after it was made, which lost a reviewed session in production.
+
 ## v1.3.2 — 2026-11-18
 
 ### Fixes

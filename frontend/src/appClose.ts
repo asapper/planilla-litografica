@@ -7,20 +7,29 @@ import { saveDraftNow } from './tasDraft';
 export const APP_CLOSE_EVENT = 'app-close-requested';
 export const APP_CLOSE_BLOCKED_EVENT = 'app-close-blocked';
 export const CLOSE_BLOCKED_MESSAGE = 'Hay un envío en curso. Espere a que termine para cerrar la aplicación.';
+export const CLOSE_UNSAVED_MESSAGE =
+  'No se pudo guardar el avance. Si vuelve a cerrar la aplicación en los próximos 30 segundos, se cerrará sin guardar.';
+export const CLOSE_ANYWAY_WINDOW_MS = 30_000;
+
+// After a refused close, a second close within the window goes ahead: the user was told what is lost.
+let closeAnywayUntil = 0;
 
 function showCloseBlocked() {
   useToastStore.getState().showToast(CLOSE_BLOCKED_MESSAGE, 'error');
 }
 
-// Closing mid-submission would cut the payroll batch off half-sent: refuse, otherwise save.
+// Closing mid-submission would cut the payroll batch off half-sent: refuse, otherwise save; if the
+// save fails, refuse once so the user isn't told "no cierre" while the app closes anyway.
 export async function prepareToClose(): Promise<boolean> {
   const view = useTasStore.getState().tasView;
   if (view === 'submitting' || view === 'polling') {
     showCloseBlocked();
     return false;
   }
-  await saveDraftNow();
-  return true;
+  if (await saveDraftNow() || Date.now() < closeAnywayUntil) return true;
+  closeAnywayUntil = Date.now() + CLOSE_ANYWAY_WINDOW_MS;
+  useToastStore.getState().showToast(CLOSE_UNSAVED_MESSAGE, 'error');
+  return false;
 }
 
 // The desktop shell hides the window and waits for the answer (or ~2 s), then stops the backend
