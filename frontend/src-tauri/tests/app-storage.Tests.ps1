@@ -17,7 +17,8 @@ function Show-Diagnostics {
     Get-CimInstance Win32_Process | Where-Object { $_.Name -match 'planilla|cargador|msedgewebview2|java' } |
         ForEach-Object {
             $cmd = ("$($_.CommandLine)" -replace '\s+', ' ')
-            Write-Host ("{0} {1} {2}" -f $_.ProcessId, $_.Name, $cmd.Substring(0, [Math]::Min(400, $cmd.Length)))
+            if ($cmd -match '--type=') { $cmd = $cmd.Substring(0, [Math]::Min(160, $cmd.Length)) }
+            Write-Host ("{0} {1} {2}" -f $_.ProcessId, $_.Name, $cmd)
         }
     netstat -ano | Select-String 'LISTENING' | Select-String '127.0.0.1|0.0.0.0' | ForEach-Object { Write-Host $_ }
     Write-Host '---'
@@ -50,9 +51,15 @@ function Stop-Leftovers {
     Start-Sleep -Seconds 2
 }
 
+# The app passes its own WebView2 arguments, which override the environment variable; the WebView2
+# policy for one executable overrides them instead. Set on this build agent only, never shipped.
+$policy = 'HKCU:\Software\Policies\Microsoft\Edge\WebView2\AdditionalBrowserArguments'
+
 function Start-App {
-    $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = '--remote-debugging-port=9222'
-    $p = Start-Process -FilePath (App-Exe) -PassThru
+    $exe = App-Exe
+    New-Item -Path $policy -Force | Out-Null
+    New-ItemProperty -Path $policy -Name (Split-Path $exe -Leaf) -Value '--remote-debugging-port=9222' -PropertyType String -Force | Out-Null
+    $p = Start-Process -FilePath $exe -PassThru
     $deadline = (Get-Date).AddSeconds(90)
     while ((Get-Date) -lt $deadline) {
         if (Test-NetConnection -ComputerName 127.0.0.1 -Port 9222 -InformationLevel Quiet -WarningAction SilentlyContinue) { return $p }
@@ -116,5 +123,5 @@ try {
     Close-App $app
 } finally {
     Stop-Leftovers
-    Remove-Item Env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS -ErrorAction SilentlyContinue
+    Remove-Item -Path $policy -Recurse -Force -ErrorAction SilentlyContinue
 }
