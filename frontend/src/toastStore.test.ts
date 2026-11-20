@@ -1,8 +1,12 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { useToastStore, readingTimeMs, MIN_TOAST_MS, TOAST_MS_PER_WORD } from './toastStore';
 
 beforeEach(() => {
   useToastStore.setState({ toasts: [] });
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 describe('toastStore', () => {
@@ -98,7 +102,6 @@ describe('toastStore', () => {
     vi.advanceTimersByTime(1_000);
     showToast('Other');
     expect(useToastStore.getState().toasts.map(t => t.message)).toEqual(['Stays', 'Refusal', 'Other']);
-    vi.useRealTimers();
   });
 
   it('always shows the newest toast, even when every older one must stay', () => {

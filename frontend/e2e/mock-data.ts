@@ -71,7 +71,7 @@ export const FLAGGED_MISSING_ENTRY: TasSession = {
   matchedShiftId: 'shift-1', matchedShiftName: 'Mañana',
   assignedShiftId: 'shift-1', assignedShiftName: 'Mañana',
   effectiveStart: null, lastScan: '2026-06-03T13:45:00',
-  workedMinutes: 0, workedHours: 0, needsResolution: true,
+  workedMinutes: 0, workedHours: 0, crossMidnight: false, needsResolution: true,
   flags: ['MISSING_ENTRY'],
 };
 
@@ -81,7 +81,7 @@ export const FLAGGED_MISSING_EXIT: TasSession = {
   matchedShiftId: 'shift-1', matchedShiftName: 'Mañana',
   assignedShiftId: 'shift-1', assignedShiftName: 'Mañana',
   effectiveStart: '2026-06-04T06:02:00', lastScan: null,
-  workedMinutes: 0, workedHours: 0, needsResolution: true,
+  workedMinutes: 0, workedHours: 0, crossMidnight: false, needsResolution: true,
   flags: ['MISSING_EXIT'],
 };
 
@@ -91,7 +91,7 @@ export const FLAGGED_SHIFT_MISMATCH: TasSession = {
   matchedShiftId: 'shift-1', matchedShiftName: 'Mañana',
   assignedShiftId: 'shift-2', assignedShiftName: 'Tarde',
   effectiveStart: '2026-06-05T06:05:00', lastScan: '2026-06-05T14:10:00',
-  workedMinutes: 480, workedHours: 8, needsResolution: true,
+  workedMinutes: 480, workedHours: 8, crossMidnight: false, needsResolution: true,
   flags: ['SHIFT_MISMATCH'],
 };
 
@@ -101,7 +101,7 @@ export const FLAGGED_SAME_DAY_DOUBLE_A: TasSession = {
   matchedShiftId: 'shift-1', matchedShiftName: 'Mañana',
   assignedShiftId: 'shift-2', assignedShiftName: 'Tarde',
   effectiveStart: '2026-06-06T06:00:00', lastScan: '2026-06-06T10:00:00',
-  workedMinutes: 240, workedHours: 4, needsResolution: true,
+  workedMinutes: 240, workedHours: 4, crossMidnight: false, needsResolution: true,
   flags: ['SAME_DAY_DOUBLE'],
 };
 
@@ -111,7 +111,7 @@ export const FLAGGED_SAME_DAY_DOUBLE_B: TasSession = {
   matchedShiftId: 'shift-2', matchedShiftName: 'Tarde',
   assignedShiftId: 'shift-2', assignedShiftName: 'Tarde',
   effectiveStart: '2026-06-06T14:00:00', lastScan: '2026-06-06T22:00:00',
-  workedMinutes: 480, workedHours: 8, needsResolution: true,
+  workedMinutes: 480, workedHours: 8, crossMidnight: false, needsResolution: true,
   flags: ['SAME_DAY_DOUBLE'],
 };
 
@@ -121,7 +121,7 @@ export const FLAGGED_SHORT_DAY: TasSession = {
   matchedShiftId: 'shift-1', matchedShiftName: 'Mañana',
   assignedShiftId: 'shift-1', assignedShiftName: 'Mañana',
   effectiveStart: '2026-06-07T06:00:00', lastScan: '2026-06-07T10:30:00',
-  workedMinutes: 270, workedHours: 4.5, needsResolution: false,
+  workedMinutes: 270, workedHours: 4.5, crossMidnight: false, needsResolution: false,
   flags: ['SHORT_DAY'],
 };
 
@@ -141,7 +141,7 @@ export const FLAGGED_BEST_FIT: TasSession = {
   matchedShiftId: 'shift-1', matchedShiftName: 'Mañana',
   assignedShiftId: 'shift-1', assignedShiftName: 'Mañana',
   effectiveStart: '2026-06-08T10:15:00', lastScan: '2026-06-08T18:20:00',
-  workedMinutes: 480, workedHours: 8, needsResolution: false,
+  workedMinutes: 480, workedHours: 8, crossMidnight: false, needsResolution: false,
   flags: ['BEST_FIT_SHIFT'],
 };
 
@@ -186,6 +186,7 @@ export const SESSION_SUMMARIES: Record<string, SessionSummary[]> = {
 
 export const UPLOAD_RESULT_WITH_INACTIVE: TasUploadResult = {
   uploadToken: 'mock-token-001',
+  stateRevision: 1,
   flaggedSessions: ALL_FLAGGED_SESSIONS,
   inactiveEmployeesFound: INACTIVE_EMPLOYEES,
   absentActiveEmployees: ABSENT_EMPLOYEES,
@@ -198,6 +199,7 @@ export const UPLOAD_RESULT_WITH_INACTIVE: TasUploadResult = {
 
 export const UPLOAD_RESULT_WITH_FLAGS: TasUploadResult = {
   uploadToken: 'mock-token-002',
+  stateRevision: 1,
   flaggedSessions: ALL_FLAGGED_SESSIONS,
   resolvedRows: RESOLVED_ROWS,
   inactiveEmployeesFound: [],
@@ -211,6 +213,7 @@ export const UPLOAD_RESULT_WITH_FLAGS: TasUploadResult = {
 
 export const RESOLVE_RESULT_TO_REVIEW: TasResolveResult = {
   uploadToken: 'mock-token-003',
+  stateRevision: 1,
   resolvedRows: RESOLVED_ROWS,
   flaggedSessions: ALL_FLAGGED_SESSIONS.map(s => ({ ...s, needsResolution: false })),
   usedFallbackHolidays: false,

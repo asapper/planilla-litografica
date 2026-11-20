@@ -15,7 +15,6 @@ export const DRAFT_SAVE_FAILED_MESSAGE =
   'No se pudo guardar el avance. Se reintentará automáticamente; mientras tanto, no cierre la aplicación.';
 export const DRAFT_SAVE_RECOVERED_MESSAGE = 'El avance se guardó nuevamente.';
 
-
 const SAVABLE_VIEWS: ReadonlySet<TasView> = new Set<TasView>(['inactiveReview', 'verification', 'review']);
 
 export const PERSISTED_KEYS = [
