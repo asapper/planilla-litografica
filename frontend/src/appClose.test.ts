@@ -130,6 +130,11 @@ describe('prepareToClose', () => {
         .toEqual([['error', CLOSE_UNSAVED_MESSAGE]]);
     });
 
+    it('keeps the refusal up for as long as a second close goes ahead', async () => {
+      await prepareToClose();
+      expect(useToastStore.getState().toasts[0].durationMs).toBe(CLOSE_ANYWAY_WINDOW_MS);
+    });
+
     it('lets a second close within the window go ahead', async () => {
       await prepareToClose();
       now += CLOSE_ANYWAY_WINDOW_MS - 1;

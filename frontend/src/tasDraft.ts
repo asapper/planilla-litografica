@@ -117,6 +117,8 @@ let queued = false;
 let queuedState: TasStore | null = null;
 let suspended = false;
 let failing = false;
+// The failure warning stays up while saving fails, and comes down once that run of failures ends.
+let failureToastId: number | null = null;
 let active = false;
 // The state whose save failed, kept so a retry can still send it after the view moved on
 // (review -> submitting). An edit replaces it; going back to idle drops it.
@@ -144,12 +146,18 @@ function schedule() {
 function reportFailure() {
   if (failing) return;
   failing = true;
-  useToastStore.getState().showToast(DRAFT_SAVE_FAILED_MESSAGE, 'warning');
+  failureToastId = useToastStore.getState().showToast(DRAFT_SAVE_FAILED_MESSAGE, 'warning', { durationMs: null });
+}
+
+function dismissFailureToast() {
+  if (failureToastId !== null) useToastStore.getState().dismissToast(failureToastId);
+  failureToastId = null;
 }
 
 function reportSaved() {
   if (!failing) return;
   failing = false;
+  dismissFailureToast();
   useToastStore.getState().showToast(DRAFT_SAVE_RECOVERED_MESSAGE, 'success');
 }
 
@@ -158,6 +166,7 @@ function reportSaved() {
 function endFailureRun() {
   failing = false;
   retryState = null;
+  dismissFailureToast();
 }
 
 function retryLater(failed: TasStore) {

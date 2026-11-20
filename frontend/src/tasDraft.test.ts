@@ -348,7 +348,18 @@ describe('autosave', () => {
     warn.mockRestore();
   });
 
-  const toasts = () => useToastStore.getState().toasts.map(t => [t.variant, t.message]);
+  // Every toast shown, in order, and the ones still on screen: a warning comes down once its run ends.
+  let shownLog: string[][] = [];
+  let unsubscribeToasts: () => void = () => {};
+  beforeEach(() => {
+    shownLog = [];
+    unsubscribeToasts = useToastStore.subscribe((s, prev) => {
+      for (const t of s.toasts) if (!prev.toasts.some(p => p.id === t.id)) shownLog.push([t.variant, t.message]);
+    });
+  });
+  afterEach(() => unsubscribeToasts());
+  const toasts = () => shownLog;
+  const visible = () => useToastStore.getState().toasts.map(t => [t.variant, t.message]);
 
   it('on another failure warns the user once and retries by itself, with no further edit', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
@@ -358,15 +369,18 @@ describe('autosave', () => {
     await vi.advanceTimersByTimeAsync(DRAFT_SAVE_RETRY_MS - 1);
     expect(mockSaveDraft).toHaveBeenCalledTimes(1);
     expect(toasts()).toEqual([['warning', DRAFT_SAVE_FAILED_MESSAGE]]);
+    expect(useToastStore.getState().toasts[0].durationMs).toBeNull();
 
     await vi.advanceTimersByTimeAsync(2 * DRAFT_SAVE_RETRY_MS);
     expect(mockSaveDraft).toHaveBeenCalledTimes(3);
     expect(toasts()).toHaveLength(1);
+    expect(visible()).toEqual([['warning', DRAFT_SAVE_FAILED_MESSAGE]]);
 
     mockSaveDraft.mockResolvedValue(undefined);
     await vi.advanceTimersByTimeAsync(DRAFT_SAVE_RETRY_MS);
     expect(mockSaveDraft).toHaveBeenCalledTimes(4);
     expect(toasts()).toEqual([['warning', DRAFT_SAVE_FAILED_MESSAGE], ['success', DRAFT_SAVE_RECOVERED_MESSAGE]]);
+    expect(visible()).toEqual([['success', DRAFT_SAVE_RECOVERED_MESSAGE]]);
 
     await vi.advanceTimersByTimeAsync(10 * DRAFT_SAVE_RETRY_MS);
     expect(mockSaveDraft).toHaveBeenCalledTimes(4);
@@ -438,9 +452,11 @@ describe('autosave', () => {
     stop = startDraftAutosave(() => 'f.csv');
     useTasStore.setState({ tasView: 'review', uploadToken: 'tok' });
     await vi.advanceTimersByTimeAsync(DRAFT_SAVE_DEBOUNCE_MS);
+    expect(visible()).toEqual([['warning', DRAFT_SAVE_FAILED_MESSAGE]]);
     useTasStore.getState().resetTas();
     await vi.advanceTimersByTimeAsync(10 * DRAFT_SAVE_RETRY_MS);
     expect(mockSaveDraft).toHaveBeenCalledTimes(1);
+    expect(visible()).toEqual([]);
 
     useTasStore.setState({ tasView: 'review', uploadToken: 'tok2' });
     await vi.advanceTimersByTimeAsync(DRAFT_SAVE_DEBOUNCE_MS);

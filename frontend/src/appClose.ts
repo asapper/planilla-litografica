@@ -39,7 +39,8 @@ export async function prepareToClose(): Promise<boolean> {
   }
   if (await saveWithinCloseWait() || Date.now() < closeAnywayUntil) return true;
   closeAnywayUntil = Date.now() + CLOSE_ANYWAY_WINDOW_MS;
-  useToastStore.getState().showToast(CLOSE_UNSAVED_MESSAGE, 'error');
+  // Up for as long as a second close goes ahead, which is as long as what it says holds.
+  useToastStore.getState().showToast(CLOSE_UNSAVED_MESSAGE, 'error', { durationMs: CLOSE_ANYWAY_WINDOW_MS });
   return false;
 }
 
