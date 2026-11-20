@@ -8,6 +8,7 @@ export interface Toast {
   variant: ToastVariant;
   // Milliseconds until it closes by itself; null keeps it up until dismissed.
   durationMs: number | null;
+  shownAt: number;
 }
 
 export interface ToastOptions {
@@ -30,13 +31,17 @@ export function readingTimeMs(message: string): number {
   return Math.max(MIN_TOAST_MS, words * TOAST_MS_PER_WORD);
 }
 
-// Over the limit, the oldest toast that closes by itself goes first, so a warning that has to stay
-// up is not pushed out by later notices.
+const expiresAt = (t: Toast) => (t.durationMs === null ? Infinity : t.shownAt + t.durationMs);
+
+// Over the limit, the newest toast always shows. Of the older ones, the one closest to closing by
+// itself goes first, so the close refusal (30 s) outlives short notices and a warning that stays
+// until dismissed goes only when every older toast is one. Keep such warnings below MAX_TOASTS.
 function trim(toasts: Toast[]): Toast[] {
   const kept = [...toasts];
   while (kept.length > MAX_TOASTS) {
-    const timed = kept.findIndex(t => t.durationMs !== null);
-    kept.splice(timed === -1 ? 0 : timed, 1);
+    const older = kept.slice(0, -1);
+    const soonest = older.reduce((best, t, i) => (expiresAt(t) < expiresAt(older[best]) ? i : best), 0);
+    kept.splice(soonest, 1);
   }
   return kept;
 }
@@ -48,7 +53,7 @@ export const useToastStore = create<ToastStore>(set => ({
   showToast: (message, variant = 'success', options = {}) => {
     const id = nextId++;
     const durationMs = options.durationMs === undefined ? readingTimeMs(message) : options.durationMs;
-    set(s => ({ toasts: trim([...s.toasts, { id, message, variant, durationMs }]) }));
+    set(s => ({ toasts: trim([...s.toasts, { id, message, variant, durationMs, shownAt: Date.now() }]) }));
     return id;
   },
   dismissToast: (id) =>

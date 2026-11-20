@@ -2,6 +2,7 @@ import axios from 'axios';
 import { useTasStore, tasInitialState, type TasStore } from './tasStore';
 import { saveDraft, deleteDraft } from './tasApi';
 import { useToastStore } from './toastStore';
+import { DRAFT_UI_VERSION } from './draftVersion';
 import { clearLocalCopy, saveLocalSnapshot, setLocalCopySubmitted } from './localCopy';
 import { MONTH_NAMES_ES } from './dateNames';
 import type { DraftSummary, DraftView, TasPeriod, TasView } from './tasTypes';
@@ -14,9 +15,6 @@ export const DRAFT_SAVE_FAILED_MESSAGE =
   'No se pudo guardar el avance. Se reintentará automáticamente; mientras tanto, no cierre la aplicación.';
 export const DRAFT_SAVE_RECOVERED_MESSAGE = 'El avance se guardó nuevamente.';
 
-// Bump when the saved shape of TasSnapshot changes (draftShape.test.ts fails until you do):
-// a draft from another version is then offered only to discard, never resumed half-filled.
-export const DRAFT_UI_VERSION = 2;
 
 const SAVABLE_VIEWS: ReadonlySet<TasView> = new Set<TasView>(['inactiveReview', 'verification', 'review']);
 

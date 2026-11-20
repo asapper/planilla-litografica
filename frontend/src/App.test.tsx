@@ -4,7 +4,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, waitFor, act, fireEvent } from '@testing-library/react';
 import { useTasStore } from './tasStore';
 import { useToastStore } from './toastStore';
-import { DRAFT_UI_VERSION } from './tasDraft';
+import { DRAFT_UI_VERSION } from './draftVersion';
 import { loadLocalCopy, startLocalCopy } from './localCopy';
 import type { TasSession } from './tasTypes';
 

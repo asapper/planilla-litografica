@@ -1,5 +1,6 @@
 import { test, type Page } from '@playwright/test';
 import * as mock from './mock-data';
+import { DRAFT_UI_VERSION } from '../src/draftVersion';
 
 const SCREENSHOT_DIR = '../docs/screenshots';
 
@@ -484,14 +485,14 @@ test('19 - backend error', async ({ page }) => {
 
 const DRAFT_SUMMARY = {
   fileName: 'Reporte TAS Junio 2026.csv', view: 'verification', periodLabel: 'Junio 2026 - Quincena 1',
-  savedAt: new Date().toISOString(), partialSubmit: false, resumable: true, uiVersion: 1, jobActive: false,
+  savedAt: new Date().toISOString(), partialSubmit: false, resumable: true, uiVersion: DRAFT_UI_VERSION, jobActive: false,
 };
 
 test('20 - resume an unfinished session', async ({ page }) => {
   await mockHealthEndpoints(page);
   await mockDraftSummary(page, DRAFT_SUMMARY);
   await waitForApp(page);
-  await page.waitForSelector('text=Sesión sin terminar');
+  await page.getByRole('button', { name: 'Continuar' }).waitFor();
   await screenshot(page, '20-resume-draft.png');
 });
 
