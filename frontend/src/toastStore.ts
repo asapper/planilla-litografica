@@ -6,25 +6,51 @@ export interface Toast {
   id: number;
   message: string;
   variant: ToastVariant;
+  // Milliseconds until it closes by itself; null keeps it up until dismissed.
+  durationMs: number | null;
+}
+
+export interface ToastOptions {
+  durationMs?: number | null;
 }
 
 interface ToastStore {
   toasts: Toast[];
-  showToast: (message: string, variant?: ToastVariant) => void;
+  showToast: (message: string, variant?: ToastVariant, options?: ToastOptions) => number;
   dismissToast: (id: number) => void;
 }
 
 const MAX_TOASTS = 3;
+export const MIN_TOAST_MS = 3_000;
+export const TOAST_MS_PER_WORD = 250;
+
+// Long enough to read: short messages get the minimum, longer ones a quarter second per word.
+export function readingTimeMs(message: string): number {
+  const words = message.trim().split(/\s+/).filter(Boolean).length;
+  return Math.max(MIN_TOAST_MS, words * TOAST_MS_PER_WORD);
+}
+
+// Over the limit, the oldest toast that closes by itself goes first, so a warning that has to stay
+// up is not pushed out by later notices.
+function trim(toasts: Toast[]): Toast[] {
+  const kept = [...toasts];
+  while (kept.length > MAX_TOASTS) {
+    const timed = kept.findIndex(t => t.durationMs !== null);
+    kept.splice(timed === -1 ? 0 : timed, 1);
+  }
+  return kept;
+}
 
 let nextId = 1;
 
 export const useToastStore = create<ToastStore>(set => ({
   toasts: [],
-  showToast: (message, variant = 'success') =>
-    set(s => {
-      const updated = [...s.toasts, { id: nextId++, message, variant }];
-      return { toasts: updated.slice(-MAX_TOASTS) };
-    }),
+  showToast: (message, variant = 'success', options = {}) => {
+    const id = nextId++;
+    const durationMs = options.durationMs === undefined ? readingTimeMs(message) : options.durationMs;
+    set(s => ({ toasts: trim([...s.toasts, { id, message, variant, durationMs }]) }));
+    return id;
+  },
   dismissToast: (id) =>
     set(s => ({ toasts: s.toasts.filter(t => t.id !== id) })),
 }));

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { useToastStore } from './toastStore';
+import { useToastStore, readingTimeMs, MIN_TOAST_MS, TOAST_MS_PER_WORD } from './toastStore';
 
 beforeEach(() => {
   useToastStore.setState({ toasts: [] });
@@ -57,5 +57,40 @@ describe('toastStore', () => {
     const remaining = useToastStore.getState().toasts;
     expect(remaining).toHaveLength(1);
     expect(remaining[0].message).toBe('B');
+  });
+
+  it('returns the id of the toast it shows', () => {
+    const id = useToastStore.getState().showToast('A');
+    expect(useToastStore.getState().toasts[0].id).toBe(id);
+  });
+
+  it('gives short messages the minimum time and long ones a quarter second per word', () => {
+    expect(readingTimeMs('Guardado')).toBe(MIN_TOAST_MS);
+    expect(readingTimeMs(Array(12).fill('palabra').join(' '))).toBe(MIN_TOAST_MS);
+    expect(readingTimeMs(Array(30).fill('palabra').join('  '))).toBe(30 * TOAST_MS_PER_WORD);
+    useToastStore.getState().showToast(Array(20).fill('x').join(' '));
+    expect(useToastStore.getState().toasts[0].durationMs).toBe(20 * TOAST_MS_PER_WORD);
+  });
+
+  it('takes an explicit duration, or none to stay up until dismissed', () => {
+    const { showToast } = useToastStore.getState();
+    showToast('A', 'error', { durationMs: 30_000 });
+    showToast('B', 'warning', { durationMs: null });
+    expect(useToastStore.getState().toasts.map(t => t.durationMs)).toEqual([30_000, null]);
+  });
+
+  it('over the limit, drops the oldest toast that closes by itself and keeps one that must stay', () => {
+    const { showToast } = useToastStore.getState();
+    showToast('Stays', 'warning', { durationMs: null });
+    showToast('Second');
+    showToast('Third');
+    showToast('Fourth');
+    expect(useToastStore.getState().toasts.map(t => t.message)).toEqual(['Stays', 'Third', 'Fourth']);
+  });
+
+  it('drops the oldest when every toast must stay', () => {
+    const { showToast } = useToastStore.getState();
+    for (const m of ['1', '2', '3', '4']) showToast(m, 'warning', { durationMs: null });
+    expect(useToastStore.getState().toasts.map(t => t.message)).toEqual(['2', '3', '4']);
   });
 });

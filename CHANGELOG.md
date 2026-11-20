@@ -3,7 +3,9 @@
 ## Unreleased
 
 ### Fixes
-- **A final save that hangs refuses the first close too.** The window waits 2 s for the last save. A save that hung (instead of failing at once) let the app close without the "No se pudo guardar el avance" refusal. The close now counts the save as failed after 1.5 s, refuses once with that message, and a second close within 30 s goes ahead.
+- **A final save that hangs refuses the first close too.** The window waits 2 s for the last save. A save that hung (instead of failing at once) let the app close without the refusal. The close now stops waiting after 1.5 s and refuses once with "No se pudo confirmar que el avance se guardó. Si vuelve a cerrar la aplicación en los próximos 30 segundos, se cerrará de todos modos y podría perder los últimos cambios." (it no longer says the save failed, since it may only be slow), and a second close within 30 s goes ahead.
+
+- **Warnings stay up long enough to read.** Every notice used to close by itself after 3 s, so the close refusal (about 30 words) and the autosave failure warning ("no cierre la aplicación") could be gone before anyone read them. The close refusal now stays for the 30 s in which a second close goes ahead, the autosave failure warning stays until saving works again (or the session is discarded), and every other notice stays for 3 s or a quarter second per word, whichever is longer. A notice that has to stay is never pushed out by newer ones.
 
 ### Tests
 - **The Windows storage check can't pass on a broken match or a stray warning.** At each start it must find the app's WebView2 processes, so "none left after the kill" is meaningful. It reads only Node's standard output, so a warning can't become the value read back. The variant's WebView2 arguments must equal wry's own default (read from the wry source of the version in Cargo.lock) plus the debugging port, and it fails if the shipped window sets `proxyUrl` or `autoplay`, whose arguments the variant would drop. The review screen's auto-expand is tested for two employees with the same dates.
@@ -11,6 +13,7 @@
 ### Maintenance
 - **`npm run lint` is clean after a build.** The generated `coverage/` and `src-tauri/target/` folders are no longer linted. The two remaining hook-dependency warnings are fixed without a behavior change.
 - **CI actions on Node 24.** checkout v7, setup-java v6, setup-node v7, upload-artifact v7, so the Node 20 deprecation notices are gone. Every action is pinned to a commit SHA.
+- **Dependabot keeps the pinned CI actions current.** A weekly check opens a PR when a pinned action has a newer release, security fixes included.
 - **Backend tests use `@MockitoBean`.** The 28 `@MockBean` fields (deprecated and marked for removal) are moved over, so the build has no removal warnings ahead of a Spring Boot upgrade.
 
 ## v1.4.0 — 2026-11-19

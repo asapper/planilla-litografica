@@ -64,6 +64,25 @@ describe('ToastContainer', () => {
     expect(screen.queryByText('Bye')).not.toBeInTheDocument();
   });
 
+  it('keeps a long message up for its reading time', async () => {
+    const long = Array(30).fill('palabra').join(' ');
+    useToastStore.getState().showToast(long, 'error');
+    render(<ToastContainer />);
+    await act(async () => { await vi.advanceTimersByTimeAsync(30 * 250 - 1); });
+    expect(screen.getByText(long)).toBeInTheDocument();
+    await act(async () => { await vi.advanceTimersByTimeAsync(1); });
+    expect(screen.queryByText(long)).not.toBeInTheDocument();
+  });
+
+  it('keeps a toast without a duration up until it is dismissed', async () => {
+    useToastStore.getState().showToast('Stays', 'warning', { durationMs: null });
+    render(<ToastContainer />);
+    await act(async () => { await vi.advanceTimersByTimeAsync(60 * 60_000); });
+    expect(screen.getByText('Stays')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /cerrar/i }));
+    expect(screen.queryByText('Stays')).not.toBeInTheDocument();
+  });
+
   it('dismiss button removes the toast immediately', () => {
     useToastStore.getState().showToast('Dismiss me');
     render(<ToastContainer />);

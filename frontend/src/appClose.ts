@@ -8,7 +8,7 @@ export const APP_CLOSE_EVENT = 'app-close-requested';
 export const APP_CLOSE_BLOCKED_EVENT = 'app-close-blocked';
 export const CLOSE_BLOCKED_MESSAGE = 'Hay un envío en curso. Espere a que termine para cerrar la aplicación.';
 export const CLOSE_UNSAVED_MESSAGE =
-  'No se pudo guardar el avance. Si vuelve a cerrar la aplicación en los próximos 30 segundos, se cerrará sin guardar.';
+  'No se pudo confirmar que el avance se guardó. Si vuelve a cerrar la aplicación en los próximos 30 segundos, se cerrará de todos modos y podría perder los últimos cambios.';
 export const CLOSE_ANYWAY_WINDOW_MS = 30_000;
 // The shell closes anyway when the frontend hasn't answered within FRONTEND_SAVE_WAIT (2 s, lib.rs), so
 // a save that hangs must count as failed before then, or the app closes without the refusal.
@@ -39,7 +39,8 @@ export async function prepareToClose(): Promise<boolean> {
   }
   if (await saveWithinCloseWait() || Date.now() < closeAnywayUntil) return true;
   closeAnywayUntil = Date.now() + CLOSE_ANYWAY_WINDOW_MS;
-  useToastStore.getState().showToast(CLOSE_UNSAVED_MESSAGE, 'error');
+  // Up for as long as a second close goes ahead, which is as long as what it says holds.
+  useToastStore.getState().showToast(CLOSE_UNSAVED_MESSAGE, 'error', { durationMs: CLOSE_ANYWAY_WINDOW_MS });
   return false;
 }
 

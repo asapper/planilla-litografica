@@ -9,13 +9,14 @@ const VARIANT_CLASSES: Record<ToastVariant, string> = {
   info:    'bg-tertiary text-on-tertiary',
 };
 
-function ToastItem({ id, message, variant }: { id: number; message: string; variant: ToastVariant }) {
+function ToastItem({ id, message, variant, durationMs }: { id: number; message: string; variant: ToastVariant; durationMs: number | null }) {
   const dismissToast = useToastStore(s => s.dismissToast);
 
   useEffect(() => {
-    const timer = setTimeout(() => dismissToast(id), 3_000);
+    if (durationMs === null) return;
+    const timer = setTimeout(() => dismissToast(id), durationMs);
     return () => clearTimeout(timer);
-  }, [id, dismissToast]);
+  }, [id, durationMs, dismissToast]);
 
   return (
     <div
@@ -43,7 +44,7 @@ export default function ToastContainer() {
   return (
     <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-2">
       {toasts.map(t => (
-        <ToastItem key={t.id} id={t.id} message={t.message} variant={t.variant} />
+        <ToastItem key={t.id} id={t.id} message={t.message} variant={t.variant} durationMs={t.durationMs} />
       ))}
     </div>
   );
