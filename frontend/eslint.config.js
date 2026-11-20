@@ -23,4 +23,21 @@ export default defineConfig([
       '@typescript-eslint/no-unused-vars': ['error', { ignoreRestSiblings: true }],
     },
   },
+  {
+    files: ['**/*.{js,mjs,cjs}'],
+    extends: [js.configs.recommended],
+    languageOptions: {
+      ecmaVersion: 2023,
+      sourceType: 'module',
+      globals: globals.node,
+    },
+    rules: {
+      'no-unused-vars': ['error', { ignoreRestSiblings: true }],
+    },
+  },
+  {
+    // page.evaluate callbacks run in the app's window.
+    files: ['e2e/**/*.mjs'],
+    languageOptions: { globals: globals.browser },
+  },
 ])
