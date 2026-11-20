@@ -13,6 +13,7 @@
 - **The Windows storage check can't pass on a broken match or a stray warning.** At each start it must find the app's WebView2 processes, so "none left after the kill" is meaningful. It reads only Node's standard output, so a warning can't become the value read back. The variant's WebView2 arguments must equal wry's own default (read from the wry source of the version in Cargo.lock) plus the debugging port, and it fails if the shipped window sets `proxyUrl` or `autoplay`, whose arguments the variant would drop. The review screen's auto-expand is tested for two employees with the same dates.
 
 ### Maintenance
+- **Plain JavaScript files are linted too.** The config files, the PDF script and the Windows CI helpers (`.js`/`.mjs`) were never linted. They now are, with Node globals (plus browser globals for the e2e helper that runs code in the app window).
 - **`npm run lint` is clean after a build.** The generated `coverage/` and `src-tauri/target/` folders are no longer linted. The two remaining hook-dependency warnings are fixed without a behavior change.
 - **CI actions on Node 24.** checkout v7, setup-java v6, setup-node v7, upload-artifact v7, so the Node 20 deprecation notices are gone. Every action is pinned to a commit SHA.
 - **Dependabot keeps the pinned CI actions current.** A weekly check opens a PR when a pinned action has a newer release, security fixes included.
