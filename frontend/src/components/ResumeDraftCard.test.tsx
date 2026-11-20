@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import ResumeDraftCard from './ResumeDraftCard';
 import { formatSavedAt } from '../formatSavedAt';
-import { DRAFT_UI_VERSION } from '../tasDraft';
+import { DRAFT_UI_VERSION } from '../draftVersion';
 
 describe('formatSavedAt', () => {
   const now = new Date(2026, 10, 16, 18, 0);

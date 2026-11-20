@@ -6,8 +6,8 @@ import AlertMessage from './components/ui/AlertMessage';
 import { uploadTasFile, getDraftSummary, resumeDraft, deleteDraft } from './tasApi';
 import {
   applySnapshot, canResume, discardDraftSession, formatPeriodLabel, isDraftView, localSnapshotOf, startDraftAutosave,
-  DRAFT_UI_VERSION,
 } from './tasDraft';
+import { DRAFT_UI_VERSION } from './draftVersion';
 import { clearLocalCopy, dayKeysOf, fileBytes, recoverableLocalCopy, startLocalCopy, type LocalCopy } from './localCopy';
 import { rebuildFromLocalCopy } from './localRecovery';
 import { onAppCloseRequested, prepareToClose } from './appClose';

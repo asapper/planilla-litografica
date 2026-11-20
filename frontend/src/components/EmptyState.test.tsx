@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import EmptyState from './EmptyState';
-import { DRAFT_UI_VERSION } from '../tasDraft';
+import { DRAFT_UI_VERSION } from '../draftVersion';
 import * as isTasFileModule from '../isTasFile';
 
 vi.mock('../isTasFile');

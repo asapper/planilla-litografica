@@ -3,7 +3,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'no
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import ts from 'typescript';
-import { DRAFT_UI_VERSION } from './tasDraft';
+import { DRAFT_UI_VERSION } from './draftVersion';
 
 // A resumed draft is spread into the store as-is, so a changed TasSnapshot type would resume
 // half-filled. This pins the saved shape to DRAFT_UI_VERSION: changing it means bumping the version.
@@ -132,7 +132,7 @@ describe('saved draft shape', () => {
       writeFileSync(written, actual.join('\n') + '\n');
       expect.fail(result === 'grew'
         ? `A literal set grew (actual shape in ${written}). Old drafts still fit: replace draft-shape/ui-shape-v${DRAFT_UI_VERSION}.txt with it, no version bump.`
-        : `The saved draft's shape changed (actual shape in ${written}). Bump DRAFT_UI_VERSION in tasDraft.ts and save ` +
+        : `The saved draft's shape changed (actual shape in ${written}). Bump DRAFT_UI_VERSION in draftVersion.ts and save ` +
           `that file as draft-shape/ui-shape-v${DRAFT_UI_VERSION + 1}.txt; keep the older files.`);
     }
   }, 30_000);

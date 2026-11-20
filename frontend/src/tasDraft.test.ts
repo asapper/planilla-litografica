@@ -4,6 +4,7 @@ import { useTasStore } from './tasStore';
 import { useToastStore } from './toastStore';
 import { loadLocalCopy, recoverableLocalCopy, startLocalCopy } from './localCopy';
 import type { TasSession } from './tasTypes';
+import { DRAFT_UI_VERSION } from './draftVersion';
 
 const mockSaveDraft = vi.hoisted(() => vi.fn());
 const mockDeleteDraft = vi.hoisted(() => vi.fn());
@@ -24,7 +25,6 @@ const {
   DRAFT_SAVE_DEBOUNCE_MS,
   DRAFT_SAVE_MAX_WAIT_MS,
   saveDraftNow,
-  DRAFT_UI_VERSION,
   DRAFT_SAVE_RETRY_MS,
   DRAFT_SAVE_FAILED_MESSAGE,
   DRAFT_SAVE_RECOVERED_MESSAGE,

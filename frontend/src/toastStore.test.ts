@@ -1,8 +1,12 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { useToastStore, readingTimeMs, MIN_TOAST_MS, TOAST_MS_PER_WORD } from './toastStore';
 
 beforeEach(() => {
   useToastStore.setState({ toasts: [] });
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 describe('toastStore', () => {
@@ -79,7 +83,7 @@ describe('toastStore', () => {
     expect(useToastStore.getState().toasts.map(t => t.durationMs)).toEqual([30_000, null]);
   });
 
-  it('over the limit, drops the oldest toast that closes by itself and keeps one that must stay', () => {
+  it('over the limit, drops the older toast closest to closing and keeps one that must stay', () => {
     const { showToast } = useToastStore.getState();
     showToast('Stays', 'warning', { durationMs: null });
     showToast('Second');
@@ -88,9 +92,22 @@ describe('toastStore', () => {
     expect(useToastStore.getState().toasts.map(t => t.message)).toEqual(['Stays', 'Third', 'Fourth']);
   });
 
-  it('drops the oldest when every toast must stay', () => {
+  it('keeps the close refusal over shorter notices that arrive after it', () => {
+    vi.useFakeTimers();
     const { showToast } = useToastStore.getState();
-    for (const m of ['1', '2', '3', '4']) showToast(m, 'warning', { durationMs: null });
-    expect(useToastStore.getState().toasts.map(t => t.message)).toEqual(['2', '3', '4']);
+    showToast('Stays', 'warning', { durationMs: null });
+    showToast('Refusal', 'error', { durationMs: 30_000 });
+    vi.advanceTimersByTime(1_000);
+    showToast('Saved again');
+    vi.advanceTimersByTime(1_000);
+    showToast('Other');
+    expect(useToastStore.getState().toasts.map(t => t.message)).toEqual(['Stays', 'Refusal', 'Other']);
+  });
+
+  it('always shows the newest toast, even when every older one must stay', () => {
+    const { showToast } = useToastStore.getState();
+    for (const m of ['1', '2', '3']) showToast(m, 'warning', { durationMs: null });
+    showToast('New');
+    expect(useToastStore.getState().toasts.map(t => t.message)).toEqual(['2', '3', 'New']);
   });
 });
