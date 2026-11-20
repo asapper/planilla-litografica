@@ -66,7 +66,8 @@ fn await_frontend(answer: &mpsc::Receiver<bool>, timeout: Duration) -> bool {
     }
 }
 
-/// How long the window waits for the frontend to save its draft before closing anyway.
+/// How long the window waits for the frontend to save its draft before closing anyway. The frontend
+/// gives up on a hung save sooner (CLOSE_SAVE_TIMEOUT_MS in appClose.ts) so its refusal arrives in time.
 const FRONTEND_SAVE_WAIT: Duration = Duration::from_secs(2);
 /// How long the backend gets to close H2 and exit after the shutdown request, before kill().
 const BACKEND_EXIT_WAIT: Duration = Duration::from_secs(5);

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useTasStore } from '../../tasStore';
 import { useToastStore } from '../../toastStore';
 import { setAbsentEmployeesActive } from '../../tasApi';
@@ -36,9 +36,7 @@ export default function AbsentReviewOverlay() {
     }
   };
 
-  const handleClose = () => {
-    setTasView('result');
-  };
+  const handleClose = useCallback(() => setTasView('result'), [setTasView]);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -46,7 +44,7 @@ export default function AbsentReviewOverlay() {
     };
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
-  }, []);
+  }, [handleClose]);
 
   return (
     <div

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within, act } from '@testing-library/react';
 import ReviewDetailView from './ReviewDetailView';
 import { useTasStore } from '../../tasStore';
 import { useToastStore } from '../../toastStore';
@@ -261,12 +261,34 @@ describe('ReviewDetailView navigation', () => {
     expect(screen.getByRole('button', { name: /siguiente/i })).toBeDisabled();
   });
 
+  const expanded = () => [...useTasStore.getState().reviewExpandedScans].sort();
+
   it('expands scans for new employee on navigation', () => {
     useTasStore.getState().setReviewSelectedEmployee('E3');
     render(<ReviewDetailView onBack={onBack} />);
     fireEvent.click(screen.getByRole('button', { name: /siguiente/i }));
     expect(useTasStore.getState().reviewSelectedEmployee).toBe('E2');
-    expect(useTasStore.getState().reviewExpandedScans.size).toBeGreaterThan(0);
+    expect(expanded()).toEqual(['E2-2026-06-02', 'E2-2026-06-03']);
+  });
+
+  it('replaces the expanded scans when the next employee has the same dates', () => {
+    render(<ReviewDetailView onBack={onBack} />);
+    expect(expanded()).toEqual(['E1-2026-06-02', 'E1-2026-06-03']);
+    act(() => useTasStore.getState().toggleReviewScanExpanded('E1-2026-06-02'));
+    expect(expanded()).toEqual(['E1-2026-06-03']);
+
+    act(() => useTasStore.getState().setReviewSelectedEmployee('E2'));
+    expect(expanded()).toEqual(['E2-2026-06-02', 'E2-2026-06-03']);
+  });
+
+  it('leaves the expanded scans as they were for an employee with no sessions', () => {
+    useTasStore.getState().setReviewSelectedEmployee('E2');
+    render(<ReviewDetailView onBack={onBack} />);
+    expect(expanded()).toEqual(['E2-2026-06-02', 'E2-2026-06-03']);
+
+    act(() => useTasStore.getState().setReviewSelectedEmployee('E3'));
+    expect(useTasStore.getState().reviewSelectedEmployee).toBe('E3');
+    expect(expanded()).toEqual(['E2-2026-06-02', 'E2-2026-06-03']);
   });
 });
 
