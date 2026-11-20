@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v1.4.1 — 2026-11-19
 
 ### Fixes
 - **A final save that hangs refuses the first close too.** The window waits 2 s for the last save. A save that hung (instead of failing at once) let the app close without the refusal. The close now stops waiting after 1.5 s and refuses once with "No se pudo confirmar que el avance se guardó. Si vuelve a cerrar la aplicación en los próximos 30 segundos, se cerrará de todos modos y podría perder los últimos cambios." (it no longer says the save failed, since it may only be slow), and a second close within 30 s goes ahead.
