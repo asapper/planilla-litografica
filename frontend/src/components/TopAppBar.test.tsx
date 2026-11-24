@@ -3,6 +3,7 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import TopAppBar from './TopAppBar';
 import type { AppView } from '../types';
 import type { TasView } from '../tasTypes';
+import pkg from '../../package.json';
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn(),
 }));
@@ -18,6 +19,7 @@ describe('TopAppBar', () => {
   it('renders the app title', () => {
     render(<TopAppBar currentView="tas" onViewChange={noop} tasView="idle" onNewUpload={vi.fn()} onDiscardSession={onDiscardSession} />);
     expect(screen.getByText('Cargador de Planilla')).toBeInTheDocument();
+    expect(screen.getByText(`Versión ${pkg.version}`)).toBeInTheDocument();
   });
 
   it('renders the Configuración button', () => {

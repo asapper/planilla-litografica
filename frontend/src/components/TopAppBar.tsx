@@ -57,6 +57,7 @@ export default function TopAppBar({ currentView, onViewChange, tasView, onNewUpl
         </div>
         <div>
           <p className="text-title-md text-white font-medium leading-tight">Cargador de Planilla</p>
+          <p className="text-label-sm text-white/70 leading-tight">Versión {__APP_VERSION__}</p>
         </div>
       </div>
 
