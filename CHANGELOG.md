@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.5.0 — 2026-11-24
+
+### Features
+- **The review can be printed to check the numbers by hand before sending.** "Imprimir…" next to "Enviar" offers **Resumen** (the default, 1–2 pages) or **Resumen y detalle por empleado**, each with an approximate page count. The summary has one line per employee, ordered by code: días no laborados, extras simples, extras dobles and a note when something is unusual ("Ajustado", "No acumula extras", "turno est.", "⚠ No cuadra"). After it come the totals, the duplicates left out, the active employees with no punches in the file and a sign-off line. The detail lists every day of the fortnight per employee: shift, entrada/salida, punches, hours worked, simples and dobles. Days not worked appear on their date as "No laboró", and "Suma de los días" equals the total sent; when a manual adjustment or "Acumula extras" changes it, the page says why. The printout always covers everyone being sent, with the manual adjustments applied, whatever filter or search is on screen. It is black on white for photocopying: zeros faded, the figures that matter in bold, a heavier rule every five rows, and page X of Y.
+- **The dates behind "días no laborados".** Each row now carries the dates it counts as not worked, not just their number, so the count can be checked day by day.
+- **A double scan discarded in verification is marked as such.** It prints as "descartada (doble jornada)" and does not count as a day worked.
+- The saved session's format changed (backend version 2, screen version 3): a 1.4.1 session can be discarded but not resumed by this version.
+
 ## v1.4.1 — 2026-11-19
 
 ### Fixes
