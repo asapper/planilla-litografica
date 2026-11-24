@@ -240,3 +240,86 @@ body {
   outline-offset: -2px;
   border-radius: 4px;
 }
+/* ─── Printable review report ───────────────────────────────────────────────
+   Black on white only: it is read on paper, often photocopied, and checked
+   with a pen. Zeros fade so the figures that matter stand out the way a
+   highlighter would; a heavier rule every five rows keeps the eye on its line. */
+.print-report { display: none; }
+
+@page {
+  size: letter portrait;
+  margin: 14mm 12mm 16mm;
+  @bottom-right {
+    content: "Página " counter(page) " de " counter(pages);
+    font: 8pt system-ui, sans-serif;
+    color: #555;
+  }
+}
+
+@media print {
+  html, body { background: #fff !important; height: auto !important; overflow: visible !important; }
+  body:has(> .print-report) > *:not(.print-report) { display: none !important; }
+  .print-report { display: block; }
+}
+
+.print-report {
+  color: #000;
+  font: 9pt/1.35 system-ui, "Segoe UI", Roboto, sans-serif;
+  font-variant-numeric: tabular-nums;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+.print-report h1 { font-size: 15pt; font-weight: 700; margin: 0; }
+.print-report h2 { font-size: 11pt; font-weight: 700; margin: 0 0 2mm; }
+.print-report p { margin: 0; }
+
+.pr-header { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2px solid #000; padding-bottom: 2mm; margin-bottom: 3mm; }
+.pr-period { font-size: 11pt; margin-top: 1mm !important; }
+.pr-meta { text-align: right; font-size: 8.5pt; color: #333; }
+.pr-callout { border: 1.5px solid #000; padding: 2mm 3mm; margin-bottom: 3mm; font-weight: 600; }
+.pr-callout p + p { margin-top: 1mm; }
+.pr-legend { font-size: 8pt; color: #444; margin-bottom: 3mm !important; }
+
+.pr-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.pr-table th { text-align: left; font-size: 7.5pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.02em; line-height: 1.15; border-bottom: 1.5px solid #000; padding: 1mm 1.5mm; vertical-align: bottom; }
+.pr-table td { padding: 0.75mm 1.5mm; border-bottom: 0.5px solid #bbb; vertical-align: top; overflow-wrap: anywhere; }
+.pr-table thead { display: table-header-group; }
+.pr-table tr { break-inside: avoid; }
+.pr-table .pr-num { text-align: right; }
+.pr-table td.pr-num { white-space: nowrap; }
+/* A footer that repeats on every page would print the grand total under page 1. */
+.pr-table tfoot { display: table-row-group; }
+.pr-table tfoot td { border-top: 1.5px solid #000; border-bottom: none; font-weight: 700; }
+
+.pr-summary td { font-size: 8.5pt; padding-top: 0.2mm; padding-bottom: 0.2mm; }
+.pr-summary tbody tr:nth-child(even) td { background: #f1f1f1; }
+.pr-summary tbody tr:nth-child(5n) td { border-bottom: 1px solid #000; }
+.pr-zero { color: #999; }
+.pr-nonzero { font-weight: 700; }
+.pr-note { font-size: 8pt; }
+
+.pr-excluded { margin-top: 4mm; font-size: 8.5pt; }
+.pr-tail { break-inside: avoid; break-before: avoid; }
+.pr-signoff { display: flex; justify-content: space-between; margin-top: 10mm; font-size: 9pt; }
+
+.pr-detail { break-before: page; }
+.pr-detail-title { font-size: 13pt !important; border-bottom: 2px solid #000; padding-bottom: 1.5mm; margin-bottom: 4mm !important; }
+.pr-employee { break-inside: avoid; margin-bottom: 5mm; }
+.pr-employee-head { display: flex; justify-content: space-between; align-items: center; background: #e6e6e6; border-top: 2px solid #000; padding: 1.5mm 2mm; }
+.pr-code { font-weight: 700; font-size: 11pt; margin-right: 3mm; }
+.pr-name { font-weight: 700; font-size: 10.5pt; }
+.pr-sends { display: flex; gap: 5mm; margin: 0; }
+.pr-sends div { text-align: right; }
+.pr-sends dt { font-size: 7pt; text-transform: uppercase; color: #333; }
+.pr-sends dd { margin: 0; font-weight: 700; font-size: 10.5pt; }
+.pr-days td { font-size: 8.5pt; padding-top: 0.35mm; padding-bottom: 0.35mm; }
+.pr-table td.pr-clock { white-space: nowrap; }
+.pr-scans { color: #333; font-size: 8pt !important; }
+.pr-flag { display: block; font-size: 7pt; font-style: italic; color: #333; }
+.pr-absent-row td { background: #f1f1f1; }
+.pr-absent { font-weight: 700; letter-spacing: 0.01em; }
+.pr-discarded-row td { color: #666; font-style: italic; }
+.pr-empty { text-align: center; font-style: italic; color: #555; }
+.pr-reconcile { list-style: none; margin: 1.5mm 0 0; padding: 0; font-size: 8.5pt; }
+.pr-reconcile li + li { margin-top: 0.6mm; }
+.pr-warn { font-weight: 700; }

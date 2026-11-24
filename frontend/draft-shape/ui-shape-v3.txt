@@ -1,0 +1,85 @@
+$.absentEmployees[].active?: boolean | undefined
+$.absentEmployees[].employeeId: string
+$.absentEmployees[].name: string
+$.availablePeriods[].anio: number
+$.availablePeriods[].mes: number
+$.availablePeriods[].numeroDequincena: number
+$.availableShifts[].crossMidnight?: boolean | undefined
+$.availableShifts[].endTime: string
+$.availableShifts[].id: string
+$.availableShifts[].name: string
+$.availableShifts[].startTime: string
+$.cardInputs{number}.entry: string
+$.cardInputs{number}.exit: string
+$.cardInputs{number}.swapped: boolean
+$.fallbackBannerDismissed: boolean
+$.flaggedSessions[].assignedShiftId: null | string
+$.flaggedSessions[].assignedShiftName: null | string
+$.flaggedSessions[].crossMidnight: boolean
+$.flaggedSessions[].date: string
+$.flaggedSessions[].effectiveStart: null | string
+$.flaggedSessions[].employeeId: string
+$.flaggedSessions[].employeeName: string
+$.flaggedSessions[].flags[] literals: "BEST_FIT_SHIFT", "END_CUTOFF", "MISSING_ENTRY", "MISSING_EXIT", "SAME_DAY_DOUBLE", "SHIFT_MISMATCH", "SHORT_DAY", "START_CUTOFF"
+$.flaggedSessions[].flags[]: string
+$.flaggedSessions[].lastScan: null | string
+$.flaggedSessions[].matchedShiftId: null | string
+$.flaggedSessions[].matchedShiftName: null | string
+$.flaggedSessions[].needsResolution: boolean
+$.flaggedSessions[].scans[]: string
+$.flaggedSessions[].sessionId: number
+$.flaggedSessions[].workedHours: number
+$.flaggedSessions[].workedMinutes: number
+$.inactiveDecisions{string} literals: "ignore", "reactivate"
+$.inactiveDecisions{string}: string
+$.inactiveEmployees[].employeeId: string
+$.inactiveEmployees[].name: string
+$.inactiveEmployees[].sessionCount: number
+$.nonWorkedDaysOverrides{string}: number
+$.overtimeOverrides{string}.horasExtrasDobles?: number | undefined
+$.overtimeOverrides{string}.horasExtrasSimples?: number | undefined
+$.resolvedRowCount: number
+$.resolvedRows[].accruesOvertime: boolean
+$.resolvedRows[].anio: number
+$.resolvedRows[].codigoEmpleado: string
+$.resolvedRows[].diasNoLaborados: number
+$.resolvedRows[].diasTurnoEstimado: number
+$.resolvedRows[].fechasNoLaboradas[]: string
+$.resolvedRows[].horasExtrasDobles: number
+$.resolvedRows[].horasExtrasSimples: number
+$.resolvedRows[].mes: number
+$.resolvedRows[].nombreEmpleado: string
+$.resolvedRows[].numeroDequincena: null | number
+$.resolvedSessions{number}.endDayOffset? literals: 0, 1
+$.resolvedSessions{number}.endDayOffset?: number | undefined
+$.resolvedSessions{number}.resolvedEnd: string
+$.resolvedSessions{number}.resolvedStart: string
+$.resolvedSessions{number}.startDayOffset? literals: -1, 0
+$.resolvedSessions{number}.startDayOffset?: number | undefined
+$.sameDayDoubleResolutions{string} literals: "all"
+$.sameDayDoubleResolutions{string}: number | string
+$.selectedPeriod.anio: number
+$.selectedPeriod.mes: number
+$.selectedPeriod.numeroDequincena: number
+$.selectedPeriod: null | object
+$.sessionSummaries{string}[].breakDeductionMinutes?: number | undefined
+$.sessionSummaries{string}[].date: string
+$.sessionSummaries{string}[].discarded?: boolean | undefined
+$.sessionSummaries{string}[].doblesMinutes: number
+$.sessionSummaries{string}[].entryTime: null | string
+$.sessionSummaries{string}[].estimatedShift?: boolean | undefined
+$.sessionSummaries{string}[].exitTime: null | string
+$.sessionSummaries{string}[].scans[]: string
+$.sessionSummaries{string}[].shiftName: null | string
+$.sessionSummaries{string}[].simplesMinutes: number
+$.sessionSummaries{string}[].workedHours: number
+$.shiftAcceptances{number}: string
+$.stashedNonWorkedDaysOverrides{string}: number
+$.stashedOvertimeOverrides{string}.horasExtrasDobles?: number | undefined
+$.stashedOvertimeOverrides{string}.horasExtrasSimples?: number | undefined
+$.stateRevision: number
+$.tasView literals: "absentReview", "idle", "inactiveReview", "polling", "processing", "result", "review", "submitting", "verification"
+$.tasView: string
+$.uploadToken: null | string
+$.usedFallbackHolidays: boolean
+$.warnings[]: string

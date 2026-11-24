@@ -20,7 +20,7 @@ public class TasDraftService {
 
     private static final Logger log = LoggerFactory.getLogger(TasDraftService.class);
 
-    public static final int SCHEMA_VERSION = 1;
+    public static final int SCHEMA_VERSION = 2;
 
     public record Draft(
             String uploadToken,

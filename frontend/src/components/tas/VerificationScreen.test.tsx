@@ -45,8 +45,8 @@ const mockResult: TasResolveResult = {
   uploadToken: 'tok-2',
   stateRevision: 5,
   resolvedRows: [
-    { codigoEmpleado: 'E1', nombreEmpleado: 'Ana', diasNoLaborados: 0, horasExtrasSimples: 0, horasExtrasDobles: 0, mes: 3, anio: 2026, numeroDequincena: 1, diasTurnoEstimado: 0, accruesOvertime: true },
-    { codigoEmpleado: 'E2', nombreEmpleado: 'Luis', diasNoLaborados: 0, horasExtrasSimples: 0, horasExtrasDobles: 0, mes: 3, anio: 2026, numeroDequincena: 1, diasTurnoEstimado: 0, accruesOvertime: true },
+    { codigoEmpleado: 'E1', nombreEmpleado: 'Ana', diasNoLaborados: 0, fechasNoLaboradas: [], horasExtrasSimples: 0, horasExtrasDobles: 0, mes: 3, anio: 2026, numeroDequincena: 1, diasTurnoEstimado: 0, accruesOvertime: true },
+    { codigoEmpleado: 'E2', nombreEmpleado: 'Luis', diasNoLaborados: 0, fechasNoLaboradas: [], horasExtrasSimples: 0, horasExtrasDobles: 0, mes: 3, anio: 2026, numeroDequincena: 1, diasTurnoEstimado: 0, accruesOvertime: true },
   ],
   flaggedSessions: [],
   usedFallbackHolidays: false,

@@ -14,9 +14,9 @@ const mockUpdateAccruesOvertime = vi.mocked(configApi.updateAccruesOvertime);
 const mockRecomputeTas = vi.mocked(tasApi.recomputeTas);
 
 const rows: ResolvedRow[] = [
-  { codigoEmpleado: 'E1', nombreEmpleado: 'Ana López', diasNoLaborados: 0, horasExtrasSimples: 2, horasExtrasDobles: 0, mes: 6, anio: 2026, numeroDequincena: 1, diasTurnoEstimado: 0, accruesOvertime: true },
-  { codigoEmpleado: 'E2', nombreEmpleado: 'Luis García', diasNoLaborados: 1, horasExtrasSimples: 0, horasExtrasDobles: 1, mes: 6, anio: 2026, numeroDequincena: 1, diasTurnoEstimado: 2, accruesOvertime: true },
-  { codigoEmpleado: 'E3', nombreEmpleado: 'Carlos Pérez', diasNoLaborados: 0, horasExtrasSimples: 1, horasExtrasDobles: 0, mes: 6, anio: 2026, numeroDequincena: 1, diasTurnoEstimado: 0, accruesOvertime: true },
+  { codigoEmpleado: 'E1', nombreEmpleado: 'Ana López', diasNoLaborados: 0, fechasNoLaboradas: [], horasExtrasSimples: 2, horasExtrasDobles: 0, mes: 6, anio: 2026, numeroDequincena: 1, diasTurnoEstimado: 0, accruesOvertime: true },
+  { codigoEmpleado: 'E2', nombreEmpleado: 'Luis García', diasNoLaborados: 1, fechasNoLaboradas: ['2026-06-08'], horasExtrasSimples: 0, horasExtrasDobles: 1, mes: 6, anio: 2026, numeroDequincena: 1, diasTurnoEstimado: 2, accruesOvertime: true },
+  { codigoEmpleado: 'E3', nombreEmpleado: 'Carlos Pérez', diasNoLaborados: 0, fechasNoLaboradas: [], horasExtrasSimples: 1, horasExtrasDobles: 0, mes: 6, anio: 2026, numeroDequincena: 1, diasTurnoEstimado: 0, accruesOvertime: true },
 ];
 
 const summaries: Record<string, SessionSummary[]> = {

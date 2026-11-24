@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
-import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
+import { StrictMode } from 'react';
+import { render, screen, fireEvent, waitFor, act, within } from '@testing-library/react';
 import { AxiosError } from 'axios';
 import ReviewScreen from './ReviewScreen';
 import { useTasStore } from '../../tasStore';
@@ -19,8 +20,8 @@ const mockCheckDuplicates = vi.mocked(tasApi.checkDuplicates);
 const mockGetIncompletePeriods = vi.mocked(tasApi.getIncompletePeriods);
 
 const rows: ResolvedRow[] = [
-  { codigoEmpleado: 'E1', nombreEmpleado: 'Ana López', diasNoLaborados: 0, horasExtrasSimples: 2, horasExtrasDobles: 0, mes: 3, anio: 2026, numeroDequincena: 1, diasTurnoEstimado: 0, accruesOvertime: true },
-  { codigoEmpleado: 'E2', nombreEmpleado: 'Luis García', diasNoLaborados: 1, horasExtrasSimples: 0, horasExtrasDobles: 1, mes: 3, anio: 2026, numeroDequincena: 1, diasTurnoEstimado: 0, accruesOvertime: true },
+  { codigoEmpleado: 'E1', nombreEmpleado: 'Ana López', diasNoLaborados: 0, fechasNoLaboradas: [], horasExtrasSimples: 2, horasExtrasDobles: 0, mes: 3, anio: 2026, numeroDequincena: 1, diasTurnoEstimado: 0, accruesOvertime: true },
+  { codigoEmpleado: 'E2', nombreEmpleado: 'Luis García', diasNoLaborados: 1, fechasNoLaboradas: ['2026-03-08'], horasExtrasSimples: 0, horasExtrasDobles: 1, mes: 3, anio: 2026, numeroDequincena: 1, diasTurnoEstimado: 0, accruesOvertime: true },
 ];
 
 const sessionSummaries: Record<string, SessionSummary[]> = {
@@ -483,5 +484,139 @@ describe('ReviewScreen incomplete quincena', () => {
     unmount();
     await act(async () => { reject(new Error('late')); });
     expect(useToastStore.getState().toasts).toHaveLength(0);
+  });
+});
+
+describe('ReviewScreen printing', () => {
+  const printRows: ResolvedRow[] = [
+    { ...rows[0], mes: 6 },
+    { ...rows[1], mes: 6, fechasNoLaboradas: ['2026-06-03'] },
+  ];
+
+  async function renderWithRows(duplicates: string[] = []) {
+    mockCheckDuplicates.mockResolvedValue(duplicates);
+    useTasStore.getState().setUploadToken('tok-1');
+    useTasStore.getState().setResolvedRows(printRows);
+    useTasStore.getState().setSessionSummaries(sessionSummaries);
+    render(<ReviewScreen />);
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Imprimir…' })).not.toBeDisabled());
+  }
+
+  afterEach(() => { vi.restoreAllMocks(); });
+
+  it('prints the chosen report with the manual adjustments, then removes it', async () => {
+    const print = vi.spyOn(window, 'print').mockImplementation(() => {
+      expect(screen.getByTestId('print-report')).toBeInTheDocument();
+    });
+    await renderWithRows();
+    useTasStore.getState().setOvertimeOverride('E1', 'horasExtrasSimples', 3);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Imprimir…' }));
+    expect(screen.getByText(/Incluye 2 empleados a enviar/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('radio', { name: /^Resumen y detalle/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Imprimir' }));
+
+    expect(print).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    const report = screen.getByTestId('print-report');
+    expect(within(report).getByRole('region', { name: 'Detalle E1 Ana López' })).toBeInTheDocument();
+    expect(within(report).getByText('Total · 2 empleados').parentElement).toHaveTextContent('3.00');
+
+    act(() => { window.dispatchEvent(new Event('afterprint')); });
+    expect(screen.queryByTestId('print-report')).not.toBeInTheDocument();
+  });
+
+  it('leaves duplicates out of the count and the report', async () => {
+    vi.spyOn(window, 'print').mockImplementation(() => {});
+    await renderWithRows(['E2']);
+    fireEvent.click(screen.getByRole('button', { name: 'Imprimir…' }));
+    expect(screen.getByText(/Incluye 1 empleado a enviar/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Imprimir' }));
+    const report = screen.getByTestId('print-report');
+    expect(within(report).getByText('1 a enviar · 1 excluido')).toBeInTheDocument();
+    expect(within(report).queryByText('Detalle por empleado')).not.toBeInTheDocument();
+  });
+
+  it('closes the dialog without printing on Cancelar', async () => {
+    const print = vi.spyOn(window, 'print').mockImplementation(() => {});
+    await renderWithRows();
+    fireEvent.click(screen.getByRole('button', { name: 'Imprimir…' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(print).not.toHaveBeenCalled();
+  });
+
+  it('prints the same employees and figures that submit sends', async () => {
+    vi.spyOn(window, 'print').mockImplementation(() => {});
+    mockSubmitTas.mockResolvedValue({ jobId: 'job-1' });
+    const three: ResolvedRow[] = [
+      { ...printRows[0], codigoEmpleado: 'E1', horasExtrasSimples: 0.5 },
+      { ...printRows[1], codigoEmpleado: 'E2', accruesOvertime: false, horasExtrasDobles: 0 },
+      { ...printRows[0], codigoEmpleado: 'E3', nombreEmpleado: 'Dup' },
+    ];
+    mockCheckDuplicates.mockResolvedValue(['E3']);
+    useTasStore.getState().setUploadToken('tok-1');
+    useTasStore.getState().setResolvedRows(three);
+    useTasStore.getState().setSessionSummaries(sessionSummaries);
+    useTasStore.setState({
+      overtimeOverrides: { E1: { horasExtrasSimples: 4 }, E2: { horasExtrasSimples: 9 }, E3: { horasExtrasSimples: 7 } },
+      nonWorkedDaysOverrides: { E3: 5 },
+    });
+    render(<ReviewScreen />);
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Imprimir…' })).not.toBeDisabled());
+
+    fireEvent.click(screen.getByRole('button', { name: 'Imprimir…' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Imprimir' }));
+    const summary = within(screen.getByTestId('print-report')).getAllByRole('table')[0];
+    expect(within(summary).getAllByRole('row').slice(1).map(r => r.textContent)).toEqual([
+      'E1Ana López04.000.00Ajustado',
+      'E2Luis García10.000.00No acumula extras',
+      'Total · 2 empleados14.000.00',
+    ]);
+
+    fireEvent.click(screen.getByRole('button', { name: /^enviar$/i }));
+    // E3 is a duplicate on both sides; E2's override reaches the backend, which drops it because E2 does not accrue.
+    await waitFor(() => expect(mockSubmitTas).toHaveBeenCalledWith(
+      'tok-1', { E1: { horasExtrasSimples: 4 }, E2: { horasExtrasSimples: 9 } }, {}));
+  });
+
+  it('opens the print dialog once under StrictMode', async () => {
+    const print = vi.spyOn(window, 'print').mockImplementation(() => {});
+    mockCheckDuplicates.mockResolvedValue([]);
+    useTasStore.getState().setUploadToken('tok-1');
+    useTasStore.getState().setResolvedRows(printRows);
+    render(<StrictMode><ReviewScreen /></StrictMode>);
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Imprimir…' })).not.toBeDisabled());
+    fireEvent.click(screen.getByRole('button', { name: 'Imprimir…' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Imprimir' }));
+    expect(print).toHaveBeenCalledTimes(1);
+  });
+
+  it('cannot print until the fortnight coverage is known, then warns if it could not be checked', async () => {
+    vi.spyOn(window, 'print').mockImplementation(() => {});
+    let reject!: (e: Error) => void;
+    mockGetIncompletePeriods.mockReturnValue(new Promise((_, r) => { reject = r; }));
+    useTasStore.getState().setUploadToken('tok-1');
+    useTasStore.getState().setResolvedRows(printRows);
+    render(<ReviewScreen />);
+    await waitFor(() => expect(mockCheckDuplicates).toHaveBeenCalled());
+    await act(async () => {});
+    expect(screen.getByRole('button', { name: 'Imprimir…' })).toBeDisabled();
+
+    await act(async () => { reject(new Error('down')); });
+    fireEvent.click(screen.getByRole('button', { name: 'Imprimir…' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Imprimir' }));
+    expect(within(screen.getByTestId('print-report')).getByText(/No se pudo verificar que el archivo cubra/)).toBeInTheDocument();
+  });
+
+  it('cannot print while duplicates are still being checked, nor with nothing to send', async () => {
+    let resolve!: (v: string[]) => void;
+    mockCheckDuplicates.mockReturnValue(new Promise(r => { resolve = r; }));
+    useTasStore.getState().setUploadToken('tok-1');
+    useTasStore.getState().setResolvedRows(printRows);
+    render(<ReviewScreen />);
+    expect(screen.getByRole('button', { name: 'Imprimir…' })).toBeDisabled();
+    await act(async () => { resolve(['E1', 'E2']); });
+    expect(screen.getByRole('button', { name: 'Imprimir…' })).toBeDisabled();
   });
 });

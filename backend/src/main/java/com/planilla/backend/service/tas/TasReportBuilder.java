@@ -106,14 +106,15 @@ public class TasReportBuilder {
                 double simplesHours = hours[0];
                 double doblesHours  = hours[1];
 
-                int nonWorkedDays = countNonWorkedDays(periodStart(period), periodEnd(period), workedDays);
+                List<LocalDate> nonWorkedDates = nonWorkedDates(periodStart(period), periodEnd(period), workedDays);
 
                 EmployeeRow row = new EmployeeRow();
                 row.setCodigoEmpleado(empId);
                 row.setNombreEmpleado(empName);
                 row.setHorasExtrasSimples(simplesHours);
                 row.setHorasExtrasDobles(doblesHours);
-                row.setDiasNoLaborados(nonWorkedDays);
+                row.setDiasNoLaborados(nonWorkedDates.size());
+                row.setFechasNoLaboradas(nonWorkedDates);
                 row.setMes(period.mes());
                 row.setAnio(period.anio());
                 row.setNumeroDequincena(period.numeroDequincena());
@@ -212,16 +213,14 @@ public class TasReportBuilder {
         return d.getDayOfWeek() != DayOfWeek.SUNDAY && !holidayService.isHoliday(d);
     }
 
-    private int countNonWorkedDays(LocalDate start, LocalDate end, Set<LocalDate> workedDays) {
-        int count = 0;
-        LocalDate d = start;
-        while (!d.isAfter(end)) {
+    private List<LocalDate> nonWorkedDates(LocalDate start, LocalDate end, Set<LocalDate> workedDays) {
+        List<LocalDate> dates = new ArrayList<>();
+        for (LocalDate d = start; !d.isAfter(end); d = d.plusDays(1)) {
             if (isWorkingDay(d) && !workedDays.contains(d)) {
-                count++;
+                dates.add(d);
             }
-            d = d.plusDays(1);
         }
-        return count;
+        return dates;
     }
 
     private Map<String, String> buildEmployeeNamesMap(List<TasSession> sessions) {

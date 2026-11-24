@@ -399,7 +399,16 @@ Cada empleado tiene un interruptor que indica si acumula horas extras. Si está 
 
 ##### Barra inferior
 
-En la parte inferior de la pantalla verá el conteo de registros que se enviarán (por ejemplo, "4 registros a enviar (1 excluidos)") y el botón **"Enviar"**.
+En la parte inferior de la pantalla verá el conteo de registros que se enviarán (por ejemplo, "4 registros a enviar (1 excluidos)"), el botón **"Imprimir…"** y el botón **"Enviar"**.
+
+##### Imprimir el reporte
+
+Antes de enviar puede imprimir lo que se va a enviar para revisarlo a mano. Presione **"Imprimir…"** y elija:
+
+- **Resumen** (opción por defecto, 1 o 2 páginas): una línea por empleado, ordenada por código, con días no laborados, extras simples, extras dobles y observaciones ("Ajustado", "No acumula extras", "turno est."). Al final van los totales, los empleados excluidos por duplicado, los empleados activos sin marcaciones en el archivo y una línea para firma de revisión.
+- **Resumen y detalle por empleado** (unas 2 páginas por cada 4 empleados): agrega, por empleado, cada día de la quincena con turno, entrada, salida, marcaciones, horas trabajadas, extras simples y dobles. Los días no laborados aparecen en su fecha como **"No laboró"**, y la fila **"Suma de los días"** da el total que se envía; si un ajuste manual o el interruptor "Acumula extras" lo cambia, debajo se explica.
+
+El reporte siempre incluye a todos los empleados que se van a enviar, con los ajustes manuales aplicados, aunque en pantalla haya un filtro o una búsqueda activos. El botón queda deshabilitado mientras la aplicación verifica duplicados y la cobertura de la quincena.
 
 #### Vista de detalle
 

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import axios from 'axios';
 import { useTasStore } from '../../tasStore';
 import { submitTas, checkDuplicates, getIncompletePeriods } from '../../tasApi';
@@ -7,6 +8,9 @@ import { useToastStore } from '../../toastStore';
 import ReviewListView from './ReviewListView';
 import ReviewDetailView from './ReviewDetailView';
 import ConfirmModal from '../ui/ConfirmModal';
+import PrintDialog from './PrintDialog';
+import PrintReport from './PrintReport';
+import { buildReport, type PrintMode, type Report } from './reviewReport';
 import { incompleteConfirmText } from './coverageText';
 import type { IncompletePeriod } from '../../tasTypes';
 
@@ -23,6 +27,11 @@ export default function ReviewScreen() {
   const setDuplicatesLoading = useTasStore(s => s.setDuplicatesLoading);
   const reviewSelectedEmployee = useTasStore(s => s.reviewSelectedEmployee);
   const setReviewSelectedEmployee = useTasStore(s => s.setReviewSelectedEmployee);
+  const resolvedRows = useTasStore(s => s.resolvedRows);
+  const sessionSummaries = useTasStore(s => s.sessionSummaries);
+  const selectedPeriod = useTasStore(s => s.selectedPeriod);
+  const usedFallbackHolidays = useTasStore(s => s.usedFallbackHolidays);
+  const absentEmployees = useTasStore(s => s.absentEmployees);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTop = 0; }, []);
@@ -30,6 +39,14 @@ export default function ReviewScreen() {
   const [dbHealthy, setDbHealthy] = useState<boolean | null>(null);
   const [coverage, setCoverage] = useState<IncompletePeriod[] | 'failed' | null>(null);
   const [confirmIncomplete, setConfirmIncomplete] = useState(false);
+  const [printDialogOpen, setPrintDialogOpen] = useState(false);
+  const [printJob, setPrintJob] = useState<{ mode: PrintMode; generatedAt: Date; report: Report } | null>(null);
+
+  useEffect(() => {
+    const done = () => setPrintJob(null);
+    window.addEventListener('afterprint', done);
+    return () => window.removeEventListener('afterprint', done);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -95,6 +112,17 @@ export default function ReviewScreen() {
   const incompletePeriods = Array.isArray(coverage) ? coverage : [];
   const coverageLoading = uploadToken !== null && coverage === null;
 
+  const printableReport = printDialogOpen
+    ? buildReport({ rows: resolvedRows, sessionSummaries, overtimeOverrides, nonWorkedDaysOverrides, duplicateCodes, absentEmployees })
+    : null;
+
+  // Printed from the click, not an effect: StrictMode re-runs effects and would open the dialog twice.
+  const handlePrint = (mode: PrintMode, report: Report) => {
+    setPrintDialogOpen(false);
+    flushSync(() => setPrintJob({ mode, generatedAt: new Date(), report }));
+    window.print();
+  };
+
   const requestSubmit = () => {
     if (coverage === 'failed' || incompletePeriods.length > 0) setConfirmIncomplete(true);
     else handleSubmit();
@@ -109,11 +137,30 @@ export default function ReviewScreen() {
             coverageLoading={coverageLoading}
             incompletePeriods={incompletePeriods}
             onSubmit={requestSubmit}
+            onPrint={() => setPrintDialogOpen(true)}
           />
         ) : (
           <ReviewDetailView onBack={() => setReviewSelectedEmployee(null)} />
         )}
       </div>
+      {printableReport && (
+        <PrintDialog
+          employeeCount={printableReport.employees.length}
+          onCancel={() => setPrintDialogOpen(false)}
+          onPrint={mode => handlePrint(mode, printableReport)}
+        />
+      )}
+      {printJob && (
+        <PrintReport
+          report={printJob.report}
+          mode={printJob.mode}
+          period={selectedPeriod}
+          generatedAt={printJob.generatedAt}
+          incompletePeriods={incompletePeriods}
+          coverageUnverified={coverage === 'failed'}
+          usedFallbackHolidays={usedFallbackHolidays}
+        />
+      )}
       {confirmIncomplete && (
         <ConfirmModal
           title={coverage === 'failed' ? 'Quincena sin verificar' : 'Quincena incompleta'}
