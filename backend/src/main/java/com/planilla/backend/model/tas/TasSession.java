@@ -24,6 +24,7 @@ public class TasSession {
     private int doblesMinutes;
     private int breakDeductionMinutes;
     private boolean needsResolution;
+    private boolean discarded;
     private String sessionAnchor;
     private List<TasFlag> flags;
 
@@ -86,6 +87,8 @@ public class TasSession {
     public void setBreakDeductionMinutes(int breakDeductionMinutes) { this.breakDeductionMinutes = breakDeductionMinutes; }
 
     public boolean isNeedsResolution() { return needsResolution; }
+    public boolean isDiscarded() { return discarded; }
+    public void setDiscarded(boolean discarded) { this.discarded = discarded; }
     public void setNeedsResolution(boolean needsResolution) { this.needsResolution = needsResolution; }
 
     public String getSessionAnchor() { return sessionAnchor; }

@@ -423,6 +423,29 @@ class TasReportBuilderTest {
         assertThat(row.getDiasNoLaborados()).isEqualTo(3);
     }
 
+    @Test
+    void build_listsTheDatesItCountsAsNotWorked_inOrder_skippingSundaysAndHolidays() {
+        LocalDate holiday = LocalDate.of(2026, 11, 11);
+        when(holidayService.isHoliday(holiday)).thenReturn(true);
+        Set<LocalDate> absent = Set.of(LocalDate.of(2026, 11, 10), LocalDate.of(2026, 11, 4), holiday);
+        List<TasSession> sessions = new ArrayList<>();
+        for (LocalDate d = LocalDate.of(2026, 11, 1); !d.isAfter(LocalDate.of(2026, 11, 15)); d = d.plusDays(1)) {
+            if (d.getDayOfWeek() != java.time.DayOfWeek.SUNDAY && !absent.contains(d)) {
+                sessions.add(resolvedSession("100", d, 0, 0));
+            }
+        }
+
+        EmployeeRow row = builder.build(sessions, LocalDate.of(2026, 11, 1), LocalDate.of(2026, 11, 15), shifts,
+                new TasPeriod(2026, 11, 1)).rows.get(0);
+
+        assertThat(row.getFechasNoLaboradas())
+                .containsExactly(LocalDate.of(2026, 11, 4), LocalDate.of(2026, 11, 10))
+                .hasSize(row.getDiasNoLaborados());
+        assertThat(new EmployeeRow(row).getFechasNoLaboradas()).isEqualTo(row.getFechasNoLaboradas());
+        row.setFechasNoLaboradas(null);
+        assertThat(row.getFechasNoLaboradas()).isEmpty();
+    }
+
     private TasSession nightFromTheFifteenth(String empId) {
         TasSession night = resolvedSession(empId, LocalDate.of(2026, 1, 15), 60, 0);
         night.setEmployeeName("Ana");

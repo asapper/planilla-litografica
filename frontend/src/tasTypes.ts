@@ -48,6 +48,7 @@ export interface ResolvedRow {
   codigoEmpleado: string
   nombreEmpleado: string
   diasNoLaborados: number
+  fechasNoLaboradas: string[]
   horasExtrasSimples: number
   horasExtrasDobles: number
   mes: number
@@ -68,6 +69,7 @@ export interface SessionSummary {
   scans: string[]
   estimatedShift?: boolean
   breakDeductionMinutes?: number
+  discarded?: boolean
 }
 
 export interface TasUploadResult {

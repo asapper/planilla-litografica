@@ -13,9 +13,9 @@ const mockUpdateAccruesOvertime = vi.mocked(configApi.updateAccruesOvertime);
 const mockRecomputeTas = vi.mocked(tasApi.recomputeTas);
 
 const rows: ResolvedRow[] = [
-  { codigoEmpleado: 'E1', nombreEmpleado: 'Ana López', diasNoLaborados: 0, horasExtrasSimples: 2, horasExtrasDobles: 0, mes: 6, anio: 2026, numeroDequincena: 1, diasTurnoEstimado: 0, accruesOvertime: true },
-  { codigoEmpleado: 'E2', nombreEmpleado: 'Luis García', diasNoLaborados: 1, horasExtrasSimples: 0, horasExtrasDobles: 1, mes: 6, anio: 2026, numeroDequincena: 1, diasTurnoEstimado: 2, accruesOvertime: true },
-  { codigoEmpleado: 'E3', nombreEmpleado: 'Carlos Pérez', diasNoLaborados: 0, horasExtrasSimples: 1, horasExtrasDobles: 0, mes: 6, anio: 2026, numeroDequincena: 1, diasTurnoEstimado: 0, accruesOvertime: true },
+  { codigoEmpleado: 'E1', nombreEmpleado: 'Ana López', diasNoLaborados: 0, fechasNoLaboradas: [], horasExtrasSimples: 2, horasExtrasDobles: 0, mes: 6, anio: 2026, numeroDequincena: 1, diasTurnoEstimado: 0, accruesOvertime: true },
+  { codigoEmpleado: 'E2', nombreEmpleado: 'Luis García', diasNoLaborados: 1, fechasNoLaboradas: ['2026-06-08'], horasExtrasSimples: 0, horasExtrasDobles: 1, mes: 6, anio: 2026, numeroDequincena: 1, diasTurnoEstimado: 2, accruesOvertime: true },
+  { codigoEmpleado: 'E3', nombreEmpleado: 'Carlos Pérez', diasNoLaborados: 0, fechasNoLaboradas: [], horasExtrasSimples: 1, horasExtrasDobles: 0, mes: 6, anio: 2026, numeroDequincena: 1, diasTurnoEstimado: 0, accruesOvertime: true },
 ];
 
 beforeEach(() => {
@@ -27,32 +27,32 @@ beforeEach(() => {
 
 describe('ReviewListView rendering', () => {
   it('renders employee rows', () => {
-    render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} />);
+    render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} onPrint={vi.fn()} />);
     expect(screen.getByText('Ana López')).toBeInTheDocument();
     expect(screen.getByText('Luis García')).toBeInTheDocument();
     expect(screen.getByText('Carlos Pérez')).toBeInTheDocument();
   });
 
   it('renders filter chips with counts', () => {
-    render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} />);
+    render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} onPrint={vi.fn()} />);
     expect(screen.getByText('Todos')).toBeInTheDocument();
     expect(screen.getByText('Turno estimado')).toBeInTheDocument();
   });
 
   it('renders search input', () => {
-    render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} />);
+    render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} onPrint={vi.fn()} />);
     expect(screen.getByLabelText(/buscar empleado/i)).toBeInTheDocument();
   });
 
   it('renders Enviar button', () => {
-    render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} />);
+    render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} onPrint={vi.fn()} />);
     expect(screen.getByRole('button', { name: /enviar/i })).toBeInTheDocument();
   });
 });
 
 describe('ReviewListView filter chips', () => {
   it('filters to estimated-shift employees when chip clicked', () => {
-    render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} />);
+    render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} onPrint={vi.fn()} />);
     fireEvent.click(screen.getByText('Turno estimado'));
     expect(screen.getByText('Luis García')).toBeInTheDocument();
     expect(screen.queryByText('Ana López')).not.toBeInTheDocument();
@@ -60,7 +60,7 @@ describe('ReviewListView filter chips', () => {
 
   it('returns to all employees when Todos chip clicked', () => {
     useTasStore.getState().setReviewActiveFilter('estimated');
-    render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} />);
+    render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} onPrint={vi.fn()} />);
     fireEvent.click(screen.getByText('Todos'));
     expect(screen.getByText('Ana López')).toBeInTheDocument();
     expect(screen.getByText('Luis García')).toBeInTheDocument();
@@ -69,7 +69,7 @@ describe('ReviewListView filter chips', () => {
 
 describe('ReviewListView sorting', () => {
   it('sorts by name ascending by default', () => {
-    render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} />);
+    render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} onPrint={vi.fn()} />);
     const rows = screen.getAllByRole('row').filter(row => row.querySelector('td'));
     const cells = rows.map(row => row.querySelector('td')?.textContent);
     expect(cells[0]).toContain('Ana López');
@@ -78,7 +78,7 @@ describe('ReviewListView sorting', () => {
   });
 
   it('toggles sort direction on header click', () => {
-    render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} />);
+    render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} onPrint={vi.fn()} />);
     fireEvent.click(screen.getByText('Empleado'));
     const rows = screen.getAllByRole('row').filter(row => row.querySelector('td'));
     const cells = rows.map(row => row.querySelector('td')?.textContent);
@@ -88,7 +88,7 @@ describe('ReviewListView sorting', () => {
 
 describe('ReviewListView row click', () => {
   it('sets selected employee on row click', () => {
-    render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} />);
+    render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} onPrint={vi.fn()} />);
     fireEvent.click(screen.getByText('Ana López'));
     expect(useTasStore.getState().reviewSelectedEmployee).toBe('E1');
   });
@@ -96,18 +96,18 @@ describe('ReviewListView row click', () => {
 
 describe('ReviewListView días no laborados editing', () => {
   it('renders editable días no laborados input', () => {
-    render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} />);
+    render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} onPrint={vi.fn()} />);
     expect(screen.getByLabelText('Días no laborados Ana López')).toBeInTheDocument();
   });
 
   it('pre-populates input with computed value', () => {
-    render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} />);
+    render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} onPrint={vi.fn()} />);
     const input = screen.getByLabelText('Días no laborados Ana López') as HTMLInputElement;
     expect(input.value).toBe('0');
   });
 
   it('updates store when días no laborados input changes', () => {
-    render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} />);
+    render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} onPrint={vi.fn()} />);
     const input = screen.getByLabelText('Días no laborados Ana López') as HTMLInputElement;
     fireEvent.change(input, { target: { value: '3' } });
     expect(useTasStore.getState().nonWorkedDaysOverrides['E1']).toBe(3);
@@ -115,19 +115,19 @@ describe('ReviewListView días no laborados editing', () => {
 
   it('shows override annotation when días no laborados overridden', () => {
     useTasStore.getState().setNonWorkedDaysOverride('E1', 3);
-    render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} />);
+    render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} onPrint={vi.fn()} />);
     expect(screen.getByText(/era 0/)).toBeInTheDocument();
   });
 
   it('uses override value in input when set', () => {
     useTasStore.getState().setNonWorkedDaysOverride('E1', 5);
-    render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} />);
+    render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} onPrint={vi.fn()} />);
     const input = screen.getByLabelText('Días no laborados Ana López') as HTMLInputElement;
     expect(input.value).toBe('5');
   });
 
   it('does not navigate when clicking días no laborados input', () => {
-    render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} />);
+    render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} onPrint={vi.fn()} />);
     const input = screen.getByLabelText('Días no laborados Ana López');
     fireEvent.click(input);
     expect(useTasStore.getState().reviewSelectedEmployee).toBeNull();
@@ -136,13 +136,13 @@ describe('ReviewListView días no laborados editing', () => {
 
 describe('ReviewListView overtime editing', () => {
   it('renders editable overtime inputs', () => {
-    render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} />);
+    render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} onPrint={vi.fn()} />);
     expect(screen.getByLabelText('Extras simples Ana López')).toBeInTheDocument();
     expect(screen.getByLabelText('Extras dobles Ana López')).toBeInTheDocument();
   });
 
   it('updates store when overtime input changes', () => {
-    render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} />);
+    render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} onPrint={vi.fn()} />);
     const input = screen.getByLabelText('Extras simples Ana López') as HTMLInputElement;
     fireEvent.change(input, { target: { value: '5' } });
     expect(useTasStore.getState().overtimeOverrides['E1']?.horasExtrasSimples).toBe(5);
@@ -150,12 +150,12 @@ describe('ReviewListView overtime editing', () => {
 
   it('shows override annotation for adjusted employees', () => {
     useTasStore.getState().setOvertimeOverride('E1', 'horasExtrasSimples', 5);
-    render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} />);
+    render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} onPrint={vi.fn()} />);
     expect(screen.getByText(/era 2/)).toBeInTheDocument();
   });
 
   it('does not navigate when clicking overtime input', () => {
-    render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} />);
+    render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} onPrint={vi.fn()} />);
     const input = screen.getByLabelText('Extras simples Ana López');
     fireEvent.click(input);
     expect(useTasStore.getState().reviewSelectedEmployee).toBeNull();
@@ -163,13 +163,13 @@ describe('ReviewListView overtime editing', () => {
 
   it('disables overtime inputs when employee does not accrue overtime', () => {
     useTasStore.getState().setResolvedRows([{ ...rows[0], accruesOvertime: false }]);
-    render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} />);
+    render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} onPrint={vi.fn()} />);
     expect(screen.getByLabelText('Extras simples Ana López')).toBeDisabled();
     expect(screen.getByLabelText('Extras dobles Ana López')).toBeDisabled();
   });
 
   it('keeps overtime inputs enabled when employee accrues overtime', () => {
-    render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} />);
+    render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} onPrint={vi.fn()} />);
     expect(screen.getByLabelText('Extras simples Ana López')).toBeEnabled();
     expect(screen.getByLabelText('Extras dobles Ana López')).toBeEnabled();
   });
@@ -178,14 +178,14 @@ describe('ReviewListView overtime editing', () => {
 describe('ReviewListView adjusted chip and badge', () => {
   it('counts overtime-only override in adjusted chip', () => {
     useTasStore.getState().setOvertimeOverride('E1', 'horasExtrasSimples', 5);
-    render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} />);
+    render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} onPrint={vi.fn()} />);
     const chip = screen.getByText('Ajustados').closest('button')!;
     expect(chip.textContent).toContain('1');
   });
 
   it('counts diasNoLaborados-only override in adjusted chip', () => {
     useTasStore.getState().setNonWorkedDaysOverride('E2', 3);
-    render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} />);
+    render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} onPrint={vi.fn()} />);
     const chip = screen.getByText('Ajustados').closest('button')!;
     expect(chip.textContent).toContain('1');
   });
@@ -193,14 +193,14 @@ describe('ReviewListView adjusted chip and badge', () => {
   it('counts employee with both override types only once in adjusted chip', () => {
     useTasStore.getState().setOvertimeOverride('E1', 'horasExtrasSimples', 5);
     useTasStore.getState().setNonWorkedDaysOverride('E1', 3);
-    render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} />);
+    render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} onPrint={vi.fn()} />);
     const chip = screen.getByText('Ajustados').closest('button')!;
     expect(chip.textContent).toContain('1');
   });
 
   it('shows ajustado badge when only diasNoLaborados is overridden', () => {
     useTasStore.getState().setNonWorkedDaysOverride('E1', 3);
-    render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} />);
+    render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} onPrint={vi.fn()} />);
     const badges = screen.getAllByText(/ajustado/i);
     expect(badges.some(el => el.tagName === 'SPAN')).toBe(true);
   });
@@ -208,7 +208,7 @@ describe('ReviewListView adjusted chip and badge', () => {
   it('adjusted filter includes rows with diasNoLaborados-only override', () => {
     useTasStore.getState().setNonWorkedDaysOverride('E2', 3);
     useTasStore.getState().setReviewActiveFilter('adjusted');
-    render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} />);
+    render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} onPrint={vi.fn()} />);
     expect(screen.getByText('Luis García')).toBeInTheDocument();
     expect(screen.queryByText('Ana López')).not.toBeInTheDocument();
   });
@@ -217,7 +217,7 @@ describe('ReviewListView adjusted chip and badge', () => {
 describe('ReviewListView duplicates', () => {
   it('dims duplicate rows', () => {
     useTasStore.getState().setDuplicateCodes(['E1']);
-    render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} />);
+    render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} onPrint={vi.fn()} />);
     const row = screen.getByText('Ana López').closest('tr')!;
     expect(row).toHaveClass('opacity-50');
   });
@@ -225,13 +225,13 @@ describe('ReviewListView duplicates', () => {
 
 describe('ReviewListView submit', () => {
   it('disables button when DB is unhealthy', () => {
-    render(<ReviewListView dbHealthy={false} onSubmit={vi.fn()} />);
+    render(<ReviewListView dbHealthy={false} onSubmit={vi.fn()} onPrint={vi.fn()} />);
     expect(screen.getByRole('button', { name: /enviar/i })).toBeDisabled();
   });
 
   it('calls onSubmit when Enviar is clicked', () => {
     const onSubmit = vi.fn();
-    render(<ReviewListView dbHealthy={true} onSubmit={onSubmit} />);
+    render(<ReviewListView dbHealthy={true} onSubmit={onSubmit} onPrint={vi.fn()} />);
     fireEvent.click(screen.getByRole('button', { name: /enviar/i }));
     expect(onSubmit).toHaveBeenCalled();
   });
@@ -241,7 +241,7 @@ describe('ReviewListView submit', () => {
       { anio: 2026, mes: 7, numeroDequincena: 1 },
       { anio: 2026, mes: 7, numeroDequincena: 2 },
     ]);
-    render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} />);
+    render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} onPrint={vi.fn()} />);
     expect(screen.getByText('Cambiar quincena')).toBeInTheDocument();
   });
 
@@ -249,7 +249,7 @@ describe('ReviewListView submit', () => {
     useTasStore.getState().setAvailablePeriods([
       { anio: 2026, mes: 7, numeroDequincena: 1 },
     ]);
-    render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} />);
+    render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} onPrint={vi.fn()} />);
     expect(screen.queryByText('Cambiar quincena')).not.toBeInTheDocument();
   });
 
@@ -258,7 +258,7 @@ describe('ReviewListView submit', () => {
       { anio: 2026, mes: 7, numeroDequincena: 1 },
       { anio: 2026, mes: 7, numeroDequincena: 2 },
     ]);
-    render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} />);
+    render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} onPrint={vi.fn()} />);
     fireEvent.click(screen.getByText('Cambiar quincena'));
     expect(useTasStore.getState().tasView).toBe('verification');
   });
@@ -273,7 +273,7 @@ describe('ReviewListView accruesOvertime toggle', () => {
     const newRows = [{ ...rows[0], accruesOvertime: false, horasExtrasSimples: 0, horasExtrasDobles: 0 }, rows[1], rows[2]];
     mockRecomputeTas.mockResolvedValue({ uploadToken: 'tok-1', stateRevision: 6, resolvedRows: newRows, sessionSummaries: {} });
 
-    render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} />);
+    render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} onPrint={vi.fn()} />);
     fireEvent.click(screen.getByLabelText(/desactivar acumulado Ana López/i));
 
     await waitFor(() => {
@@ -286,7 +286,7 @@ describe('ReviewListView accruesOvertime toggle', () => {
 
 describe('ReviewListView incomplete quincena banner', () => {
   it('renders no banner by default', () => {
-    render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} />);
+    render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} onPrint={vi.fn()} />);
     expect(screen.queryByText(/quincena incompleta/i)).not.toBeInTheDocument();
   });
 
@@ -294,7 +294,7 @@ describe('ReviewListView incomplete quincena banner', () => {
     render(
       <ReviewListView
         dbHealthy={true}
-        onSubmit={vi.fn()}
+        onSubmit={vi.fn()} onPrint={vi.fn()}
         incompletePeriods={[
           { anio: 2026, mes: 9, numeroDequincena: 2, periodStart: '2026-09-16', periodEnd: '2026-09-30', dataStart: '2026-09-28', dataEnd: '2026-10-11', missingWorkingDays: ['2026-09-26'] },
           { anio: 2026, mes: 10, numeroDequincena: 1, periodStart: '2026-10-01', periodEnd: '2026-10-15', dataStart: '2026-09-28', dataEnd: '2026-10-11', missingWorkingDays: ['2026-10-12'] },
@@ -308,7 +308,7 @@ describe('ReviewListView incomplete quincena banner', () => {
 
 describe('ReviewListView coverage loading', () => {
   it('disables Enviar while the coverage check is loading', () => {
-    render(<ReviewListView dbHealthy={true} coverageLoading onSubmit={vi.fn()} />);
+    render(<ReviewListView dbHealthy={true} coverageLoading onSubmit={vi.fn()} onPrint={vi.fn()} />);
     expect(screen.getByRole('button', { name: /^enviar$/i })).toBeDisabled();
   });
 });

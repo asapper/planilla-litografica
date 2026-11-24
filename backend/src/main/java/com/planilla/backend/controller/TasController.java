@@ -989,6 +989,7 @@ public class TasController {
             session.getFlags().removeIf(f -> f == TasFlag.SAME_DAY_DOUBLE || f == TasFlag.SHIFT_MISMATCH);
 
             boolean discard = !keepAll && session.getSessionId() != keepSessionId;
+            session.setDiscarded(discard);
             if (discard) {
                 session.getFlags().removeIf(f -> f == TasFlag.SHORT_DAY);
                 session.setWorkedMinutes(0);
@@ -1048,6 +1049,7 @@ public class TasController {
             entry.put("scans", scanStrings);
             entry.put("estimatedShift", s.getFlags() != null && s.getFlags().contains(TasFlag.BEST_FIT_SHIFT));
             entry.put("breakDeductionMinutes", s.getBreakDeductionMinutes());
+            entry.put("discarded", s.isDiscarded());
 
             result.computeIfAbsent(s.getEmployeeId(), k -> new ArrayList<>()).add(entry);
         }

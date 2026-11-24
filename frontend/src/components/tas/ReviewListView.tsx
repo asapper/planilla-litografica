@@ -15,6 +15,7 @@ interface ReviewListViewProps {
   coverageLoading?: boolean;
   incompletePeriods?: IncompletePeriod[];
   onSubmit: () => void;
+  onPrint: () => void;
 }
 
 function sortRows(rows: ResolvedRow[], column: 'name' | 'code', direction: 'asc' | 'desc'): ResolvedRow[] {
@@ -26,7 +27,7 @@ function sortRows(rows: ResolvedRow[], column: 'name' | 'code', direction: 'asc'
   return direction === 'desc' ? sorted.reverse() : sorted;
 }
 
-export default function ReviewListView({ dbHealthy, coverageLoading = false, incompletePeriods = [], onSubmit }: ReviewListViewProps) {
+export default function ReviewListView({ dbHealthy, coverageLoading = false, incompletePeriods = [], onSubmit, onPrint }: ReviewListViewProps) {
   const resolvedRows = useTasStore(s => s.resolvedRows);
   const overtimeOverrides = useTasStore(s => s.overtimeOverrides);
   const nonWorkedDaysOverrides = useTasStore(s => s.nonWorkedDaysOverrides);
@@ -413,6 +414,13 @@ export default function ReviewListView({ dbHealthy, coverageLoading = false, inc
             {resolvedRows.length - duplicateCodes.length} registros a enviar
             {duplicateCodes.length > 0 && ` (${duplicateCodes.length} excluidos)`}
           </span>
+          <button
+            onClick={onPrint}
+            disabled={duplicatesLoading || coverageLoading || allDuplicate || resolvedRows.length === 0}
+            className="m3-btn-outlined"
+          >
+            Imprimir…
+          </button>
           <button
             onClick={onSubmit}
             disabled={dbHealthy !== true || allDuplicate || duplicatesLoading || coverageLoading}

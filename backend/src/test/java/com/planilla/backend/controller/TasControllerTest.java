@@ -1368,8 +1368,12 @@ class TasControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(body)))
            .andExpect(status().isOk())
-           .andExpect(jsonPath("$.flaggedSessions.length()").value(0));
+           .andExpect(jsonPath("$.flaggedSessions.length()").value(0))
+           .andExpect(jsonPath("$.sessionSummaries['100'][0].discarded").value(false))
+           .andExpect(jsonPath("$.sessionSummaries['100'][1].discarded").value(true));
 
+        assertThat(a.isDiscarded()).isFalse();
+        assertThat(b.isDiscarded()).isTrue();
         assertThat(a.getFlags()).doesNotContain(com.planilla.backend.model.tas.TasFlag.SAME_DAY_DOUBLE);
         assertThat(a.isNeedsResolution()).isFalse();
 
@@ -2987,7 +2991,10 @@ class TasControllerTest {
                         "anio", 2026, "mes", 1, "numeroDequincena", 1))))
            .andExpect(status().isOk())
            // 13 working days from Jan 1 to 15 (two Sundays), both nights worked: Jan 6 and Jan 7.
-           .andExpect(jsonPath("$.resolvedRows[0].diasNoLaborados").value(11));
+           .andExpect(jsonPath("$.resolvedRows[0].diasNoLaborados").value(11))
+           // The printout reads these as ISO dates; a mapper writing [2026,1,1] arrays would break it.
+           .andExpect(jsonPath("$.resolvedRows[0].fechasNoLaboradas.length()").value(11))
+           .andExpect(jsonPath("$.resolvedRows[0].fechasNoLaboradas[0]").value("2026-01-01"));
     }
 
     private TasSession seedSecondFortnightExit(String token, String exitDate) {

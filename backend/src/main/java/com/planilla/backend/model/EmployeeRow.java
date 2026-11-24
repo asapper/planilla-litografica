@@ -1,10 +1,14 @@
 package com.planilla.backend.model;
 
+import java.time.LocalDate;
+import java.util.List;
+
 public class EmployeeRow {
 
     private String codigoEmpleado;
     private String nombreEmpleado;
     private int diasNoLaborados;
+    private List<LocalDate> fechasNoLaboradas = List.of();
     private double horasExtrasSimples;
     private double horasExtrasDobles;
     private int mes;
@@ -19,6 +23,7 @@ public class EmployeeRow {
         this.codigoEmpleado    = other.codigoEmpleado;
         this.nombreEmpleado    = other.nombreEmpleado;
         this.diasNoLaborados   = other.diasNoLaborados;
+        this.fechasNoLaboradas = other.fechasNoLaboradas;
         this.horasExtrasSimples = other.horasExtrasSimples;
         this.horasExtrasDobles  = other.horasExtrasDobles;
         this.mes               = other.mes;
@@ -36,6 +41,9 @@ public class EmployeeRow {
 
     public int getDiasNoLaborados() { return diasNoLaborados; }
     public void setDiasNoLaborados(int diasNoLaborados) { this.diasNoLaborados = diasNoLaborados; }
+
+    public List<LocalDate> getFechasNoLaboradas() { return fechasNoLaboradas; }
+    public void setFechasNoLaboradas(List<LocalDate> fechasNoLaboradas) { this.fechasNoLaboradas = fechasNoLaboradas == null ? List.of() : List.copyOf(fechasNoLaboradas); }
 
     public double getHorasExtrasSimples() { return horasExtrasSimples; }
     public void setHorasExtrasSimples(double horasExtrasSimples) { this.horasExtrasSimples = horasExtrasSimples; }

@@ -160,11 +160,11 @@ export const ALL_FLAGGED_SESSIONS: TasSession[] = [
 // ── Resolved rows for review screen ──────────────────────────────────
 
 export const RESOLVED_ROWS: ResolvedRow[] = [
-  { codigoEmpleado: 'E001', nombreEmpleado: 'García López, María Elena', diasNoLaborados: 1, horasExtrasSimples: 4, horasExtrasDobles: 2, mes: 6, anio: 2026, numeroDequincena: 1, diasTurnoEstimado: 1, accruesOvertime: true },
-  { codigoEmpleado: 'E002', nombreEmpleado: 'Hernández Ruiz, Carlos Alberto', diasNoLaborados: 0, horasExtrasSimples: 6, horasExtrasDobles: 0, mes: 6, anio: 2026, numeroDequincena: 1, diasTurnoEstimado: 0, accruesOvertime: true },
-  { codigoEmpleado: 'E003', nombreEmpleado: 'Morales Pérez, Ana Lucía', diasNoLaborados: 2, horasExtrasSimples: 0, horasExtrasDobles: 0, mes: 6, anio: 2026, numeroDequincena: 1, diasTurnoEstimado: 0, accruesOvertime: false },
-  { codigoEmpleado: 'E004', nombreEmpleado: 'López Castillo, Pedro José', diasNoLaborados: 0, horasExtrasSimples: 8, horasExtrasDobles: 3, mes: 6, anio: 2026, numeroDequincena: 1, diasTurnoEstimado: 0, accruesOvertime: true },
-  { codigoEmpleado: 'E006', nombreEmpleado: 'Castañeda Vega, Roberto', diasNoLaborados: 0, horasExtrasSimples: 2, horasExtrasDobles: 0, mes: 6, anio: 2026, numeroDequincena: 1, diasTurnoEstimado: 2, accruesOvertime: true },
+  { codigoEmpleado: 'E001', nombreEmpleado: 'García López, María Elena', diasNoLaborados: 1, fechasNoLaboradas: ['2026-06-08'], horasExtrasSimples: 4, horasExtrasDobles: 2, mes: 6, anio: 2026, numeroDequincena: 1, diasTurnoEstimado: 1, accruesOvertime: true },
+  { codigoEmpleado: 'E002', nombreEmpleado: 'Hernández Ruiz, Carlos Alberto', diasNoLaborados: 0, fechasNoLaboradas: [], horasExtrasSimples: 6, horasExtrasDobles: 0, mes: 6, anio: 2026, numeroDequincena: 1, diasTurnoEstimado: 0, accruesOvertime: true },
+  { codigoEmpleado: 'E003', nombreEmpleado: 'Morales Pérez, Ana Lucía', diasNoLaborados: 2, fechasNoLaboradas: ['2026-06-09', '2026-06-10'], horasExtrasSimples: 0, horasExtrasDobles: 0, mes: 6, anio: 2026, numeroDequincena: 1, diasTurnoEstimado: 0, accruesOvertime: false },
+  { codigoEmpleado: 'E004', nombreEmpleado: 'López Castillo, Pedro José', diasNoLaborados: 0, fechasNoLaboradas: [], horasExtrasSimples: 8, horasExtrasDobles: 3, mes: 6, anio: 2026, numeroDequincena: 1, diasTurnoEstimado: 0, accruesOvertime: true },
+  { codigoEmpleado: 'E006', nombreEmpleado: 'Castañeda Vega, Roberto', diasNoLaborados: 0, fechasNoLaboradas: [], horasExtrasSimples: 2, horasExtrasDobles: 0, mes: 6, anio: 2026, numeroDequincena: 1, diasTurnoEstimado: 2, accruesOvertime: true },
 ];
 
 export const SESSION_SUMMARIES: Record<string, SessionSummary[]> = {
