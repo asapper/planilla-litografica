@@ -1,5 +1,16 @@
 # Changelog
 
+## v1.6.2 — 2026-11-25
+
+### Fixes
+- **Night workers' evening punches no longer block Revisar.** In 1.6.1 every single punch of a night worker stayed "por resolver" (18 in a real fortnight). Examples were an 18:05 entry, or a 17:02 punch matched to the Noche shift. Only a punch before noon can be the exit of the night before and land on the wrong date, so only those still need a time. Evening punches can now stay empty like any other incomplete day.
+
+### Docs
+- The manual explains the morning-only rule for night workers. The review detail screenshot now shows the "incompleta" badge.
+
+### Known limits
+- A night worker's exit at noon or later, from a night that overran by many hours, would be counted on its own date. This is very unlikely.
+
 ## v1.6.1 — 2026-11-25
 
 ### Features
