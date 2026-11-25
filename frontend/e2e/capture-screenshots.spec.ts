@@ -115,6 +115,13 @@ async function mockRecomputeTas(page: Page) {
   );
 }
 
+// Overtime nobody approved goes as 0 and asks first; these flows are about what comes after sending.
+async function approveAllAndSend(page: Page) {
+  const approve = page.getByRole('button', { name: /^Aprobar horas extra/ });
+  while (await approve.count() > 0) await approve.first().click();
+  await page.getByRole('button', { name: /^Enviar$/ }).click();
+}
+
 async function screenshot(page: Page, name: string) {
   await page.screenshot({ path: `${SCREENSHOT_DIR}/${name}`, fullPage: false });
 }
@@ -335,7 +342,7 @@ test('11 - result: success', async ({ page }) => {
   await waitForApp(page);
   await uploadFile(page);
   await page.waitForSelector('text=Revisión de registros procesados', { timeout: 10_000 });
-  await page.locator('button:has-text("Enviar")').click();
+  await approveAllAndSend(page);
   await page.waitForSelector('text=Carga completada', { timeout: 15_000 });
   await screenshot(page, '11-result-success.png');
 });
@@ -358,7 +365,7 @@ test('12 - result: partial with retry', async ({ page }) => {
   await waitForApp(page);
   await uploadFile(page);
   await page.waitForSelector('text=Revisión de registros procesados', { timeout: 10_000 });
-  await page.locator('button:has-text("Enviar")').click();
+  await approveAllAndSend(page);
   await page.waitForSelector('text=Carga completada', { timeout: 15_000 });
   await page.waitForSelector('text=con error');
   await screenshot(page, '12-result-partial.png');
@@ -382,7 +389,7 @@ test('13 - result: retries exhausted', async ({ page }) => {
   await waitForApp(page);
   await uploadFile(page);
   await page.waitForSelector('text=Revisión de registros procesados', { timeout: 10_000 });
-  await page.locator('button:has-text("Enviar")').click();
+  await approveAllAndSend(page);
   await page.waitForSelector('text=Se agotaron los reintentos', { timeout: 15_000 });
   await screenshot(page, '13-result-retries-exhausted.png');
 });
@@ -405,7 +412,7 @@ test('14 - absent review overlay', async ({ page }) => {
   await waitForApp(page);
   await uploadFile(page);
   await page.waitForSelector('text=Revisión de registros procesados', { timeout: 10_000 });
-  await page.locator('button:has-text("Enviar")').click();
+  await approveAllAndSend(page);
   await page.waitForSelector('text=Carga completada', { timeout: 15_000 });
   await page.waitForTimeout(500);
   await page.locator('button:has-text("Revisar empleados sin marcaciones")').click();
