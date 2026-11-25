@@ -11,6 +11,13 @@ export interface EmployeeGroupData {
   employeeName: string;
   items: GroupItem[];
   pendingCount: number;
+  // Lone scans left empty: they don't hold up Revisar, but the clerk confirms them before going on.
+  incomplete: TasSession[];
+}
+
+// What the backend still refuses to send: an unresolved session that isn't a lone scan it may skip.
+export function blocksSending(session: TasSession): boolean {
+  return session.needsResolution && !session.incomplete;
 }
 
 export function needsTimes(session: TasSession): boolean {
@@ -65,6 +72,12 @@ export function keptSessions(sessions: TasSession[], choice: DoubleChoice | unde
   return kept.length > 0 ? kept : sessions;
 }
 
+// A half-typed time is something to finish, not a card left empty: going on would drop what was typed.
+function countMissing(group: EmployeeGroupData, session: TasSession, cardInputs: Record<number, CardInput>) {
+  if (session.incomplete && !cardInputs[session.sessionId]) group.incomplete.push(session);
+  else group.pendingCount += 1;
+}
+
 export function buildEmployeeGroups(
   regular: TasSession[],
   shiftMismatchOnly: TasSession[],
@@ -78,7 +91,7 @@ export function buildEmployeeGroups(
   function getGroup(employeeId: string, employeeName: string): EmployeeGroupData {
     let group = groups.get(employeeId);
     if (!group) {
-      group = { employeeId, employeeName, items: [], pendingCount: 0 };
+      group = { employeeId, employeeName, items: [], pendingCount: 0, incomplete: [] };
       groups.set(employeeId, group);
     }
     return group;
@@ -87,7 +100,7 @@ export function buildEmployeeGroups(
   for (const session of regular) {
     const group = getGroup(session.employeeId, session.employeeName);
     group.items.push({ type: 'session', session, date: session.date });
-    if (!effectiveResolution(session, resolvedSessions, cardInputs)) group.pendingCount += 1;
+    if (!effectiveResolution(session, resolvedSessions, cardInputs)) countMissing(group, session, cardInputs);
   }
 
   for (const session of shiftMismatchOnly) {
@@ -100,8 +113,9 @@ export function buildEmployeeGroups(
     const group = getGroup(first.employeeId, first.employeeName);
     group.items.push({ type: 'same_day_double', groupKey, sessions, date: first.date });
     // The pre-selected choice counts as decided, but a kept half that lacks a scan still needs its time.
-    group.pendingCount += keptSessions(sessions, sameDayDoubleResolutions[groupKey])
-      .filter(s => needsTimes(s) && !effectiveResolution(s, resolvedSessions, cardInputs)).length;
+    keptSessions(sessions, sameDayDoubleResolutions[groupKey])
+      .filter(s => needsTimes(s) && !effectiveResolution(s, resolvedSessions, cardInputs))
+      .forEach(s => countMissing(group, s, cardInputs));
   }
 
   // Keep items in stable chronological order regardless of resolved state, so a card
@@ -110,10 +124,6 @@ export function buildEmployeeGroups(
     group.items.sort((a, b) => a.date.localeCompare(b.date));
   }
 
-  return Array.from(groups.values()).sort((a, b) => {
-    const aPending = a.pendingCount > 0;
-    const bPending = b.pendingCount > 0;
-    if (aPending !== bPending) return aPending ? -1 : 1;
-    return a.employeeName.localeCompare(b.employeeName);
-  });
+  const rank = (g: EmployeeGroupData) => g.pendingCount > 0 ? 0 : g.incomplete.length > 0 ? 1 : 2;
+  return Array.from(groups.values()).sort((a, b) => rank(a) - rank(b) || a.employeeName.localeCompare(b.employeeName));
 }

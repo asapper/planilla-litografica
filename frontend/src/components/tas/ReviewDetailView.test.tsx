@@ -95,6 +95,14 @@ describe('ReviewDetailView rendering', () => {
     expect(badges[0].closest('tr')).toHaveClass('bg-warning-container/20');
   });
 
+  it('marks a day with a single scan as incomplete', () => {
+    useTasStore.getState().setSessionSummaries({ E1: [
+      { date: '2026-06-04', shiftName: 'Mañana', entryTime: '2026-06-04T07:02:00', exitTime: null, workedHours: 0, simplesMinutes: 0, doblesMinutes: 0, scans: ['2026-06-04T07:02'], incomplete: true },
+    ] });
+    render(<ReviewDetailView onBack={onBack} />);
+    expect(screen.getByText('incompleta')).toHaveAttribute('title', expect.stringContaining('El día cuenta como trabajado, sin horas extra.'));
+  });
+
   it('does not show est. badge on normal session rows', () => {
     render(<ReviewDetailView onBack={onBack} />);
     expect(screen.queryByText('est.')).not.toBeInTheDocument();

@@ -155,6 +155,12 @@ describe('PrintReport', () => {
     expect(within(argelia).getByText(/1 día con turno estimado: las marcaciones/)).toBeInTheDocument();
   });
 
+  it('marks a day with a single scan', () => {
+    renderReport({ input: { sessionSummaries: { ...baseInput.sessionSummaries, '3': [session({ exitTime: null, scans: ['2026-11-02T07:00'], workedHours: 0, simplesMinutes: 0, incomplete: true })] } } });
+    const jose = screen.getByRole('region', { name: 'Detalle 3 JOSE DIEGUEZ' });
+    expect(within(jose).getByText('marcación incompleta: sin horas extra')).toBeInTheDocument();
+  });
+
   it('says what was adjusted by hand in the detail', () => {
     renderReport({ input: { overtimeDecisions: { '3': { kind: 'adjusted', simples: 1, dobles: 2, calcSimples: 1, calcDobles: 0 } }, nonWorkedDaysOverrides: { '3': 0 } } });
     const ana = screen.getByRole('region', { name: 'Detalle 3 JOSE DIEGUEZ' });

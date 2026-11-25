@@ -16,6 +16,7 @@ public class TasSession {
     private String assignedShiftName;
     private List<LocalDateTime> scans;
     private boolean crossMidnight;
+    private boolean assignedShiftCrossMidnight;
     private LocalDateTime effectiveStart;
     private LocalDateTime lastScan;
     private int workedMinutes;
@@ -33,6 +34,24 @@ public class TasSession {
     /** Sessions the verification screen lists: blocking ones, and short days she may correct. */
     public static boolean shownForVerification(TasSession s) {
         return s.needsResolution || (s.flags != null && s.flags.contains(TasFlag.SHORT_DAY));
+    }
+
+    /**
+     * A day with a single scan the clerk may leave as it is: the day counts as worked and adds no
+     * overtime, so a shift mismatch on it changes nothing. Not for a night worker (or, with no shift
+     * assigned, a scan matched to a night), whose lone scan may sit on the wrong date, nor for a
+     * night flagged at the file's edges.
+     */
+    public boolean isIncomplete() {
+        boolean night = assignedShiftCrossMidnight || (assignedShiftId == null && crossMidnight);
+        return needsResolution && scans != null && scans.size() == 1 && flags != null && !night
+                && (flags.contains(TasFlag.MISSING_ENTRY) || flags.contains(TasFlag.MISSING_EXIT))
+                && !flags.contains(TasFlag.START_CUTOFF) && !flags.contains(TasFlag.END_CUTOFF);
+    }
+
+    /** Sending must wait for this session: still unresolved, and neither an incomplete day nor an undecided double. */
+    public static boolean blocksSubmit(TasSession s) {
+        return s.needsResolution && (!s.isIncomplete() || s.flags.contains(TasFlag.SAME_DAY_DOUBLE));
     }
 
     public int getSessionId() { return sessionId; }
@@ -64,6 +83,9 @@ public class TasSession {
 
     public boolean isCrossMidnight() { return crossMidnight; }
     public void setCrossMidnight(boolean crossMidnight) { this.crossMidnight = crossMidnight; }
+
+    public boolean isAssignedShiftCrossMidnight() { return assignedShiftCrossMidnight; }
+    public void setAssignedShiftCrossMidnight(boolean assignedShiftCrossMidnight) { this.assignedShiftCrossMidnight = assignedShiftCrossMidnight; }
 
     public LocalDateTime getEffectiveStart() { return effectiveStart; }
     public void setEffectiveStart(LocalDateTime effectiveStart) { this.effectiveStart = effectiveStart; }

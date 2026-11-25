@@ -282,6 +282,7 @@ public class TasSessionGrouper {
         session.setMatchedShiftName(openerShift != null ? (String) openerShift.get("name") : null);
         session.setAssignedShiftId(getShiftId(assignedShift));
         session.setAssignedShiftName(assignedShift != null ? (String) assignedShift.get("name") : null);
+        session.setAssignedShiftCrossMidnight(assignedShift != null && Boolean.TRUE.equals(assignedShift.get("crossMidnight")));
 
         if (!openerShift.equals(assignedShift)) {
             session.getFlags().add(TasFlag.SHIFT_MISMATCH);
@@ -313,6 +314,7 @@ public class TasSessionGrouper {
         session.setMatchedShiftName(bestFit != null ? (String) bestFit.get("name") : null);
         session.setAssignedShiftId(getShiftId(assignedShift));
         session.setAssignedShiftName(assignedShift != null ? (String) assignedShift.get("name") : null);
+        session.setAssignedShiftCrossMidnight(assignedShift != null && Boolean.TRUE.equals(assignedShift.get("crossMidnight")));
 
         return session;
     }

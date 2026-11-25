@@ -265,6 +265,46 @@ class TasUploadServiceTest {
     }
 
     @Test
+    void process_anEmployeeFoundToWorkNights_hasNoSkippableLoneScans() throws Exception {
+        when(parserService.parse(any())).thenReturn(new TasParserService.ParseResult(List.of(scan("100", "2026-03-10T19:00")), List.of()));
+        when(registryService.getInactiveEmployeesPresent(any())).thenReturn(Collections.emptyList());
+        when(registryService.getAll(any(), any(), any())).thenReturn(Collections.emptyList());
+        when(shiftConfigService.getAllShifts()).thenReturn(List.of(
+                Map.of("id", "manana", "name", "Manana", "startTime", "07:00", "endTime", "15:00", "crossMidnight", false),
+                Map.of("id", "noche", "name", "Noche", "startTime", "19:00", "endTime", "07:00", "crossMidnight", true)));
+        when(holidayService.fetchForDateRange(any(), any())).thenReturn(true);
+
+        TasSession night = new TasSession();
+        night.setEmployeeId("100");
+        night.setDate(LocalDate.of(2026, 3, 10));
+        night.setMatchedShiftId("noche");
+        night.setAssignedShiftId("manana");
+        night.setScans(new ArrayList<>(List.of(java.time.LocalDateTime.of(2026, 3, 10, 19, 0), java.time.LocalDateTime.of(2026, 3, 11, 7, 0))));
+        night.setFlags(new ArrayList<>(List.of(TasFlag.SHIFT_MISMATCH)));
+        night.setNeedsResolution(true);
+        TasSession lone = new TasSession();
+        lone.setEmployeeId("100");
+        lone.setDate(LocalDate.of(2026, 3, 12));
+        lone.setMatchedShiftId("manana");
+        lone.setAssignedShiftId("manana");
+        lone.setScans(new ArrayList<>(List.of(java.time.LocalDateTime.of(2026, 3, 12, 7, 0))));
+        lone.setFlags(new ArrayList<>(List.of(TasFlag.MISSING_ENTRY)));
+        lone.setNeedsResolution(true);
+        assertThat(lone.isIncomplete()).isTrue();
+
+        when(sessionGrouper.group(any(), any(), any())).thenReturn(new ArrayList<>(List.of(night, lone)));
+        when(reportBuilder.build(any(), any(), any(), any()))
+                .thenReturn(new TasReportBuilder.BuildResult(Collections.emptyList()));
+        when(registryService.getAbsentActiveEmployees(any())).thenReturn(Collections.emptyList());
+
+        service.process(dummyFile, Collections.emptySet());
+
+        assertThat(night.getAssignedShiftId()).isEqualTo("noche");
+        assertThat(lone.isAssignedShiftCrossMidnight()).isTrue();
+        assertThat(lone.isIncomplete()).isFalse();
+    }
+
+    @Test
     void process_listsShortDaysForVerificationWithoutBlocking() throws Exception {
         List<TasScanRecord> scans = List.of(
             scan("100", "2026-03-10T07:00"),

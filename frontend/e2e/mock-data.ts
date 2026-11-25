@@ -71,7 +71,7 @@ export const FLAGGED_MISSING_ENTRY: TasSession = {
   matchedShiftId: 'shift-1', matchedShiftName: 'Mañana',
   assignedShiftId: 'shift-1', assignedShiftName: 'Mañana',
   effectiveStart: null, lastScan: '2026-06-03T13:45:00',
-  workedMinutes: 0, workedHours: 0, crossMidnight: false, needsResolution: true,
+  workedMinutes: 0, workedHours: 0, crossMidnight: false, needsResolution: true, incomplete: true,
   flags: ['MISSING_ENTRY'],
 };
 
@@ -81,7 +81,7 @@ export const FLAGGED_MISSING_EXIT: TasSession = {
   matchedShiftId: 'shift-1', matchedShiftName: 'Mañana',
   assignedShiftId: 'shift-1', assignedShiftName: 'Mañana',
   effectiveStart: '2026-06-04T06:02:00', lastScan: null,
-  workedMinutes: 0, workedHours: 0, crossMidnight: false, needsResolution: true,
+  workedMinutes: 0, workedHours: 0, crossMidnight: false, needsResolution: true, incomplete: true,
   flags: ['MISSING_EXIT'],
 };
 

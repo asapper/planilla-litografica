@@ -1862,3 +1862,102 @@ describe('cards that open complete (Alex #127 review)', () => {
   });
 });
 
+
+describe('VerificationScreen incomplete punches', () => {
+  const lone = (overrides: Partial<TasSession> = {}) => makeSession({
+    flags: ['MISSING_EXIT'], scans: ['2026-03-10T07:02:00'], effectiveStart: '2026-03-10T07:02:00',
+    date: '2026-03-10', incomplete: true, ...overrides,
+  });
+
+  function setUp(sessions: TasSession[]) {
+    useTasStore.getState().setUploadToken('tok-1');
+    useTasStore.getState().setFlaggedSessions(sessions);
+    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
+    render(<VerificationScreen />);
+  }
+
+  it('lets a lone scan stay empty: Revisar is enabled and the footer says what it means', () => {
+    setUp([lone()]);
+    expect(screen.getByRole('button', { name: 'Revisar' })).toBeEnabled();
+    expect(screen.queryByText(/por resolver/)).not.toBeInTheDocument();
+    expect(screen.getByText('1 marcación incompleta: el día cuenta como trabajado, sin horas extra.')).toBeInTheDocument();
+    expect(screen.getByText('1 incompleta')).toBeInTheDocument();
+    expect(screen.getByText('Falta completar la hora. Si la deja vacía, el día cuenta como trabajado, sin horas extra.')).toBeInTheDocument();
+    expect(screen.queryByText(/Todos los grupos están resueltos/)).not.toBeInTheDocument();
+  });
+
+  it('a card the backend does not let go empty still blocks', () => {
+    setUp([lone(), lone({ sessionId: 2, employeeId: 'E2', employeeName: 'Luis Soto', incomplete: false })]);
+    expect(screen.getByRole('button', { name: 'Revisar' })).toBeDisabled();
+    expect(screen.getAllByText('1 por resolver').length).toBeGreaterThan(0);
+  });
+
+  it('asks before going on, and going back sends nothing', () => {
+    setUp([lone(), lone({ sessionId: 2, employeeId: 'E2', employeeName: 'Luis Soto', date: '2026-03-11', flags: ['MISSING_ENTRY'], effectiveStart: null, lastScan: '2026-03-11T15:00:00' })]);
+    fireEvent.click(screen.getByRole('button', { name: 'Revisar' }));
+    const dialog = screen.getByRole('dialog');
+    expect(within(dialog).getByText('2 marcaciones incompletas')).toBeInTheDocument();
+    expect(within(dialog).getByText('10 mar 2026 · Falta salida · Entrada 07:02')).toBeInTheDocument();
+    expect(within(dialog).getByText('11 mar 2026 · Falta entrada · Salida 15:00')).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Volver a completar' }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(mockResolveVerification).not.toHaveBeenCalled();
+  });
+
+  it('continuing sends what was entered and opens the review although the lone scans stay unresolved', async () => {
+    mockResolveVerification.mockResolvedValue({ ...mockResult, flaggedSessions: [lone()] });
+    setUp([lone()]);
+    fireEvent.click(screen.getByRole('button', { name: 'Revisar' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Continuar de todas formas' }));
+    await waitFor(() => expect(useTasStore.getState().tasView).toBe('review'));
+    expect(mockResolveVerification).toHaveBeenCalledWith('tok-1', [], DEFAULT_PERIOD);
+  });
+
+  it('stays on verification when the backend still has a card it will not send empty', async () => {
+    mockResolveVerification.mockResolvedValue({ ...mockResult, flaggedSessions: [lone({ sessionId: 9, incomplete: false })] });
+    setUp([lone()]);
+    fireEvent.click(screen.getByRole('button', { name: 'Revisar' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Continuar de todas formas' }));
+    await waitFor(() => expect(mockResolveVerification).toHaveBeenCalled());
+    expect(useTasStore.getState().tasView).not.toBe('review');
+  });
+
+  it('a filled-in lone scan is no longer incomplete: Revisar goes straight on', async () => {
+    mockResolveVerification.mockResolvedValue(mockResult);
+    setUp([lone()]);
+    fireEvent.change(screen.getByLabelText('Salida'), { target: { value: '15:00' } });
+    expect(screen.queryByText(/marcación incompleta/)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '✓ Revisar' }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    await waitFor(() => expect(useTasStore.getState().tasView).toBe('review'));
+  });
+});
+
+describe('VerificationScreen half-typed lone scan', () => {
+  it('blocks Revisar until the time is finished or cleared', () => {
+    useTasStore.getState().setFlaggedSessions([makeSession({
+      flags: ['MISSING_EXIT'], scans: ['2026-03-10T07:02:00'], effectiveStart: '2026-03-10T07:02:00', date: '2026-03-10', incomplete: true,
+    })]);
+    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
+    useTasStore.getState().setCardInput(1, { entry: '07:02', exit: '1', swapped: false });
+    render(<VerificationScreen />);
+    expect(screen.getByRole('button', { name: 'Revisar' })).toBeDisabled();
+    expect(screen.getAllByText('1 por resolver').length).toBeGreaterThan(0);
+  });
+
+  it('erasing what was typed makes the card skippable again', () => {
+    useTasStore.getState().setFlaggedSessions([makeSession({
+      flags: ['MISSING_EXIT'], scans: ['2026-03-10T07:02:00'], effectiveStart: '2026-03-10T07:02:00', date: '2026-03-10', incomplete: true,
+    })]);
+    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
+    render(<VerificationScreen />);
+    const exit = screen.getByLabelText('Salida');
+    fireEvent.change(exit, { target: { value: '15:00' } });
+    expect(useTasStore.getState().cardInputs[1]).toBeDefined();
+    expect(screen.queryByText('1 incompleta')).not.toBeInTheDocument();
+    fireEvent.change(exit, { target: { value: '' } });
+    expect(useTasStore.getState().cardInputs[1]).toBeUndefined();
+    expect(screen.getByRole('button', { name: 'Revisar' })).toBeEnabled();
+    expect(screen.getByText('1 incompleta')).toBeInTheDocument();
+  });
+});
