@@ -501,6 +501,10 @@ Los días donde el turno fue asignado automáticamente (turno estimado) se muest
 - La fila del día tiene un fondo ligeramente amarillo.
 - Las marcaciones originales de ese día se muestran con pastillas rojas en lugar de azules.
 
+##### Indicador de marcación incompleta
+
+Los días con una sola marcación que se dejaron vacíos en la verificación (vea [Marcaciones incompletas](#marcaciones-incompletas)) muestran una pastilla amarilla **"incompleta"** junto al nombre del turno. La hora que falta aparece como **"—"**, y el día no suma horas ni horas extra, aunque sí cuenta como trabajado. En la captura anterior, el 08/06 es un ejemplo.
+
 ##### Panel lateral derecho
 
 A la derecha de la tabla de sesiones encontrará tres secciones:
