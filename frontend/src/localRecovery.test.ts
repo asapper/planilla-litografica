@@ -3,6 +3,7 @@ import { useTasStore } from './tasStore';
 import type { TasSession, TasUploadResult } from './tasTypes';
 import { loadLocalCopy, saveLocalSnapshot, startLocalCopy, type LocalCopy } from './localCopy';
 import { localSnapshotOf } from './tasDraft';
+import { DRAFT_UI_VERSION } from './draftVersion';
 
 const mockUpload = vi.hoisted(() => vi.fn());
 const mockInactiveReview = vi.hoisted(() => vi.fn());
@@ -36,6 +37,7 @@ function copy(
 }
 
 const A = ['2026-10-03T07:02:00'];
+const approval = { kind: 'approved', simples: 2, dobles: 0, calcSimples: 2, calcDobles: 0 };
 const B = ['2026-10-04T07:10:00'];
 const C = ['2026-10-05T19:00:00', '2026-10-05T22:00:00'];
 
@@ -48,6 +50,7 @@ describe('rebuildFromLocalCopy', () => {
   it('uploads the saved file again and carries every decision over to the new days', async () => {
     mockUpload.mockResolvedValue(upload([day(10, 'E1', '2026-10-03', A), day(20, 'E1', '2026-10-04', B), day(30, 'E2', '2026-10-05', C)]));
     const recovery = await rebuildFromLocalCopy(copy({
+      uiVersion: DRAFT_UI_VERSION,
       tasView: 'review',
       selectedPeriod: Q2,
       flaggedSessions: [day(1, 'E1', '2026-10-03', A), day(2, 'E1', '2026-10-04', B), day(3, 'E2', '2026-10-05', C)],
@@ -55,15 +58,17 @@ describe('rebuildFromLocalCopy', () => {
       cardInputs: { 1: { entry: '07:02', exit: '15:00', swapped: false }, 2: { entry: '07:10', exit: '', swapped: false } },
       shiftAcceptances: { 3: 'noche' },
       sameDayDoubleResolutions: { 'E1|2026-10-03': 1, 'E2|2026-10-05': 'all' },
-      overtimeOverrides: { E1: { horasExtrasSimples: 2 } },
-      nonWorkedDaysOverrides: { E2: 1 },
+      overtimeDecisions: { '2026-10-2': { E1: approval } },
+      stashedOvertimeDecisions: { '2026-10-2': { E3: approval } },
+      nonWorkedDaysOverrides: { '2026-10-2': { E2: 1 } },
+      stashedNonWorkedDaysOverrides: { '2026-10-2': { E4: 2 } },
       inactiveDecisions: { E9: 'ignore' },
       fallbackBannerDismissed: true,
     }));
 
     expect(mockUpload.mock.calls[0][0]).toBeInstanceOf(File);
     expect(mockUpload.mock.calls[0][0].name).toBe('oct.csv');
-    expect(recovery).toEqual({ view: 'verification', dropped: 0, wasInReview: true });
+    expect(recovery).toEqual({ view: 'verification', dropped: 0, wasInReview: true, reviewDecisionsDropped: false });
     const s = useTasStore.getState();
     expect(s.tasView).toBe('verification');
     expect(s.uploadToken).toBe('tok-new');
@@ -71,11 +76,34 @@ describe('rebuildFromLocalCopy', () => {
     expect(s.cardInputs).toEqual({ 10: { entry: '07:02', exit: '15:00', swapped: false }, 20: { entry: '07:10', exit: '', swapped: false } });
     expect(s.shiftAcceptances).toEqual({ 30: 'noche' });
     expect(s.sameDayDoubleResolutions).toEqual({ 'E1|2026-10-03': 10, 'E2|2026-10-05': 'all' });
-    expect(s.overtimeOverrides).toEqual({ E1: { horasExtrasSimples: 2 } });
-    expect(s.nonWorkedDaysOverrides).toEqual({ E2: 1 });
+    expect(s.overtimeDecisions).toEqual({ '2026-10-2': { E1: approval } });
+    expect(s.stashedOvertimeDecisions).toEqual({ '2026-10-2': { E3: approval } });
+    expect(s.nonWorkedDaysOverrides).toEqual({ '2026-10-2': { E2: 1 } });
+    expect(s.stashedNonWorkedDaysOverrides).toEqual({ '2026-10-2': { E4: 2 } });
     expect(s.selectedPeriod).toEqual(Q2);
     expect(s.fallbackBannerDismissed).toBe(true);
     expect(mockInactiveReview).not.toHaveBeenCalled();
+  });
+
+  it('drops review adjustments saved by another version of the app, and says so', async () => {
+    mockUpload.mockResolvedValue(upload([]));
+    const recovery = await rebuildFromLocalCopy(copy({
+      uiVersion: DRAFT_UI_VERSION - 1,
+      tasView: 'review',
+      overtimeOverrides: { E1: { horasExtrasSimples: 2 } },
+      nonWorkedDaysOverrides: { E2: 1 },
+    }));
+    expect(recovery.reviewDecisionsDropped).toBe(true);
+    expect((await rebuildFromLocalCopy(copy({ tasView: 'review', overtimeOverrides: { E1: { horasExtrasSimples: 2 } } })))
+      .reviewDecisionsDropped).toBe(true);
+    expect(useTasStore.getState().nonWorkedDaysOverrides).toEqual({});
+    expect(useTasStore.getState().overtimeDecisions).toEqual({});
+  });
+
+  it('has nothing to report when another version saved no review adjustments', async () => {
+    mockUpload.mockResolvedValue(upload([]));
+    const recovery = await rebuildFromLocalCopy(copy({ uiVersion: DRAFT_UI_VERSION - 1, tasView: 'verification', nonWorkedDaysOverrides: {} }));
+    expect(recovery.reviewDecisionsDropped).toBe(false);
   });
 
   it('counts decisions whose day is gone and drops them', async () => {
@@ -132,7 +160,7 @@ describe('rebuildFromLocalCopy', () => {
       resolvedSessions: { 1: { resolvedStart: '07:02', resolvedEnd: '15:00' }, 2: { resolvedStart: '07:10', resolvedEnd: '15:00' } },
       cardInputs: { 1: { entry: '07:02', exit: '15:00', swapped: false }, 2: { entry: '07:10', exit: '15:00', swapped: false } },
     }, { 1: 'E1|2026-10-03|2026-10-03T07:02:00', 2: 'E1|2026-10-04|2026-10-04T07:10:00' }));
-    expect(recovery).toEqual({ view: 'verification', dropped: 0, wasInReview: true });
+    expect(recovery).toEqual({ view: 'verification', dropped: 0, wasInReview: true, reviewDecisionsDropped: false });
     expect(useTasStore.getState().resolvedSessions).toEqual({
       10: { resolvedStart: '07:02', resolvedEnd: '15:00' }, 20: { resolvedStart: '07:10', resolvedEnd: '15:00' } });
   });
@@ -192,7 +220,7 @@ describe('rebuildFromLocalCopy', () => {
     }));
     const recovery = await rebuildFromLocalCopy(copy({ tasView: 'inactiveReview', inactiveDecisions: { E9: 'reactivate' } }));
     expect(mockInactiveReview).not.toHaveBeenCalled();
-    expect(recovery).toEqual({ view: 'inactiveReview', dropped: 0, wasInReview: false });
+    expect(recovery).toEqual({ view: 'inactiveReview', dropped: 0, wasInReview: false, reviewDecisionsDropped: false });
     expect(useTasStore.getState().inactiveDecisions).toEqual({ E9: 'reactivate' });
   });
 
@@ -213,7 +241,7 @@ describe('rebuildFromLocalCopy', () => {
   it('works from a copy with no decisions saved yet', async () => {
     mockUpload.mockResolvedValue(upload([]));
     const recovery = await rebuildFromLocalCopy({ ...copy({}), snapshot: null, sent: undefined as never });
-    expect(recovery).toEqual({ view: 'verification', dropped: 0, wasInReview: false });
+    expect(recovery).toEqual({ view: 'verification', dropped: 0, wasInReview: false, reviewDecisionsDropped: false });
     expect(useTasStore.getState().selectedPeriod).toEqual(Q1);
   });
 

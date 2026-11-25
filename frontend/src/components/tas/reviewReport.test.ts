@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { buildReport, estimatePages, formatClock, formatDay, formatHours, halfHours, type ReportInput } from './reviewReport';
+import { approvedDecision, type OvertimeDecision } from '../../overtime';
 import type { ResolvedRow, SessionSummary } from '../../tasTypes';
 
 const row = (over: Partial<ResolvedRow>): ResolvedRow => ({
@@ -13,9 +14,17 @@ const day = (date: string, simplesMinutes: number, doblesMinutes = 0): SessionSu
   workedHours: 8, simplesMinutes, doblesMinutes, scans: [`${date}T07:00`, `${date}T15:00`],
 });
 
+// Every row approved unless the test decides otherwise, so a test about the days reads what was calculated.
 const input = (over: Partial<ReportInput>): ReportInput => ({
-  rows: [], sessionSummaries: {}, overtimeOverrides: {}, nonWorkedDaysOverrides: {}, duplicateCodes: [], absentEmployees: [], ...over,
+  rows: [], sessionSummaries: {}, nonWorkedDaysOverrides: {}, duplicateCodes: [], absentEmployees: [], ...over,
+  overtimeDecisions: {
+    ...Object.fromEntries((over.rows ?? []).map(r => [r.codigoEmpleado, approvedDecision(r)])),
+    ...over.overtimeDecisions,
+  },
 });
+
+const adjusted = (simples: number, dobles: number, calcSimples: number, calcDobles: number): OvertimeDecision =>
+  ({ kind: 'adjusted', simples, dobles, calcSimples, calcDobles });
 
 describe('halfHours', () => {
   it.each([[0, 0], [29, 0], [30, 0.5], [59, 0.5], [60, 1], [95, 1.5]])('%i min → %f h', (min, h) => {
@@ -75,11 +84,12 @@ describe('buildReport', () => {
     const report = buildReport(input({
       rows: [row({ horasExtrasSimples: 2, horasExtrasDobles: 1, diasNoLaborados: 1, fechasNoLaboradas: ['2026-11-03'] })],
       sessionSummaries: { '1': [day('2026-11-02', 120, 60)] },
-      overtimeOverrides: { '1': { horasExtrasSimples: 3, horasExtrasDobles: 0 } },
+      overtimeDecisions: { '1': adjusted(3, 0, 2, 1) },
       nonWorkedDaysOverrides: { '1': 0 },
     }));
     const e = report.employees[0];
     expect([e.diasFinal, e.simples.final, e.dobles.final]).toEqual([0, 3, 0]);
+    expect(e.overtimeStatus).toBe('adjusted');
     expect(e.notes).toEqual([
       'Días no laborados ajustados a mano (calculado: 1)',
       'Extras simples ajustadas a mano (calculado: 2.00)',
@@ -121,7 +131,7 @@ describe('buildReport', () => {
         row({ codigoEmpleado: '1', nombreEmpleado: 'Ana', horasExtrasDobles: 0.5, diasNoLaborados: 2, fechasNoLaboradas: ['2026-11-03', '2026-11-04'] }),
       ],
       sessionSummaries: { '2': [day('2026-11-02', 60)], '1': [day('2026-11-02', 0, 30)] },
-      overtimeOverrides: { '1': { horasExtrasSimples: 0.5 } },
+      overtimeDecisions: { '1': adjusted(0.5, 0.5, 0, 0.5) },
       duplicateCodes: ['10'],
     }));
     expect(report.employees.map(e => e.code)).toEqual(['1', '2']);
@@ -139,7 +149,7 @@ describe('buildReport', () => {
     const report = buildReport(input({
       rows: [row({ accruesOvertime: false, diasNoLaborados: 1, fechasNoLaboradas: ['2026-11-03'] })],
       sessionSummaries: { '1': [day('2026-11-02', 120, 60)] },
-      overtimeOverrides: { '1': { horasExtrasSimples: 3, horasExtrasDobles: 2 } },
+      overtimeDecisions: { '1': adjusted(3, 2, 0, 0) },
       nonWorkedDaysOverrides: { '1': 0 },
     }));
     const e = report.employees[0];
@@ -161,6 +171,35 @@ describe('buildReport', () => {
     expect(e.workedDates).toBe(2);
     expect(e.simples.sumOfDays).toBe(1.5);
     expect(e.mismatch).toBe(false);
+  });
+
+  it('sends overtime nobody approved as zero and says what was calculated', () => {
+    const report = buildReport({
+      ...input({ rows: [row({ horasExtrasSimples: 1, horasExtrasDobles: 0.5 })], sessionSummaries: { '1': [day('2026-11-02', 60, 30)] } }),
+      overtimeDecisions: {},
+    });
+    const e = report.employees[0];
+    expect([e.simples.final, e.dobles.final, e.overtimeStatus]).toEqual([0, 0, 'pending']);
+    expect(e.mismatch).toBe(false);
+    expect(e.notes).toEqual(['Horas extra sin aprobar: se envían en cero (calculado: 1.00 simples, 0.50 dobles)']);
+    expect(report.totals).toEqual({ dias: 0, simples: 0, dobles: 0 });
+  });
+
+  it('sends zero when the calculation changed after it was approved', () => {
+    const report = buildReport(input({
+      rows: [row({ horasExtrasSimples: 12 })],
+      overtimeDecisions: { '1': { kind: 'approved', simples: 3.5, dobles: 0, calcSimples: 3.5, calcDobles: 0 } },
+    }));
+    const e = report.employees[0];
+    expect([e.simples.final, e.overtimeStatus]).toEqual([0, 'stale']);
+    expect(e.notes).toEqual(['El cálculo cambió después de aprobarlas: se envían en cero (calculado ahora: 12.00 simples, 0.00 dobles)']);
+  });
+
+  it('keeps a hand adjustment when the calculation changed, and says so', () => {
+    const report = buildReport(input({ rows: [row({ horasExtrasSimples: 4 })], overtimeDecisions: { '1': adjusted(2, 0, 3, 0) } }));
+    const e = report.employees[0];
+    expect(e.simples.final).toBe(2);
+    expect(e.notes).toEqual(['Extras simples ajustadas a mano (calculado: 4.00)', 'El cálculo cambió después del ajuste']);
   });
 
   it('lists active employees without punches, leaving out those marked inactive', () => {

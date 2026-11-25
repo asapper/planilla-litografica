@@ -41,7 +41,7 @@ export const resolveVerification = (
 
 export const submitTas = (
   token: string,
-  overtimeOverrides: Record<string, { horasExtrasSimples?: number; horasExtrasDobles?: number }>,
+  overtimeOverrides: Record<string, { horasExtrasSimples: number; horasExtrasDobles: number }>,
   nonWorkedDaysOverrides: Record<string, number>,
 ): Promise<{ jobId: string }> =>
   client.post<{ jobId: string }>('/tas/submit', { uploadToken: token, overtimeOverrides, nonWorkedDaysOverrides }).then(r => r.data);

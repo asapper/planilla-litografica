@@ -354,18 +354,32 @@ La tabla muestra un registro por cada empleado con las siguientes columnas:
 | **Empleado** | Nombre del empleado. Puede incluir etiquetas como "turno est." (naranja) o "Duplicado" (rojo) |
 | **Código** | Código del empleado en el sistema |
 | **Días no lab.** | Cantidad de días que el empleado no trabajó en el período (campo editable) |
-| **Extras simples** | Horas extras simples calculadas (campo editable) |
-| **Extras dobles** | Horas extras dobles calculadas (campo editable) |
+| **Extras simples** | Horas extras simples que se van a enviar (campo editable) |
+| **Extras dobles** | Horas extras dobles que se van a enviar (campo editable) |
+| **Horas extra** | Si las horas extra de ese empleado están sin aprobar, aprobadas o ajustadas, con el botón **"Aprobar"** o **"Deshacer"** |
 | **Acumula extras** | Interruptor para indicar si el empleado acumula horas extra |
+
+##### Aprobar horas extra
+
+Las horas extra **solo se envían si usted las aprueba**. Las que nadie revisó se envían en **0**. Así solo tiene que revisar a quienes tienen horas extra calculadas, no a todos los empleados.
+
+- Al abrir la revisión, la lista muestra el filtro **"Por revisar"**: los empleados con horas extra calculadas que todavía no tienen una decisión. Los campos muestran **0** (lo que se enviaría) y debajo, entre paréntesis, lo calculado (por ejemplo, "calc. 3.5").
+- **Aprobar:** presione **"Aprobar"** para enviar lo calculado. La fila muestra "✓ Aprobado".
+- **Ajustar:** escriba otro valor en Extras simples o Extras dobles para enviar ese valor. El otro campo se envía como se ve en pantalla. Para **rechazar** las horas extra de alguien, escriba **0**: queda como decisión tomada.
+- **Deshacer:** vuelve a dejar las horas extra de esa fila sin aprobar.
+- Las filas aprobadas o ajustadas no desaparecen mientras trabaja en ellas. Para ver solo lo que falta, presione de nuevo **"Por revisar"**.
+- Si después de aprobar el cálculo cambia (por ejemplo, porque corrigió una marcación o cambió el interruptor "Acumula extras"), la aprobación ya no vale: la fila vuelve a "Por revisar" con el aviso **"el cálculo cambió"** y se envía en 0 hasta que la apruebe de nuevo. Si había escrito un valor a mano, ese valor se mantiene; presione **"Mantener"** para confirmarlo.
+- Cada quincena guarda sus propias decisiones: cambiar de quincena no las mezcla ni las borra.
 
 ##### Filtros
 
 En la parte superior de la tabla hay botones de filtro con contadores:
 
+- **Por revisar** — Empleados con horas extra calculadas que aún no tienen decisión, o cuya decisión quedó vieja porque el cálculo cambió
 - **Todos** — Muestra todos los empleados procesados
 - **Turno estimado** — Muestra solo empleados que tienen al menos un día con turno estimado (asignado automáticamente)
 - **Duplicados** — Muestra solo empleados cuyo registro ya existe en la base de datos
-- **Ajustados** — Muestra solo empleados con algún valor modificado manualmente (días no laborados u horas extras)
+- **Ajustados** — Muestra solo empleados con algún valor escrito a mano (días no laborados u horas extras). Las aprobaciones no cuentan como ajustes
 
 ##### Búsqueda y ordenamiento
 
@@ -393,7 +407,7 @@ Los domingos y feriados no se cuentan. Lo recomendado es **exportar de nuevo el 
 
 ##### Editar campos en la tabla
 
-Los campos de **Días no lab.**, **Extras simples** y **Extras dobles** son editables directamente en la tabla. Haga clic sobre el campo, modifique el valor y presione Enter o haga clic fuera para confirmar. El campo modificado se resaltará con un borde azul y mostrará el valor original entre paréntesis (por ejemplo, "era 3"). Los cambios solo aplican a la sesión de carga actual.
+Los campos de **Días no lab.**, **Extras simples** y **Extras dobles** son editables directamente en la tabla. Haga clic sobre el campo, modifique el valor y presione Enter o haga clic fuera para confirmar. Un campo de días modificado se resalta con borde azul y muestra el valor original (por ejemplo, "era 3"). Un campo de horas extra muestra lo calculado debajo ("calc. 3.5") cuando lo que se envía es distinto. La rueda del mouse no cambia los números, para evitar cambios sin querer. Los cambios solo aplican a la sesión de carga actual.
 
 ##### Interruptor "Acumula extras"
 
@@ -401,13 +415,13 @@ Cada empleado tiene un interruptor que indica si acumula horas extras. Si está 
 
 ##### Barra inferior
 
-En la parte inferior de la pantalla verá el conteo de registros que se enviarán (por ejemplo, "4 registros a enviar (1 excluidos)"), el botón **"Imprimir…"** y el botón **"Enviar"**.
+En la parte inferior de la pantalla verá el conteo de registros que se enviarán y cuántas horas extra están aprobadas o sin aprobar (por ejemplo, "40 registros a enviar · 12 aprobados · 6 sin aprobar (se envían en 0)"), el botón **"Imprimir…"** y el botón **"Enviar"**.
 
 ##### Imprimir el reporte
 
 Antes de enviar puede imprimir lo que se va a enviar para revisarlo a mano. Presione **"Imprimir…"** y elija:
 
-- **Resumen** (opción por defecto, 1 o 2 páginas): una línea por empleado, ordenada por código, con días no laborados, extras simples, extras dobles y observaciones ("Ajustado", "No acumula extras", "turno est."). Al final van los totales, los empleados excluidos por duplicado, los empleados activos sin marcaciones en el archivo y una línea para firma de revisión.
+- **Resumen** (opción por defecto, 1 o 2 páginas): una línea por empleado, ordenada por código, con días no laborados, extras simples, extras dobles y observaciones ("Aprobado", "Ajustado", "Sin aprobar" con lo calculado, "Cálculo cambió", "No acumula extras", "turno est."). Al final van los totales, los empleados excluidos por duplicado, los empleados activos sin marcaciones en el archivo y una línea para firma de revisión.
 - **Resumen y detalle por empleado** (unas 2 páginas por cada 4 empleados): agrega, por empleado, cada día de la quincena con turno, entrada, salida, marcaciones, horas trabajadas, extras simples y dobles. Los días no laborados aparecen en su fecha como **"No laboró"**, y la fila **"Suma de los días"** da el total que se envía; si un ajuste manual o el interruptor "Acumula extras" lo cambia, debajo se explica.
 
 El reporte siempre incluye a todos los empleados que se van a enviar, con los ajustes manuales aplicados, aunque en pantalla haya un filtro o una búsqueda activos. El botón queda deshabilitado mientras la aplicación verifica duplicados y la cobertura de la quincena.
@@ -464,7 +478,7 @@ A la derecha de la tabla de sesiones encontrará tres secciones:
 **Ajustes manuales:**
 - Muestra campos editables para corregir los valores calculados por el sistema antes de enviar.
 - **Días no laborados:** número de días en la quincena en que el empleado no registró asistencia, calculado automáticamente. Si el valor está incorrecto (por ejemplo, por un día festivo no configurado), puede corregirlo aquí. El cambio aplica únicamente a la sesión de carga actual; la próxima carga calculará el valor de nuevo desde los registros de marcación.
-- **Extras simples / Extras dobles:** horas extra calculadas por el sistema. Puede corregirlos si es necesario.
+- **Extras simples / Extras dobles:** las horas extra que se van a enviar; al lado aparece lo calculado. Mientras no estén aprobadas muestran 0 y el aviso "Sin aprobar: se envían en 0."; use **"Aprobar"**, escriba otro valor o **"Deshacer"**, igual que en la lista (ver [Aprobar horas extra](#aprobar-horas-extra)).
 - Si modifica algún valor, el campo se resaltará en amarillo para indicar que fue ajustado manualmente.
 
 **Configuración:**
@@ -487,13 +501,15 @@ La barra inferior muestra cuántos registros se enviarán y cuántos serán excl
 
 > **Quincena incompleta:** si el archivo no cubre todos los días laborables de la quincena, al presionar "Enviar" aparecerá una confirmación. Presione **"Cancelar"** para volver a la revisión, o **"Enviar de todas formas"** solo si está seguro de que esos días no se trabajaron (ver [Aviso de quincena incompleta](#aviso-de-quincena-incompleta)).
 
+> **Horas extra sin revisar:** si quedan empleados con horas extra calculadas sin aprobar, al presionar "Enviar" (y después de la confirmación de quincena incompleta, si la hay) aparece la lista de esos empleados con lo calculado: se enviarán con **0 horas extra**. También aparecen los valores escritos a mano antes de que el cálculo cambiara. Presione **"Volver a revisar"** para aprobarlos o ajustarlos, o **"Enviar de todas formas"**. Para que esta lista solo muestre lo que nadie revisó, rechace las horas extra escribiendo 0 en vez de dejarlas sin aprobar.
+
 ---
 
 ### Continuar una sesión sin terminar
 
 La aplicación guarda su avance automáticamente mientras trabaja en los pasos de **empleados inactivos**, **verificación** y **revisión**. No hay botones de "Guardar" ni de "Confirmar": cada cosa que escribe o elige (horas completas o a medias, intercambios, turnos, dobles marcaciones, correcciones de jornadas cortas, horas extras y días no laborados ajustados, el período seleccionado) se guarda en el momento. Puede dejar la aplicación abierta o cerrarla el tiempo que quiera, por ejemplo durante un fin de semana, y retomar donde la dejó.
 
-El avance se guarda en **dos lugares** de esta computadora: en la base de datos de la aplicación y en una copia aparte que guarda la propia ventana, junto con el archivo que cargó. Si la primera falta o no se puede leer, la aplicación reconstruye la sesión desde la copia aparte: vuelve a leer el mismo archivo y aplica todas sus decisiones. Verá *"Se recuperó la sesión guardada en este equipo."* Si estaba en la revisión, vuelve a la verificación con todo completo: pulse **"Revisar"** para ver los totales. Si algún día cambió (por ejemplo, porque se modificaron los turnos), un aviso indica cuántas decisiones no se pudieron recuperar.
+El avance se guarda en **dos lugares** de esta computadora: en la base de datos de la aplicación y en una copia aparte que guarda la propia ventana, junto con el archivo que cargó. Si la primera falta o no se puede leer, la aplicación reconstruye la sesión desde la copia aparte: vuelve a leer el mismo archivo y aplica todas sus decisiones. Verá *"Se recuperó la sesión guardada en este equipo."* Si estaba en la revisión, vuelve a la verificación con todo completo: pulse **"Revisar"** para ver los totales. Si algún día cambió (por ejemplo, porque se modificaron los turnos), un aviso indica cuántas decisiones no se pudieron recuperar. Si la sesión se guardó con una versión anterior de la aplicación, las horas extra y los días no laborados ajustados no se recuperan y un aviso lo indica: revíselos de nuevo.
 
 Si el guardado falla, verá *"No se pudo guardar el avance. Se reintentará automáticamente; mientras tanto, no cierre la aplicación."* Este aviso queda en pantalla mientras el guardado siga fallando. La aplicación lo reintenta sola cada 15 segundos y avisa cuando vuelve a guardar. Si intenta cerrarla mientras el guardado falla o tarda en responder, la primera vez no se cierra y verá *"No se pudo confirmar que el avance se guardó. Si vuelve a cerrar la aplicación en los próximos 30 segundos, se cerrará de todos modos y podría perder los últimos cambios."* Este aviso queda en pantalla durante esos 30 segundos.
 
@@ -756,7 +772,10 @@ No cierre la aplicación durante el envío. Si se cerró por accidente, vuelva a
 No. El avance se guarda automáticamente. Al volver a abrir la aplicación, pulse **Continuar** en la tarjeta "Sesión sin terminar" (ver [Continuar una sesión sin terminar](#continuar-una-sesión-sin-terminar)).
 
 **¿Puedo editar las horas extras después de la verificación?**
-Sí. En la vista de lista y en la vista de detalle puede modificar las horas extras simples y dobles directamente. Los valores ajustados se distinguen: en la vista de lista con un borde azul y el valor original entre paréntesis (por ejemplo, "era 3"); en la vista de detalle, en amarillo.
+Sí. En la vista de lista y en la vista de detalle puede aprobar lo calculado o escribir otro valor. Los valores ajustados se distinguen: en la vista de lista con un borde azul y lo calculado entre paréntesis (por ejemplo, "calc. 3"); en la vista de detalle, en amarillo.
+
+**¿Por qué un empleado aparece con 0 horas extra si el sistema calculó más?**
+Porque las horas extra solo se envían si se aprueban. Las que nadie revisó se envían en 0. Presione **"Aprobar"** en esa fila para enviar lo calculado, o escriba el valor autorizado (ver [Aprobar horas extra](#aprobar-horas-extra)).
 
 **¿Qué hago si el archivo abarca dos quincenas?**
 Cuando el archivo TAS contiene marcaciones de más de una quincena, la aplicación le mostrará un selector de período en la pantalla de verificación. Seleccione la quincena que desea procesar. Para procesar la otra quincena, deberá volver a cargar el archivo y seleccionar el otro período.

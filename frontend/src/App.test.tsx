@@ -107,7 +107,7 @@ vi.mock('./components/ErrorBoundary', () => ({
 }));
 
 const {
-  default: App, LOCAL_RECOVERED_MESSAGE, LOCAL_RECOVERED_REVIEW_MESSAGE, LOCAL_RECOVERY_FAILED_MESSAGE,
+  default: App, LOCAL_RECOVERED_MESSAGE, LOCAL_RECOVERED_REVIEW_MESSAGE, LOCAL_RECOVERY_FAILED_MESSAGE, REVIEW_DECISIONS_DROPPED_MESSAGE,
 } = await import('./App');
 
 beforeEach(() => {
@@ -605,7 +605,7 @@ describe('resume an interrupted session', () => {
         stateRevision: 3,
         availablePeriods: [{ anio: 2026, mes: 10, numeroDequincena: 1 }, period],
         selectedPeriod: period,
-        overtimeOverrides: { E1: { horasExtrasSimples: 2 } },
+        nonWorkedDaysOverrides: { '2026-10-2': { E1: 2 } },
         jobId: 'stale',
       },
     });
@@ -619,7 +619,7 @@ describe('resume an interrupted session', () => {
     expect(s.uploadToken).toBe('tok-d');
     expect(s.stateRevision).toBe(3);
     expect(s.selectedPeriod).toEqual(period);
-    expect(s.overtimeOverrides).toEqual({ E1: { horasExtrasSimples: 2 } });
+    expect(s.nonWorkedDaysOverrides).toEqual({ '2026-10-2': { E1: 2 } });
     expect(s.jobId).toBeNull();
     expect(screen.getByTestId('tas-upload-flow')).toHaveTextContent('1era quincena octubre 2026.csv');
   });
@@ -914,6 +914,19 @@ describe('rebuild from the copy on this PC', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Continuar' }));
     await waitFor(() => expect(toasts()).toHaveLength(2));
     expect(toasts()[1]).toEqual(['warning', '1 decisión no se pudo recuperar porque esos días cambiaron. Revíselos.']);
+  });
+
+  it('says in one warning that review adjustments from another version were not carried over', async () => {
+    keepCopy({
+      uiVersion: DRAFT_UI_VERSION - 1,
+      resolvedSessions: { 2: { resolvedStart: '07:00', resolvedEnd: '15:00' } },
+      overtimeOverrides: { E1: { horasExtrasSimples: 2 } },
+    });
+    mockUploadTasFile.mockResolvedValue(rebuilt);
+    render(<App />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Continuar' }));
+    await waitFor(() => expect(toasts()).toHaveLength(2));
+    expect(toasts()[1]).toEqual(['warning', `1 decisión no se pudo recuperar porque esos días cambiaron. Revíselos. ${REVIEW_DECISIONS_DROPPED_MESSAGE}`]);
   });
 
   it('a failed rebuild says so and keeps the copy for another try', async () => {

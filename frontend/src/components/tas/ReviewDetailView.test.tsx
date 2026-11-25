@@ -31,6 +31,10 @@ const summaries: Record<string, SessionSummary[]> = {
 };
 
 const onBack = vi.fn();
+const days = () => useTasStore.getState().nonWorkedDaysOverrides.none ?? {};
+const stashedDays = () => useTasStore.getState().stashedNonWorkedDaysOverrides.none ?? {};
+const decision = () => useTasStore.getState().overtimeDecisions.none?.E1;
+const adjusted = (simples: number) => ({ kind: 'adjusted', simples, dobles: 0, calcSimples: 2, calcDobles: 0 });
 
 beforeEach(() => {
   useTasStore.getState().resetTas();
@@ -164,7 +168,7 @@ describe('ReviewDetailView días no laborados adjustment', () => {
     render(<ReviewDetailView onBack={onBack} />);
     const inputs = screen.getAllByRole('spinbutton');
     fireEvent.change(inputs[0], { target: { value: '3' } });
-    expect(useTasStore.getState().nonWorkedDaysOverrides).toEqual({ E1: 3 });
+    expect(days()).toEqual({ E1: 3 });
   });
 
   it('shows computed label for días no laborados', () => {
@@ -176,14 +180,15 @@ describe('ReviewDetailView días no laborados adjustment', () => {
     render(<ReviewDetailView onBack={onBack} />);
     const inputs = screen.getAllByRole('spinbutton');
     fireEvent.change(inputs[0], { target: { value: '-2' } });
-    expect(useTasStore.getState().nonWorkedDaysOverrides).toEqual({ E1: 0 });
+    expect(days()).toEqual({ E1: 0 });
   });
 
   it('removes override when días no laborados input is cleared', () => {
     render(<ReviewDetailView onBack={onBack} />);
     const inputs = screen.getAllByRole('spinbutton');
+    fireEvent.change(inputs[0], { target: { value: '3' } });
     fireEvent.change(inputs[0], { target: { value: 'abc' } });
-    expect(useTasStore.getState().nonWorkedDaysOverrides).toEqual({});
+    expect(days()).toEqual({});
   });
 
   it('shows override value when set', () => {
@@ -195,19 +200,39 @@ describe('ReviewDetailView días no laborados adjustment', () => {
 });
 
 describe('ReviewDetailView overtime adjustment', () => {
-  it('renders overtime inputs with computed values', () => {
+  it('shows unapproved overtime as the zero that would be sent, and approves it', () => {
     render(<ReviewDetailView onBack={onBack} />);
-    const inputs = screen.getAllByRole('spinbutton');
-    expect(inputs).toHaveLength(3);
-    expect(inputs[1]).toHaveValue(2);
-    expect(inputs[2]).toHaveValue(0);
+    expect(screen.getByLabelText('Extras simples')).toHaveValue(0);
+    expect(screen.getByText('Sin aprobar: se envían en 0.')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Aprobar horas extra Ana López' }));
+    expect(screen.getByLabelText('Extras simples')).toHaveValue(2);
+    expect(screen.getByText('✓ Aprobado')).toBeInTheDocument();
+    expect(screen.queryByText('Sin aprobar: se envían en 0.')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Deshacer horas extra Ana López' }));
+    expect(decision()).toBeUndefined();
+  });
+
+  it('shows no approval control for an employee with nothing calculated', () => {
+    useTasStore.getState().setResolvedRows([{ ...rows[0], horasExtrasSimples: 0 }]);
+    render(<ReviewDetailView onBack={onBack} />);
+    expect(screen.queryByRole('button', { name: /Aprobar horas extra/ })).not.toBeInTheDocument();
+  });
+
+  it('a mouse wheel over a focused number does not change it', () => {
+    render(<ReviewDetailView onBack={onBack} />);
+    for (const input of screen.getAllByRole('spinbutton')) {
+      input.focus();
+      fireEvent.wheel(input);
+      expect(input).not.toHaveFocus();
+    }
   });
 
   it('updates store when overtime is changed', () => {
     render(<ReviewDetailView onBack={onBack} />);
     const inputs = screen.getAllByRole('spinbutton');
     fireEvent.change(inputs[1], { target: { value: '5' } });
-    expect(useTasStore.getState().overtimeOverrides).toEqual({ E1: { horasExtrasSimples: 5 } });
+    expect(decision()).toEqual(adjusted(5));
+    expect(screen.getByText('Ajustado')).toBeInTheDocument();
   });
 
   it('shows computed label next to overtime input', () => {
@@ -219,14 +244,14 @@ describe('ReviewDetailView overtime adjustment', () => {
     render(<ReviewDetailView onBack={onBack} />);
     const inputs = screen.getAllByRole('spinbutton');
     fireEvent.change(inputs[1], { target: { value: '-3' } });
-    expect(useTasStore.getState().overtimeOverrides).toEqual({ E1: { horasExtrasSimples: 0 } });
+    expect(decision()).toEqual(adjusted(0));
   });
 
   it('clamps NaN overtime values to 0', () => {
     render(<ReviewDetailView onBack={onBack} />);
     const inputs = screen.getAllByRole('spinbutton');
     fireEvent.change(inputs[1], { target: { value: 'abc' } });
-    expect(useTasStore.getState().overtimeOverrides).toEqual({ E1: { horasExtrasSimples: 0 } });
+    expect(decision()).toEqual(adjusted(0));
   });
 });
 
@@ -341,8 +366,8 @@ describe('ReviewDetailView accruesOvertime toggle', () => {
     fireEvent.click(screen.getByRole('switch'));
 
     await waitFor(() => {
-      expect(useTasStore.getState().nonWorkedDaysOverrides['E1']).toBeUndefined();
-      expect(useTasStore.getState().stashedNonWorkedDaysOverrides['E1']).toBe(3);
+      expect(days().E1).toBeUndefined();
+      expect(stashedDays().E1).toBe(3);
     });
   });
 
@@ -356,7 +381,7 @@ describe('ReviewDetailView accruesOvertime toggle', () => {
 
     render(<ReviewDetailView onBack={onBack} />);
     fireEvent.click(screen.getByRole('switch'));
-    await waitFor(() => expect(useTasStore.getState().stashedNonWorkedDaysOverrides['E1']).toBe(3));
+    await waitFor(() => expect(stashedDays().E1).toBe(3));
 
     mockUpdateAccruesOvertime.mockResolvedValue({
       id: 'E1', code: 'E1', name: 'Ana López', shiftId: null, shiftName: null, active: true, accruesOvertime: true,
@@ -366,8 +391,8 @@ describe('ReviewDetailView accruesOvertime toggle', () => {
 
     fireEvent.click(screen.getByRole('switch'));
     await waitFor(() => {
-      expect(useTasStore.getState().nonWorkedDaysOverrides['E1']).toBe(3);
-      expect(useTasStore.getState().stashedNonWorkedDaysOverrides['E1']).toBeUndefined();
+      expect(days().E1).toBe(3);
+      expect(stashedDays().E1).toBeUndefined();
     });
   });
 

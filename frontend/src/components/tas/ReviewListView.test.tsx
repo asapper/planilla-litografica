@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import ReviewListView from './ReviewListView';
 import { useTasStore } from '../../tasStore';
 import * as configApi from '../../configApi';
@@ -17,6 +17,10 @@ const rows: ResolvedRow[] = [
   { codigoEmpleado: 'E2', nombreEmpleado: 'Luis García', diasNoLaborados: 1, fechasNoLaboradas: ['2026-06-08'], horasExtrasSimples: 0, horasExtrasDobles: 1, mes: 6, anio: 2026, numeroDequincena: 1, diasTurnoEstimado: 2, accruesOvertime: true },
   { codigoEmpleado: 'E3', nombreEmpleado: 'Carlos Pérez', diasNoLaborados: 0, fechasNoLaboradas: [], horasExtrasSimples: 1, horasExtrasDobles: 0, mes: 6, anio: 2026, numeroDequincena: 1, diasTurnoEstimado: 0, accruesOvertime: true },
 ];
+
+const days = () => useTasStore.getState().nonWorkedDaysOverrides.none ?? {};
+const decisions = () => useTasStore.getState().overtimeDecisions.none ?? {};
+const renderList = () => render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} onPrint={vi.fn()} />);
 
 beforeEach(() => {
   useTasStore.getState().resetTas();
@@ -110,7 +114,7 @@ describe('ReviewListView días no laborados editing', () => {
     render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} onPrint={vi.fn()} />);
     const input = screen.getByLabelText('Días no laborados Ana López') as HTMLInputElement;
     fireEvent.change(input, { target: { value: '3' } });
-    expect(useTasStore.getState().nonWorkedDaysOverrides['E1']).toBe(3);
+    expect(days().E1).toBe(3);
   });
 
   it('shows override annotation when días no laborados overridden', () => {
@@ -145,13 +149,15 @@ describe('ReviewListView overtime editing', () => {
     render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} onPrint={vi.fn()} />);
     const input = screen.getByLabelText('Extras simples Ana López') as HTMLInputElement;
     fireEvent.change(input, { target: { value: '5' } });
-    expect(useTasStore.getState().overtimeOverrides['E1']?.horasExtrasSimples).toBe(5);
+    expect(decisions().E1).toEqual({ kind: 'adjusted', simples: 5, dobles: 0, calcSimples: 2, calcDobles: 0 });
   });
 
-  it('shows override annotation for adjusted employees', () => {
-    useTasStore.getState().setOvertimeOverride('E1', 'horasExtrasSimples', 5);
-    render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} onPrint={vi.fn()} />);
-    expect(screen.getByText(/era 2/)).toBeInTheDocument();
+  it('shows the calculated figure under a value that differs from it', () => {
+    useTasStore.getState().setOvertimeField(rows[0], 'simples', 5);
+    useTasStore.getState().setReviewActiveFilter('all');
+    renderList();
+    expect(screen.getByLabelText('Extras simples Ana López')).toHaveValue(5);
+    expect(screen.getByText('(calc. 2)')).toBeInTheDocument();
   });
 
   it('does not navigate when clicking overtime input', () => {
@@ -163,6 +169,7 @@ describe('ReviewListView overtime editing', () => {
 
   it('disables overtime inputs when employee does not accrue overtime', () => {
     useTasStore.getState().setResolvedRows([{ ...rows[0], accruesOvertime: false }]);
+    useTasStore.getState().setReviewActiveFilter('all');
     render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} onPrint={vi.fn()} />);
     expect(screen.getByLabelText('Extras simples Ana López')).toBeDisabled();
     expect(screen.getByLabelText('Extras dobles Ana López')).toBeDisabled();
@@ -177,7 +184,7 @@ describe('ReviewListView overtime editing', () => {
 
 describe('ReviewListView adjusted chip and badge', () => {
   it('counts overtime-only override in adjusted chip', () => {
-    useTasStore.getState().setOvertimeOverride('E1', 'horasExtrasSimples', 5);
+    useTasStore.getState().setOvertimeField(rows[0], 'simples', 5);
     render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} onPrint={vi.fn()} />);
     const chip = screen.getByText('Ajustados').closest('button')!;
     expect(chip.textContent).toContain('1');
@@ -191,7 +198,7 @@ describe('ReviewListView adjusted chip and badge', () => {
   });
 
   it('counts employee with both override types only once in adjusted chip', () => {
-    useTasStore.getState().setOvertimeOverride('E1', 'horasExtrasSimples', 5);
+    useTasStore.getState().setOvertimeField(rows[0], 'simples', 5);
     useTasStore.getState().setNonWorkedDaysOverride('E1', 3);
     render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} onPrint={vi.fn()} />);
     const chip = screen.getByText('Ajustados').closest('button')!;
@@ -217,6 +224,7 @@ describe('ReviewListView adjusted chip and badge', () => {
 describe('ReviewListView duplicates', () => {
   it('dims duplicate rows', () => {
     useTasStore.getState().setDuplicateCodes(['E1']);
+    useTasStore.getState().setReviewActiveFilter('all');
     render(<ReviewListView dbHealthy={true} onSubmit={vi.fn()} onPrint={vi.fn()} />);
     const row = screen.getByText('Ana López').closest('tr')!;
     expect(row).toHaveClass('opacity-50');
@@ -277,10 +285,115 @@ describe('ReviewListView accruesOvertime toggle', () => {
     fireEvent.click(screen.getByLabelText(/desactivar acumulado Ana López/i));
 
     await waitFor(() => {
-      expect(useTasStore.getState().nonWorkedDaysOverrides['E1']).toBeUndefined();
-      expect(useTasStore.getState().stashedNonWorkedDaysOverrides['E1']).toBe(3);
+      expect(days().E1).toBeUndefined();
+      expect(useTasStore.getState().stashedNonWorkedDaysOverrides.none.E1).toBe(3);
     });
     expect(useTasStore.getState().stateRevision).toBe(6);
+  });
+});
+
+describe('ReviewListView overtime review', () => {
+  const zeroRow: ResolvedRow = { ...rows[2], codigoEmpleado: 'E4', nombreEmpleado: 'Sin Extras', horasExtrasSimples: 0 };
+  const shown = () => screen.queryAllByRole('row').map(r => r.textContent ?? '');
+  const chip = (label: string) => screen.getByText(label).closest('button')!;
+
+  it('opens on the rows whose overtime needs a decision', () => {
+    useTasStore.getState().setResolvedRows([...rows, zeroRow]);
+    renderList();
+    expect(chip('Por revisar')).toHaveTextContent('3');
+    expect(screen.getByText('Ana López')).toBeInTheDocument();
+    expect(screen.queryByText('Sin Extras')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Extras simples Ana López')).toHaveValue(0);
+    expect(screen.getByText('(calc. 2)')).toBeInTheDocument();
+    expect(screen.getByText(/3 sin aprobar \(se envían en 0\)/)).toBeInTheDocument();
+  });
+
+  it('approving keeps the row in view until the chip is pressed again', () => {
+    renderList();
+    fireEvent.click(screen.getByRole('button', { name: 'Aprobar horas extra Ana López' }));
+    expect(decisions().E1.kind).toBe('approved');
+    expect(screen.getByText('✓ Aprobado')).toBeInTheDocument();
+    expect(screen.getByLabelText('Extras simples Ana López')).toHaveValue(2);
+    expect(chip('Por revisar')).toHaveTextContent('2');
+    expect(screen.getByText('mostrando 3')).toBeInTheDocument();
+    expect(screen.getByText(/1 aprobado · 2 sin aprobar/)).toBeInTheDocument();
+    expect(useTasStore.getState().reviewSelectedEmployee).toBeNull();
+
+    fireEvent.click(chip('Por revisar'));
+    expect(screen.queryByText('Ana López')).not.toBeInTheDocument();
+    expect(screen.queryByText(/mostrando/)).not.toBeInTheDocument();
+  });
+
+  it('does not drop a row from under the cursor while a value is typed', () => {
+    renderList();
+    const input = screen.getByLabelText('Extras simples Ana López');
+    fireEvent.change(input, { target: { value: '1' } });
+    expect(screen.getByLabelText('Extras simples Ana López')).toBe(input);
+    fireEvent.change(input, { target: { value: '1.5' } });
+    expect(decisions().E1.simples).toBe(1.5);
+    expect(screen.getByText('Ajustado')).toBeInTheDocument();
+  });
+
+  it('takes the list again when the rows are recalculated, keeping rows still to review', () => {
+    useTasStore.getState().approveOvertime(rows[0]);
+    renderList();
+    expect(screen.queryByText('Ana López')).not.toBeInTheDocument();
+    act(() => useTasStore.getState().setResolvedRows([{ ...rows[0], horasExtrasSimples: 3 }, rows[1]]));
+    expect(screen.getByText('Ana López')).toBeInTheDocument();
+    expect(screen.getByText('el cálculo cambió')).toBeInTheDocument();
+    expect(screen.queryByText('Carlos Pérez')).not.toBeInTheDocument();
+  });
+
+  it('Deshacer takes an approval or an adjustment back to unapproved', () => {
+    useTasStore.getState().approveOvertime(rows[0]);
+    useTasStore.getState().setOvertimeField(rows[1], 'dobles', 0);
+    useTasStore.getState().setReviewActiveFilter('all');
+    renderList();
+    fireEvent.click(screen.getByRole('button', { name: 'Deshacer horas extra Ana López' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Deshacer horas extra Luis García' }));
+    expect(decisions()).toEqual({});
+    expect(screen.getAllByRole('button', { name: /^Aprobar horas extra/ })).toHaveLength(3);
+  });
+
+  it('Mantener confirms a hand value after the calculation changed', () => {
+    useTasStore.getState().setOvertimeField(rows[0], 'simples', 1);
+    useTasStore.getState().setResolvedRows([{ ...rows[0], horasExtrasSimples: 4 }, rows[1], rows[2]]);
+    renderList();
+    expect(chip('Por revisar')).toHaveTextContent('3');
+    fireEvent.click(screen.getByRole('button', { name: 'Mantener ajuste Ana López' }));
+    expect(decisions().E1).toEqual({ kind: 'adjusted', simples: 1, dobles: 0, calcSimples: 4, calcDobles: 0 });
+    expect(chip('Por revisar')).toHaveTextContent('2');
+  });
+
+  it('says when nothing is left to review and offers every row', () => {
+    for (const r of rows) useTasStore.getState().approveOvertime(r);
+    renderList();
+    expect(screen.getByText(/No hay horas extra por revisar/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Ver todos' }));
+    expect(useTasStore.getState().reviewActiveFilter).toBe('all');
+    expect(shown().some(t => t.includes('Ana López'))).toBe(true);
+  });
+
+  it('leaves duplicates out of the review and counts only rows on screen as adjusted', () => {
+    useTasStore.getState().setDuplicateCodes(['E1']);
+    useTasStore.getState().setOvertimeField(rows[0], 'simples', 1);
+    useTasStore.getState().setNonWorkedDaysOverride('E9', 1);
+    renderList();
+    expect(chip('Por revisar')).toHaveTextContent('2');
+    expect(chip('Ajustados')).toHaveTextContent('0');
+    expect(screen.queryByText('Ana López')).not.toBeInTheDocument();
+  });
+
+  it('a mouse wheel over a focused number does not change it', () => {
+    renderList();
+    const input = screen.getByLabelText('Extras simples Ana López');
+    input.focus();
+    fireEvent.wheel(input);
+    expect(input).not.toHaveFocus();
+    const dias = screen.getByLabelText('Días no laborados Ana López');
+    dias.focus();
+    fireEvent.wheel(dias);
+    expect(dias).not.toHaveFocus();
   });
 });
 

@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import PrintReport from './PrintReport';
 import { buildReport, type ReportInput } from './reviewReport';
+import { approvedDecision } from '../../overtime';
 import type { IncompletePeriod, ResolvedRow, SessionSummary } from '../../tasTypes';
 
 const row = (over: Partial<ResolvedRow>): ResolvedRow => ({
@@ -27,18 +28,23 @@ const baseInput: ReportInput = {
       scans: ['2026-11-02T22:00', '2026-11-03T06:00'], estimatedShift: true, breakDeductionMinutes: 15, simplesMinutes: 90,
     })],
   },
-  overtimeOverrides: {},
+  overtimeDecisions: {},
   nonWorkedDaysOverrides: {},
   duplicateCodes: [],
   absentEmployees: [],
 };
+
+// Every row approved unless the test decides otherwise.
+function decisionsFor(input: Partial<ReportInput> = {}) {
+  return input.overtimeDecisions ?? Object.fromEntries((input.rows ?? baseInput.rows).map(r => [r.codigoEmpleado, approvedDecision(r)]));
+}
 
 function renderReport(opts: {
   input?: Partial<ReportInput>; mode?: 'summary' | 'detail'; incomplete?: IncompletePeriod[]; fallback?: boolean; period?: null; unverified?: boolean;
 } = {}) {
   return render(
     <PrintReport
-      report={buildReport({ ...baseInput, ...opts.input })}
+      report={buildReport({ ...baseInput, ...opts.input, overtimeDecisions: decisionsFor(opts.input) })}
       mode={opts.mode ?? 'detail'}
       period={opts.period === null ? null : { anio: 2026, mes: 11, numeroDequincena: 1 }}
       generatedAt={new Date(2026, 10, 24, 9, 5)}
@@ -81,7 +87,7 @@ describe('PrintReport', () => {
     const rows = within(table).getAllByRole('row');
     expect(rows.map(r => r.textContent)).toEqual([
       'CódigoNombreDías no laboradosExtras simplesExtras doblesObservaciones',
-      '3JOSE DIEGUEZ11.000.00',
+      '3JOSE DIEGUEZ11.000.00Aprobado',
       '16ARGELIA HERNANDEZ00.000.00No acumula extras · 1 turno est.',
       'Total · 2 empleados11.000.00',
     ]);
@@ -89,14 +95,14 @@ describe('PrintReport', () => {
   });
 
   it('marks adjusted rows in the summary', () => {
-    renderReport({ mode: 'summary', input: { overtimeOverrides: { '3': { horasExtrasSimples: 4 } } } });
+    renderReport({ mode: 'summary', input: { overtimeDecisions: { '3': { kind: 'adjusted', simples: 4, dobles: 0, calcSimples: 1, calcDobles: 0 } } } });
     expect(screen.getByText('Ajustado')).toBeInTheDocument();
     expect(screen.getByText('Total · 2 empleados').parentElement).toHaveTextContent('4.00');
   });
 
   it('flags a row that does not add up', () => {
     renderReport({ input: { rows: [row({ horasExtrasSimples: 7 })], sessionSummaries: { '1': [session({})] } } });
-    expect(screen.getByText('⚠ No cuadra')).toBeInTheDocument();
+    expect(screen.getByText('Aprobado · ⚠ No cuadra')).toBeInTheDocument();
     expect(screen.getByText(/Los días no cuadran con el total calculado/)).toBeInTheDocument();
     expect(screen.getByText('Extras simples: los días suman 1.00, se envía 7.00 (no coincide con la suma de los días).')).toBeInTheDocument();
   });
@@ -150,7 +156,7 @@ describe('PrintReport', () => {
   });
 
   it('says what was adjusted by hand in the detail', () => {
-    renderReport({ input: { overtimeOverrides: { '3': { horasExtrasDobles: 2 } }, nonWorkedDaysOverrides: { '3': 0 } } });
+    renderReport({ input: { overtimeDecisions: { '3': { kind: 'adjusted', simples: 1, dobles: 2, calcSimples: 1, calcDobles: 0 } }, nonWorkedDaysOverrides: { '3': 0 } } });
     const ana = screen.getByRole('region', { name: 'Detalle 3 JOSE DIEGUEZ' });
     expect(within(ana).getByText('Días no laborados (1): mar 03/11. Se envía 0 (ajustado a mano).')).toBeInTheDocument();
     expect(within(ana).getByText('Extras dobles: los días suman 0.00, se envía 2.00 (ajustado a mano).')).toBeInTheDocument();
@@ -183,6 +189,18 @@ describe('PrintReport', () => {
     expect(within(ana).getByText('Suma de los días (1 día trabajado)')).toBeInTheDocument();
   });
 
+  it('says in the summary and the detail which overtime goes as zero for lack of approval', () => {
+    renderReport({ input: { overtimeDecisions: {} } });
+    expect(screen.getByText('Sin aprobar · calc. 1.00 / 0.00')).toBeInTheDocument();
+    const jose = screen.getByRole('region', { name: 'Detalle 3 JOSE DIEGUEZ' });
+    expect(within(jose).getByText('Extras simples: los días suman 1.00, se envía 0.00 (sin aprobar).')).toBeInTheDocument();
+  });
+
+  it('marks an approval the calculation no longer matches', () => {
+    renderReport({ mode: 'summary', input: { overtimeDecisions: { '3': { kind: 'approved', simples: 3, dobles: 0, calcSimples: 3, calcDobles: 0 } } } });
+    expect(screen.getByText('Cálculo cambió · calc. 1.00 / 0.00')).toBeInTheDocument();
+  });
+
   it('warns when the fortnight coverage could not be checked', () => {
     renderReport({ unverified: true });
     expect(screen.getByText(/No se pudo verificar que el archivo cubra la quincena completa/)).toBeInTheDocument();
@@ -196,7 +214,7 @@ describe('PrintReport', () => {
 
   it('explains how the detail adds up only when the detail is printed', () => {
     const { unmount } = renderReport({ mode: 'summary' });
-    expect(screen.getByText('Los domingos y feriados no cuentan como días no laborados.')).toBeInTheDocument();
+    expect(screen.getByText('Las horas extra sin aprobar se envían en cero. Los domingos y feriados no cuentan como días no laborados.')).toBeInTheDocument();
     expect(screen.queryByText(/suma de los días da lo que se envía/)).not.toBeInTheDocument();
     unmount();
     renderReport({ mode: 'detail' });

@@ -41,6 +41,8 @@ export const LOCAL_RECOVERY_MESSAGE = 'Recuperando la sesión guardada en este e
 export const LOCAL_RECOVERED_MESSAGE = 'Se recuperó la sesión guardada en este equipo.';
 export const LOCAL_RECOVERED_REVIEW_MESSAGE =
   'Se recuperó la sesión guardada en este equipo. Presione "Revisar" para ver los totales.';
+export const REVIEW_DECISIONS_DROPPED_MESSAGE =
+  'Los ajustes de horas extra y días no laborados se guardaron con otra versión de la aplicación y no se recuperaron. Revíselos de nuevo.';
 export const LOCAL_RECOVERY_FAILED_MESSAGE = 'No se pudo recuperar la sesión guardada en este equipo.';
 
 // The local copy shown on the start screen like a saved session.
@@ -206,9 +208,12 @@ export default function App() {
       const recovery = await rebuildFromLocalCopy(copy);
       setLocalCopy(null);
       showToast(recovery.wasInReview ? LOCAL_RECOVERED_REVIEW_MESSAGE : LOCAL_RECOVERED_MESSAGE, 'success');
+      const warnings: string[] = [];
       if (recovery.dropped > 0) {
-        showToast(`${recovery.dropped} ${recovery.dropped === 1 ? 'decisión no se pudo recuperar' : 'decisiones no se pudieron recuperar'} porque esos días cambiaron. Revíselos.`, 'warning');
+        warnings.push(`${recovery.dropped} ${recovery.dropped === 1 ? 'decisión no se pudo recuperar' : 'decisiones no se pudieron recuperar'} porque esos días cambiaron. Revíselos.`);
       }
+      if (recovery.reviewDecisionsDropped) warnings.push(REVIEW_DECISIONS_DROPPED_MESSAGE);
+      if (warnings.length > 0) showToast(warnings.join(' '), 'warning');
     } catch (err) {
       console.warn('No se pudo reconstruir la sesión desde la copia local.', err);
       showToast(LOCAL_RECOVERY_FAILED_MESSAGE, 'error');

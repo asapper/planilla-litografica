@@ -32,7 +32,10 @@ function Num({ value, days = false }: { value: number; days?: boolean }) {
 
 function summaryNotes(e: ReportEmployee): string {
   const notes: string[] = [];
-  if (e.diasFinal !== e.diasCalculated || e.simples.final !== e.simples.calculated || e.dobles.final !== e.dobles.calculated) notes.push('Ajustado');
+  if (e.overtimeStatus === 'pending') notes.push(`Sin aprobar · calc. ${formatHours(e.simples.calculated)} / ${formatHours(e.dobles.calculated)}`);
+  if (e.overtimeStatus === 'stale') notes.push(`Cálculo cambió · calc. ${formatHours(e.simples.calculated)} / ${formatHours(e.dobles.calculated)}`);
+  if (e.overtimeStatus === 'approved') notes.push('Aprobado');
+  if (e.diasFinal !== e.diasCalculated || e.overtimeStatus === 'adjusted') notes.push('Ajustado');
   if (!e.accruesOvertime) notes.push('No acumula extras');
   if (e.estimatedDays > 0) notes.push(`${e.estimatedDays} turno est.`);
   if (e.mismatch) notes.push('⚠ No cuadra');
@@ -85,9 +88,12 @@ function SummaryTable({ report }: { report: Report }) {
   );
 }
 
-function figureLine(label: string, f: ReportFigure, accrues: boolean): string | null {
+function figureLine(label: string, f: ReportFigure, e: ReportEmployee): string | null {
   if (f.final === f.sumOfDays) return null;
-  const reason = f.final !== f.calculated ? 'ajustado a mano' : !accrues ? 'no acumula horas extra' : 'no coincide con la suma de los días';
+  const reason = !e.accruesOvertime ? 'no acumula horas extra'
+    : e.overtimeStatus === 'pending' || e.overtimeStatus === 'stale' ? 'sin aprobar'
+      : f.final !== f.calculated ? 'ajustado a mano'
+        : 'no coincide con la suma de los días';
   return `${label}: los días suman ${formatHours(f.sumOfDays)}, se envía ${formatHours(f.final)} (${reason}).`;
 }
 
@@ -95,8 +101,8 @@ function EmployeeDetail({ e }: { e: ReportEmployee }) {
   const worked = e.days.filter(d => d.session !== null);
   const workedHours = worked.reduce((acc, d) => acc + d.session!.workedHours, 0);
   const reconciliation = [
-    figureLine('Extras simples', e.simples, e.accruesOvertime),
-    figureLine('Extras dobles', e.dobles, e.accruesOvertime),
+    figureLine('Extras simples', e.simples, e),
+    figureLine('Extras dobles', e.dobles, e),
   ].filter((l): l is string => l !== null);
   const diasLine = e.absentDates.length === 0
     ? 'Sin días no laborados.'
@@ -220,7 +226,7 @@ export default function PrintReport({ report, mode, period, generatedAt, incompl
 
       <p className="pr-legend">
         {mode === 'detail' && 'Las horas extra se cuentan por día en medias horas completas y luego se suman; en el detalle, la suma de los días da lo que se envía, salvo los ajustes indicados. '}
-        Los domingos y feriados no cuentan como días no laborados.
+        Las horas extra sin aprobar se envían en cero. Los domingos y feriados no cuentan como días no laborados.
       </p>
 
       <SummaryTable report={report} />

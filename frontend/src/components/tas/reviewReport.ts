@@ -1,3 +1,4 @@
+import { effectiveOvertime, type OvertimeDecision, type OvertimeStatus } from '../../overtime';
 import type { AbsentEmployee, ResolvedRow, SessionSummary } from '../../tasTypes';
 
 export type PrintMode = 'summary' | 'detail';
@@ -27,6 +28,7 @@ export interface ReportEmployee {
   simples: ReportFigure;
   dobles: ReportFigure;
   accruesOvertime: boolean;
+  overtimeStatus: OvertimeStatus;
   estimatedDays: number;
   notes: string[];
   mismatch: boolean;
@@ -48,7 +50,7 @@ export interface Report {
 export interface ReportInput {
   rows: ResolvedRow[];
   sessionSummaries: Record<string, SessionSummary[]>;
-  overtimeOverrides: Record<string, { horasExtrasSimples?: number; horasExtrasDobles?: number }>;
+  overtimeDecisions: Record<string, OvertimeDecision>;
   nonWorkedDaysOverrides: Record<string, number>;
   duplicateCodes: string[];
   absentEmployees: AbsentEmployee[];
@@ -96,16 +98,14 @@ function buildEmployee(row: ResolvedRow, input: ReportInput): ReportEmployee {
   const absent: ReportDay[] = row.fechasNoLaboradas.map(date => ({ date, session: null, discarded: false, simples: 0, dobles: 0 }));
   const days = [...worked, ...absent].sort((a, b) => a.date.localeCompare(b.date));
 
-  const override = input.overtimeOverrides[row.codigoEmpleado];
+  const overtime = effectiveOvertime(row, input.overtimeDecisions[row.codigoEmpleado]);
   const diasOverride = input.nonWorkedDaysOverrides[row.codigoEmpleado];
   const simplesSum = sum(worked.map(d => d.simples));
   const doblesSum = sum(worked.map(d => d.dobles));
 
-  // Submit drops overtime overrides for an employee who does not accrue overtime.
-  const simplesOverride = row.accruesOvertime ? override?.horasExtrasSimples : undefined;
-  const doblesOverride = row.accruesOvertime ? override?.horasExtrasDobles : undefined;
-  const simples = { sumOfDays: simplesSum, calculated: row.horasExtrasSimples, final: simplesOverride ?? row.horasExtrasSimples };
-  const dobles = { sumOfDays: doblesSum, calculated: row.horasExtrasDobles, final: doblesOverride ?? row.horasExtrasDobles };
+  const simples = { sumOfDays: simplesSum, calculated: row.horasExtrasSimples, final: overtime.simples };
+  const dobles = { sumOfDays: doblesSum, calculated: row.horasExtrasDobles, final: overtime.dobles };
+  const calculatedText = `${formatHours(row.horasExtrasSimples)} simples, ${formatHours(row.horasExtrasDobles)} dobles`;
   const diasFinal = diasOverride ?? row.diasNoLaborados;
 
   const expectedSimples = row.accruesOvertime ? simplesSum : 0;
@@ -116,8 +116,13 @@ function buildEmployee(row: ResolvedRow, input: ReportInput): ReportEmployee {
 
   const notes: string[] = [];
   if (diasOverride !== undefined) notes.push(`Días no laborados ajustados a mano (calculado: ${row.diasNoLaborados})`);
-  if (simplesOverride !== undefined) notes.push(`Extras simples ajustadas a mano (calculado: ${formatHours(row.horasExtrasSimples)})`);
-  if (doblesOverride !== undefined) notes.push(`Extras dobles ajustadas a mano (calculado: ${formatHours(row.horasExtrasDobles)})`);
+  if (overtime.status === 'pending') notes.push(`Horas extra sin aprobar: se envían en cero (calculado: ${calculatedText})`);
+  if (overtime.status === 'stale') notes.push(`El cálculo cambió después de aprobarlas: se envían en cero (calculado ahora: ${calculatedText})`);
+  if (overtime.status === 'adjusted') {
+    if (simples.final !== simples.calculated) notes.push(`Extras simples ajustadas a mano (calculado: ${formatHours(row.horasExtrasSimples)})`);
+    if (dobles.final !== dobles.calculated) notes.push(`Extras dobles ajustadas a mano (calculado: ${formatHours(row.horasExtrasDobles)})`);
+    if (overtime.calcChanged) notes.push('El cálculo cambió después del ajuste');
+  }
   if (!row.accruesOvertime) notes.push('No acumula horas extra: se envían en cero');
   if (row.diasTurnoEstimado > 0) notes.push(`${row.diasTurnoEstimado} ${row.diasTurnoEstimado === 1 ? 'día' : 'días'} con turno estimado`);
 
@@ -132,6 +137,7 @@ function buildEmployee(row: ResolvedRow, input: ReportInput): ReportEmployee {
     simples,
     dobles,
     accruesOvertime: row.accruesOvertime,
+    overtimeStatus: overtime.status,
     estimatedDays: row.diasTurnoEstimado,
     notes,
     mismatch,
