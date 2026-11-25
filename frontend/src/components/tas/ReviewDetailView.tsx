@@ -246,6 +246,14 @@ export default function ReviewDetailView({ onBack }: ReviewDetailViewProps) {
                               est.
                             </span>
                           )}
+                          {s.incomplete && (
+                            <span
+                              title="Marcación incompleta: falta la entrada o la salida. El día cuenta como trabajado, sin horas extra."
+                              className="ml-1.5 inline-block bg-warning-container text-on-warning-container text-label-sm px-1.5 py-0.5 rounded-full font-medium"
+                            >
+                              incompleta
+                            </span>
+                          )}
                         </td>
                         <td className="py-2 px-3 text-body-sm text-on-surface-variant">{formatTime(s.entryTime)}</td>
                         <td className="py-2 px-3 text-body-sm text-on-surface-variant">{formatTime(s.exitTime)}</td>

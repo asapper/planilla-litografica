@@ -10,7 +10,8 @@ import { getGeneralConfig } from '../../configApi';
 import { rememberSentDecisions } from '../../localCopy';
 import AlertMessage from '../ui/AlertMessage';
 import EmployeeGroup from './EmployeeGroup';
-import { buildEmployeeGroups, effectiveResolution, keptSessions, needsTimes, prefilledResolution } from './verificationGrouping';
+import IncompletePunchesDialog from './IncompletePunchesDialog';
+import { blocksSending, buildEmployeeGroups, effectiveResolution, keptSessions, needsTimes, prefilledResolution } from './verificationGrouping';
 
 const FLAG_LABELS: Record<TasFlag, string> = {
   MISSING_ENTRY:   'Falta entrada',
@@ -672,7 +673,11 @@ function SessionCard({ session, input, resolved, crossMidnight, highlighted, onI
       )}
 
       <p role="status" className={`text-body-sm ${view.resolution ? 'text-success font-medium' : 'text-on-surface-variant'}`}>
-        {view.resolution ? '✓ Completo' : 'Falta completar la hora. Lo que escriba se guarda automáticamente.'}
+        {view.resolution
+          ? '✓ Completo'
+          : session.incomplete
+            ? 'Falta completar la hora. Si la deja vacía, el día cuenta como trabajado, sin horas extra.'
+            : 'Falta completar la hora. Lo que escriba se guarda automáticamente.'}
       </p>
     </div>
   );
@@ -730,6 +735,7 @@ export default function VerificationScreen() {
     return rest;
   });
   const [highlightedSessionId, setHighlightedSessionId] = useState<number | null>(null);
+  const [confirmingIncomplete, setConfirmingIncomplete] = useState(false);
 
   const needsResolutionSessions = flaggedSessions.filter(
     s => s.needsResolution && periodsEqual(getSessionPeriod(s.date), selectedPeriod),
@@ -781,9 +787,11 @@ export default function VerificationScreen() {
     s => cardInputs[s.sessionId] && !resolvedSessions[s.sessionId]).length;
   const pendingCount   = employeeGroups.reduce((sum, g) => sum + g.pendingCount, 0) + shortDaysUnfinished;
   const allConfirmed   = pendingCount === 0;
+  const incompleteSessions = employeeGroups.flatMap(g => g.incomplete);
+  const allComplete = allConfirmed && incompleteSessions.length === 0;
 
   const openedKey = (employeeId: string) => `${currentPeriodKey}|${employeeId}`;
-  const wantsOpen = (group: (typeof employeeGroups)[number]) => group.pendingCount > 0 || group.items.some(
+  const wantsOpen = (group: (typeof employeeGroups)[number]) => group.pendingCount > 0 || group.incomplete.length > 0 || group.items.some(
     i => (i.type === 'same_day_double' && sameDayDoubleResolutions[i.groupKey] === undefined)
       || (i.type === 'session' && i.session.sessionId === highlightedSessionId),
   );
@@ -876,7 +884,7 @@ export default function VerificationScreen() {
       ];
       const result = await resolveVerification(uploadToken, resolutions, selectedPeriod);
       const stillNeedsResolution = result.flaggedSessions.some(
-        s => s.needsResolution && periodsEqual(getSessionPeriod(s.date), selectedPeriod),
+        s => blocksSending(s) && periodsEqual(getSessionPeriod(s.date), selectedPeriod),
       );
       if (stillNeedsResolution) {
         // The backend applied what was sent; the screen starts the new round empty, but the copy on
@@ -950,7 +958,7 @@ export default function VerificationScreen() {
           Solo se enviará el periodo seleccionado. Para procesar otros periodos, vuelva a cargar el archivo.
         </p>
 
-        {allConfirmed && totalToResolve > 0 && (
+        {allComplete && totalToResolve > 0 && (
           <AlertMessage
             variant="success"
             message="Todos los grupos están resueltos — puede continuar y enviar."
@@ -971,6 +979,7 @@ export default function VerificationScreen() {
                 key={group.employeeId}
                 employeeName={group.employeeName}
                 pendingCount={group.pendingCount}
+                incompleteCount={group.incomplete.length}
                 expanded={isExpanded(group)}
                 onToggle={() => toggleGroup(group)}
               >
@@ -1059,25 +1068,48 @@ export default function VerificationScreen() {
       </div>
 
       <div className="sticky bottom-0 bg-surface-container-lowest border-t border-outline-variant px-6 py-4 flex items-center justify-between">
-        <div>
+        <div className="flex items-center gap-3 flex-wrap">
           {pendingCount > 0 && (
             <span className="inline-flex items-center px-3 py-1 rounded-full bg-error text-on-error text-label-md font-medium">
               {pendingCount} por resolver
             </span>
           )}
+          {incompleteSessions.length > 0 && (
+            <span className="text-body-sm text-on-surface-variant">
+              {incompleteSessions.length} {incompleteSessions.length === 1 ? 'marcación incompleta' : 'marcaciones incompletas'}: el día cuenta como trabajado, sin horas extra.
+            </span>
+          )}
         </div>
         <button
           disabled={!allConfirmed}
-          onClick={handleSubmit}
+          onClick={() => {
+            if (incompleteSessions.length > 0) setConfirmingIncomplete(true);
+            else void handleSubmit();
+          }}
           className={
-            allConfirmed && totalToResolve > 0
+            allComplete && totalToResolve > 0
               ? 'm3-btn-filled !bg-success !text-on-success'
               : 'm3-btn-filled disabled:opacity-40 disabled:cursor-not-allowed'
           }
         >
-          {allConfirmed && totalToResolve > 0 ? '✓ Revisar' : 'Revisar'}
+          {allComplete && totalToResolve > 0 ? '✓ Revisar' : 'Revisar'}
         </button>
       </div>
+      {confirmingIncomplete && (
+        <IncompletePunchesDialog
+          items={incompleteSessions.map(s => ({
+            sessionId: s.sessionId,
+            employeeName: s.employeeName,
+            date: formatDate(s.date),
+            detail: s.flags.filter(f => f === 'MISSING_ENTRY' || f === 'MISSING_EXIT').map(f => flagLabel(f, s)).join(' · '),
+          }))}
+          onCancel={() => setConfirmingIncomplete(false)}
+          onContinue={() => {
+            setConfirmingIncomplete(false);
+            void handleSubmit();
+          }}
+        />
+      )}
     </div>
     </DaySpanLimit.Provider>
   );

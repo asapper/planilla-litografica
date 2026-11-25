@@ -2833,6 +2833,63 @@ class TasControllerTest {
         assertThat(s.getEffectiveStart()).isEqualTo(java.time.LocalDateTime.of(2026, 1, 15, 22, 0));
     }
 
+    private TasSession seedLoneScanDay(String token) {
+        TasSession s = seedNightState(token, "2026-01-07", TasFlag.MISSING_EXIT);
+        s.setScans(new ArrayList<>(List.of(java.time.LocalDateTime.of(2026, 1, 7, 7, 2))));
+        s.setEffectiveStart(java.time.LocalDateTime.of(2026, 1, 7, 7, 2));
+        tasController.stateStore.get(token).setReportEnd(java.time.LocalDate.of(2026, 1, 15));
+        useRealReportBuilder();
+        return s;
+    }
+
+    private org.springframework.test.web.servlet.ResultActions resolveNothing(String token) throws Exception {
+        return mvc.perform(post("/api/tas/resolve")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of(
+                        "uploadToken", token, "resolutions", List.of(),
+                        "anio", 2026, "mes", 1, "numeroDequincena", 1))))
+           .andExpect(status().isOk());
+    }
+
+    @Test
+    void submit_aLoneScanLeftEmpty_countsTheDayAsWorkedWithNoOvertime() throws Exception {
+        seedLoneScanDay("lone-tok");
+        when(jobService.createJob(any(), any())).thenReturn("job-lone");
+
+        // 13 working days from Jan 1 to 15 (two Sundays); the day with a single scan is worked.
+        resolveNothing("lone-tok")
+           .andExpect(jsonPath("$.flaggedSessions[0].incomplete").value(true))
+           .andExpect(jsonPath("$.sessionSummaries.emp1[0].incomplete").value(true))
+           .andExpect(jsonPath("$.sessionSummaries.emp1[0].date").value("2026-01-07"))
+           .andExpect(jsonPath("$.resolvedRows[0].diasNoLaborados").value(12));
+        mvc.perform(post("/api/tas/submit")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(Map.of("uploadToken", "lone-tok"))))
+           .andExpect(status().isAccepted());
+
+        var captor = org.mockito.ArgumentCaptor.forClass(List.class);
+        verify(jobService).createJob(captor.capture(), any());
+        @SuppressWarnings("unchecked")
+        List<EmployeeRow> submitted = captor.getValue();
+        assertThat(submitted).extracting(EmployeeRow::getDiasNoLaborados, EmployeeRow::getHorasExtrasSimples, EmployeeRow::getHorasExtrasDobles)
+            .containsExactly(org.assertj.core.groups.Tuple.tuple(12, 0.0, 0.0));
+    }
+
+    @Test
+    void submit_aNightWorkersLoneScanLeftEmpty_isRefused() throws Exception {
+        seedLoneScanDay("lone-night-tok").setAssignedShiftCrossMidnight(true);
+
+        resolveNothing("lone-night-tok")
+           .andExpect(jsonPath("$.flaggedSessions[0].incomplete").value(false))
+           .andExpect(jsonPath("$.sessionSummaries.emp1").doesNotExist());
+        mvc.perform(post("/api/tas/submit")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(Map.of("uploadToken", "lone-night-tok"))))
+           .andExpect(status().isConflict())
+           .andExpect(jsonPath("$.code").value("UNRESOLVED_SESSIONS"));
+        verify(jobService, never()).createJob(any(), any());
+    }
+
     private void useRealReportBuilder() {
         com.planilla.backend.service.tas.HolidayService holidays = org.mockito.Mockito.mock(com.planilla.backend.service.tas.HolidayService.class);
         EmployeeRegistryService registry = org.mockito.Mockito.mock(EmployeeRegistryService.class);

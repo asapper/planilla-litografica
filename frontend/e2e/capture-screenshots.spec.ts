@@ -635,3 +635,21 @@ test('29 - review: overtime nobody approved, before sending', async ({ page }) =
   await page.waitForSelector('text=Horas extra sin revisar');
   await screenshot(page, '29-review-pending-overtime.png');
 });
+
+// ── 30. Verification: lone scans left empty, before going on ──────────
+
+test('30 - verification: incomplete punches, before going on', async ({ page }) => {
+  await mockHealthEndpoints(page);
+  await mockTasUpload(page, {
+    ...mock.UPLOAD_RESULT_WITH_FLAGS,
+    flaggedSessions: [mock.FLAGGED_MISSING_ENTRY, mock.FLAGGED_MISSING_EXIT, mock.FLAGGED_SHIFT_MISMATCH],
+    availablePeriods: [{ anio: 2026, mes: 6, numeroDequincena: 1 }],
+  });
+  await waitForApp(page);
+  await uploadFile(page);
+  await page.waitForSelector('text=Verificación de marcaciones', { timeout: 10_000 });
+  await page.getByRole('button', { name: 'Revisar' }).click();
+  await page.getByRole('dialog').waitFor();
+  await page.waitForTimeout(300);
+  await screenshot(page, '30-verification-incomplete-confirm.png');
+});

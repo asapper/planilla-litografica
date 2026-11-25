@@ -16,6 +16,8 @@ export interface TasSession {
   workedHours: number
   crossMidnight: boolean
   needsResolution: boolean
+  // A lone scan that may be left empty: the day counts as worked, with no overtime.
+  incomplete?: boolean
   flags: TasFlag[]
 }
 
@@ -70,6 +72,7 @@ export interface SessionSummary {
   estimatedShift?: boolean
   breakDeductionMinutes?: number
   discarded?: boolean
+  incomplete?: boolean
 }
 
 export interface TasUploadResult {

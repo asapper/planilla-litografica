@@ -3,13 +3,14 @@ import type { ReactNode } from 'react';
 interface EmployeeGroupProps {
   employeeName: string;
   pendingCount: number;
+  incompleteCount: number;
   expanded: boolean;
   onToggle: () => void;
   children: ReactNode;
 }
 
-export default function EmployeeGroup({ employeeName, pendingCount, expanded, onToggle, children }: EmployeeGroupProps) {
-  const resolved = pendingCount === 0;
+export default function EmployeeGroup({ employeeName, pendingCount, incompleteCount, expanded, onToggle, children }: EmployeeGroupProps) {
+  const resolved = pendingCount === 0 && incompleteCount === 0;
 
   return (
     <div className="border border-outline-variant rounded-shape-md mb-3 shadow-sm">
@@ -23,11 +24,15 @@ export default function EmployeeGroup({ employeeName, pendingCount, expanded, on
       >
         <span className="font-medium text-on-surface">{employeeName}</span>
         <div className="flex items-center gap-2">
-          {resolved ? (
-            <span className="text-label-md font-medium text-success">✓ Resuelto</span>
-          ) : (
+          {resolved && <span className="text-label-md font-medium text-success">✓ Resuelto</span>}
+          {pendingCount > 0 && (
             <span className="inline-flex items-center px-3 py-1 rounded-full bg-error text-on-error text-label-md font-medium">
               {pendingCount} por resolver
+            </span>
+          )}
+          {incompleteCount > 0 && (
+            <span className="inline-flex items-center px-3 py-1 rounded-full bg-warning-container text-on-warning-container text-label-md font-medium">
+              {incompleteCount} {incompleteCount === 1 ? 'incompleta' : 'incompletas'}
             </span>
           )}
           <span className="text-on-surface-variant text-body-sm" aria-hidden="true">

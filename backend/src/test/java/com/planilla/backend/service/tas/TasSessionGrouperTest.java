@@ -132,6 +132,18 @@ class TasSessionGrouperTest {
     }
 
     @Test
+    void group_marksWhetherTheAssignedShiftCrossesMidnight() {
+        TasSession day = grouper.group(List.of(scan("100", LocalDateTime.of(2026, 3, 10, 7, 0))), shifts, assignManana("100")).get(0);
+        TasSession night = grouper.group(List.of(scan("300", LocalDateTime.of(2026, 3, 11, 7, 0))), shifts, assignNoche("300")).get(0);
+        TasSession bestFit = grouper.group(List.of(scan("300", LocalDateTime.of(2026, 3, 11, 12, 0))), shifts, assignNoche("300")).get(0);
+
+        assertThat(day.isAssignedShiftCrossMidnight()).isFalse();
+        assertThat(night.isAssignedShiftCrossMidnight()).isTrue();
+        assertThat(bestFit.getFlags()).contains(TasFlag.BEST_FIT_SHIFT);
+        assertThat(bestFit.isAssignedShiftCrossMidnight()).isTrue();
+    }
+
+    @Test
     void group_crossMidnightSession_stitchedCorrectly() {
         List<TasScanRecord> scans = List.of(
             scan("300", LocalDateTime.of(2026, 3, 10, 19, 3)),

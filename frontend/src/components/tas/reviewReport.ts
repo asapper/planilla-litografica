@@ -124,6 +124,10 @@ function buildEmployee(row: ResolvedRow, input: ReportInput): ReportEmployee {
     if (overtime.calcChanged) notes.push('El cálculo cambió después del ajuste');
   }
   if (!row.accruesOvertime) notes.push('No acumula horas extra: se envían en cero');
+  const incompleteDays = sessions.filter(s => s.incomplete).length;
+  if (incompleteDays > 0) {
+    notes.push(`${incompleteDays} ${incompleteDays === 1 ? 'día con marcación incompleta: cuenta' : 'días con marcación incompleta: cuentan'} como trabajado, sin horas extra`);
+  }
   if (row.diasTurnoEstimado > 0) notes.push(`${row.diasTurnoEstimado} ${row.diasTurnoEstimado === 1 ? 'día' : 'días'} con turno estimado`);
 
   return {

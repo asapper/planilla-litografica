@@ -5,7 +5,7 @@ import EmployeeGroup from './EmployeeGroup';
 describe('EmployeeGroup', () => {
   it('renders the employee name', () => {
     render(
-      <EmployeeGroup employeeName="Ana López" pendingCount={1} expanded={true} onToggle={() => {}}>
+      <EmployeeGroup employeeName="Ana López" pendingCount={1} incompleteCount={0} expanded={true} onToggle={() => {}}>
         <div>child content</div>
       </EmployeeGroup>,
     );
@@ -14,7 +14,7 @@ describe('EmployeeGroup', () => {
 
   it('shows a pending badge with the count when pendingCount > 0', () => {
     render(
-      <EmployeeGroup employeeName="Ana López" pendingCount={2} expanded={true} onToggle={() => {}}>
+      <EmployeeGroup employeeName="Ana López" pendingCount={2} incompleteCount={0} expanded={true} onToggle={() => {}}>
         <div>child content</div>
       </EmployeeGroup>,
     );
@@ -24,7 +24,7 @@ describe('EmployeeGroup', () => {
 
   it('shows "Resuelto" when pendingCount is 0', () => {
     render(
-      <EmployeeGroup employeeName="Ana López" pendingCount={0} expanded={false} onToggle={() => {}}>
+      <EmployeeGroup employeeName="Ana López" pendingCount={0} incompleteCount={0} expanded={false} onToggle={() => {}}>
         <div>child content</div>
       </EmployeeGroup>,
     );
@@ -34,7 +34,7 @@ describe('EmployeeGroup', () => {
 
   it('renders children when expanded', () => {
     render(
-      <EmployeeGroup employeeName="Ana López" pendingCount={1} expanded={true} onToggle={() => {}}>
+      <EmployeeGroup employeeName="Ana López" pendingCount={1} incompleteCount={0} expanded={true} onToggle={() => {}}>
         <div>child content</div>
       </EmployeeGroup>,
     );
@@ -43,7 +43,7 @@ describe('EmployeeGroup', () => {
 
   it('does not render children when collapsed', () => {
     render(
-      <EmployeeGroup employeeName="Ana López" pendingCount={0} expanded={false} onToggle={() => {}}>
+      <EmployeeGroup employeeName="Ana López" pendingCount={0} incompleteCount={0} expanded={false} onToggle={() => {}}>
         <div>child content</div>
       </EmployeeGroup>,
     );
@@ -53,7 +53,7 @@ describe('EmployeeGroup', () => {
   it('calls onToggle when the header is clicked', () => {
     const onToggle = vi.fn();
     render(
-      <EmployeeGroup employeeName="Ana López" pendingCount={1} expanded={true} onToggle={onToggle}>
+      <EmployeeGroup employeeName="Ana López" pendingCount={1} incompleteCount={0} expanded={true} onToggle={onToggle}>
         <div>child content</div>
       </EmployeeGroup>,
     );
@@ -63,17 +63,40 @@ describe('EmployeeGroup', () => {
 
   it('shows a collapse chevron (▾) when expanded and an expand chevron (▸) when collapsed', () => {
     const { rerender } = render(
-      <EmployeeGroup employeeName="Ana López" pendingCount={1} expanded={true} onToggle={() => {}}>
+      <EmployeeGroup employeeName="Ana López" pendingCount={1} incompleteCount={0} expanded={true} onToggle={() => {}}>
         <div>child</div>
       </EmployeeGroup>,
     );
     expect(screen.getByRole('button', { name: /Ana López/ })).toHaveTextContent('▾');
 
     rerender(
-      <EmployeeGroup employeeName="Ana López" pendingCount={1} expanded={false} onToggle={() => {}}>
+      <EmployeeGroup employeeName="Ana López" pendingCount={1} incompleteCount={0} expanded={false} onToggle={() => {}}>
         <div>child</div>
       </EmployeeGroup>,
     );
     expect(screen.getByRole('button', { name: /Ana López/ })).toHaveTextContent('▸');
+  });
+});
+
+describe('EmployeeGroup incomplete punches', () => {
+  it('marks lone scans left empty apart from what must be resolved', () => {
+    render(
+      <EmployeeGroup employeeName="Ana López" pendingCount={1} incompleteCount={2} expanded={false} onToggle={() => {}}>
+        <div />
+      </EmployeeGroup>,
+    );
+    expect(screen.getByText('1 por resolver')).toBeInTheDocument();
+    expect(screen.getByText('2 incompletas')).toBeInTheDocument();
+    expect(screen.queryByText(/Resuelto/)).not.toBeInTheDocument();
+  });
+
+  it('with only one lone scan', () => {
+    render(
+      <EmployeeGroup employeeName="Ana López" pendingCount={0} incompleteCount={1} expanded={false} onToggle={() => {}}>
+        <div />
+      </EmployeeGroup>,
+    );
+    expect(screen.getByText('1 incompleta')).toBeInTheDocument();
+    expect(screen.queryByText(/por resolver|Resuelto/)).not.toBeInTheDocument();
   });
 });

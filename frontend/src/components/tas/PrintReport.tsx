@@ -162,6 +162,7 @@ function EmployeeDetail({ e }: { e: ReportEmployee }) {
                 {d.session.shiftName ?? '—'}
                 {d.session.estimatedShift && <span className="pr-flag">turno estimado</span>}
                 {d.discarded && <span className="pr-flag">descartada (doble jornada)</span>}
+                {d.session.incomplete && <span className="pr-flag">marcación incompleta: sin horas extra</span>}
               </td>
               <td className="pr-clock">{formatClock(d.session.entryTime, d.date)}</td>
               <td className="pr-clock">{formatClock(d.session.exitTime, d.date)}</td>

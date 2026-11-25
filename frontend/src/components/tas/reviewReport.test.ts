@@ -109,6 +109,14 @@ describe('buildReport', () => {
     expect(e.notes).toEqual(['No acumula horas extra: se envían en cero', '1 día con turno estimado']);
   });
 
+  it('notes the days left with a single scan', () => {
+    const lone = { ...day('2026-11-03', 0), incomplete: true };
+    const one = buildReport(input({ rows: [row({})], sessionSummaries: { '1': [day('2026-11-02', 0), lone] } }));
+    expect(one.employees[0].notes).toEqual(['1 día con marcación incompleta: cuenta como trabajado, sin horas extra']);
+    const two = buildReport(input({ rows: [row({})], sessionSummaries: { '1': [lone, { ...lone, date: '2026-11-04' }] } }));
+    expect(two.employees[0].notes).toEqual(['2 días con marcación incompleta: cuentan como trabajado, sin horas extra']);
+  });
+
   it('pluralizes estimated days', () => {
     const report = buildReport(input({ rows: [row({ diasTurnoEstimado: 2 })] }));
     expect(report.employees[0].notes).toEqual(['2 días con turno estimado']);

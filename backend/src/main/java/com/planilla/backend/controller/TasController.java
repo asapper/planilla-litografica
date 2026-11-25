@@ -614,7 +614,7 @@ public class TasController {
 
             TasPeriod resolvedPeriod = state.getResolvedPeriod();
             List<TasSession> unresolved = sessions.stream()
-                    .filter(TasSession::isNeedsResolution)
+                    .filter(TasSession::blocksSubmit)
                     .filter(s -> resolvedPeriod == null || resolvedPeriod.equals(TasPeriod.of(s.getDate())))
                     .collect(Collectors.toList());
             if (!unresolved.isEmpty()) {
@@ -1014,7 +1014,7 @@ public class TasController {
         Map<String, List<Map<String, Object>>> result = new LinkedHashMap<>();
 
         List<TasSession> filtered = sessions.stream()
-                .filter(s -> !s.isNeedsResolution() && s.getDate() != null)
+                .filter(s -> (!s.isNeedsResolution() || s.isIncomplete()) && s.getDate() != null)
                 .filter(s -> periodFilter == null || TasPeriod.of(s.getDate()).equals(periodFilter))
                 .sorted(Comparator.comparing(TasSession::getDate))
                 .collect(Collectors.toList());
@@ -1035,6 +1035,7 @@ public class TasController {
             entry.put("estimatedShift", s.getFlags() != null && s.getFlags().contains(TasFlag.BEST_FIT_SHIFT));
             entry.put("breakDeductionMinutes", s.getBreakDeductionMinutes());
             entry.put("discarded", s.isDiscarded());
+            entry.put("incomplete", s.isIncomplete());
 
             result.computeIfAbsent(s.getEmployeeId(), k -> new ArrayList<>()).add(entry);
         }

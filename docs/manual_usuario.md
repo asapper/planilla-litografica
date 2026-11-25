@@ -189,11 +189,16 @@ Cuando haya decidido qué hacer con cada empleado, haga clic en **"Continuar"** 
 
 ### Paso 3: Verificación de marcaciones
 
-La pantalla de verificación muestra todas las situaciones que la aplicación detectó como irregulares. Cada situación requiere que usted la revise y confirme antes de continuar.
+La pantalla de verificación muestra todas las situaciones que la aplicación detectó como irregulares. Revíselas antes de continuar. Las marcaciones incompletas de empleados de día se pueden dejar vacías (vea [Marcaciones incompletas](#marcaciones-incompletas)).
 
 ![Pantalla de verificación de marcaciones](screenshots/04-verification-overview.png)
 
-Cada empleado con situaciones pendientes aparece en una tarjeta con una etiqueta roja que indica cuántas situaciones quedan **"por resolver"**. Dentro de cada tarjeta se muestra la situación específica con los detalles de la marcación.
+Cada empleado con situaciones pendientes aparece en una tarjeta con etiquetas que indican lo que falta:
+
+- **"N por resolver"** (rojo): situaciones que debe completar antes de continuar.
+- **"N incompleta(s)"** (amarillo): días con una sola marcación que puede completar o dejar vacíos.
+
+Dentro de cada tarjeta se muestra la situación específica con los detalles de la marcación.
 
 A continuación se explica cada tipo de situación que puede encontrar:
 
@@ -222,6 +227,30 @@ El sistema encontró una marcación de entrada pero no encontró la marcación d
 2. Ingrese la hora de salida correcta en el campo **"Salida"**. Se guarda al escribirla.
 
 **¿La hora mostrada como entrada es en realidad la salida?** Es común en marcaciones de la tarde (por ejemplo, 16:58 o 17:30) de empleados del turno de mañana que olvidaron marcar al entrar. Haga clic en **"Intercambiar entrada/salida"**: la hora registrada pasa al campo **"Salida"** y usted ingresa la **"Entrada"**. Vea [Intercambiar entrada y salida](#intercambiar-entrada-y-salida).
+
+#### Marcaciones incompletas
+
+Un día con **una sola marcación** ("Falta entrada" o "Falta salida") de un empleado de turno de día **se puede dejar vacío**. En ese caso:
+
+- **El día cuenta como trabajado.** La marcación muestra que el empleado se presentó.
+- **Ese día no suma horas extra.** Sin la otra hora no hay forma de calcularlas.
+
+La tarjeta lo indica con el texto **"Si la deja vacía, el día cuenta como trabajado, sin horas extra."**, y la barra inferior muestra cuántas marcaciones incompletas quedan. Si un empleado trabajó horas extra ese día, escriba la hora que falta para que se calculen.
+
+Al hacer clic en **"Revisar"** con marcaciones incompletas, la aplicación muestra la lista de esos días:
+
+![Aviso de marcaciones incompletas antes de continuar](screenshots/30-verification-incomplete-confirm.png)
+
+- **"Volver a completar"** (opción predeterminada) regresa a la pantalla para escribir las horas.
+- **"Continuar de todas formas"** sigue a la revisión con esos días como trabajados y sin horas extra.
+
+En la revisión y en el reporte impreso, esos días aparecen marcados como **"incompleta"** / **"marcación incompleta: sin horas extra"**.
+
+**Cuándo sí debe completar la hora** (la tarjeta sigue contando como **"por resolver"**):
+
+- **Empleados de turno de noche.** Una sola marcación de noche puede quedar en la fecha equivocada (la salida de las 07:00 se confundiría con un día distinto), así que la aplicación pide la hora.
+- **Días al borde del archivo** ("Corte de período").
+- **Marcaciones fuera de orden** u otros casos que la aplicación no puede interpretar.
 
 #### Intercambiar entrada y salida
 
@@ -331,11 +360,11 @@ Solo se procesará y enviará el período seleccionado. Para procesar otros per�
 
 #### Cuando todo está confirmado
 
-Una vez que haya revisado y confirmado todas las situaciones, aparecerá un banner verde con el mensaje **"Todos los grupos están resueltos — puede continuar y enviar."** Cada empleado mostrará la etiqueta verde **"Resuelto"**.
+Una vez que haya completado todas las situaciones, incluidas las marcaciones incompletas, aparecerá un banner verde con el mensaje **"Todos los grupos están resueltos — puede continuar y enviar."** Cada empleado mostrará la etiqueta verde **"Resuelto"**.
 
 ![Todas las verificaciones confirmadas](screenshots/07-verification-confirmed.png)
 
-Haga clic en el botón **"Revisar"** (ahora habilitado en verde) en la esquina inferior derecha para avanzar al siguiente paso.
+Haga clic en el botón **"Revisar"** (ahora habilitado en verde) en la esquina inferior derecha para avanzar al siguiente paso. Si solo quedan marcaciones incompletas, **"Revisar"** también está habilitado; antes de avanzar verá el aviso descrito en [Marcaciones incompletas](#marcaciones-incompletas).
 
 ---
 
@@ -772,6 +801,9 @@ No cierre la aplicación durante el envío. Si se cerró por accidente, vuelva a
 
 **¿Pierdo mi trabajo si la aplicación se cierra a mitad de la verificación?**
 No. El avance se guarda automáticamente. Al volver a abrir la aplicación, pulse **Continuar** en la tarjeta "Sesión sin terminar" (ver [Continuar una sesión sin terminar](#continuar-una-sesión-sin-terminar)).
+
+**¿Tengo que completar cada día que tiene una sola marcación?**
+No, salvo en empleados de turno de noche y en días al borde del archivo. Un día de un empleado de día que deje vacío cuenta como trabajado y no suma horas extra. Complételo solo si ese día hubo horas extra que deban pagarse (ver [Marcaciones incompletas](#marcaciones-incompletas)).
 
 **¿Puedo editar las horas extras después de la verificación?**
 Sí. En la vista de lista y en la vista de detalle puede aprobar lo calculado o escribir otro valor. Los valores ajustados se distinguen: en la vista de lista con un borde azul y lo calculado entre paréntesis (por ejemplo, "calc. 3"); en la vista de detalle, en amarillo.
