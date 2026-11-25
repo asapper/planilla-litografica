@@ -1,5 +1,29 @@
 # Changelog
 
+## v1.6.0 — 2026-11-24
+
+### Features
+- **Overtime is sent only when someone approves it.** The clerk used to correct 50+ rows every fortnight because calculated overtime is inflated by wrong or double scans and has to be authorized anyway.
+  - **Default is 0.** Overtime nobody reviewed now goes as 0.
+  - **Por revisar.** The review opens on this new filter, listing only employees with calculated overtime and no decision yet. Rows stay put while the clerk works on them.
+  - **Horas extra column.** One click on **Aprobar** sends the calculated hours. Typing a value sends that value; typing 0 rejects the overtime. **Deshacer** goes back to unapproved.
+  - **Calculated value visible.** Each overtime field shows the calculated figure underneath ("calc. X").
+  - **Calculation changes.** If the calculation changes after an approval, the row comes back to Por revisar and sends 0 until approved again. A value typed by hand is kept and marked, and **Mantener** confirms it.
+  - **Before sending.** A dialog lists the employees whose overtime will go as 0, and any hand values made before the calculation changed. It appears after the incomplete-quincena confirm.
+  - **Counts and printout.** The footer counts approved and unapproved rows. The printed report marks Aprobado / Ajustado / Sin aprobar (with the calculated value) / Cálculo cambió.
+- **The backend enforces the rule too.** On submit, an employee who accrues overtime but is missing from the request, or a field that is missing, is sent as 0. Nothing is paid by default if the screen and the backend ever disagree.
+- **The app version is shown under the title** in the top bar ("Versión 1.6.0"), on every screen.
+
+### Fixes
+- **Edits stay with their quincena.** For a file covering two fortnights, días no laborados and overtime edits made in one quincena were also applied to the other after "Cambiar quincena". Each quincena now keeps its own.
+- **The mouse wheel no longer changes a number field** in the review, where it could alter a figure unnoticed.
+
+### Docs
+- The manual has a new section, "Aprobar horas extra", plus updated filters, detail panel, sending, recovery and FAQ. Every screenshot is regenerated (version label, new review screen) and there is a new one of the confirmation dialog.
+
+### Upgrade notes
+- The saved session's format changed (screen version 4). A session saved by 1.5.0 can be discarded but not resumed. If it is rebuilt from the copy on this PC, it comes back without its overtime and días adjustments, and a warning says so. **Finish or send open sessions before updating.**
+
 ## v1.5.0 — 2026-11-24
 
 ### Features
