@@ -1,5 +1,25 @@
 # Changelog
 
+## v1.6.1 — 2026-11-25
+
+### Features
+- **Days with a single scan no longer have to be filled in.** In "Verificación de marcaciones" the clerk had to type the missing time for every "Falta entrada"/"Falta salida" card before **Revisar** was enabled (67 in a real fortnight).
+  - **Optional when left empty.** A lone scan of a day worker can now stay empty: the day counts as worked and adds no overtime, matching the "0 unless approved" rule for overtime.
+  - **Still required.** The time must still be typed for night workers (assigned to a night shift, detected as working nights, or unassigned with a scan matched to a night), for cutoffs at the file's edges, for out-of-order scans, and for a time left half-typed.
+  - **Shown on screen.** Cards that can stay empty say so. The employee's header shows "N incompleta(s)" in yellow, and the footer counts them.
+  - **Before continuing.** A dialog lists the incomplete days, with "Volver a completar" as the default and "Continuar de todas formas".
+  - **Review and printout.** Those days appear as "incompleta" in the review detail and as "marcación incompleta: sin horas extra" in the printed report, where the missing side shows as "—".
+- **The backend enforces the same rule.** Sending is refused only for sessions that may not stay empty.
+
+### Docs
+- New manual section "Marcaciones incompletas" with a screenshot of the dialog, a new FAQ entry, and regenerated screenshots.
+
+### Known limits
+- A day worker's lone scan is counted on the date it was recorded. If it really belonged to the night before, the app does not detect it.
+
+### Upgrade notes
+- The saved session format changed (backend 3, screen 5). A session saved by 1.6.0 can be discarded but not resumed. **Finish or send open sessions before updating.**
+
 ## v1.6.0 — 2026-11-24
 
 ### Features
