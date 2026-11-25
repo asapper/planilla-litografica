@@ -519,6 +519,12 @@ interface SessionCardProps {
   onInput: (input: CardInput, resolution: ResolvedSessionEntry | null) => void;
 }
 
+function isUntouched(session: TasSession, input: CardInput): boolean {
+  const { originallyNeedsExit } = swapInfo(session);
+  return !input.swapped && input.entry === toHHMM(session.effectiveStart)
+    && input.exit === (originallyNeedsExit ? '' : toHHMM(session.lastScan));
+}
+
 // Every change is stored as it is made: there is no button to save or confirm.
 function SessionCard({ session, input, resolved, crossMidnight, highlighted, onInput }: SessionCardProps) {
   const ref = useHighlightScroll(highlighted);
@@ -823,7 +829,9 @@ export default function VerificationScreen() {
         crossMidnight={crossesMidnight(session)}
         highlighted={highlightedSessionId === session.sessionId}
         onInput={(input, resolution) => {
-          setCardInput(session.sessionId, input);
+          // Erased back to how it opened: the card is untouched again, so a lone scan may stay empty.
+          if (isUntouched(session, input)) clearCardInput(session.sessionId);
+          else setCardInput(session.sessionId, input);
           if (resolution) {
             setResolvedSession(session.sessionId, resolution);
             if (highlightedSessionId === session.sessionId) setHighlightedSessionId(null);

@@ -1944,4 +1944,20 @@ describe('VerificationScreen half-typed lone scan', () => {
     expect(screen.getByRole('button', { name: 'Revisar' })).toBeDisabled();
     expect(screen.getAllByText('1 por resolver').length).toBeGreaterThan(0);
   });
+
+  it('erasing what was typed makes the card skippable again', () => {
+    useTasStore.getState().setFlaggedSessions([makeSession({
+      flags: ['MISSING_EXIT'], scans: ['2026-03-10T07:02:00'], effectiveStart: '2026-03-10T07:02:00', date: '2026-03-10', incomplete: true,
+    })]);
+    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
+    render(<VerificationScreen />);
+    const exit = screen.getByLabelText('Salida');
+    fireEvent.change(exit, { target: { value: '15:00' } });
+    expect(useTasStore.getState().cardInputs[1]).toBeDefined();
+    expect(screen.queryByText('1 incompleta')).not.toBeInTheDocument();
+    fireEvent.change(exit, { target: { value: '' } });
+    expect(useTasStore.getState().cardInputs[1]).toBeUndefined();
+    expect(screen.getByRole('button', { name: 'Revisar' })).toBeEnabled();
+    expect(screen.getByText('1 incompleta')).toBeInTheDocument();
+  });
 });
