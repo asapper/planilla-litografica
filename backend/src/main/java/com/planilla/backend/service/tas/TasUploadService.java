@@ -151,6 +151,10 @@ public class TasUploadService {
             if (matchedShiftIds.size() != 1) continue;
 
             String newShiftId = matchedShiftIds.iterator().next();
+            // The employee works this shift: a night worker's lone scans must not be skippable as a day worker's.
+            boolean newShiftIsNight = shifts.stream().anyMatch(shift -> newShiftId.equals(TasSessionGrouper.getShiftId(shift))
+                    && Boolean.TRUE.equals(shift.get("crossMidnight")));
+            if (newShiftIsNight) empSessions.forEach(s -> s.setAssignedShiftCrossMidnight(true));
             for (TasSession s : pureShiftMismatch) {
                 s.getFlags().clear();
                 s.setAssignedShiftId(newShiftId);

@@ -248,9 +248,10 @@ En la revisión y en el reporte impreso, esos días aparecen marcados como **"in
 
 **Cuándo sí debe completar la hora** (la tarjeta sigue contando como **"por resolver"**):
 
-- **Empleados de turno de noche.** Una sola marcación de noche puede quedar en la fecha equivocada (la salida de las 07:00 se confundiría con un día distinto), así que la aplicación pide la hora.
+- **Empleados de turno de noche** (por asignación, o porque la aplicación detecta que trabajan de noche). Una sola marcación de noche puede quedar en la fecha equivocada (la salida de las 07:00 se confundiría con un día distinto), así que la aplicación pide la hora.
 - **Días al borde del archivo** ("Corte de período").
 - **Marcaciones fuera de orden** u otros casos que la aplicación no puede interpretar.
+- **Una hora escrita a medias.** Termínela o bórrela; la aplicación no descarta lo que usted empezó a escribir.
 
 #### Intercambiar entrada y salida
 

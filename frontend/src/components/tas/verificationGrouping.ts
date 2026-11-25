@@ -72,8 +72,9 @@ export function keptSessions(sessions: TasSession[], choice: DoubleChoice | unde
   return kept.length > 0 ? kept : sessions;
 }
 
-function countMissing(group: EmployeeGroupData, session: TasSession) {
-  if (session.incomplete) group.incomplete.push(session);
+// A half-typed time is something to finish, not a card left empty: going on would drop what was typed.
+function countMissing(group: EmployeeGroupData, session: TasSession, cardInputs: Record<number, CardInput>) {
+  if (session.incomplete && !cardInputs[session.sessionId]) group.incomplete.push(session);
   else group.pendingCount += 1;
 }
 
@@ -99,7 +100,7 @@ export function buildEmployeeGroups(
   for (const session of regular) {
     const group = getGroup(session.employeeId, session.employeeName);
     group.items.push({ type: 'session', session, date: session.date });
-    if (!effectiveResolution(session, resolvedSessions, cardInputs)) countMissing(group, session);
+    if (!effectiveResolution(session, resolvedSessions, cardInputs)) countMissing(group, session, cardInputs);
   }
 
   for (const session of shiftMismatchOnly) {
@@ -114,7 +115,7 @@ export function buildEmployeeGroups(
     // The pre-selected choice counts as decided, but a kept half that lacks a scan still needs its time.
     keptSessions(sessions, sameDayDoubleResolutions[groupKey])
       .filter(s => needsTimes(s) && !effectiveResolution(s, resolvedSessions, cardInputs))
-      .forEach(s => countMissing(group, s));
+      .forEach(s => countMissing(group, s, cardInputs));
   }
 
   // Keep items in stable chronological order regardless of resolved state, so a card

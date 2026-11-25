@@ -38,6 +38,15 @@ class TasSessionIncompleteTest {
     }
 
     @Test
+    void withNoShiftAssigned_aLoneScanMatchedToANightStillBlocks() {
+        TasSession s = lone(TasFlag.MISSING_EXIT);
+        s.setCrossMidnight(true);
+        assertThat(TasSession.blocksSubmit(s)).isTrue();
+        s.setAssignedShiftId("manana");
+        assertThat(TasSession.blocksSubmit(s)).isFalse();
+    }
+
+    @Test
     void aLoneScanAtTheFilesEdgeStillBlocks() {
         assertThat(TasSession.blocksSubmit(lone(TasFlag.MISSING_EXIT, TasFlag.START_CUTOFF))).isTrue();
         assertThat(TasSession.blocksSubmit(lone(TasFlag.MISSING_ENTRY, TasFlag.END_CUTOFF))).isTrue();

@@ -1932,3 +1932,16 @@ describe('VerificationScreen incomplete punches', () => {
     await waitFor(() => expect(useTasStore.getState().tasView).toBe('review'));
   });
 });
+
+describe('VerificationScreen half-typed lone scan', () => {
+  it('blocks Revisar until the time is finished or cleared', () => {
+    useTasStore.getState().setFlaggedSessions([makeSession({
+      flags: ['MISSING_EXIT'], scans: ['2026-03-10T07:02:00'], effectiveStart: '2026-03-10T07:02:00', date: '2026-03-10', incomplete: true,
+    })]);
+    useTasStore.getState().setAvailablePeriods([DEFAULT_PERIOD]);
+    useTasStore.getState().setCardInput(1, { entry: '07:02', exit: '1', swapped: false });
+    render(<VerificationScreen />);
+    expect(screen.getByRole('button', { name: 'Revisar' })).toBeDisabled();
+    expect(screen.getAllByText('1 por resolver').length).toBeGreaterThan(0);
+  });
+});

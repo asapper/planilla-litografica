@@ -224,6 +224,21 @@ describe('incomplete punches', () => {
     expect(group.incomplete).toEqual([lone]);
   });
 
+  it('a half-typed lone scan must be finished, not skipped', () => {
+    const lone = makeSession({ sessionId: 1, incomplete: true });
+    const [group] = buildEmployeeGroups([lone], [], new Map(), noResolved, {}, { 1: { entry: '07', exit: '', swapped: false } });
+    expect(group.pendingCount).toBe(1);
+    expect(group.incomplete).toEqual([]);
+  });
+
+  it('so must a half-typed kept half of a double', () => {
+    const a = makeSession({ sessionId: 1, flags: ['SAME_DAY_DOUBLE', 'MISSING_EXIT'], incomplete: true });
+    const b = makeSession({ sessionId: 2, flags: ['SAME_DAY_DOUBLE', 'MISSING_EXIT'], incomplete: true });
+    const [group] = buildEmployeeGroups([], [], new Map([['E1|2026-03-15', [a, b]]]), noResolved, {}, { 1: { entry: '', exit: '1', swapped: false } });
+    expect(group.pendingCount).toBe(1);
+    expect(group.incomplete).toEqual([b]);
+  });
+
   it('a filled-in lone scan is neither', () => {
     const lone = makeSession({ sessionId: 1, incomplete: true });
     const [group] = buildEmployeeGroups([lone], [], new Map(), { 1: { resolvedStart: '07:00', resolvedEnd: '15:00' } });

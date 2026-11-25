@@ -2861,6 +2861,8 @@ class TasControllerTest {
            .andExpect(jsonPath("$.flaggedSessions[0].incomplete").value(true))
            .andExpect(jsonPath("$.sessionSummaries.emp1[0].incomplete").value(true))
            .andExpect(jsonPath("$.sessionSummaries.emp1[0].date").value("2026-01-07"))
+           .andExpect(jsonPath("$.sessionSummaries.emp1[0].entryTime").value("2026-01-07T07:02"))
+           .andExpect(jsonPath("$.sessionSummaries.emp1[0].exitTime").doesNotExist())
            .andExpect(jsonPath("$.resolvedRows[0].diasNoLaborados").value(12));
         mvc.perform(post("/api/tas/submit")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -3282,6 +3284,54 @@ class TasControllerTest {
         res.put("date", "2026-09-29");
         res.put("keepSessionId", keepSessionId);
         return res;
+    }
+
+    @Test
+    void submit_aDoubleWhoseKeptHalfIsALoneScan_goesWithTheDayAsWorked() throws Exception {
+        List<TasSession> day = seedSingleScanDouble("kept-lone-tok");
+        when(jobService.createJob(any(), any())).thenReturn("job-kept");
+        when(reportBuilder.build(any(), any(), any(), any(), any()))
+            .thenReturn(new TasReportBuilder.BuildResult(List.of(overtimeRow("128", 0, 0))));
+        assertThat(day.get(0).isIncomplete()).isTrue();
+        assertThat(TasSession.blocksSubmit(day.get(0))).isTrue();
+
+        mvc.perform(post("/api/tas/resolve")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of("uploadToken", "kept-lone-tok", "resolutions", List.of(keep(1))))))
+           .andExpect(status().isOk())
+           .andExpect(jsonPath("$.flaggedSessions[0].sessionId").value(1))
+           .andExpect(jsonPath("$.flaggedSessions[0].incomplete").value(true))
+           .andExpect(jsonPath("$.sessionSummaries['128'][0].entryTime").value("2026-09-29T07:08"))
+           .andExpect(jsonPath("$.sessionSummaries['128'][0].exitTime").doesNotExist());
+        assertThat(day.get(0).getFlags()).containsExactly(TasFlag.MISSING_EXIT);
+        assertThat(day.get(1).isDiscarded()).isTrue();
+
+        mvc.perform(post("/api/tas/submit")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(Map.of("uploadToken", "kept-lone-tok"))))
+           .andExpect(status().isAccepted());
+    }
+
+    @Test
+    void submit_aDoubleWhoseLoneHalfIsDiscarded_goesWithTheKeptHalf() throws Exception {
+        List<TasSession> day = seedSingleScanDouble("dropped-lone-tok");
+        when(jobService.createJob(any(), any())).thenReturn("job-dropped");
+        when(reportBuilder.build(any(), any(), any(), any(), any()))
+            .thenReturn(new TasReportBuilder.BuildResult(List.of(overtimeRow("128", 0, 0))));
+
+        mvc.perform(post("/api/tas/resolve")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of("uploadToken", "dropped-lone-tok", "resolutions",
+                        List.of(keep(1), typedTimes(1, "2026-09-29 07:08", "2026-09-29 15:00"))))))
+           .andExpect(status().isOk())
+           .andExpect(jsonPath("$.flaggedSessions.length()").value(0));
+        assertThat(day.get(1).isDiscarded()).isTrue();
+        assertThat(day.get(1).isNeedsResolution()).isFalse();
+
+        mvc.perform(post("/api/tas/submit")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(Map.of("uploadToken", "dropped-lone-tok"))))
+           .andExpect(status().isAccepted());
     }
 
     @Test

@@ -38,11 +38,13 @@ public class TasSession {
 
     /**
      * A day with a single scan the clerk may leave as it is: the day counts as worked and adds no
-     * overtime. Not for a night worker, whose lone scan may sit on the wrong date, nor at the file's
-     * edges.
+     * overtime, so a shift mismatch on it changes nothing. Not for a night worker (or, with no shift
+     * assigned, a scan matched to a night), whose lone scan may sit on the wrong date, nor for a
+     * night flagged at the file's edges.
      */
     public boolean isIncomplete() {
-        return needsResolution && scans != null && scans.size() == 1 && flags != null && !assignedShiftCrossMidnight
+        boolean night = assignedShiftCrossMidnight || (assignedShiftId == null && crossMidnight);
+        return needsResolution && scans != null && scans.size() == 1 && flags != null && !night
                 && (flags.contains(TasFlag.MISSING_ENTRY) || flags.contains(TasFlag.MISSING_EXIT))
                 && !flags.contains(TasFlag.START_CUTOFF) && !flags.contains(TasFlag.END_CUTOFF);
     }

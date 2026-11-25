@@ -1023,8 +1023,11 @@ public class TasController {
             Map<String, Object> entry = new LinkedHashMap<>();
             entry.put("date", s.getDate().toString());
             entry.put("shiftName", s.getMatchedShiftName());
-            entry.put("entryTime", s.getEffectiveStart() != null ? s.getEffectiveStart().toString() : null);
-            entry.put("exitTime", s.getLastScan() != null ? s.getLastScan().toString() : null);
+            boolean incomplete = s.isIncomplete();
+            boolean noEntry = incomplete && s.getFlags().contains(TasFlag.MISSING_ENTRY);
+            boolean noExit = incomplete && s.getFlags().contains(TasFlag.MISSING_EXIT);
+            entry.put("entryTime", s.getEffectiveStart() != null && !noEntry ? s.getEffectiveStart().toString() : null);
+            entry.put("exitTime", s.getLastScan() != null && !noExit ? s.getLastScan().toString() : null);
             entry.put("workedHours", s.getWorkedHours());
             entry.put("simplesMinutes", s.getSimplesMinutes());
             entry.put("doblesMinutes", s.getDoblesMinutes());
@@ -1035,7 +1038,7 @@ public class TasController {
             entry.put("estimatedShift", s.getFlags() != null && s.getFlags().contains(TasFlag.BEST_FIT_SHIFT));
             entry.put("breakDeductionMinutes", s.getBreakDeductionMinutes());
             entry.put("discarded", s.isDiscarded());
-            entry.put("incomplete", s.isIncomplete());
+            entry.put("incomplete", incomplete);
 
             result.computeIfAbsent(s.getEmployeeId(), k -> new ArrayList<>()).add(entry);
         }
