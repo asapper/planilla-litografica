@@ -46,6 +46,13 @@ class TasSessionIncompleteTest {
         noon.getScans().set(0, LocalDateTime.of(2026, 10, 2, 12, 0));
         noon.setAssignedShiftCrossMidnight(true);
         assertThat(noon.isIncomplete()).isTrue();
+
+        for (LocalDateTime morning : List.of(LocalDateTime.of(2026, 10, 3, 0, 30), LocalDateTime.of(2026, 10, 3, 11, 59))) {
+            TasSession s = lone(TasFlag.MISSING_ENTRY);
+            s.getScans().set(0, morning);
+            s.setAssignedShiftCrossMidnight(true);
+            assertThat(TasSession.blocksSubmit(s)).as("%s", morning).isTrue();
+        }
     }
 
     @Test
