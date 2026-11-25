@@ -6,9 +6,10 @@ import { matchesSearch } from '../../textSearch';
 import { useToastStore } from '../../toastStore';
 import AlertMessage from '../ui/AlertMessage';
 import { incompleteBannerText, periodLabel } from './coverageText';
+import { effectiveOvertime, inPeriod, needsReview, toHalfHours, type EffectiveOvertime, type OvertimeField } from '../../overtime';
+import type { ReviewFilter } from '../../tasStore';
+import OvertimeStatus from './OvertimeStatus';
 import type { IncompletePeriod, ResolvedRow } from '../../tasTypes';
-
-type FilterType = 'all' | 'estimated' | 'duplicate' | 'adjusted';
 
 interface ReviewListViewProps {
   dbHealthy: boolean | null;
@@ -27,10 +28,45 @@ function sortRows(rows: ResolvedRow[], column: 'name' | 'code', direction: 'asc'
   return direction === 'desc' ? sorted.reverse() : sorted;
 }
 
+const fieldLabel: Record<OvertimeField, string> = { simples: 'Extras simples', dobles: 'Extras dobles' };
+
+function OvertimeInput({ row, field, overtime, onChange }: {
+  row: ResolvedRow;
+  field: OvertimeField;
+  overtime: EffectiveOvertime;
+  onChange: (row: ResolvedRow, field: OvertimeField, value: number) => void;
+}) {
+  const calculated = field === 'simples' ? row.horasExtrasSimples : row.horasExtrasDobles;
+  const value = overtime[field];
+  const tone = overtime.status === 'adjusted'
+    ? 'border-primary text-primary font-medium'
+    : needsReview(overtime) ? 'border-warning text-on-surface-variant' : 'border-outline-variant text-on-surface-variant';
+  return (
+    <div className="relative flex items-center justify-end">
+      <input
+        type="number"
+        min={0}
+        step={0.5}
+        value={value}
+        onChange={e => onChange(row, field, toHalfHours(e.target.value))}
+        onClick={e => e.stopPropagation()}
+        onWheel={e => e.currentTarget.blur()}
+        disabled={!row.accruesOvertime}
+        aria-label={`${fieldLabel[field]} ${row.nombreEmpleado}`}
+        className={`w-16 text-right border rounded-shape-sm px-1.5 py-0.5 text-body-sm focus:outline-none focus:border-primary disabled:opacity-50 disabled:cursor-not-allowed ${tone}`}
+      />
+      {row.accruesOvertime && value !== calculated && (
+        <span className="absolute top-full right-0 text-label-sm leading-none text-on-surface-variant whitespace-nowrap pointer-events-none">(calc. {calculated})</span>
+      )}
+    </div>
+  );
+}
+
+
 export default function ReviewListView({ dbHealthy, coverageLoading = false, incompletePeriods = [], onSubmit, onPrint }: ReviewListViewProps) {
   const resolvedRows = useTasStore(s => s.resolvedRows);
-  const overtimeOverrides = useTasStore(s => s.overtimeOverrides);
-  const nonWorkedDaysOverrides = useTasStore(s => s.nonWorkedDaysOverrides);
+  const overtimeDecisions = useTasStore(s => inPeriod(s.overtimeDecisions, s.selectedPeriod));
+  const nonWorkedDaysOverrides = useTasStore(s => inPeriod(s.nonWorkedDaysOverrides, s.selectedPeriod));
   const duplicateCodes = useTasStore(s => s.duplicateCodes);
   const duplicatesLoading = useTasStore(s => s.duplicatesLoading);
   const sortColumn = useTasStore(s => s.reviewSortColumn);
@@ -39,13 +75,15 @@ export default function ReviewListView({ dbHealthy, coverageLoading = false, inc
   const setReviewSelectedEmployee = useTasStore(s => s.setReviewSelectedEmployee);
   const setReviewSort = useTasStore(s => s.setReviewSort);
   const setReviewActiveFilter = useTasStore(s => s.setReviewActiveFilter);
-  const setOvertimeOverride = useTasStore(s => s.setOvertimeOverride);
+  const setOvertimeField = useTasStore(s => s.setOvertimeField);
+  const approveOvertime = useTasStore(s => s.approveOvertime);
+  const clearOvertimeDecision = useTasStore(s => s.clearOvertimeDecision);
   const setNonWorkedDaysOverride = useTasStore(s => s.setNonWorkedDaysOverride);
   const removeNonWorkedDaysOverride = useTasStore(s => s.removeNonWorkedDaysOverride);
   const stashNonWorkedDaysOverride = useTasStore(s => s.stashNonWorkedDaysOverride);
   const restoreNonWorkedDaysOverride = useTasStore(s => s.restoreNonWorkedDaysOverride);
-  const stashOvertimeOverrides = useTasStore(s => s.stashOvertimeOverrides);
-  const restoreOvertimeOverrides = useTasStore(s => s.restoreOvertimeOverrides);
+  const stashOvertimeDecision = useTasStore(s => s.stashOvertimeDecision);
+  const restoreOvertimeDecision = useTasStore(s => s.restoreOvertimeDecision);
   const setResolvedRows = useTasStore(s => s.setResolvedRows);
   const availablePeriods = useTasStore(s => s.availablePeriods);
   const selectedPeriod = useTasStore(s => s.selectedPeriod);
@@ -60,21 +98,44 @@ export default function ReviewListView({ dbHealthy, coverageLoading = false, inc
   const duplicateSet = new Set(duplicateCodes);
   const allDuplicate = resolvedRows.length > 0 && resolvedRows.every(r => duplicateSet.has(r.codigoEmpleado));
 
-  const estimatedCount = resolvedRows.filter(r => r.diasTurnoEstimado > 0).length;
-  const duplicateCount = duplicateCodes.length;
-  const adjustedCount = new Set([...Object.keys(overtimeOverrides), ...Object.keys(nonWorkedDaysOverrides)]).size;
+  const overtimeOf = (row: ResolvedRow): EffectiveOvertime => effectiveOvertime(row, overtimeDecisions[row.codigoEmpleado]);
+  const sent = resolvedRows.filter(r => !duplicateSet.has(r.codigoEmpleado));
+  const isAdjusted = (row: ResolvedRow) =>
+    overtimeDecisions[row.codigoEmpleado]?.kind === 'adjusted' || nonWorkedDaysOverrides[row.codigoEmpleado] !== undefined;
+  const liveReviewCodes = sent.filter(r => needsReview(overtimeOf(r))).map(r => r.codigoEmpleado);
 
-  const chips: { key: FilterType; label: string; count: number; warn: boolean }[] = [
+  // Rows stay in "Por revisar" while the clerk works on them, so an approved or typed row does not vanish
+  // under the cursor; the list is taken again when the chip is pressed or the rows are recalculated.
+  const [reviewSnapshot, setReviewSnapshot] = useState(() => new Set(liveReviewCodes));
+  const [snapshotRows, setSnapshotRows] = useState(resolvedRows);
+  if (snapshotRows !== resolvedRows) {
+    setSnapshotRows(resolvedRows);
+    setReviewSnapshot(new Set(liveReviewCodes));
+  }
+
+  const statusCount = (status: EffectiveOvertime['status']) => sent.filter(r => overtimeOf(r).status === status).length;
+  const approvedCount = statusCount('approved');
+  const unapprovedCount = statusCount('pending') + statusCount('stale');
+
+  const chips: { key: ReviewFilter; label: string; count: number; warn: boolean }[] = [
+    { key: 'review', label: 'Por revisar', count: liveReviewCodes.length, warn: true },
     { key: 'all', label: 'Todos', count: resolvedRows.length, warn: false },
-    { key: 'estimated', label: 'Turno estimado', count: estimatedCount, warn: true },
-    { key: 'duplicate', label: 'Duplicados', count: duplicateCount, warn: true },
-    { key: 'adjusted', label: 'Ajustados', count: adjustedCount, warn: false },
+    { key: 'estimated', label: 'Turno estimado', count: resolvedRows.filter(r => r.diasTurnoEstimado > 0).length, warn: true },
+    { key: 'duplicate', label: 'Duplicados', count: duplicateCodes.length, warn: true },
+    { key: 'adjusted', label: 'Ajustados', count: sent.filter(isAdjusted).length, warn: false },
   ];
 
+  const handleChip = (key: ReviewFilter) => {
+    if (key === 'review') setReviewSnapshot(new Set(liveReviewCodes));
+    setReviewActiveFilter(key);
+  };
+
   let filtered = resolvedRows;
-  if (activeFilter === 'estimated') filtered = resolvedRows.filter(r => r.diasTurnoEstimado > 0);
+  if (activeFilter === 'review') filtered = sent.filter(r => reviewSnapshot.has(r.codigoEmpleado));
+  else if (activeFilter === 'estimated') filtered = resolvedRows.filter(r => r.diasTurnoEstimado > 0);
   else if (activeFilter === 'duplicate') filtered = resolvedRows.filter(r => duplicateSet.has(r.codigoEmpleado));
-  else if (activeFilter === 'adjusted') filtered = resolvedRows.filter(r => overtimeOverrides[r.codigoEmpleado] !== undefined || nonWorkedDaysOverrides[r.codigoEmpleado] !== undefined);
+  else if (activeFilter === 'adjusted') filtered = sent.filter(isAdjusted);
+  const shownInReview = filtered.length;
 
   if (search.trim()) {
     filtered = filtered.filter(r =>
@@ -108,10 +169,10 @@ export default function ReviewListView({ dbHealthy, coverageLoading = false, inc
         setSessionSummaries(result.sessionSummaries);
         setStateRevision(result.stateRevision);
         if (newAccruesOvertime) {
-          restoreOvertimeOverrides(row.codigoEmpleado);
+          restoreOvertimeDecision(row.codigoEmpleado);
           restoreNonWorkedDaysOverride(row.codigoEmpleado);
         } else {
-          stashOvertimeOverrides(row.codigoEmpleado);
+          stashOvertimeDecision(row.codigoEmpleado);
           stashNonWorkedDaysOverride(row.codigoEmpleado);
         }
       } catch {
@@ -171,7 +232,7 @@ export default function ReviewListView({ dbHealthy, coverageLoading = false, inc
           {chips.map(chip => (
             <button
               key={chip.key}
-              onClick={() => setReviewActiveFilter(chip.key)}
+              onClick={() => handleChip(chip.key)}
               className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-label-sm border transition-colors ${
                 activeFilter === chip.key
                   ? 'bg-primary text-on-primary border-primary'
@@ -188,6 +249,9 @@ export default function ReviewListView({ dbHealthy, coverageLoading = false, inc
               </span>
             </button>
           ))}
+          {activeFilter === 'review' && shownInReview !== liveReviewCodes.length && (
+            <span className="text-label-sm text-on-surface-variant">mostrando {shownInReview}</span>
+          )}
           <div className="ml-auto relative w-60">
             <input
               type="text"
@@ -211,12 +275,13 @@ export default function ReviewListView({ dbHealthy, coverageLoading = false, inc
 
         <table className="w-full border-collapse table-fixed" aria-hidden="true">
           <colgroup>
-            <col style={{ width: '38%' }} />
-            <col style={{ width: '9%' }} />
+            <col style={{ width: '29%' }} />
+            <col style={{ width: '8%' }} />
+            <col style={{ width: '10%' }} />
             <col style={{ width: '12%' }} />
-            <col style={{ width: '14%' }} />
-            <col style={{ width: '14%' }} />
-            <col style={{ width: '13%' }} />
+            <col style={{ width: '12%' }} />
+            <col style={{ width: '17%' }} />
+            <col style={{ width: '12%' }} />
           </colgroup>
           <thead>
             <tr className="border-b border-outline-variant bg-surface-container-lowest">
@@ -235,6 +300,7 @@ export default function ReviewListView({ dbHealthy, coverageLoading = false, inc
               <th className="text-right text-label-lg text-on-surface-variant py-2 px-4 whitespace-nowrap">Días no lab.</th>
               <th className="text-right text-label-lg text-on-surface-variant py-2 px-4 whitespace-nowrap">Extras simples</th>
               <th className="text-right text-label-lg text-on-surface-variant py-2 px-4 whitespace-nowrap">Extras dobles</th>
+              <th className="text-left text-label-lg text-on-surface-variant py-2 px-4 whitespace-nowrap">Horas extra</th>
               <th className="text-center text-label-lg text-on-surface-variant py-2 px-4 whitespace-nowrap">Acumula extras</th>
             </tr>
           </thead>
@@ -244,28 +310,34 @@ export default function ReviewListView({ dbHealthy, coverageLoading = false, inc
       <div className="flex-1">
         <table className="w-full border-collapse table-fixed">
           <colgroup>
-            <col style={{ width: '38%' }} />
-            <col style={{ width: '9%' }} />
+            <col style={{ width: '29%' }} />
+            <col style={{ width: '8%' }} />
+            <col style={{ width: '10%' }} />
             <col style={{ width: '12%' }} />
-            <col style={{ width: '14%' }} />
-            <col style={{ width: '14%' }} />
-            <col style={{ width: '13%' }} />
+            <col style={{ width: '12%' }} />
+            <col style={{ width: '17%' }} />
+            <col style={{ width: '12%' }} />
           </colgroup>
           <tbody>
             {sorted.length === 0 && search.trim() && (
               <tr>
-                <td colSpan={6} className="py-8 text-center text-body-md text-on-surface-variant">
+                <td colSpan={7} className="py-8 text-center text-body-md text-on-surface-variant">
                   No se encontraron empleados que coincidan con la búsqueda.
+                </td>
+              </tr>
+            )}
+            {sorted.length === 0 && !search.trim() && activeFilter === 'review' && (
+              <tr>
+                <td colSpan={7} className="py-8 text-center text-body-md text-on-surface-variant">
+                  No hay horas extra por revisar.{' '}
+                  <button onClick={() => handleChip('all')} className="text-primary underline">Ver todos</button>
                 </td>
               </tr>
             )}
             {sorted.map(row => {
               const isDuplicate = duplicateSet.has(row.codigoEmpleado);
-              const override = overtimeOverrides[row.codigoEmpleado];
-              const simplesOverride = override?.horasExtrasSimples;
-              const doblesOverride = override?.horasExtrasDobles;
+              const overtime = overtimeOf(row);
               const nonWorkedDaysOverride = nonWorkedDaysOverrides[row.codigoEmpleado];
-              const isAdjusted = override !== undefined || nonWorkedDaysOverride !== undefined;
 
               return (
                 <tr
@@ -290,7 +362,7 @@ export default function ReviewListView({ dbHealthy, coverageLoading = false, inc
                         ⚠ Duplicado
                       </span>
                     )}
-                    {isAdjusted && (
+                    {!isDuplicate && isAdjusted(row) && (
                       <span className="ml-2 text-label-sm px-2 py-0.5 rounded-full bg-tertiary-container text-on-tertiary-container">
                         ✎ ajustado
                       </span>
@@ -314,6 +386,7 @@ export default function ReviewListView({ dbHealthy, coverageLoading = false, inc
                             }
                           }}
                           onClick={e => e.stopPropagation()}
+                          onWheel={e => e.currentTarget.blur()}
                           aria-label={`Días no laborados ${row.nombreEmpleado}`}
                           className={`w-14 text-right border rounded-shape-sm px-1.5 py-0.5 text-body-sm focus:outline-none focus:border-primary ${
                             nonWorkedDaysOverride !== undefined ? 'border-primary text-primary font-medium' : 'border-outline-variant text-on-surface-variant'
@@ -327,52 +400,23 @@ export default function ReviewListView({ dbHealthy, coverageLoading = false, inc
                   </td>
                   <td className="py-3 px-4 text-body-md text-right">
                     {isDuplicate ? '—' : (
-                      <div className="relative flex items-center justify-end">
-                        <input
-                          type="number"
-                          min={0}
-                          step={0.5}
-                          value={simplesOverride ?? row.horasExtrasSimples}
-                          onChange={e => {
-                            const parsed = parseFloat(e.target.value);
-                            setOvertimeOverride(row.codigoEmpleado, 'horasExtrasSimples', Number.isNaN(parsed) || parsed < 0 ? 0 : Math.round(parsed * 2) / 2);
-                          }}
-                          onClick={e => e.stopPropagation()}
-                          disabled={!row.accruesOvertime}
-                          aria-label={`Extras simples ${row.nombreEmpleado}`}
-                          className={`w-16 text-right border rounded-shape-sm px-1.5 py-0.5 text-body-sm focus:outline-none focus:border-primary disabled:opacity-50 disabled:cursor-not-allowed ${
-                            simplesOverride !== undefined ? 'border-primary text-primary font-medium' : 'border-outline-variant text-on-surface-variant'
-                          }`}
-                        />
-                        {simplesOverride !== undefined && (
-                          <span className="absolute top-full right-0 text-label-sm leading-none text-on-surface-variant whitespace-nowrap pointer-events-none">(era {row.horasExtrasSimples})</span>
-                        )}
-                      </div>
+                      <OvertimeInput row={row} field="simples" overtime={overtime} onChange={setOvertimeField} />
                     )}
                   </td>
                   <td className="py-3 px-4 text-body-md text-right">
                     {isDuplicate ? '—' : (
-                      <div className="relative flex items-center justify-end">
-                        <input
-                          type="number"
-                          min={0}
-                          step={0.5}
-                          value={doblesOverride ?? row.horasExtrasDobles}
-                          onChange={e => {
-                            const parsed = parseFloat(e.target.value);
-                            setOvertimeOverride(row.codigoEmpleado, 'horasExtrasDobles', Number.isNaN(parsed) || parsed < 0 ? 0 : Math.round(parsed * 2) / 2);
-                          }}
-                          onClick={e => e.stopPropagation()}
-                          disabled={!row.accruesOvertime}
-                          aria-label={`Extras dobles ${row.nombreEmpleado}`}
-                          className={`w-16 text-right border rounded-shape-sm px-1.5 py-0.5 text-body-sm focus:outline-none focus:border-primary disabled:opacity-50 disabled:cursor-not-allowed ${
-                            doblesOverride !== undefined ? 'border-primary text-primary font-medium' : 'border-outline-variant text-on-surface-variant'
-                          }`}
-                        />
-                        {doblesOverride !== undefined && (
-                          <span className="absolute top-full right-0 text-label-sm leading-none text-on-surface-variant whitespace-nowrap pointer-events-none">(era {row.horasExtrasDobles})</span>
-                        )}
-                      </div>
+                      <OvertimeInput row={row} field="dobles" overtime={overtime} onChange={setOvertimeField} />
+                    )}
+                  </td>
+                  <td className="py-3 px-4 text-body-sm">
+                    {!isDuplicate && (
+                      <OvertimeStatus
+                        row={row}
+                        overtime={overtime}
+                        onApprove={approveOvertime}
+                        onUndo={clearOvertimeDecision}
+                        onKeep={() => setOvertimeField(row, 'simples', overtime.simples)}
+                      />
                     )}
                   </td>
                   <td className="py-3 px-4 text-center">
@@ -413,6 +457,8 @@ export default function ReviewListView({ dbHealthy, coverageLoading = false, inc
           <span className="text-body-sm text-on-surface-variant">
             {resolvedRows.length - duplicateCodes.length} registros a enviar
             {duplicateCodes.length > 0 && ` (${duplicateCodes.length} excluidos)`}
+            {' · '}{approvedCount} {approvedCount === 1 ? 'aprobado' : 'aprobados'}
+            {unapprovedCount > 0 && ` · ${unapprovedCount} sin aprobar (se envían en 0)`}
           </span>
           <button
             onClick={onPrint}

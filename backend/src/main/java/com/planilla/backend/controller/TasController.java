@@ -590,6 +590,12 @@ public class TasController {
         return ResponseEntity.ok(Map.of("duplicates", duplicates));
     }
 
+    private static double overtimeValue(Map<String, Object> fields, String key) {
+        if (!fields.containsKey(key)) return 0;
+        if (!(fields.get(key) instanceof Number n)) return Double.NaN;
+        return Math.round(n.doubleValue() * 2) / 2.0;
+    }
+
     @PostMapping("/submit")
     public ResponseEntity<?> submit(@RequestBody Map<String, Object> body) {
         String token = tokenOf(body);
@@ -635,53 +641,32 @@ public class TasController {
         @SuppressWarnings("unchecked")
         Map<String, Object> overtimeOverrides = (Map<String, Object>) rawOverrides;
 
-        for (Map.Entry<String, Object> entry : overtimeOverrides.entrySet()) {
-            String empId = entry.getKey();
-            if (!(entry.getValue() instanceof Map)) {
+        for (Object fields : overtimeOverrides.values()) {
+            if (!(fields instanceof Map)) {
                 return ResponseEntity.badRequest().body(Map.of(
                     "code", "INVALID_OVERRIDE",
                     "message", "Formato de horas extra inválido."));
             }
+        }
+        // Overtime has to be approved: an accruing row the client did not send, or a field it left out, goes as 0.
+        for (EmployeeRow r : rows) {
+            if (!r.isAccruesOvertime()) continue;
             @SuppressWarnings("unchecked")
-            Map<String, Object> fields = (Map<String, Object>) entry.getValue();
-            for (EmployeeRow r : rows) {
-                if (r.getCodigoEmpleado().equals(empId)) {
-                    if (!r.isAccruesOvertime()) {
-                        break;
-                    }
-                    if (fields.containsKey("horasExtrasSimples")) {
-                        Object raw = fields.get("horasExtrasSimples");
-                        if (!(raw instanceof Number)) {
-                            return ResponseEntity.badRequest().body(Map.of(
-                                "code", "INVALID_OVERRIDE",
-                                "message", "Formato de horas extra inválido."));
-                        }
-                        double val = Math.round(((Number) raw).doubleValue() * 2) / 2.0;
-                        if (val < 0) {
-                            return ResponseEntity.badRequest().body(Map.of(
-                                "code", "INVALID_OVERRIDE",
-                                "message", "Los valores de horas extra no pueden ser negativos."));
-                        }
-                        r.setHorasExtrasSimples(val);
-                    }
-                    if (fields.containsKey("horasExtrasDobles")) {
-                        Object raw = fields.get("horasExtrasDobles");
-                        if (!(raw instanceof Number)) {
-                            return ResponseEntity.badRequest().body(Map.of(
-                                "code", "INVALID_OVERRIDE",
-                                "message", "Formato de horas extra inválido."));
-                        }
-                        double val = Math.round(((Number) raw).doubleValue() * 2) / 2.0;
-                        if (val < 0) {
-                            return ResponseEntity.badRequest().body(Map.of(
-                                "code", "INVALID_OVERRIDE",
-                                "message", "Los valores de horas extra no pueden ser negativos."));
-                        }
-                        r.setHorasExtrasDobles(val);
-                    }
-                    break;
-                }
+            Map<String, Object> fields = (Map<String, Object>) overtimeOverrides.getOrDefault(r.getCodigoEmpleado(), Map.of());
+            double simples = overtimeValue(fields, "horasExtrasSimples");
+            double dobles = overtimeValue(fields, "horasExtrasDobles");
+            if (Double.isNaN(simples) || Double.isNaN(dobles)) {
+                return ResponseEntity.badRequest().body(Map.of(
+                    "code", "INVALID_OVERRIDE",
+                    "message", "Formato de horas extra inválido."));
             }
+            if (simples < 0 || dobles < 0) {
+                return ResponseEntity.badRequest().body(Map.of(
+                    "code", "INVALID_OVERRIDE",
+                    "message", "Los valores de horas extra no pueden ser negativos."));
+            }
+            r.setHorasExtrasSimples(simples);
+            r.setHorasExtrasDobles(dobles);
         }
 
         Object rawNonWorkedDaysOverrides = body.getOrDefault("nonWorkedDaysOverrides", Collections.emptyMap());

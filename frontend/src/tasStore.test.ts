@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { useTasStore } from './tasStore';
-import type { TasSession, InactiveEmployee, AbsentEmployee, TasPeriod } from './tasTypes';
+import type { TasSession, InactiveEmployee, AbsentEmployee, TasPeriod, ResolvedRow } from './tasTypes';
 
 function makeSession(id: number): TasSession {
   return {
@@ -99,6 +99,15 @@ describe('setTasView', () => {
   it('updates tasView to result', () => {
     useTasStore.getState().setTasView('result');
     expect(useTasStore.getState().tasView).toBe('result');
+  });
+
+  it('opens the review on what is left to review, but keeps the filter while it stays open', () => {
+    useTasStore.getState().setReviewActiveFilter('all');
+    useTasStore.getState().setTasView('review');
+    expect(useTasStore.getState().reviewActiveFilter).toBe('review');
+    useTasStore.getState().setReviewActiveFilter('adjusted');
+    useTasStore.getState().setTasView('review');
+    expect(useTasStore.getState().reviewActiveFilter).toBe('adjusted');
   });
 });
 
@@ -449,163 +458,119 @@ describe('duplicatesLoading', () => {
 });
 
 // -----------------------------------------------------------------
-// resetTas
+// Overtime decisions and días overrides, kept per fortnight
 // -----------------------------------------------------------------
 
-// -----------------------------------------------------------------
-// overtimeOverrides
-// -----------------------------------------------------------------
+const Q1: TasPeriod = { anio: 2026, mes: 3, numeroDequincena: 1 };
+const Q2: TasPeriod = { anio: 2026, mes: 3, numeroDequincena: 2 };
+const row = (over: Partial<ResolvedRow> = {}): ResolvedRow => ({
+  codigoEmpleado: 'E1', nombreEmpleado: 'Ana', diasNoLaborados: 0, fechasNoLaboradas: [], horasExtrasSimples: 4,
+  horasExtrasDobles: 2, mes: 3, anio: 2026, numeroDequincena: 1, diasTurnoEstimado: 0, accruesOvertime: true, ...over,
+});
 
-describe('overtimeOverrides', () => {
-  it('starts empty', () => {
-    expect(useTasStore.getState().overtimeOverrides).toEqual({});
-  });
+describe('overtime decisions', () => {
+  beforeEach(() => useTasStore.getState().setSelectedPeriod(Q1));
+  const decisions = () => useTasStore.getState().overtimeDecisions;
 
-  it('setOvertimeOverride upserts a single field', () => {
-    useTasStore.getState().setOvertimeOverride('E1', 'horasExtrasSimples', 5);
-    expect(useTasStore.getState().overtimeOverrides).toEqual({
-      E1: { horasExtrasSimples: 5 },
+  it('approving stores the calculation it approved, under the fortnight', () => {
+    useTasStore.getState().approveOvertime(row());
+    expect(decisions()).toEqual({
+      '2026-3-1': { E1: { kind: 'approved', simples: 4, dobles: 2, calcSimples: 4, calcDobles: 2 } },
     });
   });
 
-  it('setOvertimeOverride preserves other fields for same employee', () => {
-    useTasStore.getState().setOvertimeOverride('E1', 'horasExtrasSimples', 5);
-    useTasStore.getState().setOvertimeOverride('E1', 'horasExtrasDobles', 3);
-    expect(useTasStore.getState().overtimeOverrides).toEqual({
-      E1: { horasExtrasSimples: 5, horasExtrasDobles: 3 },
-    });
+  it('typing one field of a pending row sends the other as zero, as its input showed', () => {
+    useTasStore.getState().setOvertimeField(row(), 'simples', 1.5);
+    expect(decisions()['2026-3-1'].E1).toEqual({ kind: 'adjusted', simples: 1.5, dobles: 0, calcSimples: 4, calcDobles: 2 });
   });
 
-  it('setOvertimeOverride keeps other employees untouched', () => {
-    useTasStore.getState().setOvertimeOverride('E1', 'horasExtrasSimples', 5);
-    useTasStore.getState().setOvertimeOverride('E2', 'horasExtrasDobles', 2);
-    expect(useTasStore.getState().overtimeOverrides.E1).toEqual({ horasExtrasSimples: 5 });
-    expect(useTasStore.getState().overtimeOverrides.E2).toEqual({ horasExtrasDobles: 2 });
+  it('typing one field of an approved row keeps the other as approved', () => {
+    useTasStore.getState().approveOvertime(row());
+    useTasStore.getState().setOvertimeField(row(), 'simples', 1);
+    expect(decisions()['2026-3-1'].E1).toEqual({ kind: 'adjusted', simples: 1, dobles: 2, calcSimples: 4, calcDobles: 2 });
   });
 
-  it('clearOvertimeOverrides resets to empty', () => {
-    useTasStore.getState().setOvertimeOverride('E1', 'horasExtrasSimples', 5);
-    useTasStore.getState().clearOvertimeOverrides();
-    expect(useTasStore.getState().overtimeOverrides).toEqual({});
+  it('undo takes the row back to pending and leaves other employees alone', () => {
+    useTasStore.getState().approveOvertime(row());
+    useTasStore.getState().approveOvertime(row({ codigoEmpleado: 'E2' }));
+    useTasStore.getState().clearOvertimeDecision('E1');
+    expect(Object.keys(decisions()['2026-3-1'])).toEqual(['E2']);
   });
 
-  it('resetTas clears overtimeOverrides', () => {
-    useTasStore.getState().setOvertimeOverride('E1', 'horasExtrasSimples', 5);
+  it('keeps each fortnight apart, so browsing another one neither shows nor loses them', () => {
+    useTasStore.getState().approveOvertime(row());
+    useTasStore.getState().setNonWorkedDaysOverride('E1', 3);
+    useTasStore.getState().setSelectedPeriod(Q2);
+    useTasStore.getState().setOvertimeField(row(), 'dobles', 1);
+    useTasStore.getState().setSelectedPeriod(Q1);
+    const s = useTasStore.getState();
+    expect(s.overtimeDecisions['2026-3-1'].E1.kind).toBe('approved');
+    expect(s.overtimeDecisions['2026-3-2'].E1.kind).toBe('adjusted');
+    expect(s.nonWorkedDaysOverrides).toEqual({ '2026-3-1': { E1: 3 } });
+  });
+
+  it('stashes and restores a decision for the accrue toggle, and does nothing without one', () => {
+    useTasStore.getState().stashOvertimeDecision('E1');
+    useTasStore.getState().restoreOvertimeDecision('E1');
+    expect(decisions()).toEqual({});
+    useTasStore.getState().approveOvertime(row());
+    useTasStore.getState().stashOvertimeDecision('E1');
+    expect(decisions()['2026-3-1'].E1).toBeUndefined();
+    expect(useTasStore.getState().stashedOvertimeDecisions['2026-3-1'].E1.kind).toBe('approved');
+    useTasStore.getState().restoreOvertimeDecision('E1');
+    expect(decisions()['2026-3-1'].E1.kind).toBe('approved');
+    expect(useTasStore.getState().stashedOvertimeDecisions['2026-3-1'].E1).toBeUndefined();
+  });
+
+  it('resetTas clears decisions and stashes', () => {
+    useTasStore.getState().approveOvertime(row());
+    useTasStore.getState().stashOvertimeDecision('E1');
     useTasStore.getState().resetTas();
-    expect(useTasStore.getState().overtimeOverrides).toEqual({});
-  });
-
-  it('stashOvertimeOverrides moves overrides to stash', () => {
-    useTasStore.getState().setOvertimeOverride('E1', 'horasExtrasSimples', 5);
-    useTasStore.getState().stashOvertimeOverrides('E1');
-    expect(useTasStore.getState().overtimeOverrides.E1).toBeUndefined();
-    expect(useTasStore.getState().stashedOvertimeOverrides).toEqual({
-      E1: { horasExtrasSimples: 5 },
-    });
-  });
-
-  it('stashOvertimeOverrides is a no-op when employee has no overrides', () => {
-    useTasStore.getState().stashOvertimeOverrides('E1');
-    expect(useTasStore.getState().stashedOvertimeOverrides).toEqual({});
-  });
-
-  it('restoreOvertimeOverrides moves stashed back to active', () => {
-    useTasStore.getState().setOvertimeOverride('E1', 'horasExtrasSimples', 5);
-    useTasStore.getState().stashOvertimeOverrides('E1');
-    useTasStore.getState().restoreOvertimeOverrides('E1');
-    expect(useTasStore.getState().overtimeOverrides).toEqual({
-      E1: { horasExtrasSimples: 5 },
-    });
-    expect(useTasStore.getState().stashedOvertimeOverrides.E1).toBeUndefined();
-  });
-
-  it('restoreOvertimeOverrides is a no-op when nothing stashed', () => {
-    useTasStore.getState().restoreOvertimeOverrides('E1');
-    expect(useTasStore.getState().overtimeOverrides).toEqual({});
-  });
-
-  it('resetTas clears stashedOvertimeOverrides', () => {
-    useTasStore.getState().setOvertimeOverride('E1', 'horasExtrasSimples', 5);
-    useTasStore.getState().stashOvertimeOverrides('E1');
-    useTasStore.getState().resetTas();
-    expect(useTasStore.getState().stashedOvertimeOverrides).toEqual({});
+    expect(useTasStore.getState().overtimeDecisions).toEqual({});
+    expect(useTasStore.getState().stashedOvertimeDecisions).toEqual({});
   });
 });
 
-// -----------------------------------------------------------------
-// nonWorkedDaysOverrides
-// -----------------------------------------------------------------
-
 describe('nonWorkedDaysOverrides', () => {
+  beforeEach(() => useTasStore.getState().setSelectedPeriod(Q1));
+  const days = () => useTasStore.getState().nonWorkedDaysOverrides['2026-3-1'];
+
   it('starts empty', () => {
     expect(useTasStore.getState().nonWorkedDaysOverrides).toEqual({});
   });
 
-  it('setNonWorkedDaysOverride stores value for employee', () => {
-    useTasStore.getState().setNonWorkedDaysOverride('E1', 3);
-    expect(useTasStore.getState().nonWorkedDaysOverrides).toEqual({ E1: 3 });
-  });
-
-  it('setNonWorkedDaysOverride overwrites previous value', () => {
+  it('sets, overwrites and removes one employee without touching others', () => {
     useTasStore.getState().setNonWorkedDaysOverride('E1', 3);
     useTasStore.getState().setNonWorkedDaysOverride('E1', 5);
-    expect(useTasStore.getState().nonWorkedDaysOverrides).toEqual({ E1: 5 });
-  });
-
-  it('setNonWorkedDaysOverride keeps other employees untouched', () => {
-    useTasStore.getState().setNonWorkedDaysOverride('E1', 2);
     useTasStore.getState().setNonWorkedDaysOverride('E2', 4);
-    expect(useTasStore.getState().nonWorkedDaysOverrides.E1).toBe(2);
-    expect(useTasStore.getState().nonWorkedDaysOverrides.E2).toBe(4);
-  });
-
-  it('removeNonWorkedDaysOverride deletes the key for that employee', () => {
-    useTasStore.getState().setNonWorkedDaysOverride('E1', 3);
-    useTasStore.getState().setNonWorkedDaysOverride('E2', 5);
+    expect(days()).toEqual({ E1: 5, E2: 4 });
     useTasStore.getState().removeNonWorkedDaysOverride('E1');
-    expect(useTasStore.getState().nonWorkedDaysOverrides).toEqual({ E2: 5 });
-  });
-
-  it('removeNonWorkedDaysOverride is a no-op for a key that does not exist', () => {
-    useTasStore.getState().setNonWorkedDaysOverride('E1', 3);
     useTasStore.getState().removeNonWorkedDaysOverride('E99');
-    expect(useTasStore.getState().nonWorkedDaysOverrides).toEqual({ E1: 3 });
+    expect(days()).toEqual({ E2: 4 });
   });
 
-  it('clearNonWorkedDaysOverrides resets to empty', () => {
-    useTasStore.getState().setNonWorkedDaysOverride('E1', 2);
-    useTasStore.getState().clearNonWorkedDaysOverrides();
-    expect(useTasStore.getState().nonWorkedDaysOverrides).toEqual({});
+  it('keeps the review under "none" before a fortnight is chosen', () => {
+    useTasStore.getState().setSelectedPeriod(null);
+    useTasStore.getState().setNonWorkedDaysOverride('E1', 1);
+    expect(useTasStore.getState().nonWorkedDaysOverrides).toEqual({ none: { E1: 1 } });
   });
 
-  it('resetTas clears nonWorkedDaysOverrides', () => {
+  it('stashes and restores, and does nothing without a value', () => {
+    useTasStore.getState().stashNonWorkedDaysOverride('E1');
+    useTasStore.getState().restoreNonWorkedDaysOverride('E1');
+    expect(useTasStore.getState().stashedNonWorkedDaysOverrides).toEqual({});
+    useTasStore.getState().setNonWorkedDaysOverride('E1', 3);
+    useTasStore.getState().stashNonWorkedDaysOverride('E1');
+    expect(days().E1).toBeUndefined();
+    expect(useTasStore.getState().stashedNonWorkedDaysOverrides['2026-3-1'].E1).toBe(3);
+    useTasStore.getState().restoreNonWorkedDaysOverride('E1');
+    expect(days().E1).toBe(3);
+    expect(useTasStore.getState().stashedNonWorkedDaysOverrides['2026-3-1'].E1).toBeUndefined();
+  });
+
+  it('resetTas clears them', () => {
     useTasStore.getState().setNonWorkedDaysOverride('E1', 2);
     useTasStore.getState().resetTas();
-    expect(useTasStore.getState().nonWorkedDaysOverrides).toEqual({});
-  });
-
-  it('stashNonWorkedDaysOverride moves value to stash and removes from active', () => {
-    useTasStore.getState().setNonWorkedDaysOverride('E1', 3);
-    useTasStore.getState().stashNonWorkedDaysOverride('E1');
-    expect(useTasStore.getState().nonWorkedDaysOverrides['E1']).toBeUndefined();
-    expect(useTasStore.getState().stashedNonWorkedDaysOverrides['E1']).toBe(3);
-  });
-
-  it('stashNonWorkedDaysOverride is a no-op when no override exists', () => {
-    useTasStore.getState().stashNonWorkedDaysOverride('E1');
-    expect(useTasStore.getState().stashedNonWorkedDaysOverrides).toEqual({});
-  });
-
-  it('restoreNonWorkedDaysOverride moves value back to active', () => {
-    useTasStore.getState().setNonWorkedDaysOverride('E1', 3);
-    useTasStore.getState().stashNonWorkedDaysOverride('E1');
-    useTasStore.getState().restoreNonWorkedDaysOverride('E1');
-    expect(useTasStore.getState().nonWorkedDaysOverrides['E1']).toBe(3);
-    expect(useTasStore.getState().stashedNonWorkedDaysOverrides['E1']).toBeUndefined();
-  });
-
-  it('restoreNonWorkedDaysOverride is a no-op when nothing is stashed', () => {
-    useTasStore.getState().restoreNonWorkedDaysOverride('E1');
     expect(useTasStore.getState().nonWorkedDaysOverrides).toEqual({});
   });
 });

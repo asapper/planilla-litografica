@@ -1646,6 +1646,68 @@ class TasControllerTest {
     }
 
     @Test
+    void submit_sendsOnlyTheOvertimeTheClientApproved() throws Exception {
+        TasUploadResult result = emptyResult();
+        result.setResolvedRows(List.of(overtimeRow("100", 8, 2), overtimeRow("200", 4, 1), overtimeRow("300", 6, 0)));
+        when(parserService.parse(any())).thenReturn(emptyParseResult());
+        when(uploadService.processScans(any(), any(), any())).thenReturn(result);
+        MockMultipartFile file = new MockMultipartFile("file", "test.csv", "text/csv", "data".getBytes());
+        String token = (String) mapper.readValue(mvc.perform(multipart("/api/tas/upload").file(file))
+           .andExpect(status().isOk())
+           .andReturn().getResponse().getContentAsString(), Map.class).get("uploadToken");
+        when(jobService.createJob(any(), any())).thenReturn("job-approved");
+
+        Map<String, Object> overrides = Map.of(
+            "100", Map.of("horasExtrasSimples", 8, "horasExtrasDobles", 2),
+            "300", Map.of("horasExtrasSimples", 1.5, "horasExtrasDobles", 0),
+            "999", Map.of("horasExtrasSimples", 40));
+        mvc.perform(post("/api/tas/submit")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(Map.of("uploadToken", token, "overtimeOverrides", overrides))))
+           .andExpect(status().isAccepted());
+
+        var captor = org.mockito.ArgumentCaptor.forClass(List.class);
+        verify(jobService).createJob(captor.capture(), any());
+        @SuppressWarnings("unchecked")
+        List<EmployeeRow> submitted = captor.getValue();
+        assertThat(submitted).extracting(EmployeeRow::getCodigoEmpleado, EmployeeRow::getHorasExtrasSimples, EmployeeRow::getHorasExtrasDobles)
+            .containsExactly(
+                org.assertj.core.groups.Tuple.tuple("100", 8.0, 2.0),
+                org.assertj.core.groups.Tuple.tuple("200", 0.0, 0.0),
+                org.assertj.core.groups.Tuple.tuple("300", 1.5, 0.0));
+    }
+
+    @Test
+    void submit_rejectsAnInvalidValueEvenForAnUnknownEmployee() throws Exception {
+        TasUploadResult result = emptyResult();
+        result.setResolvedRows(List.of(overtimeRow("100", 8, 2)));
+        when(parserService.parse(any())).thenReturn(emptyParseResult());
+        when(uploadService.processScans(any(), any(), any())).thenReturn(result);
+        MockMultipartFile file = new MockMultipartFile("file", "test.csv", "text/csv", "data".getBytes());
+        String token = (String) mapper.readValue(mvc.perform(multipart("/api/tas/upload").file(file))
+           .andExpect(status().isOk())
+           .andReturn().getResponse().getContentAsString(), Map.class).get("uploadToken");
+
+        mvc.perform(post("/api/tas/submit")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(Map.of("uploadToken", token, "overtimeOverrides", Map.of("999", "nope")))))
+           .andExpect(status().isBadRequest())
+           .andExpect(jsonPath("$.code").value("INVALID_OVERRIDE"));
+    }
+
+    private static EmployeeRow overtimeRow(String code, double simples, double dobles) {
+        EmployeeRow row = new EmployeeRow();
+        row.setCodigoEmpleado(code);
+        row.setNombreEmpleado("Emp " + code);
+        row.setHorasExtrasSimples(simples);
+        row.setHorasExtrasDobles(dobles);
+        row.setMes(3);
+        row.setAnio(2026);
+        row.setNumeroDequincena(1);
+        return row;
+    }
+
+    @Test
     void submit_withNegativeOverride_returns400() throws Exception {
         EmployeeRow row = new EmployeeRow();
         row.setCodigoEmpleado("100");
@@ -1680,7 +1742,7 @@ class TasControllerTest {
     }
 
     @Test
-    void submit_withEmptyOverrides_passesRowsUnchanged() throws Exception {
+    void submit_withEmptyOverrides_sendsUnapprovedOvertimeAsZero() throws Exception {
         EmployeeRow row = new EmployeeRow();
         row.setCodigoEmpleado("100");
         row.setNombreEmpleado("Test");
@@ -1716,12 +1778,12 @@ class TasControllerTest {
         var captor = org.mockito.ArgumentCaptor.forClass(List.class);
         verify(jobService).createJob(captor.capture(), any());
         List<EmployeeRow> submitted = captor.getValue();
-        assertThat(submitted.get(0).getHorasExtrasSimples()).isEqualTo(8);
-        assertThat(submitted.get(0).getHorasExtrasDobles()).isEqualTo(2);
+        assertThat(submitted.get(0).getHorasExtrasSimples()).isEqualTo(0);
+        assertThat(submitted.get(0).getHorasExtrasDobles()).isEqualTo(0);
     }
 
     @Test
-    void submit_withPartialOverride_onlyOverridesSpecifiedField() throws Exception {
+    void submit_withPartialOverride_sendsTheMissingFieldAsZero() throws Exception {
         EmployeeRow row = new EmployeeRow();
         row.setCodigoEmpleado("100");
         row.setNombreEmpleado("Test");
@@ -1759,7 +1821,7 @@ class TasControllerTest {
         verify(jobService).createJob(captor.capture(), any());
         List<EmployeeRow> submitted = captor.getValue();
         assertThat(submitted.get(0).getHorasExtrasSimples()).isEqualTo(20);
-        assertThat(submitted.get(0).getHorasExtrasDobles()).isEqualTo(2);
+        assertThat(submitted.get(0).getHorasExtrasDobles()).isEqualTo(0);
     }
 
     // ── INT-3 regression: second submit must not see mutated stored rows ──────

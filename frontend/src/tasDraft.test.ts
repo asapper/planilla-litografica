@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { periodKey } from './overtime';
 import { AxiosError, AxiosHeaders } from 'axios';
 import { useTasStore } from './tasStore';
 import { useToastStore } from './toastStore';
@@ -39,6 +40,7 @@ const session: TasSession = {
 
 const periodA = { anio: 2026, mes: 10, numeroDequincena: 1 };
 const periodB = { anio: 2026, mes: 10, numeroDequincena: 2 };
+const B = periodKey(periodB);
 
 function populate() {
   useTasStore.setState({
@@ -52,10 +54,10 @@ function populate() {
     availablePeriods: [periodA, periodB],
     selectedPeriod: periodB,
     inactiveDecisions: { '9': 'reactivate' },
-    overtimeOverrides: { '1': { horasExtrasSimples: 2 } },
-    stashedOvertimeOverrides: { '2': { horasExtrasDobles: 1 } },
-    nonWorkedDaysOverrides: { '1': 1 },
-    stashedNonWorkedDaysOverrides: { '3': 2 },
+    overtimeDecisions: { [B]: { '1': { kind: 'adjusted', simples: 2, dobles: 0, calcSimples: 2, calcDobles: 0 } } },
+    stashedOvertimeDecisions: { [B]: { '2': { kind: 'approved', simples: 0, dobles: 1, calcSimples: 0, calcDobles: 1 } } },
+    nonWorkedDaysOverrides: { [B]: { '1': 1 } },
+    stashedNonWorkedDaysOverrides: { [B]: { '3': 2 } },
     fallbackBannerDismissed: true,
     warnings: ['w'],
     usedFallbackHolidays: true,
@@ -107,10 +109,10 @@ describe('toSnapshot / applySnapshot', () => {
     expect(s.shiftAcceptances[8]).toBe('tarde');
     expect(s.sameDayDoubleResolutions).toEqual({ '1|2026-10-04': 'all' });
     expect(s.inactiveDecisions).toEqual({ '9': 'reactivate' });
-    expect(s.overtimeOverrides).toEqual({ '1': { horasExtrasSimples: 2 } });
-    expect(s.stashedOvertimeOverrides).toEqual({ '2': { horasExtrasDobles: 1 } });
-    expect(s.nonWorkedDaysOverrides).toEqual({ '1': 1 });
-    expect(s.stashedNonWorkedDaysOverrides).toEqual({ '3': 2 });
+    expect(s.overtimeDecisions[B]['1'].simples).toBe(2);
+    expect(s.stashedOvertimeDecisions[B]['2'].kind).toBe('approved');
+    expect(s.nonWorkedDaysOverrides).toEqual({ [B]: { '1': 1 } });
+    expect(s.stashedNonWorkedDaysOverrides).toEqual({ [B]: { '3': 2 } });
     expect(s.fallbackBannerDismissed).toBe(true);
     expect(s.warnings).toEqual(['w']);
     expect(s.usedFallbackHolidays).toBe(true);
@@ -179,7 +181,7 @@ describe('autosave', () => {
   it('debounces a burst of changes into one save with the latest state', async () => {
     stop = startDraftAutosave(() => 'oct.csv');
     populate();
-    useTasStore.getState().setOvertimeOverride('1', 'horasExtrasDobles', 3);
+    useTasStore.getState().setNonWorkedDaysOverride('1', 3);
     vi.advanceTimersByTime(DRAFT_SAVE_DEBOUNCE_MS - 1);
     expect(mockSaveDraft).not.toHaveBeenCalled();
 
@@ -195,7 +197,8 @@ describe('autosave', () => {
       view: 'verification',
       periodLabel: 'Octubre 2026 - Quincena 2',
     });
-    expect(body.ui.overtimeOverrides).toEqual({ '1': { horasExtrasSimples: 2, horasExtrasDobles: 3 } });
+    expect(body.ui.nonWorkedDaysOverrides).toEqual({ [B]: { '1': 3 } });
+    expect(body.ui.overtimeDecisions[B]['1'].kind).toBe('adjusted');
     expect(body.ui.stateRevision).toBe(4);
     expect(body.ui).not.toHaveProperty('jobId');
     expect(body.ui.uiVersion).toBe(DRAFT_UI_VERSION);
@@ -205,7 +208,7 @@ describe('autosave', () => {
     stop = startDraftAutosave(() => 'oct.csv');
     populate();
     for (let i = 0; i * (DRAFT_SAVE_DEBOUNCE_MS - 100) < DRAFT_SAVE_MAX_WAIT_MS; i++) {
-      useTasStore.getState().setOvertimeOverride('1', 'horasExtrasDobles', i);
+      useTasStore.getState().setNonWorkedDaysOverride('1', i);
       await vi.advanceTimersByTimeAsync(DRAFT_SAVE_DEBOUNCE_MS - 100);
     }
     expect(mockSaveDraft).toHaveBeenCalled();
@@ -214,10 +217,10 @@ describe('autosave', () => {
   it('saves a pending change right away when the page is hidden', async () => {
     stop = startDraftAutosave(() => 'oct.csv');
     populate();
-    useTasStore.getState().setOvertimeOverride('1', 'horasExtrasDobles', 7);
+    useTasStore.getState().setNonWorkedDaysOverride('1', 7);
     window.dispatchEvent(new Event('pagehide'));
     expect(mockSaveDraft).toHaveBeenCalledTimes(1);
-    expect(mockSaveDraft.mock.calls[0][0].ui.overtimeOverrides['1'].horasExtrasDobles).toBe(7);
+    expect(mockSaveDraft.mock.calls[0][0].ui.nonWorkedDaysOverrides[B]['1']).toBe(7);
   });
 
   it('on pagehide sends the latest state even while an earlier save is in flight', async () => {
@@ -228,11 +231,11 @@ describe('autosave', () => {
     await vi.advanceTimersByTimeAsync(DRAFT_SAVE_DEBOUNCE_MS);
     expect(mockSaveDraft).toHaveBeenCalledTimes(1);
 
-    useTasStore.getState().setOvertimeOverride('1', 'horasExtrasDobles', 9);
+    useTasStore.getState().setNonWorkedDaysOverride('1', 9);
     window.dispatchEvent(new Event('pagehide'));
 
     expect(mockSaveDraft).toHaveBeenCalledTimes(2);
-    expect(mockSaveDraft.mock.calls[1][0].ui.overtimeOverrides['1'].horasExtrasDobles).toBe(9);
+    expect(mockSaveDraft.mock.calls[1][0].ui.nonWorkedDaysOverrides[B]['1']).toBe(9);
     release();
     await vi.runAllTimersAsync();
     expect(mockSaveDraft).toHaveBeenCalledTimes(2);
@@ -244,7 +247,7 @@ describe('autosave', () => {
     stop = startDraftAutosave(() => 'oct.csv');
     populate();
     const discarding = discardDraftSession();
-    useTasStore.setState({ tasView: 'review', uploadToken: 'tok', overtimeOverrides: { '2': { horasExtrasSimples: 1 } } });
+    useTasStore.setState({ tasView: 'review', uploadToken: 'tok', nonWorkedDaysOverrides: { [B]: { '2': 1 } } });
     window.dispatchEvent(new Event('pagehide'));
     expect(mockSaveDraft).not.toHaveBeenCalled();
     release();
@@ -307,7 +310,7 @@ describe('autosave', () => {
     const body = mockSaveDraft.mock.calls[0][0];
     expect(body.view).toBe('review');
     expect(body.ui.tasView).toBe('review');
-    expect(body.ui.nonWorkedDaysOverrides).toEqual({ '1': 3 });
+    expect(body.ui.nonWorkedDaysOverrides.none).toEqual({ '1': 3 });
     await vi.runAllTimersAsync();
     expect(mockSaveDraft).toHaveBeenCalledTimes(1);
   });
@@ -398,7 +401,7 @@ describe('autosave', () => {
     useTasStore.getState().setNonWorkedDaysOverride('1', 2);
     await vi.advanceTimersByTimeAsync(DRAFT_SAVE_DEBOUNCE_MS);
     expect(mockSaveDraft).toHaveBeenCalledTimes(2);
-    expect(mockSaveDraft.mock.calls[1][0].ui.nonWorkedDaysOverrides).toEqual({ '1': 2 });
+    expect(mockSaveDraft.mock.calls[1][0].ui.nonWorkedDaysOverrides.none).toEqual({ '1': 2 });
     expect(toasts().map(([v]) => v)).toEqual(['warning', 'success']);
 
     await vi.advanceTimersByTimeAsync(10 * DRAFT_SAVE_RETRY_MS);
@@ -438,7 +441,7 @@ describe('autosave', () => {
     expect(mockSaveDraft).toHaveBeenCalledTimes(3);
     for (const [body] of mockSaveDraft.mock.calls) {
       expect(body.view).toBe('review');
-      expect(body.ui.nonWorkedDaysOverrides).toEqual({ '1': 3 });
+      expect(body.ui.nonWorkedDaysOverrides.none).toEqual({ '1': 3 });
     }
     expect(toasts().map(([v]) => v)).toEqual(['warning', 'success']);
     await vi.advanceTimersByTimeAsync(10 * DRAFT_SAVE_RETRY_MS);
@@ -539,7 +542,7 @@ describe('autosave', () => {
     resolveFirst();
     await vi.runAllTimersAsync();
     expect(mockSaveDraft).toHaveBeenCalledTimes(2);
-    expect(mockSaveDraft.mock.calls[1][0].ui.nonWorkedDaysOverrides).toEqual({ '1': 4 });
+    expect(mockSaveDraft.mock.calls[1][0].ui.nonWorkedDaysOverrides.none).toEqual({ '1': 4 });
   });
 
   it('a flush to submitting while a save is in flight is sent after it with the review state', async () => {
@@ -556,7 +559,7 @@ describe('autosave', () => {
 
     expect(mockSaveDraft).toHaveBeenCalledTimes(2);
     expect(mockSaveDraft.mock.calls[1][0].view).toBe('review');
-    expect(mockSaveDraft.mock.calls[1][0].ui.nonWorkedDaysOverrides).toEqual({ '1': 5 });
+    expect(mockSaveDraft.mock.calls[1][0].ui.nonWorkedDaysOverrides.none).toEqual({ '1': 5 });
   });
 
   it('stops saving after the returned unsubscribe runs', async () => {
@@ -598,7 +601,7 @@ describe('saveDraftNow', () => {
     resolveFirst();
     await saving;
     expect(mockSaveDraft).toHaveBeenCalledTimes(2);
-    expect(mockSaveDraft.mock.calls[1][0].ui.nonWorkedDaysOverrides).toEqual({ '1': 7 });
+    expect(mockSaveDraft.mock.calls[1][0].ui.nonWorkedDaysOverrides.none).toEqual({ '1': 7 });
   });
 
   it('resolves without saving when nothing is pending', async () => {

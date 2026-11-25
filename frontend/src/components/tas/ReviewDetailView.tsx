@@ -3,6 +3,8 @@ import { useTasStore } from '../../tasStore';
 import { updateAccruesOvertime } from '../../configApi';
 import { recomputeTas } from '../../tasApi';
 import { useToastStore } from '../../toastStore';
+import { effectiveOvertime, inPeriod, needsReview, toHalfHours, type OvertimeField } from '../../overtime';
+import OvertimeStatus from './OvertimeStatus';
 import type { SessionSummary } from '../../tasTypes';
 
 function formatTime(iso: string | null): string {
@@ -33,15 +35,17 @@ export default function ReviewDetailView({ onBack }: ReviewDetailViewProps) {
   const sessionSummaries = useTasStore(s => s.sessionSummaries);
   const selectedEmployee = useTasStore(s => s.reviewSelectedEmployee);
   const setSelectedEmployee = useTasStore(s => s.setReviewSelectedEmployee);
-  const overtimeOverrides = useTasStore(s => s.overtimeOverrides);
-  const setOvertimeOverride = useTasStore(s => s.setOvertimeOverride);
-  const nonWorkedDaysOverrides = useTasStore(s => s.nonWorkedDaysOverrides);
+  const overtimeDecisions = useTasStore(s => inPeriod(s.overtimeDecisions, s.selectedPeriod));
+  const setOvertimeField = useTasStore(s => s.setOvertimeField);
+  const approveOvertime = useTasStore(s => s.approveOvertime);
+  const clearOvertimeDecision = useTasStore(s => s.clearOvertimeDecision);
+  const nonWorkedDaysOverrides = useTasStore(s => inPeriod(s.nonWorkedDaysOverrides, s.selectedPeriod));
   const setNonWorkedDaysOverride = useTasStore(s => s.setNonWorkedDaysOverride);
   const removeNonWorkedDaysOverride = useTasStore(s => s.removeNonWorkedDaysOverride);
   const stashNonWorkedDaysOverride = useTasStore(s => s.stashNonWorkedDaysOverride);
   const restoreNonWorkedDaysOverride = useTasStore(s => s.restoreNonWorkedDaysOverride);
-  const stashOvertimeOverrides = useTasStore(s => s.stashOvertimeOverrides);
-  const restoreOvertimeOverrides = useTasStore(s => s.restoreOvertimeOverrides);
+  const stashOvertimeDecision = useTasStore(s => s.stashOvertimeDecision);
+  const restoreOvertimeDecision = useTasStore(s => s.restoreOvertimeDecision);
   const expandedScans = useTasStore(s => s.reviewExpandedScans);
   const toggleScanExpanded = useTasStore(s => s.toggleReviewScanExpanded);
   const setAllScansExpanded = useTasStore(s => s.setAllScansExpanded);
@@ -85,11 +89,7 @@ export default function ReviewDetailView({ onBack }: ReviewDetailViewProps) {
     }
   };
 
-  const handleOvertimeChange = (field: 'horasExtrasSimples' | 'horasExtrasDobles', raw: string) => {
-    const parsed = parseFloat(raw);
-    const value = Number.isNaN(parsed) || parsed < 0 ? 0 : Math.round(parsed * 2) / 2;
-    setOvertimeOverride(row.codigoEmpleado, field, value);
-  };
+  const handleOvertimeChange = (field: OvertimeField, raw: string) => setOvertimeField(row, field, toHalfHours(raw));
 
   const handleAccruesOvertimeToggle = async () => {
     if (!uploadToken) return;
@@ -108,10 +108,10 @@ export default function ReviewDetailView({ onBack }: ReviewDetailViewProps) {
         setSessionSummaries(result.sessionSummaries);
         setStateRevision(result.stateRevision);
         if (newAccruesOvertime) {
-          restoreOvertimeOverrides(row.codigoEmpleado);
+          restoreOvertimeDecision(row.codigoEmpleado);
           restoreNonWorkedDaysOverride(row.codigoEmpleado);
         } else {
-          stashOvertimeOverrides(row.codigoEmpleado);
+          stashOvertimeDecision(row.codigoEmpleado);
           stashNonWorkedDaysOverride(row.codigoEmpleado);
         }
       } catch {
@@ -122,9 +122,10 @@ export default function ReviewDetailView({ onBack }: ReviewDetailViewProps) {
     }
   };
 
-  const override = overtimeOverrides[row.codigoEmpleado];
-  const simplesValue = override?.horasExtrasSimples ?? row.horasExtrasSimples;
-  const doblesValue = override?.horasExtrasDobles ?? row.horasExtrasDobles;
+  const overtime = effectiveOvertime(row, overtimeDecisions[row.codigoEmpleado]);
+  const overtimeTone = overtime.status === 'adjusted'
+    ? 'bg-warning-container/40 border-warning font-medium'
+    : needsReview(overtime) ? 'bg-surface-container-lowest border-warning' : 'bg-surface-container-lowest border-outline-variant';
   const nonWorkedDaysOverride = nonWorkedDaysOverrides[row.codigoEmpleado];
   const nonWorkedDaysValue = nonWorkedDaysOverride ?? row.diasNoLaborados;
 
@@ -317,6 +318,7 @@ export default function ReviewDetailView({ onBack }: ReviewDetailViewProps) {
                     step="1"
                     value={nonWorkedDaysValue}
                     onChange={e => handleNonWorkedDaysChange(e.target.value)}
+                    onWheel={e => e.currentTarget.blur()}
                     className={`w-full text-right text-body-md border rounded-shape-sm px-3 py-1.5 focus:outline-none focus:border-primary transition-colors ${
                       nonWorkedDaysOverride !== undefined
                         ? 'bg-warning-container/40 border-warning font-medium'
@@ -333,14 +335,12 @@ export default function ReviewDetailView({ onBack }: ReviewDetailViewProps) {
                     type="number"
                     min="0"
                     step="0.5"
-                    value={simplesValue}
-                    onChange={e => handleOvertimeChange('horasExtrasSimples', e.target.value)}
+                    value={overtime.simples}
+                    onChange={e => handleOvertimeChange('simples', e.target.value)}
+                    onWheel={e => e.currentTarget.blur()}
                     disabled={!row.accruesOvertime}
-                    className={`w-full text-right text-body-md border rounded-shape-sm px-3 py-1.5 focus:outline-none focus:border-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
-                      override?.horasExtrasSimples !== undefined
-                        ? 'bg-warning-container/40 border-warning font-medium'
-                        : 'bg-surface-container-lowest border-outline-variant'
-                    }`}
+                    aria-label="Extras simples"
+                    className={`w-full text-right text-body-md border rounded-shape-sm px-3 py-1.5 focus:outline-none focus:border-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${overtimeTone}`}
                   />
                 </div>
                 <div>
@@ -352,16 +352,28 @@ export default function ReviewDetailView({ onBack }: ReviewDetailViewProps) {
                     type="number"
                     min="0"
                     step="0.5"
-                    value={doblesValue}
-                    onChange={e => handleOvertimeChange('horasExtrasDobles', e.target.value)}
+                    value={overtime.dobles}
+                    onChange={e => handleOvertimeChange('dobles', e.target.value)}
+                    onWheel={e => e.currentTarget.blur()}
                     disabled={!row.accruesOvertime}
-                    className={`w-full text-right text-body-md border rounded-shape-sm px-3 py-1.5 focus:outline-none focus:border-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
-                      override?.horasExtrasDobles !== undefined
-                        ? 'bg-warning-container/40 border-warning font-medium'
-                        : 'bg-surface-container-lowest border-outline-variant'
-                    }`}
+                    aria-label="Extras dobles"
+                    className={`w-full text-right text-body-md border rounded-shape-sm px-3 py-1.5 focus:outline-none focus:border-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${overtimeTone}`}
                   />
                 </div>
+                {overtime.status !== 'none' && (
+                  <div>
+                    {needsReview(overtime) && overtime.status !== 'adjusted' && (
+                      <p className="text-label-sm text-on-surface-variant mb-1">Sin aprobar: se envían en 0.</p>
+                    )}
+                    <OvertimeStatus
+                      row={row}
+                      overtime={overtime}
+                      onApprove={approveOvertime}
+                      onUndo={clearOvertimeDecision}
+                      onKeep={() => setOvertimeField(row, 'simples', overtime.simples)}
+                    />
+                  </div>
+                )}
               </div>
             </div>
 

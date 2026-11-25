@@ -3,6 +3,11 @@ import { tasInitialState, useTasStore, type CardInput, type ResolvedSessionEntry
 import type { DoubleChoice, InactiveDecision, TasPeriod, TasSession, TasUploadResult, TasView } from './tasTypes';
 import { dayKey, dayKeysOf, localCopyFile, rebaseLocalCopy, type LocalCopy } from './localCopy';
 import { localSnapshotOf } from './tasDraft';
+import { DRAFT_UI_VERSION } from './draftVersion';
+
+const REVIEW_DECISION_KEYS = ['overtimeDecisions', 'stashedOvertimeDecisions', 'nonWorkedDaysOverrides', 'stashedNonWorkedDaysOverrides'] as const;
+// Where 1.5.0 and earlier kept overtime edits, so a copy they saved is reported, not silently emptied.
+const EARLIER_REVIEW_DECISION_KEYS = ['overtimeOverrides', 'stashedOvertimeOverrides'] as const;
 
 export interface Recovery {
   view: TasView;
@@ -10,6 +15,8 @@ export interface Recovery {
   dropped: number;
   // The saved session had reached "Revisar": the user presses it again to see the totals.
   wasInReview: boolean;
+  // Overtime and días adjustments saved by another version of the app, which could not be carried over.
+  reviewDecisionsDropped: boolean;
 }
 
 function record(value: unknown): Record<string, unknown> {
@@ -73,6 +80,13 @@ export async function rebuildFromLocalCopy(copy: LocalCopy): Promise<Recovery> {
     else lost.add(`double ${groupKey}`);
   }
 
+  // Review decisions from another version have another shape; they are dropped and counted, not guessed at.
+  const sameVersion = saved.uiVersion === DRAFT_UI_VERSION;
+  const reviewDecisionsDropped = !sameVersion
+    && [...REVIEW_DECISION_KEYS, ...EARLIER_REVIEW_DECISION_KEYS].some(name => Object.keys(record(saved[name])).length > 0);
+  const reviewDecisions = Object.fromEntries(REVIEW_DECISION_KEYS.map(name =>
+    [name, sameVersion ? record(saved[name]) : {}])) as Pick<typeof tasInitialState, (typeof REVIEW_DECISION_KEYS)[number]>;
+
   const periods = result.availablePeriods ?? [];
   const selectedPeriod = periods.find(p => samePeriod(p, saved.selectedPeriod)) ?? periods[0] ?? null;
   const inInactiveReview = result.inactiveEmployeesFound.length > 0;
@@ -99,14 +113,11 @@ export async function rebuildFromLocalCopy(copy: LocalCopy): Promise<Recovery> {
     cardInputs: remap<CardInput>(saved.cardInputs),
     shiftAcceptances: remap<string>(saved.shiftAcceptances),
     sameDayDoubleResolutions,
-    overtimeOverrides: record(saved.overtimeOverrides) as typeof tasInitialState.overtimeOverrides,
-    stashedOvertimeOverrides: record(saved.stashedOvertimeOverrides) as typeof tasInitialState.stashedOvertimeOverrides,
-    nonWorkedDaysOverrides: record(saved.nonWorkedDaysOverrides) as typeof tasInitialState.nonWorkedDaysOverrides,
-    stashedNonWorkedDaysOverrides: record(saved.stashedNonWorkedDaysOverrides) as typeof tasInitialState.stashedNonWorkedDaysOverrides,
+    ...reviewDecisions,
     fallbackBannerDismissed: saved.fallbackBannerDismissed === true,
   });
 
   const rebuilt = localSnapshotOf(useTasStore.getState());
   if (rebuilt) rebaseLocalCopy(rebuilt);
-  return { view, dropped: lost.size, wasInReview: savedView === 'review' };
+  return { view, dropped: lost.size, wasInReview: savedView === 'review', reviewDecisionsDropped };
 }

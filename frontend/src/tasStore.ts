@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { adjustedDecision, approvedDecision, periodKey, type ByPeriod, type OvertimeDecision, type OvertimeField } from './overtime';
 import type { TasView, TasSession, InactiveEmployee, InactiveDecision, AbsentEmployee, ResolvedRow, TasPeriod, ShiftOption, SessionSummary, DoubleChoice } from './tasTypes';
 
 export interface ResolvedSessionEntry {
@@ -15,6 +16,17 @@ export interface CardInput {
   entry: string;
   exit: string;
   swapped: boolean;
+}
+
+export type ReviewFilter = 'review' | 'all' | 'estimated' | 'duplicate' | 'adjusted';
+
+function withEntry<T>(byPeriod: ByPeriod<T>, key: string, code: string, value: T): ByPeriod<T> {
+  return { ...byPeriod, [key]: { ...byPeriod[key], [code]: value } };
+}
+
+function withoutEntry<T>(byPeriod: ByPeriod<T>, key: string, code: string): ByPeriod<T> {
+  const { [code]: _, ...rest } = byPeriod[key] ?? {};
+  return { ...byPeriod, [key]: rest };
 }
 
 export interface TasStore {
@@ -41,16 +53,16 @@ export interface TasStore {
   jobResult: { submitted: number; skipped: number; failed: number; attemptNumber: number; maxRetries: number } | null;
   error: string | null;
   sessionSummaries: Record<string, SessionSummary[]>;
-  overtimeOverrides: Record<string, { horasExtrasSimples?: number; horasExtrasDobles?: number }>;
-  stashedOvertimeOverrides: Record<string, { horasExtrasSimples?: number; horasExtrasDobles?: number }>;
-  nonWorkedDaysOverrides: Record<string, number>;
-  stashedNonWorkedDaysOverrides: Record<string, number>;
+  overtimeDecisions: ByPeriod<OvertimeDecision>;
+  stashedOvertimeDecisions: ByPeriod<OvertimeDecision>;
+  nonWorkedDaysOverrides: ByPeriod<number>;
+  stashedNonWorkedDaysOverrides: ByPeriod<number>;
   duplicateCodes: string[];
   duplicatesLoading: boolean;
   reviewSelectedEmployee: string | null;
   reviewSortColumn: 'name' | 'code';
   reviewSortDirection: 'asc' | 'desc';
-  reviewActiveFilter: 'all' | 'estimated' | 'duplicate' | 'adjusted';
+  reviewActiveFilter: ReviewFilter;
   reviewExpandedScans: Set<string>;
 
   setWarnings: (warnings: string[]) => void;
@@ -81,20 +93,20 @@ export interface TasStore {
   setJobResult: (result: { submitted: number; skipped: number; failed: number; attemptNumber: number; maxRetries: number } | null) => void;
   setError: (msg: string | null) => void;
   setSessionSummaries: (summaries: Record<string, SessionSummary[]>) => void;
-  setOvertimeOverride: (codigoEmpleado: string, field: 'horasExtrasSimples' | 'horasExtrasDobles', value: number) => void;
-  clearOvertimeOverrides: () => void;
+  setOvertimeField: (row: ResolvedRow, field: OvertimeField, value: number) => void;
+  approveOvertime: (row: ResolvedRow) => void;
+  clearOvertimeDecision: (codigoEmpleado: string) => void;
   setNonWorkedDaysOverride: (codigoEmpleado: string, value: number) => void;
   removeNonWorkedDaysOverride: (codigoEmpleado: string) => void;
-  clearNonWorkedDaysOverrides: () => void;
   stashNonWorkedDaysOverride: (codigoEmpleado: string) => void;
   restoreNonWorkedDaysOverride: (codigoEmpleado: string) => void;
-  stashOvertimeOverrides: (codigoEmpleado: string) => void;
-  restoreOvertimeOverrides: (codigoEmpleado: string) => void;
+  stashOvertimeDecision: (codigoEmpleado: string) => void;
+  restoreOvertimeDecision: (codigoEmpleado: string) => void;
   setDuplicateCodes: (codes: string[]) => void;
   setDuplicatesLoading: (loading: boolean) => void;
   setReviewSelectedEmployee: (code: string | null) => void;
   setReviewSort: (column: 'name' | 'code', direction: 'asc' | 'desc') => void;
-  setReviewActiveFilter: (filter: 'all' | 'estimated' | 'duplicate' | 'adjusted') => void;
+  setReviewActiveFilter: (filter: ReviewFilter) => void;
   toggleReviewScanExpanded: (dateKey: string) => void;
   setAllScansExpanded: (keys: string[]) => void;
   clearAllScansExpanded: () => void;
@@ -126,23 +138,26 @@ export const tasInitialState = {
   jobResult: null,
   error: null,
   sessionSummaries: {} as Record<string, SessionSummary[]>,
-  overtimeOverrides: {} as Record<string, { horasExtrasSimples?: number; horasExtrasDobles?: number }>,
-  stashedOvertimeOverrides: {} as Record<string, { horasExtrasSimples?: number; horasExtrasDobles?: number }>,
-  nonWorkedDaysOverrides: {} as Record<string, number>,
-  stashedNonWorkedDaysOverrides: {} as Record<string, number>,
+  overtimeDecisions: {} as ByPeriod<OvertimeDecision>,
+  stashedOvertimeDecisions: {} as ByPeriod<OvertimeDecision>,
+  nonWorkedDaysOverrides: {} as ByPeriod<number>,
+  stashedNonWorkedDaysOverrides: {} as ByPeriod<number>,
   duplicateCodes: [] as string[],
   duplicatesLoading: false,
   reviewSelectedEmployee: null,
   reviewSortColumn: 'name' as const,
   reviewSortDirection: 'asc' as const,
-  reviewActiveFilter: 'all' as const,
+  reviewActiveFilter: 'review' as ReviewFilter,
   reviewExpandedScans: new Set<string>(),
 };
 
 export const useTasStore = create<TasStore>(set => ({
   ...tasInitialState,
 
-  setTasView: (view) => set({ tasView: view }),
+  // Each time the review opens, it opens on what still needs a decision.
+  setTasView: (view) => set(s => (view === 'review' && s.tasView !== 'review'
+    ? { tasView: view, reviewActiveFilter: 'review' }
+    : { tasView: view })),
   setUploadToken: (token) => set({ uploadToken: token }),
   setStateRevision: (revision) => set({ stateRevision: revision }),
   setProcessingMessage: (msg) => set({ processingMessage: msg }),
@@ -193,55 +208,57 @@ export const useTasStore = create<TasStore>(set => ({
   setJobResult: (result) => set({ jobResult: result }),
   setError: (msg) => set({ error: msg }),
   setSessionSummaries: (summaries) => set({ sessionSummaries: summaries }),
-  setOvertimeOverride: (codigoEmpleado, field, value) => set(s => ({
-    overtimeOverrides: {
-      ...s.overtimeOverrides,
-      [codigoEmpleado]: { ...s.overtimeOverrides[codigoEmpleado], [field]: value },
-    },
-  })),
-  clearOvertimeOverrides: () => set({ overtimeOverrides: {} }),
-  setNonWorkedDaysOverride: (codigoEmpleado, value) => set(s => ({
-    nonWorkedDaysOverrides: { ...s.nonWorkedDaysOverrides, [codigoEmpleado]: value },
-  })),
-  removeNonWorkedDaysOverride: (codigoEmpleado) => set(s => {
-    const { [codigoEmpleado]: _, ...rest } = s.nonWorkedDaysOverrides;
-    return { nonWorkedDaysOverrides: rest };
+  setOvertimeField: (row, field, value) => set(s => {
+    const key = periodKey(s.selectedPeriod);
+    const decision = adjustedDecision(row, s.overtimeDecisions[key]?.[row.codigoEmpleado], field, value);
+    return { overtimeDecisions: withEntry(s.overtimeDecisions, key, row.codigoEmpleado, decision) };
   }),
-  clearNonWorkedDaysOverrides: () => set({ nonWorkedDaysOverrides: {} }),
+  approveOvertime: (row) => set(s => ({
+    overtimeDecisions: withEntry(s.overtimeDecisions, periodKey(s.selectedPeriod), row.codigoEmpleado, approvedDecision(row)),
+  })),
+  clearOvertimeDecision: (codigoEmpleado) => set(s => ({
+    overtimeDecisions: withoutEntry(s.overtimeDecisions, periodKey(s.selectedPeriod), codigoEmpleado),
+  })),
+  setNonWorkedDaysOverride: (codigoEmpleado, value) => set(s => ({
+    nonWorkedDaysOverrides: withEntry(s.nonWorkedDaysOverrides, periodKey(s.selectedPeriod), codigoEmpleado, value),
+  })),
+  removeNonWorkedDaysOverride: (codigoEmpleado) => set(s => ({
+    nonWorkedDaysOverrides: withoutEntry(s.nonWorkedDaysOverrides, periodKey(s.selectedPeriod), codigoEmpleado),
+  })),
   stashNonWorkedDaysOverride: (codigoEmpleado) => set(s => {
-    const current = s.nonWorkedDaysOverrides[codigoEmpleado];
+    const key = periodKey(s.selectedPeriod);
+    const current = s.nonWorkedDaysOverrides[key]?.[codigoEmpleado];
     if (current === undefined) return s;
-    const { [codigoEmpleado]: _, ...rest } = s.nonWorkedDaysOverrides;
     return {
-      nonWorkedDaysOverrides: rest,
-      stashedNonWorkedDaysOverrides: { ...s.stashedNonWorkedDaysOverrides, [codigoEmpleado]: current },
+      nonWorkedDaysOverrides: withoutEntry(s.nonWorkedDaysOverrides, key, codigoEmpleado),
+      stashedNonWorkedDaysOverrides: withEntry(s.stashedNonWorkedDaysOverrides, key, codigoEmpleado, current),
     };
   }),
   restoreNonWorkedDaysOverride: (codigoEmpleado) => set(s => {
-    const stashed = s.stashedNonWorkedDaysOverrides[codigoEmpleado];
+    const key = periodKey(s.selectedPeriod);
+    const stashed = s.stashedNonWorkedDaysOverrides[key]?.[codigoEmpleado];
     if (stashed === undefined) return s;
-    const { [codigoEmpleado]: _, ...rest } = s.stashedNonWorkedDaysOverrides;
     return {
-      nonWorkedDaysOverrides: { ...s.nonWorkedDaysOverrides, [codigoEmpleado]: stashed },
-      stashedNonWorkedDaysOverrides: rest,
+      nonWorkedDaysOverrides: withEntry(s.nonWorkedDaysOverrides, key, codigoEmpleado, stashed),
+      stashedNonWorkedDaysOverrides: withoutEntry(s.stashedNonWorkedDaysOverrides, key, codigoEmpleado),
     };
   }),
-  stashOvertimeOverrides: (codigoEmpleado) => set(s => {
-    const current = s.overtimeOverrides[codigoEmpleado];
+  stashOvertimeDecision: (codigoEmpleado) => set(s => {
+    const key = periodKey(s.selectedPeriod);
+    const current = s.overtimeDecisions[key]?.[codigoEmpleado];
     if (!current) return s;
-    const { [codigoEmpleado]: _, ...rest } = s.overtimeOverrides;
     return {
-      overtimeOverrides: rest,
-      stashedOvertimeOverrides: { ...s.stashedOvertimeOverrides, [codigoEmpleado]: current },
+      overtimeDecisions: withoutEntry(s.overtimeDecisions, key, codigoEmpleado),
+      stashedOvertimeDecisions: withEntry(s.stashedOvertimeDecisions, key, codigoEmpleado, current),
     };
   }),
-  restoreOvertimeOverrides: (codigoEmpleado) => set(s => {
-    const stashed = s.stashedOvertimeOverrides[codigoEmpleado];
+  restoreOvertimeDecision: (codigoEmpleado) => set(s => {
+    const key = periodKey(s.selectedPeriod);
+    const stashed = s.stashedOvertimeDecisions[key]?.[codigoEmpleado];
     if (!stashed) return s;
-    const { [codigoEmpleado]: _, ...rest } = s.stashedOvertimeOverrides;
     return {
-      overtimeOverrides: { ...s.overtimeOverrides, [codigoEmpleado]: stashed },
-      stashedOvertimeOverrides: rest,
+      overtimeDecisions: withEntry(s.overtimeDecisions, key, codigoEmpleado, stashed),
+      stashedOvertimeDecisions: withoutEntry(s.stashedOvertimeDecisions, key, codigoEmpleado),
     };
   }),
   setDuplicateCodes: (codes) => set({ duplicateCodes: codes }),

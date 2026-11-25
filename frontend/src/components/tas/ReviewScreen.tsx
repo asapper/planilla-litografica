@@ -12,14 +12,16 @@ import PrintDialog from './PrintDialog';
 import PrintReport from './PrintReport';
 import { buildReport, type PrintMode, type Report } from './reviewReport';
 import { incompleteConfirmText } from './coverageText';
+import PendingOvertimeDialog, { type PendingOvertimeItem } from './PendingOvertimeDialog';
+import { effectiveOvertime, inPeriod, needsReview } from '../../overtime';
 import type { IncompletePeriod } from '../../tasTypes';
 
 const COVERAGE_FAILED_MESSAGE = 'No se pudo verificar que el archivo cubra la quincena completa.';
 
 export default function ReviewScreen() {
   const uploadToken = useTasStore(s => s.uploadToken);
-  const overtimeOverrides = useTasStore(s => s.overtimeOverrides);
-  const nonWorkedDaysOverrides = useTasStore(s => s.nonWorkedDaysOverrides);
+  const overtimeDecisions = useTasStore(s => inPeriod(s.overtimeDecisions, s.selectedPeriod));
+  const nonWorkedDaysOverrides = useTasStore(s => inPeriod(s.nonWorkedDaysOverrides, s.selectedPeriod));
   const setTasView = useTasStore(s => s.setTasView);
   const setJobId = useTasStore(s => s.setJobId);
   const duplicateCodes = useTasStore(s => s.duplicateCodes);
@@ -39,6 +41,7 @@ export default function ReviewScreen() {
   const [dbHealthy, setDbHealthy] = useState<boolean | null>(null);
   const [coverage, setCoverage] = useState<IncompletePeriod[] | 'failed' | null>(null);
   const [confirmIncomplete, setConfirmIncomplete] = useState(false);
+  const [confirmPending, setConfirmPending] = useState(false);
   const [printDialogOpen, setPrintDialogOpen] = useState(false);
   const [printJob, setPrintJob] = useState<{ mode: PrintMode; generatedAt: Date; report: Report } | null>(null);
 
@@ -89,15 +92,19 @@ export default function ReviewScreen() {
     if (!uploadToken) return;
     try {
       setTasView('submitting');
-      const filteredOverrides: Record<string, { horasExtrasSimples?: number; horasExtrasDobles?: number }> = {};
-      for (const [code, val] of Object.entries(overtimeOverrides)) {
-        if (!duplicateSet.has(code)) filteredOverrides[code] = val;
+      // Every accruing row, duplicates included: the backend sends an unlisted row's overtime as zero, and
+      // it is the job, not this screen, that finally decides which rows are duplicates.
+      const overtime: Record<string, { horasExtrasSimples: number; horasExtrasDobles: number }> = {};
+      for (const row of resolvedRows) {
+        if (!row.accruesOvertime) continue;
+        const e = effectiveOvertime(row, overtimeDecisions[row.codigoEmpleado]);
+        overtime[row.codigoEmpleado] = { horasExtrasSimples: e.simples, horasExtrasDobles: e.dobles };
       }
       const filteredNonWorkedDaysOverrides: Record<string, number> = {};
       for (const [code, val] of Object.entries(nonWorkedDaysOverrides)) {
         if (!duplicateSet.has(code)) filteredNonWorkedDaysOverrides[code] = val;
       }
-      const { jobId } = await submitTas(uploadToken, filteredOverrides, filteredNonWorkedDaysOverrides);
+      const { jobId } = await submitTas(uploadToken, overtime, filteredNonWorkedDaysOverrides);
       setJobId(jobId);
       setTasView('polling');
     } catch (err) {
@@ -113,7 +120,7 @@ export default function ReviewScreen() {
   const coverageLoading = uploadToken !== null && coverage === null;
 
   const printableReport = printDialogOpen
-    ? buildReport({ rows: resolvedRows, sessionSummaries, overtimeOverrides, nonWorkedDaysOverrides, duplicateCodes, absentEmployees })
+    ? buildReport({ rows: resolvedRows, sessionSummaries, overtimeDecisions, nonWorkedDaysOverrides, duplicateCodes, absentEmployees })
     : null;
 
   // Printed from the click, not an effect: StrictMode re-runs effects and would open the dialog twice.
@@ -123,9 +130,32 @@ export default function ReviewScreen() {
     window.print();
   };
 
+  const unreviewed: PendingOvertimeItem[] = resolvedRows
+    .filter(r => !duplicateSet.has(r.codigoEmpleado))
+    .flatMap(r => {
+      const e = effectiveOvertime(r, overtimeDecisions[r.codigoEmpleado]);
+      if (!needsReview(e)) return [];
+      return [{
+        code: r.codigoEmpleado,
+        name: r.nombreEmpleado,
+        calcSimples: r.horasExtrasSimples,
+        calcDobles: r.horasExtrasDobles,
+        sendsSimples: e.simples,
+        sendsDobles: e.dobles,
+        changed: e.calcChanged,
+        sendsTyped: e.status === 'adjusted',
+      }];
+    })
+    .sort((a, b) => a.code.localeCompare(b.code, 'es', { numeric: true }));
+
+  const submitAfterCoverage = () => {
+    if (unreviewed.length > 0) setConfirmPending(true);
+    else handleSubmit();
+  };
+
   const requestSubmit = () => {
     if (coverage === 'failed' || incompletePeriods.length > 0) setConfirmIncomplete(true);
-    else handleSubmit();
+    else submitAfterCoverage();
   };
 
   return (
@@ -169,9 +199,16 @@ export default function ReviewScreen() {
             : incompleteConfirmText(incompletePeriods)}
           confirmLabel="Enviar de todas formas"
           cancelLabel="Cancelar"
-          onConfirm={() => { setConfirmIncomplete(false); handleSubmit(); }}
+          onConfirm={() => { setConfirmIncomplete(false); submitAfterCoverage(); }}
           onCancel={() => setConfirmIncomplete(false)}
           focusCancel
+        />
+      )}
+      {confirmPending && (
+        <PendingOvertimeDialog
+          items={unreviewed}
+          onSubmit={() => { setConfirmPending(false); handleSubmit(); }}
+          onCancel={() => setConfirmPending(false)}
         />
       )}
     </div>
