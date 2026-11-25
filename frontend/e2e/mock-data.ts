@@ -174,6 +174,7 @@ export const SESSION_SUMMARIES: Record<string, SessionSummary[]> = {
     { date: '2026-06-04', shiftName: 'Mañana', entryTime: '2026-06-04T06:00:00', exitTime: '2026-06-04T14:00:00', workedHours: 8, simplesMinutes: 0, doblesMinutes: 0, scans: ['2026-06-04T06:00:00', '2026-06-04T14:00:00'], estimatedShift: false },
     { date: '2026-06-05', shiftName: 'Mañana', entryTime: '2026-06-05T10:20:00', exitTime: '2026-06-05T18:30:00', workedHours: 8, simplesMinutes: 0, doblesMinutes: 0, scans: ['2026-06-05T10:20:00', '2026-06-05T18:30:00'], estimatedShift: true },
     { date: '2026-06-06', shiftName: 'Mañana', entryTime: '2026-06-06T06:00:00', exitTime: '2026-06-06T18:00:00', workedHours: 12, simplesMinutes: 120, doblesMinutes: 120, scans: ['2026-06-06T06:00:00', '2026-06-06T10:00:00', '2026-06-06T10:30:00', '2026-06-06T18:00:00'], estimatedShift: false },
+    { date: '2026-06-08', shiftName: 'Mañana', entryTime: '2026-06-08T06:58:00', exitTime: null, workedHours: 0, simplesMinutes: 0, doblesMinutes: 0, scans: ['2026-06-08T06:58:00'], estimatedShift: false, incomplete: true },
   ],
   'E002': [
     { date: '2026-06-02', shiftName: 'Mañana', entryTime: '2026-06-02T06:00:00', exitTime: '2026-06-02T14:00:00', workedHours: 8, simplesMinutes: 0, doblesMinutes: 0, scans: ['2026-06-02T06:00:00', '2026-06-02T14:00:00'], estimatedShift: false },
