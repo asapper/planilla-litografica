@@ -367,7 +367,7 @@ Las horas extra **solo se envían si usted las aprueba**. Las que nadie revisó 
 - **Aprobar:** presione **"Aprobar"** para enviar lo calculado. La fila muestra "✓ Aprobado".
 - **Ajustar:** escriba otro valor en Extras simples o Extras dobles para enviar ese valor. El otro campo se envía como se ve en pantalla. Para **rechazar** las horas extra de alguien, escriba **0**: queda como decisión tomada.
 - **Deshacer:** vuelve a dejar las horas extra de esa fila sin aprobar.
-- Las filas aprobadas o ajustadas no desaparecen mientras trabaja en ellas. Para ver solo lo que falta, presione de nuevo **"Por revisar"**.
+- Las filas aprobadas o ajustadas no desaparecen mientras trabaja en ellas. Para ver solo lo que falta, presione de nuevo **"Por revisar"**. Cuando la aplicación vuelve a calcular (por ejemplo, al cambiar el interruptor "Acumula extras"), la lista también se actualiza y las filas ya resueltas salen de ella.
 - Si después de aprobar el cálculo cambia (por ejemplo, porque corrigió una marcación o cambió el interruptor "Acumula extras"), la aprobación ya no vale: la fila vuelve a "Por revisar" con el aviso **"el cálculo cambió"** y se envía en 0 hasta que la apruebe de nuevo. Si había escrito un valor a mano, ese valor se mantiene; presione **"Mantener"** para confirmarlo.
 - Cada quincena guarda sus propias decisiones: cambiar de quincena no las mezcla ni las borra.
 
@@ -501,7 +501,7 @@ La barra inferior muestra cuántos registros se enviarán y cuántos serán excl
 
 > **Quincena incompleta:** si el archivo no cubre todos los días laborables de la quincena, al presionar "Enviar" aparecerá una confirmación. Presione **"Cancelar"** para volver a la revisión, o **"Enviar de todas formas"** solo si está seguro de que esos días no se trabajaron (ver [Aviso de quincena incompleta](#aviso-de-quincena-incompleta)).
 
-> **Horas extra sin revisar:** si quedan empleados con horas extra calculadas sin aprobar, al presionar "Enviar" (y después de la confirmación de quincena incompleta, si la hay) aparece la lista de esos empleados con lo calculado: se enviarán con **0 horas extra**. También aparecen los valores escritos a mano antes de que el cálculo cambiara. Presione **"Volver a revisar"** para aprobarlos o ajustarlos, o **"Enviar de todas formas"**. Para que esta lista solo muestre lo que nadie revisó, rechace las horas extra escribiendo 0 en vez de dejarlas sin aprobar.
+> **Horas extra sin revisar:** si quedan empleados con horas extra calculadas sin aprobar, al presionar "Enviar" (y después de la confirmación de quincena incompleta, si la hay) aparece la lista de esos empleados con lo calculado: se enviarán con **0 horas extra**. También aparecen los valores escritos a mano antes de que el cálculo cambiara, con lo que se enviará y lo calculado ahora. Presione **"Volver a revisar"** para aprobarlos o ajustarlos, o **"Enviar de todas formas"**. Para que esta lista solo muestre lo que nadie revisó, rechace las horas extra escribiendo 0 en vez de dejarlas sin aprobar.
 
 ![Aviso "Horas extra sin revisar" con la lista de empleados que se enviarán con 0 horas extra](screenshots/29-review-pending-overtime.png)
 

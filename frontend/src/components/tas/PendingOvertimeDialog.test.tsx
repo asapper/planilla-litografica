@@ -3,16 +3,18 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import PendingOvertimeDialog, { type PendingOvertimeItem } from './PendingOvertimeDialog';
 
 const item = (over: Partial<PendingOvertimeItem>): PendingOvertimeItem => ({
-  code: '1', name: 'Ana', calcSimples: 2, calcDobles: 0, changed: false, sendsTyped: false, ...over,
+  code: '1', name: 'Ana', calcSimples: 2, calcDobles: 0, sendsSimples: 0, sendsDobles: 0, changed: false, sendsTyped: false, ...over,
 });
 
 describe('PendingOvertimeDialog', () => {
   it('lists what goes as zero apart from hand values made before the calculation changed', () => {
     render(<PendingOvertimeDialog
-      items={[item({}), item({ code: '2', name: 'Bea', changed: true }), item({ code: '3', name: 'Cruz', changed: true, sendsTyped: true })]}
+      items={[item({}), item({ code: '2', name: 'Bea', changed: true }), item({ code: '3', name: 'Cruz', changed: true, sendsTyped: true, sendsSimples: 1.5 })]}
       onSubmit={vi.fn()} onCancel={vi.fn()} />);
     expect(screen.getByText('2 empleados se enviarán con 0 horas extra')).toBeInTheDocument();
     expect(screen.getByText('1 ajuste se enviará como se escribió, aunque el cálculo cambió')).toBeInTheDocument();
+    expect(screen.getByText('se envía 1.50 simples · 0.00 dobles · calc. ahora 2.00 simples · 0.00 dobles')).toBeInTheDocument();
+    expect(screen.getAllByText('calc. 2.00 simples · 0.00 dobles')).toHaveLength(2);
     expect(screen.getByText('Volver a revisar')).toHaveFocus();
   });
 

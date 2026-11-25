@@ -140,6 +140,8 @@ export default function ReviewScreen() {
         name: r.nombreEmpleado,
         calcSimples: r.horasExtrasSimples,
         calcDobles: r.horasExtrasDobles,
+        sendsSimples: e.simples,
+        sendsDobles: e.dobles,
         changed: e.calcChanged,
         sendsTyped: e.status === 'adjusted',
       }];

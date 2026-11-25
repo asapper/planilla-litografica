@@ -6,6 +6,8 @@ export interface PendingOvertimeItem {
   name: string;
   calcSimples: number;
   calcDobles: number;
+  sendsSimples: number;
+  sendsDobles: number;
   // Approved before the calculation changed (sent as zero), or adjusted before it changed (sent as typed).
   changed: boolean;
   sendsTyped: boolean;
@@ -17,7 +19,12 @@ interface PendingOvertimeDialogProps {
   onCancel: () => void;
 }
 
-const hours = (i: PendingOvertimeItem) => `${formatHours(i.calcSimples)} simples · ${formatHours(i.calcDobles)} dobles`;
+const pair = (simples: number, dobles: number) => `${formatHours(simples)} simples · ${formatHours(dobles)} dobles`;
+
+// A hand value goes as typed, so the clerk sees the figure being sent next to the new calculation.
+const hours = (i: PendingOvertimeItem) => i.sendsTyped
+  ? `se envía ${pair(i.sendsSimples, i.sendsDobles)} · calc. ahora ${pair(i.calcSimples, i.calcDobles)}`
+  : `calc. ${pair(i.calcSimples, i.calcDobles)}`;
 
 function Group({ title, items }: { title: string; items: PendingOvertimeItem[] }) {
   if (items.length === 0) return null;
@@ -28,7 +35,7 @@ function Group({ title, items }: { title: string; items: PendingOvertimeItem[] }
         {items.map(i => (
           <li key={i.code} className="flex justify-between gap-3 px-3 py-1.5 text-body-sm">
             <span className="text-on-surface truncate">{i.code} {i.name}{i.changed && <span className="text-on-surface-variant"> · el cálculo cambió</span>}</span>
-            <span className="text-on-surface-variant whitespace-nowrap">calc. {hours(i)}</span>
+            <span className="text-on-surface-variant whitespace-nowrap">{hours(i)}</span>
           </li>
         ))}
       </ul>

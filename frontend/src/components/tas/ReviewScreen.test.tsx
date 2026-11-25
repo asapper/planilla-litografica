@@ -195,6 +195,7 @@ describe('ReviewScreen submit', () => {
     expect(within(dialog).getByText('1 empleado se enviará con 0 horas extra')).toBeInTheDocument();
     expect(within(dialog).getByText('1 ajuste se enviará como se escribió, aunque el cálculo cambió')).toBeInTheDocument();
     expect(within(dialog).getAllByText('· el cálculo cambió')).toHaveLength(2);
+    expect(within(dialog).getByText('se envía 0.00 simples · 0.50 dobles · calc. ahora 0.00 simples · 3.00 dobles')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Enviar de todas formas' }));
     await waitFor(() => expect(mockSubmitTas).toHaveBeenCalledWith('tok-1', {
       E1: { horasExtrasSimples: 0, horasExtrasDobles: 0 }, E2: { horasExtrasSimples: 0, horasExtrasDobles: 0.5 },
