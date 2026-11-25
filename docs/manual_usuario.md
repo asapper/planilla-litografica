@@ -503,6 +503,8 @@ La barra inferior muestra cuántos registros se enviarán y cuántos serán excl
 
 > **Horas extra sin revisar:** si quedan empleados con horas extra calculadas sin aprobar, al presionar "Enviar" (y después de la confirmación de quincena incompleta, si la hay) aparece la lista de esos empleados con lo calculado: se enviarán con **0 horas extra**. También aparecen los valores escritos a mano antes de que el cálculo cambiara. Presione **"Volver a revisar"** para aprobarlos o ajustarlos, o **"Enviar de todas formas"**. Para que esta lista solo muestre lo que nadie revisó, rechace las horas extra escribiendo 0 en vez de dejarlas sin aprobar.
 
+![Aviso "Horas extra sin revisar" con la lista de empleados que se enviarán con 0 horas extra](screenshots/29-review-pending-overtime.png)
+
 ---
 
 ### Continuar una sesión sin terminar

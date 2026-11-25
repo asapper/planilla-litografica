@@ -263,6 +263,9 @@ test('08 - review list view', async ({ page }) => {
   await uploadFile(page);
   await page.waitForSelector('text=Revisión de registros procesados', { timeout: 10_000 });
   await page.waitForSelector('[aria-label^="Días no laborados"]', { timeout: 5_000 });
+  // One row approved and one adjusted by hand, so the picture shows each state of "Horas extra".
+  await page.getByRole('button', { name: 'Aprobar horas extra Hernández Ruiz, Carlos Alberto' }).click();
+  await page.getByLabel('Extras simples López Castillo, Pedro José').fill('2');
   await page.waitForTimeout(500);
   await screenshot(page, '08-review-list.png');
 });
@@ -307,6 +310,8 @@ test('10 - review list: duplicate row', async ({ page }) => {
   await waitForApp(page);
   await uploadFile(page);
   await page.waitForSelector('text=Revisión de registros procesados', { timeout: 10_000 });
+  // Duplicates are not sent, so they are not under "Por revisar".
+  await page.getByRole('button', { name: /^Todos/ }).click();
   await page.waitForSelector('text=Duplicado', { timeout: 5_000 });
   await screenshot(page, '10-review-duplicate.png');
 });
@@ -603,4 +608,23 @@ test('28 - review: quincena incompleta confirmation', async ({ page }) => {
   await page.locator('button:has-text("Enviar")').last().click();
   await page.waitForSelector('text=Enviar de todas formas');
   await screenshot(page, '28-review-incomplete-confirm.png');
+});
+
+test('29 - review: overtime nobody approved, before sending', async ({ page }) => {
+  await mockHealthEndpoints(page);
+  await mockCheckDuplicates(page);
+  await mockRecomputeTas(page);
+  await mockTasUpload(page, {
+    ...mock.UPLOAD_RESULT_WITH_FLAGS,
+    flaggedSessions: mock.ALL_FLAGGED_SESSIONS.map(s => ({ ...s, needsResolution: false })),
+    resolvedRows: mock.RESOLVED_ROWS,
+    availablePeriods: [{ anio: 2026, mes: 6, numeroDequincena: 1 }],
+  });
+  await waitForApp(page);
+  await uploadFile(page);
+  await page.waitForSelector('text=Revisión de registros procesados', { timeout: 10_000 });
+  await page.getByRole('button', { name: 'Aprobar horas extra García López, María Elena' }).click();
+  await page.getByRole('button', { name: /^Enviar$/ }).click();
+  await page.waitForSelector('text=Horas extra sin revisar');
+  await screenshot(page, '29-review-pending-overtime.png');
 });
