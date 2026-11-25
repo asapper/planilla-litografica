@@ -2,6 +2,7 @@ package com.planilla.backend.model.tas;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.List;
 
 public class TasSession {
@@ -38,13 +39,16 @@ public class TasSession {
 
     /**
      * A day with a single scan the clerk may leave as it is: the day counts as worked and adds no
-     * overtime, so a shift mismatch on it changes nothing. Not for a night worker (or, with no shift
-     * assigned, a scan matched to a night), whose lone scan may sit on the wrong date, nor for a
-     * night flagged at the file's edges.
+     * overtime, so a shift mismatch on it changes nothing. Not for a night worker's (or, with no shift
+     * assigned, a night-matched) morning scan: it may be the exit of the night before and sit on the
+     * wrong date. Their evening scan starts its own night and is dated right. Nor for a night flagged
+     * at the file's edges.
      */
     public boolean isIncomplete() {
         boolean night = assignedShiftCrossMidnight || (assignedShiftId == null && crossMidnight);
-        return needsResolution && scans != null && scans.size() == 1 && flags != null && !night
+        boolean mayEndThePreviousNight = night && scans != null && !scans.isEmpty()
+                && scans.get(0).toLocalTime().isBefore(LocalTime.NOON);
+        return needsResolution && scans != null && scans.size() == 1 && flags != null && !mayEndThePreviousNight
                 && (flags.contains(TasFlag.MISSING_ENTRY) || flags.contains(TasFlag.MISSING_EXIT))
                 && !flags.contains(TasFlag.START_CUTOFF) && !flags.contains(TasFlag.END_CUTOFF);
     }

@@ -30,6 +30,32 @@ class TasSessionIncompleteTest {
     }
 
     @Test
+    void aNightWorkersEveningScanStartsItsOwnNightSoItMayStayEmpty() {
+        TasSession entry = lone(TasFlag.SHIFT_MISMATCH, TasFlag.MISSING_EXIT);
+        entry.getScans().set(0, LocalDateTime.of(2026, 10, 8, 18, 5));
+        entry.setAssignedShiftCrossMidnight(true);
+        assertThat(entry.isIncomplete()).isTrue();
+        assertThat(TasSession.blocksSubmit(entry)).isFalse();
+
+        TasSession unassigned = lone(TasFlag.BEST_FIT_SHIFT, TasFlag.MISSING_EXIT);
+        unassigned.getScans().set(0, LocalDateTime.of(2026, 10, 2, 17, 2));
+        unassigned.setCrossMidnight(true);
+        assertThat(TasSession.blocksSubmit(unassigned)).isFalse();
+
+        TasSession noon = lone(TasFlag.MISSING_EXIT);
+        noon.getScans().set(0, LocalDateTime.of(2026, 10, 2, 12, 0));
+        noon.setAssignedShiftCrossMidnight(true);
+        assertThat(noon.isIncomplete()).isTrue();
+
+        for (LocalDateTime morning : List.of(LocalDateTime.of(2026, 10, 3, 0, 30), LocalDateTime.of(2026, 10, 3, 11, 59))) {
+            TasSession s = lone(TasFlag.MISSING_ENTRY);
+            s.getScans().set(0, morning);
+            s.setAssignedShiftCrossMidnight(true);
+            assertThat(TasSession.blocksSubmit(s)).as("%s", morning).isTrue();
+        }
+    }
+
+    @Test
     void aNightWorkersLoneScanMayBeOnTheWrongDateSoItStillBlocks() {
         TasSession s = lone(TasFlag.MISSING_EXIT);
         s.setAssignedShiftCrossMidnight(true);

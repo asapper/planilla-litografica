@@ -139,7 +139,7 @@ Al abrir la aplicación, verá la pantalla de inicio con dos opciones para carga
 
 ![Pantalla de inicio — Cargar archivo](screenshots/01-empty-state.png)
 
-Debajo del nombre de la aplicación, arriba a la izquierda, aparece la versión instalada (por ejemplo, **"Versión 1.6.1"**). Indíquela si reporta un problema.
+Debajo del nombre de la aplicación, arriba a la izquierda, aparece la versión instalada (por ejemplo, **"Versión 1.6.2"**). Indíquela si reporta un problema.
 
 #### Opción A: Seleccionar archivo con el botón
 
@@ -230,7 +230,7 @@ El sistema encontró una marcación de entrada pero no encontró la marcación d
 
 #### Marcaciones incompletas
 
-Un día con **una sola marcación** ("Falta entrada" o "Falta salida") de un empleado de turno de día **se puede dejar vacío**. En ese caso:
+Un día con **una sola marcación** ("Falta entrada" o "Falta salida") **se puede dejar vacío**, salvo los casos de la lista más abajo. En ese caso:
 
 - **El día cuenta como trabajado.** La marcación muestra que el empleado se presentó.
 - **Ese día no suma horas extra.** Sin la otra hora no hay forma de calcularlas.
@@ -248,7 +248,7 @@ En la revisión y en el reporte impreso, esos días aparecen marcados como **"in
 
 **Cuándo sí debe completar la hora** (la tarjeta sigue contando como **"por resolver"**):
 
-- **Empleados de turno de noche** (por asignación, o porque la aplicación detecta que trabajan de noche). Una sola marcación de noche puede quedar en la fecha equivocada (la salida de las 07:00 se confundiría con un día distinto), así que la aplicación pide la hora.
+- **Marcaciones de la mañana de empleados de turno de noche** (por asignación, o porque la aplicación detecta que trabajan de noche). Una marcación sola antes del mediodía puede ser la salida de la noche anterior y quedar en la fecha equivocada, así que la aplicación pide la hora. Una marcación sola de la tarde o de la noche (por ejemplo, una entrada a las 18:05) sí se puede dejar vacía.
 - **Días al borde del archivo** ("Corte de período").
 - **Marcaciones fuera de orden** u otros casos que la aplicación no puede interpretar.
 - **Una hora escrita a medias.** Termínela o bórrela; la aplicación no descarta lo que usted empezó a escribir.
@@ -808,7 +808,7 @@ No cierre la aplicación durante el envío. Si se cerró por accidente, vuelva a
 No. El avance se guarda automáticamente. Al volver a abrir la aplicación, pulse **Continuar** en la tarjeta "Sesión sin terminar" (ver [Continuar una sesión sin terminar](#continuar-una-sesión-sin-terminar)).
 
 **¿Tengo que completar cada día que tiene una sola marcación?**
-No, salvo en empleados de turno de noche y en días al borde del archivo. Un día de un empleado de día que deje vacío cuenta como trabajado y no suma horas extra. Complételo solo si ese día hubo horas extra que deban pagarse (ver [Marcaciones incompletas](#marcaciones-incompletas)).
+No, salvo las marcaciones de la mañana de empleados de turno de noche y los días al borde del archivo. Un día que deje vacío cuenta como trabajado y no suma horas extra. Complételo solo si ese día hubo horas extra que deban pagarse (ver [Marcaciones incompletas](#marcaciones-incompletas)).
 
 **¿Puedo editar las horas extras después de la verificación?**
 Sí. En la vista de lista y en la vista de detalle puede aprobar lo calculado o escribir otro valor. Los valores ajustados se distinguen: en la vista de lista con un borde azul y lo calculado entre paréntesis (por ejemplo, "calc. 3"); en la vista de detalle, en amarillo.
