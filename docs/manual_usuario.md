@@ -139,6 +139,8 @@ Al abrir la aplicación, verá la pantalla de inicio con dos opciones para carga
 
 ![Pantalla de inicio — Cargar archivo](screenshots/01-empty-state.png)
 
+Debajo del nombre de la aplicación, arriba a la izquierda, aparece la versión instalada (por ejemplo, **"Versión 1.5.0"**). Indíquela si reporta un problema.
+
 #### Opción A: Seleccionar archivo con el botón
 
 1. Haga clic en el botón **"Seleccionar archivo"**.
